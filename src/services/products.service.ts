@@ -1,6 +1,6 @@
+import { productsMock } from '@/data/products';
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
-import { http } from '@/services/api/http';
 import type {
   Product,
   ProductAttribute,
@@ -11,278 +11,205 @@ import type {
   RelatedProduct
 } from '@/modules/products/types';
 
-type BackendEnvelope<T> = {
-  success: boolean;
-  data: T;
+const database: Product[] = [...productsMock];
+
+const generateId = () => `p-${Math.floor(Math.random() * 9000) + 1000}`;
+
+const createSlug = (name: string) => name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+const applyFilters = (items: Product[], params: ProductListQuery): Product[] => {
+  let filtered = [...items];
+
+  if (params.search) {
+    const term = params.search.toLowerCase();
+    filtered = filtered.filter((item) =>
+      [item.name, item.slug, item.productNumbers.itemNumber].some((value) => value.toLowerCase().includes(term))
+    );
+  }
+
+  if (params.categoryId) {
+    filtered = filtered.filter((item) => item.categoryId === params.categoryId);
+  }
+
+  if (params.vendorId) {
+    filtered = filtered.filter((item) => item.vendorId === params.vendorId);
+  }
+
+  if (params.uncategorized) {
+    filtered = filtered.filter((item) => !item.categoryId);
+  }
+
+  return filtered;
 };
-
-type BackendPagination = {
-  page?: number;
-  perPage?: number;
-  limit?: number;
-  total?: number;
-  totalPages?: number;
-};
-
-type BackendListData<T> = {
-  items: T[];
-  pagination?: BackendPagination;
-};
-
-const toStringSafe = (value: unknown, fallback = ''): string =>
-  typeof value === 'string' ? value : fallback;
-
-const toNumberSafe = (value: unknown, fallback = 0): number =>
-  typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
-
-const toBooleanSafe = (value: unknown, fallback = false): boolean =>
-  typeof value === 'boolean' ? value : fallback;
-
-const toArraySafe = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
-
-const mapProductAttribute = (raw: Record<string, unknown>): ProductAttribute => ({
-  id: toStringSafe(raw.id),
-  name: toStringSafe(raw.name),
-  type: (toStringSafe(raw.type, 'text') as ProductAttribute['type']),
-  required: toBooleanSafe(raw.required),
-  values: toArraySafe<string>(raw.values)
-});
-
-const mapProductComment = (raw: Record<string, unknown>): ProductComment => ({
-  id: toStringSafe(raw.id),
-  author: toStringSafe(raw.author),
-  timestamp: toStringSafe(raw.timestamp),
-  label: (toStringSafe(raw.label, 'internal') as ProductComment['label']),
-  message: toStringSafe(raw.message)
-});
-
-const mapProductInventory = (raw: Record<string, unknown>): ProductInventory => ({
-  id: toStringSafe(raw.id),
-  sku: toStringSafe(raw.sku),
-  warehouse: toStringSafe(raw.warehouse),
-  quantity: toNumberSafe(raw.quantity),
-  reorderThreshold: toNumberSafe(raw.reorderThreshold),
-  availability: (toStringSafe(raw.availability, 'in-stock') as ProductInventory['availability'])
-});
-
-const mapRelatedProduct = (raw: Record<string, unknown>): RelatedProduct => ({
-  id: toStringSafe(raw.id),
-  name: toStringSafe(raw.name),
-  slug: toStringSafe(raw.slug),
-  category: toStringSafe(raw.category),
-  thumbnail: toStringSafe(raw.thumbnail)
-});
-
-const mapProduct = (raw: Record<string, unknown>): Product => ({
-  id: toStringSafe(raw.id),
-  slug: toStringSafe(raw.slug),
-  name: toStringSafe(raw.name),
-  description: toStringSafe(raw.description),
-  productType: (toStringSafe(raw.productType, 'templated') as Product['productType']),
-  categoryId: toStringSafe(raw.categoryId),
-  vendorId: toStringSafe(raw.vendorId),
-  pages: toNumberSafe(raw.pages, 1),
-  units: toStringSafe(raw.units, 'mm'),
-  width: toNumberSafe(raw.width),
-  height: toNumberSafe(raw.height),
-  bleed: toNumberSafe(raw.bleed),
-  status: (toStringSafe(raw.status, 'draft') as Product['status']),
-  published: toBooleanSafe(raw.published),
-  isGlobal: toBooleanSafe(raw.isGlobal),
-  channelIds: toArraySafe<string>(raw.channelIds),
-  thumbnail: toStringSafe(raw.thumbnail),
-  productNumbers: {
-    itemNumber: toStringSafe((raw.productNumbers as Record<string, unknown> | undefined)?.itemNumber),
-    modelNumber: toStringSafe((raw.productNumbers as Record<string, unknown> | undefined)?.modelNumber),
-    integrationId: toStringSafe((raw.productNumbers as Record<string, unknown> | undefined)?.integrationId)
-  },
-  templateDefaults: {
-    scaleFactor: toNumberSafe((raw.templateDefaults as Record<string, unknown> | undefined)?.scaleFactor, 1),
-    zoomState: toStringSafe(
-      (raw.templateDefaults as Record<string, unknown> | undefined)?.zoomState,
-      'fit'
-    ) as Product['templateDefaults']['zoomState'],
-    editorMode: toStringSafe(
-      (raw.templateDefaults as Record<string, unknown> | undefined)?.editorMode,
-      'simple'
-    ) as Product['templateDefaults']['editorMode'],
-    trimMode: toStringSafe(
-      (raw.templateDefaults as Record<string, unknown> | undefined)?.trimMode,
-      'safe'
-    ) as Product['templateDefaults']['trimMode'],
-    rotate: toNumberSafe((raw.templateDefaults as Record<string, unknown> | undefined)?.rotate, 0),
-    imageMode: toStringSafe(
-      (raw.templateDefaults as Record<string, unknown> | undefined)?.imageMode,
-      'contain'
-    ) as Product['templateDefaults']['imageMode'],
-    colorSpace: toStringSafe(
-      (raw.templateDefaults as Record<string, unknown> | undefined)?.colorSpace,
-      'CMYK'
-    ) as Product['templateDefaults']['colorSpace'],
-    templateType: toStringSafe(
-      (raw.templateDefaults as Record<string, unknown> | undefined)?.templateType,
-      'marketing'
-    ) as Product['templateDefaults']['templateType']
-  },
-  templateSetup: {
-    productsPanel: toBooleanSafe((raw.templateSetup as Record<string, unknown> | undefined)?.productsPanel, true),
-    uploadPhotos: toBooleanSafe((raw.templateSetup as Record<string, unknown> | undefined)?.uploadPhotos, true),
-    imagePanel: toBooleanSafe((raw.templateSetup as Record<string, unknown> | undefined)?.imagePanel, true),
-    imageSearch: toBooleanSafe((raw.templateSetup as Record<string, unknown> | undefined)?.imageSearch, true),
-    layersPanel: toBooleanSafe((raw.templateSetup as Record<string, unknown> | undefined)?.layersPanel, false),
-    socialImageImport: toBooleanSafe(
-      (raw.templateSetup as Record<string, unknown> | undefined)?.socialImageImport,
-      false
-    ),
-    addTextButton: toBooleanSafe((raw.templateSetup as Record<string, unknown> | undefined)?.addTextButton, true),
-    restrictNewItem: toBooleanSafe(
-      (raw.templateSetup as Record<string, unknown> | undefined)?.restrictNewItem,
-      false
-    )
-  },
-  priceMapping: {
-    basePrice: toNumberSafe((raw.priceMapping as Record<string, unknown> | undefined)?.basePrice, 0),
-    sizeLabel: toStringSafe((raw.priceMapping as Record<string, unknown> | undefined)?.sizeLabel),
-    currency: 'USD'
-  },
-  tags: toArraySafe<Record<string, unknown>>(raw.tags).map((tag) => ({
-    id: toStringSafe(tag.id),
-    label: toStringSafe(tag.label),
-    color: (toStringSafe(tag.color, 'blue') as Product['tags'][number]['color'])
-  })),
-  comments: toArraySafe<Record<string, unknown>>(raw.comments).map(mapProductComment),
-  inventory: toArraySafe<Record<string, unknown>>(raw.inventory).map(mapProductInventory),
-  relatedProducts: toArraySafe<Record<string, unknown>>(raw.relatedProducts).map(mapRelatedProduct),
-  updatedAt: toStringSafe(raw.updatedAt)
-});
-
-const normalizePagination = (pagination: BackendPagination | undefined, itemsLength: number) => ({
-  page: pagination?.page ?? 1,
-  perPage: pagination?.perPage ?? pagination?.limit ?? (itemsLength > 0 ? itemsLength : 1),
-  total: pagination?.total ?? itemsLength,
-  totalPages: pagination?.totalPages ?? 1
-});
 
 export const productsService = {
   listProducts: async (params: ProductListQuery = {}): Promise<PaginatedResponse<Product>> => {
-    const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>(
-      '/products',
-      params
-    );
+    const page = params.page ?? 1;
+    const perPage = params.perPage ?? 20;
+    const filtered = applyFilters(database, params);
+    const start = (page - 1) * perPage;
+    const items = filtered.slice(start, start + perPage);
 
-    const items = toArraySafe<Record<string, unknown>>(response.data.items).map(mapProduct);
-    const meta = normalizePagination(response.data.pagination, items.length);
-
-    return okPaginated(items, meta);
-  },
-
-  getProducts: async (): Promise<Product[]> => {
-    const response = await productsService.listProducts({ page: 1, perPage: 100 });
-    return response.data.items;
+    return okPaginated(items, {
+      page,
+      perPage,
+      total: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / perPage))
+    });
   },
 
   getProduct: async (id: string): Promise<ApiResponse<Product>> => {
-    const response = await http.get<BackendEnvelope<Record<string, unknown>>>(`/products/${id}`);
-    return ok(mapProduct(response.data));
-  },
+    const product = database.find((item) => item.id === id);
 
-  getProductById: async (id: string): Promise<Product | null> => {
-    try {
-      const response = await productsService.getProduct(id);
-      return response.data;
-    } catch {
-      return null;
+    if (!product) {
+      throw new Error('Product not found');
     }
+
+    return ok(product);
   },
 
   createProduct: async (payload: ProductFormValues): Promise<ApiResponse<Product>> => {
-    const response = await http.post<BackendEnvelope<Record<string, unknown>>>('/products', {
+    const now = new Date().toISOString();
+    const id = generateId();
+    const product: Product = {
+      id,
+      sortOrder: database.length * 10 + 10,
+      slug: createSlug(payload.name),
       name: payload.name,
-      slug: payload.slug,
-      description: payload.description,
+      description: '',
       productType: payload.productType,
+      creationMethod: payload.creationMethod,
       categoryId: payload.categoryId,
-      vendorId: payload.vendorId,
+      vendorId: '',
+      hotFolder: '',
       pages: Number(payload.pages) || 1,
-      units: payload.units,
+      units: payload.units || 'mm',
       width: Number(payload.width) || 0,
       height: Number(payload.height) || 0,
       bleed: Number(payload.bleed) || 0,
-      isGlobal: false,
+      cmsPageLink: `/products/${id}`,
+      previewUrl: '',
+      status: 'draft',
       published: false,
-      channelIds: []
-    });
+      isGlobal: false,
+      storefrontIds: [],
+      channelIds: [],
+      thumbnail: 'https://placehold.co/96x96/111827/ffffff?text=NP',
+      lastSavedAt: now,
+      productNumbers: { itemNumber: '', modelNumber: '', integrationId: '' },
+      templateDefaults: {
+        scaleFactor: 1,
+        zoomState: 'fit',
+        palette: 'Default',
+        colorSpace: 'CMYK',
+        editorMode: 'simple',
+        textModes: ['point'],
+        imageMode: 'contain',
+        previewType: '2D',
+        photoGroup: 'Default',
+        model3d: '',
+        defaultFont: '',
+        toggles: [],
+        rules: []
+      },
+      templateSetup: {
+        setupProfile: 'default',
+        allowUpload: true,
+        allowLayers: false,
+        smartSnapping: true,
+        bleedLocked: false,
+        showSafeArea: true
+      },
+      templateAssets: { fonts: [], layouts: [], themes: [], cliparts: [] },
+      priceMapping: {
+        basePrice: 0,
+        sizeLabel: '',
+        dielineMapping: '',
+        currency: 'USD',
+        parametricStandard:
+          payload.creationMethod === 'parametric-standard'
+            ? {
+                standard: payload.parametricStandard,
+                size: payload.parametricSize,
+                allowance: payload.parametricAllowance,
+                material: payload.parametricMaterial
+              }
+            : undefined
+      },
+      tags: [],
+      comments: [],
+      internalNotes: '',
+      inventory: { onHandQuantity: 0, reorderQuantity: 0 },
+      relatedProducts: [],
+      attributes: [],
+      alternateViews: [],
+      updatedAt: now.slice(0, 10),
+      pdfFileUrl: payload.productType === 'static' ? payload.idmlFileName || payload.printEditorTemplateName || '' : undefined
+    };
 
-    return ok(mapProduct(response.data));
+    database.unshift(product);
+
+    return ok(product);
   },
 
-  updateProduct: async (
-    id: string,
-    changes: Partial<Product>
-  ): Promise<ApiResponse<Product>> => {
-    const response = await http.patch<BackendEnvelope<Record<string, unknown>>>(
-      `/products/${id}`,
-      changes
-    );
+  updateProduct: async (id: string, changes: Partial<Product>): Promise<ApiResponse<Product>> => {
+    const index = database.findIndex((item) => item.id === id);
 
-    return ok(mapProduct(response.data));
+    if (index < 0) {
+      throw new Error('Product not found');
+    }
+
+    database[index] = {
+      ...database[index],
+      ...changes,
+      lastSavedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString().slice(0, 10)
+    };
+
+    return ok(database[index]);
+  },
+
+  deleteProduct: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
+    const index = database.findIndex((item) => item.id === id);
+    if (index >= 0) database.splice(index, 1);
+    return ok({ success: true });
+  },
+
+  cloneProduct: async (id: string): Promise<ApiResponse<Product>> => {
+    const product = database.find((item) => item.id === id);
+    if (!product) throw new Error('Product not found');
+
+    const clone: Product = {
+      ...product,
+      id: generateId(),
+      slug: `${product.slug}-copy`,
+      name: `${product.name} (Copy)`,
+      published: false,
+      status: 'draft',
+      updatedAt: new Date().toISOString().slice(0, 10)
+    };
+
+    database.unshift(clone);
+    return ok(clone);
   },
 
   getProductAttributes: async (id: string): Promise<ApiResponse<{ items: ProductAttribute[] }>> => {
-    try {
-      const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>(
-        `/products/${id}/attributes`
-      );
-
-      return ok({
-        items: toArraySafe<Record<string, unknown>>(response.data.items).map(mapProductAttribute)
-      });
-    } catch {
-      return ok({ items: [] });
-    }
+    const product = database.find((item) => item.id === id);
+    return ok({ items: product?.attributes ?? [] });
   },
 
   getRelatedProducts: async (id: string): Promise<ApiResponse<{ items: RelatedProduct[] }>> => {
-    try {
-      const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>(
-        `/products/${id}/related`
-      );
-
-      return ok({
-        items: toArraySafe<Record<string, unknown>>(response.data.items).map(mapRelatedProduct)
-      });
-    } catch {
-      return ok({ items: [] });
-    }
+    const product = database.find((item) => item.id === id);
+    return ok({ items: product?.relatedProducts ?? [] });
   },
 
   getProductComments: async (id: string): Promise<ApiResponse<{ items: ProductComment[] }>> => {
-    try {
-      const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>(
-        `/products/${id}/comments`
-      );
-
-      return ok({
-        items: toArraySafe<Record<string, unknown>>(response.data.items).map(mapProductComment)
-      });
-    } catch {
-      return ok({ items: [] });
-    }
+    const product = database.find((item) => item.id === id);
+    return ok({ items: product?.comments ?? [] });
   },
 
-  getProductInventory: async (
-    id: string
-  ): Promise<ApiResponse<{ items: ProductInventory[] }>> => {
-    try {
-      const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>(
-        `/products/${id}/inventory`
-      );
-
-      return ok({
-        items: toArraySafe<Record<string, unknown>>(response.data.items).map(mapProductInventory)
-      });
-    } catch {
-      return ok({ items: [] });
-    }
+  getProductInventory: async (id: string): Promise<ApiResponse<{ item: ProductInventory }>> => {
+    const product = database.find((item) => item.id === id);
+    return ok({ item: product?.inventory ?? { onHandQuantity: 0, reorderQuantity: 0 } });
   }
 };

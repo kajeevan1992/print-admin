@@ -1,28 +1,23 @@
-'use client';
+export type SelectOption = string | { label: string; value: string };
 
-import { SelectHTMLAttributes } from 'react';
-import { cn } from '@/lib/utils';
-
-export function Select({
-  options,
-  className,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement> & {
-  options: string[];
-}) {
+export function Select({ options, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { options: SelectOption[] }) {
   return (
-    <select
-      {...props}
-      className={cn(
-        'w-full rounded-xl border border-border bg-panelMuted px-4 py-3 text-sm text-text outline-none transition focus:border-accent',
-        className
-      )}
-    >
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
+    <select {...props} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm outline-none focus:border-accent">
+      {options.map((option) => {
+        if (typeof option === 'string') {
+          return (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          );
+        }
+
+        return (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        );
+      })}
     </select>
   );
 }

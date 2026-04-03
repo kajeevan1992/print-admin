@@ -1,140 +1,102 @@
-'use client';
-
 import { FormGrid } from '@/components/forms/form-grid';
 import { FormSection } from '@/components/forms/form-section';
 import { Input } from '@/components/forms/input';
-import { Select } from '@/components/forms/select';
+import { Select, type SelectOption } from '@/components/forms/select';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import type { ProductFormValues } from '@/modules/products/types';
+
+const creationMethods: SelectOption[] = [
+  { value: 'idml', label: 'Attach IDML template file' },
+  { value: 'print-editor-template', label: 'Import Print Editor template file' },
+  { value: 'blank', label: 'Generate a blank product' },
+  { value: 'parametric-standard', label: 'Generate a parametric standard' }
+];
 
 export function ProductForm({
   values,
   categoryOptions,
-  vendorOptions,
   onChange,
   onCancel,
-  onSubmit
+  onSubmit,
+  success,
+  onReset
 }: {
   values: ProductFormValues;
-  categoryOptions: string[];
-  vendorOptions: string[];
+  categoryOptions: SelectOption[];
   onChange: (key: keyof ProductFormValues, value: string) => void;
   onCancel: () => void;
   onSubmit: () => void;
+  success: boolean;
+  onReset: () => void;
 }) {
-  return (
-    <div className="space-y-5">
-      <FormSection title="Step 1 · Product Source">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => onChange('creationMode', 'templated')}
-            className={`rounded-xl border p-4 text-left transition ${
-              values.creationMode === 'templated'
-                ? 'border-accent bg-panelMuted'
-                : 'border-border bg-panelMuted hover:border-slate-600'
-            }`}
-          >
-            <p className="font-medium text-text">Upload DMI / template-based sample</p>
-            <p className="mt-1 text-sm text-textMuted">
-              Use a prepared template and configure the product from it.
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onChange('creationMode', 'blank')}
-            className={`rounded-xl border p-4 text-left transition ${
-              values.creationMode === 'blank'
-                ? 'border-accent bg-panelMuted'
-                : 'border-border bg-panelMuted hover:border-slate-600'
-            }`}
-          >
-            <p className="font-medium text-text">Create blank product</p>
-            <p className="mt-1 text-sm text-textMuted">
-              Start from scratch and configure dimensions and metadata manually.
-            </p>
-          </button>
+  if (success) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm">
+          Product created successfully.
         </div>
-      </FormSection>
+        <div className="flex flex-wrap justify-end gap-2">
+          <PrimaryButton onClick={onCancel}>Edit Product</PrimaryButton>
+          <Button onClick={onReset}>Add New Product</Button>
+          <Button onClick={onCancel}>Return to Products</Button>
+        </div>
+      </div>
+    );
+  }
 
-      <FormSection title="Step 2 · Product Basics">
+  return (
+    <div className="space-y-4">
+      <FormSection title="Product Setup">
         <FormGrid>
-          <Input
-            placeholder="Product Name"
-            value={values.name}
-            onChange={(e) => onChange('name', e.target.value)}
-          />
-          <Input
-            placeholder="Slug"
-            value={values.slug}
-            onChange={(e) => onChange('slug', e.target.value)}
-          />
+          <Input placeholder="Name" value={values.name} onChange={(e) => onChange('name', e.target.value)} />
+          <Select options={categoryOptions} value={values.categoryId} onChange={(e) => onChange('categoryId', e.target.value)} />
+          <Select options={creationMethods} value={values.creationMethod} onChange={(e) => onChange('creationMethod', e.target.value)} />
           <Select
+            options={[
+              { value: 'online', label: 'Online Product' },
+              { value: 'static', label: 'Static/PDF Product' },
+              { value: 'parametric', label: 'Parametric Product' }
+            ]}
             value={values.productType}
-            options={['templated', 'blank', 'hybrid']}
             onChange={(e) => onChange('productType', e.target.value)}
           />
-          <Input
-            placeholder="Description"
-            value={values.description}
-            onChange={(e) => onChange('description', e.target.value)}
-          />
         </FormGrid>
       </FormSection>
 
-      <FormSection title="Size & Setup">
-        <FormGrid>
-          <Input
-            placeholder="Pages"
-            value={values.pages}
-            onChange={(e) => onChange('pages', e.target.value)}
-          />
-          <Input
-            placeholder="Units"
-            value={values.units}
-            onChange={(e) => onChange('units', e.target.value)}
-          />
-          <Input
-            placeholder="Width"
-            value={values.width}
-            onChange={(e) => onChange('width', e.target.value)}
-          />
-          <Input
-            placeholder="Height"
-            value={values.height}
-            onChange={(e) => onChange('height', e.target.value)}
-          />
-          <Input
-            placeholder="Bleed"
-            value={values.bleed}
-            onChange={(e) => onChange('bleed', e.target.value)}
-          />
-        </FormGrid>
-      </FormSection>
+      {values.creationMethod === 'blank' ? (
+        <FormSection title="Blank Product Fields">
+          <FormGrid>
+            <Input placeholder="Pages" value={values.pages} onChange={(e) => onChange('pages', e.target.value)} />
+            <Input placeholder="Units" value={values.units} onChange={(e) => onChange('units', e.target.value)} />
+            <Input placeholder="Width" value={values.width} onChange={(e) => onChange('width', e.target.value)} />
+            <Input placeholder="Height" value={values.height} onChange={(e) => onChange('height', e.target.value)} />
+            <Input placeholder="Bleed" value={values.bleed} onChange={(e) => onChange('bleed', e.target.value)} />
+          </FormGrid>
+        </FormSection>
+      ) : null}
 
-      <FormSection title="Classification">
-        <FormGrid>
-          <Select
-            value={values.categoryId}
-            options={categoryOptions}
-            onChange={(e) => onChange('categoryId', e.target.value)}
-          />
-          <Select
-            value={values.vendorId}
-            options={vendorOptions}
-            onChange={(e) => onChange('vendorId', e.target.value)}
-          />
-        </FormGrid>
-      </FormSection>
+      {values.creationMethod === 'parametric-standard' ? (
+        <FormSection title="Parametric Standard Configuration">
+          <FormGrid>
+            <Input placeholder="Standard" value={values.parametricStandard} onChange={(e) => onChange('parametricStandard', e.target.value)} />
+            <Input placeholder="Size" value={values.parametricSize} onChange={(e) => onChange('parametricSize', e.target.value)} />
+            <Input placeholder="Allowance" value={values.parametricAllowance} onChange={(e) => onChange('parametricAllowance', e.target.value)} />
+            <Input placeholder="Material" value={values.parametricMaterial} onChange={(e) => onChange('parametricMaterial', e.target.value)} />
+          </FormGrid>
+        </FormSection>
+      ) : null}
 
-      <div className="flex justify-end gap-3 border-t border-border pt-4">
-        <Button type="button" onClick={onCancel}>
-          Cancel
-        </Button>
-        <PrimaryButton type="button" onClick={onSubmit}>
-          Create Product
-        </PrimaryButton>
+      {(values.creationMethod === 'idml' || values.creationMethod === 'print-editor-template') ? (
+        <FormSection title="Template Upload">
+          <div className="rounded-lg border border-dashed border-border bg-panelMuted p-8 text-center text-sm text-textMuted">
+            Drag & drop file placeholder / upload dropzone UI.
+          </div>
+        </FormSection>
+      ) : null}
+
+      <div className="flex justify-end gap-2">
+        <Button onClick={onCancel}>Cancel</Button>
+        <PrimaryButton onClick={onSubmit}>Create Product</PrimaryButton>
       </div>
     </div>
   );

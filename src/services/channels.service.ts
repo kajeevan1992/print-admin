@@ -4,10 +4,7 @@ import { http } from '@/services/api/http';
 import type { Channel, ChannelForm } from '@/modules/channels/types';
 
 type BackendEnvelope<T> = { success: boolean; data: T };
-type BackendListData<T> = {
-  items: T[];
-  pagination?: { page: number; perPage: number; total: number; totalPages?: number };
-};
+type BackendListData<T> = { items: T[]; pagination?: { page: number; perPage: number; total: number; totalPages?: number } };
 
 const mapChannel = (raw: Record<string, unknown>): Channel => ({
   id: String(raw.id),
@@ -25,13 +22,8 @@ const mapChannel = (raw: Record<string, unknown>): Channel => ({
 });
 
 export const channelsService = {
-  listChannels: async (
-    params?: { search?: string; status?: 'active' | 'inactive' }
-  ): Promise<PaginatedResponse<Channel>> => {
-    const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>(
-      '/channels',
-      params
-    );
+  listChannels: async (params?: { search?: string; status?: 'active' | 'inactive' }): Promise<PaginatedResponse<Channel>> => {
+    const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>('/channels', params);
     const items = (response.data.items ?? []).map(mapChannel);
     const pagination = response.data.pagination;
 
@@ -54,10 +46,7 @@ export const channelsService = {
   },
 
   updateChannel: async (id: string, changes: Partial<Channel>): Promise<ApiResponse<Channel>> => {
-    const response = await http.patch<BackendEnvelope<Record<string, unknown>>>(
-      `/channels/${id}`,
-      changes
-    );
+    const response = await http.patch<BackendEnvelope<Record<string, unknown>>>(`/channels/${id}`, changes);
     return ok(mapChannel(response.data));
   }
 };

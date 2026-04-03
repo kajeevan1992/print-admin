@@ -8,6 +8,11 @@ export type Product = {
   published: boolean;
   global: boolean;
   updatedAt: string;
+  slug?: string;
+  description?: string;
+  productType?: string;
+  status?: 'draft' | 'active' | 'archived';
+  channelIds?: string[];
 };
 
 export type ProductAttribute = {

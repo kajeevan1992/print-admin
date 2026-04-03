@@ -13,7 +13,17 @@ import { categoryOptions, vendorOptions } from '@/data/products';
 import { productsService } from '@/services/products.service';
 import type { Product, ProductFormValues } from '@/modules/products/types';
 
-const emptyForm: ProductFormValues = { name: '', category: categoryOptions[0], pages: '', units: '', width: '', height: '', bleed: '' };
+const emptyForm: ProductFormValues = {
+  creationMode: 'templated',
+  name: '',
+  category: categoryOptions[0] ?? 'Catalogs',
+  vendor: vendorOptions[0] ?? 'BlueLine Print',
+  pages: '',
+  units: 'mm',
+  width: '',
+  height: '',
+  bleed: ''
+};
 
 export function ProductsListPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -22,29 +32,62 @@ export function ProductsListPage() {
   const [vendor, setVendor] = useState('All Vendors');
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ProductFormValues>(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadProducts = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setProducts(await productsService.getProducts());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    productsService.getProducts().then(setProducts);
+    loadProducts();
   }, []);
 
-  const filtered = useMemo(() => products.filter((product) => {
-    const matchesQuery = product.name.toLowerCase().includes(query.toLowerCase()) || product.sku.toLowerCase().includes(query.toLowerCase());
-    const matchesCategory = category === 'All Categories' || product.category === category;
-    const matchesVendor = vendor === 'All Vendors' || product.vendor === vendor;
-    return matchesQuery && matchesCategory && matchesVendor;
-  }), [products, query, category, vendor]);
+  const filtered = useMemo(
+    () =>
+      products.filter((product) => {
+        const matchesQuery =
+          product.name.toLowerCase().includes(query.toLowerCase()) ||
+          product.sku.toLowerCase().includes(query.toLowerCase());
+        const matchesCategory = category === 'All Categories' || product.category === category;
+        const matchesVendor = vendor === 'All Vendors' || product.vendor === vendor;
+        return matchesQuery && matchesCategory && matchesVendor;
+      }),
+    [products, query, category, vendor]
+  );
 
   const handleToggle = async (id: string, key: 'published' | 'global', value: boolean) => {
     await productsService.updateProduct(id, { [key]: value });
-    setProducts(await productsService.getProducts());
+    await loadProducts();
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim()) return;
-    await productsService.createProduct(form);
-    setProducts(await productsService.getProducts());
-    setForm(emptyForm);
-    setOpen(false);
+    if (!form.name.trim()) {
+      setError('Product name is required.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      await productsService.createProduct(form);
+      await loadProducts();
+      setForm(emptyForm);
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create product');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -52,7 +95,13 @@ export function ProductsListPage() {
       <PageHeader
         title="Products"
         subtitle="Manage print catalog items, global sync status, and publish controls."
-        actions={<><Button>Import</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
+        actions={
+          <>
+            <Button>Import</Button>
+            <Button>Export</Button>
+            <PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton>
+          </>
+        }
       />
 
       <FilterBar onCreate={() => setOpen(true)}>
@@ -61,17 +110,14 @@ export function ProductsListPage() {
         <Select options={['All Vendors', ...vendorOptions]} value={vendor} onChange={(e) => setVendor(e.target.value)} />
       </FilterBar>
 
-      <ProductTable products={filtered} onToggle={handleToggle} />
+      {error ? <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
+      {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading products...</div> : <ProductTable products={filtered} onToggle={handleToggle} />}
 
-      <div className="mt-4 flex justify-end gap-2">
-        <Button>Previous</Button><Button>1</Button><Button>2</Button><Button>Next</Button>
-      </div>
-
-      <BaseModal open={open} onClose={() => setOpen(false)} title="Create Product">
+      <BaseModal open={open} onClose={() => !submitting && setOpen(false)} title="Create Product">
         <ProductForm
           values={form}
           onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
-          onCancel={() => setOpen(false)}
+          onCancel={() => !submitting && setOpen(false)}
           onSubmit={handleCreate}
         />
       </BaseModal>

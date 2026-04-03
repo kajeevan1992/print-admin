@@ -1,6 +1,6 @@
 import { productAttributesMock } from '@/data/products';
 import { http } from '@/services/api/http';
-import type { Product, ProductAttribute, ProductFormValues } from '@/modules/products/types';
+import type { Product, ProductAttribute, ProductFormValues, ProductType } from '@/modules/products/types';
 
 type BackendEnvelope<T> = { success: boolean; data: T };
 type BackendProduct = {
@@ -35,8 +35,8 @@ const titleCase = (value: string) =>
 const mapProduct = (raw: BackendProduct): Product => ({
   id: raw.id,
   name: raw.name,
-  category: titleCase(raw.categoryId ?? 'Uncategorized'),
-  vendor: titleCase(raw.vendorId ?? 'Unknown Vendor'),
+  category: titleCase(raw.categoryId ?? 'uncategorized'),
+  vendor: titleCase(raw.vendorId ?? 'unknown-vendor'),
   sku: raw.slug?.toUpperCase().replace(/-/g, '_') ?? raw.id,
   price: 0,
   published: Boolean(raw.published),
@@ -44,11 +44,17 @@ const mapProduct = (raw: BackendProduct): Product => ({
   updatedAt: String(raw.updatedAt ?? new Date().toISOString().slice(0, 10)).slice(0, 10),
   slug: raw.slug,
   description: raw.description ?? '',
-  productType: raw.productType ?? 'standard',
+  productType: ((raw.productType as ProductType) || 'templated'),
   status: raw.published ? 'active' : 'draft',
+  categoryId: raw.categoryId,
+  vendorId: raw.vendorId,
   channelIds: Array.isArray(raw.channels)
     ? raw.channels.map((item) => item.channelId).filter((value): value is string => Boolean(value))
-    : []
+    : [],
+  comments: [],
+  tags: [],
+  inventory: [],
+  relatedProducts: []
 });
 
 export const productsService = {
@@ -68,10 +74,10 @@ export const productsService = {
     const response = await http.post<BackendEnvelope<BackendProduct>>('/products', {
       name: payload.name,
       slug: slugify(payload.name),
-      description: '',
-      productType: 'standard',
+      description: `${payload.category} product created from admin`,
+      productType: payload.creationMode === 'blank' ? 'blank' : 'templated',
       categoryId: slugify(payload.category),
-      vendorId: 'general-vendor',
+      vendorId: slugify(payload.vendor),
       isGlobal: false,
       published: false,
       channelIds: []

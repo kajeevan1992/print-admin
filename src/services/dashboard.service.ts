@@ -1,34 +1,46 @@
-import { dashboardOrganizations, dashboardPayloadByStoreId, dashboardStores } from '@/data/dashboard';
+import {
+  dashboardActivityLog,
+  dashboardAlerts,
+  dashboardApiUsage,
+  dashboardHealth,
+  dashboardKpis,
+  dashboardOrdersSeries,
+  dashboardOrganization,
+  dashboardQuickActions,
+  dashboardReferrers,
+  dashboardSalesSeries,
+  dashboardStores
+} from '@/data/dashboard';
 import { apiClient } from '@/services/api/client';
 import type { ApiResponse } from '@/services/api/types';
 
-export type DashboardStore = (typeof dashboardStores)[number];
-export type DashboardOrganization = typeof dashboardOrganizations;
-export type DashboardPayload = (typeof dashboardPayloadByStoreId)['store-1'];
-
-export type DashboardResponse = {
-  organization: DashboardOrganization;
-  stores: DashboardStore[];
-  selectedStore: DashboardStore;
-  payload: DashboardPayload;
+export type DashboardPayload = {
+  kpis: typeof dashboardKpis;
+  salesSeries: typeof dashboardSalesSeries;
+  ordersSeries: typeof dashboardOrdersSeries;
+  apiUsage: typeof dashboardApiUsage;
+  activity: typeof dashboardActivityLog;
+  referrers: typeof dashboardReferrers;
+  alerts: typeof dashboardAlerts;
+  health: typeof dashboardHealth;
+  quickActions: typeof dashboardQuickActions;
+  stores: typeof dashboardStores;
+  organization: typeof dashboardOrganization;
 };
 
 export const dashboardService = {
-  getDashboardMetrics: async (storeId?: string): Promise<ApiResponse<DashboardResponse>> =>
-    apiClient.request(() => {
-      const selectedStore =
-        dashboardStores.find((store) => store.id === storeId) ?? dashboardStores[0];
-
-      const payload =
-        dashboardPayloadByStoreId[
-          selectedStore.id as keyof typeof dashboardPayloadByStoreId
-        ] ?? dashboardPayloadByStoreId['store-1'];
-
-      return {
-        organization: dashboardOrganizations,
-        stores: dashboardStores,
-        selectedStore,
-        payload
-      };
-    })
+  getDashboardMetrics: async (): Promise<ApiResponse<DashboardPayload>> =>
+    apiClient.request(() => ({
+      kpis: dashboardKpis,
+      salesSeries: dashboardSalesSeries,
+      ordersSeries: dashboardOrdersSeries,
+      apiUsage: dashboardApiUsage,
+      activity: dashboardActivityLog,
+      referrers: dashboardReferrers,
+      alerts: dashboardAlerts,
+      health: dashboardHealth,
+      quickActions: dashboardQuickActions,
+      stores: dashboardStores,
+      organization: dashboardOrganization
+    }))
 };

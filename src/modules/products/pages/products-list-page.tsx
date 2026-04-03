@@ -7,40 +7,55 @@ import { FilterBar } from '@/components/data-table/filter-bar';
 import { Input } from '@/components/forms/input';
 import { Select } from '@/components/forms/select';
 import { BaseModal } from '@/components/modals/base-modal';
+import { EmptyModuleState } from '@/modules/products/components/empty-module-state';
 import { ProductForm } from '@/modules/products/components/product-form';
 import { ProductTable } from '@/modules/products/components/product-table';
-import { categoryOptions, vendorOptions } from '@/data/products';
 import { productsService } from '@/services/products.service';
-import type { Product, ProductFormValues } from '@/modules/products/types';
+import { categoriesService } from '@/services/categories.service';
+import { vendorsService } from '@/services/vendors.service';
+import type { Product, ProductFormValues, ProductListQuery } from '@/modules/products/types';
 
 const emptyForm: ProductFormValues = {
   creationMode: 'templated',
   name: '',
-  category: categoryOptions[0] ?? 'Catalogs',
-  vendor: vendorOptions[0] ?? 'BlueLine Print',
-  pages: '',
+  slug: '',
+  description: '',
+  productType: 'templated',
+  categoryId: '',
+  vendorId: '',
+  pages: '1',
   units: 'mm',
-  width: '',
-  height: '',
-  bleed: ''
+  width: '0',
+  height: '0',
+  bleed: '0'
 };
 
 export function ProductsListPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState('All Categories');
-  const [vendor, setVendor] = useState('All Vendors');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+  const [vendorOptions, setVendorOptions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ProductFormValues>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [total, setTotal] = useState(0);
 
-  const loadProducts = async () => {
+  const [params, setParams] = useState<ProductListQuery>({
+    page: 1,
+    perPage: 20,
+    sortBy: 'updatedAt',
+    sortDirection: 'desc'
+  });
+
+  const loadProducts = async (nextParams: ProductListQuery) => {
     setLoading(true);
     setError(null);
+
     try {
-      setProducts(await productsService.getProducts());
+      const response = await productsService.listProducts(nextParams);
+      setProducts(response.data.items);
+      setTotal(response.meta.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load products');
     } finally {
@@ -49,52 +64,70 @@ export function ProductsListPage() {
   };
 
   useEffect(() => {
-    loadProducts();
+    void loadProducts(params);
+  }, [params]);
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [categories, vendors] = await Promise.all([
+          categoriesService.listCategories(),
+          vendorsService.listVendors()
+        ]);
+
+        const cat = categories.data.items.map((item) => item.id);
+        const ven = vendors.data.items.map((item) => item.id);
+
+        setCategoryOptions(cat);
+        setVendorOptions(ven);
+
+        setForm((prev) => ({
+          ...prev,
+          categoryId: prev.categoryId || cat[0] || '',
+          vendorId: prev.vendorId || ven[0] || ''
+        }));
+      } catch {
+        // keep silent; page-level error already handled elsewhere
+      }
+    };
+
+    void loadOptions();
   }, []);
 
-  const filtered = useMemo(
-    () =>
-      products.filter((product) => {
-        const matchesQuery =
-          product.name.toLowerCase().includes(query.toLowerCase()) ||
-          product.sku.toLowerCase().includes(query.toLowerCase());
-        const matchesCategory = category === 'All Categories' || product.category === category;
-        const matchesVendor = vendor === 'All Vendors' || product.vendor === vendor;
-        return matchesQuery && matchesCategory && matchesVendor;
-      }),
-    [products, query, category, vendor]
+  const subtitle = useMemo(
+    () => `${total} products total · API-ready list query active`,
+    [total]
   );
 
-  const handleToggle = async (id: string, key: 'published' | 'global', value: boolean) => {
+  const handleToggle = async (
+    id: string,
+    key: 'published' | 'isGlobal',
+    value: boolean
+  ) => {
     await productsService.updateProduct(id, { [key]: value });
-    await loadProducts();
+    await loadProducts(params);
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim()) {
-      setError('Product name is required.');
-      return;
-    }
+    if (!form.name.trim() || !form.slug.trim()) return;
 
-    setSubmitting(true);
-    setError(null);
-    try {
-      await productsService.createProduct(form);
-      await loadProducts();
-      setForm(emptyForm);
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create product');
-    } finally {
-      setSubmitting(false);
-    }
+    await productsService.createProduct(form);
+
+    setForm({
+      ...emptyForm,
+      categoryId: categoryOptions[0] ?? '',
+      vendorId: vendorOptions[0] ?? ''
+    });
+
+    setOpen(false);
+    await loadProducts(params);
   };
 
   return (
     <div>
       <PageHeader
-        title="Products"
-        subtitle="Manage print catalog items, global sync status, and publish controls."
+        title="Products Control Center"
+        subtitle={subtitle}
         actions={
           <>
             <Button>Import</Button>
@@ -104,20 +137,109 @@ export function ProductsListPage() {
         }
       />
 
-      <FilterBar onCreate={() => setOpen(true)}>
-        <Input placeholder="Search product, SKU, category..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        <Select options={['All Categories', ...categoryOptions]} value={category} onChange={(e) => setCategory(e.target.value)} />
-        <Select options={['All Vendors', ...vendorOptions]} value={vendor} onChange={(e) => setVendor(e.target.value)} />
+      <FilterBar>
+        <Input
+          placeholder="Search by name, slug, item number..."
+          value={params.search ?? ''}
+          onChange={(e) =>
+            setParams((prev) => ({
+              ...prev,
+              search: e.target.value || undefined
+            }))
+          }
+        />
+        <Select
+          options={['all', ...categoryOptions]}
+          value={params.categoryId ?? 'all'}
+          onChange={(e) =>
+            setParams((prev) => ({
+              ...prev,
+              categoryId: e.target.value === 'all' ? undefined : e.target.value
+            }))
+          }
+        />
+        <Select
+          options={['all', ...vendorOptions]}
+          value={params.vendorId ?? 'all'}
+          onChange={(e) =>
+            setParams((prev) => ({
+              ...prev,
+              vendorId: e.target.value === 'all' ? undefined : e.target.value
+            }))
+          }
+        />
+        <Select
+          options={['all', 'true', 'false']}
+          value={params.published === undefined ? 'all' : String(params.published)}
+          onChange={(e) =>
+            setParams((prev) => ({
+              ...prev,
+              published:
+                e.target.value === 'all' ? undefined : e.target.value === 'true'
+            }))
+          }
+        />
+        <Select
+          options={['all', 'true', 'false']}
+          value={params.isGlobal === undefined ? 'all' : String(params.isGlobal)}
+          onChange={(e) =>
+            setParams((prev) => ({
+              ...prev,
+              isGlobal:
+                e.target.value === 'all' ? undefined : e.target.value === 'true'
+            }))
+          }
+        />
       </FilterBar>
 
-      {error ? <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
-      {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading products...</div> : <ProductTable products={filtered} onToggle={handleToggle} />}
+      {loading ? (
+        <div className="rounded-xl border border-border bg-panel p-6 text-sm">
+          Loading products...
+        </div>
+      ) : null}
 
-      <BaseModal open={open} onClose={() => !submitting && setOpen(false)} title="Create Product">
+      {error ? (
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">
+          {error}
+        </div>
+      ) : null}
+
+      {!loading && !error && products.length === 0 ? (
+        <EmptyModuleState
+          title="No products match current filters"
+          description="Try adjusting filters or create a new product."
+          action={<PrimaryButton onClick={() => setOpen(true)}>Add Product</PrimaryButton>}
+        />
+      ) : null}
+
+      {!loading && !error && products.length > 0 ? (
+        <>
+          <div className="mb-3 text-sm text-textMuted">Selected: {selected.length}</div>
+          <ProductTable
+            products={products}
+            selected={selected}
+            onSelect={(id, checked) =>
+              setSelected((prev) =>
+                checked ? [...prev, id] : prev.filter((item) => item !== id)
+              )
+            }
+            onToggle={handleToggle}
+          />
+        </>
+      ) : null}
+
+      <BaseModal open={open} onClose={() => setOpen(false)} title="Create Product">
         <ProductForm
           values={form}
-          onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
-          onCancel={() => !submitting && setOpen(false)}
+          categoryOptions={categoryOptions}
+          vendorOptions={vendorOptions}
+          onChange={(key, value) =>
+            setForm((prev) => ({
+              ...prev,
+              [key]: value
+            }))
+          }
+          onCancel={() => setOpen(false)}
           onSubmit={handleCreate}
         />
       </BaseModal>

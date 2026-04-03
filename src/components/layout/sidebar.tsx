@@ -2,7 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Box, Quote, DollarSign, Factory, Settings, Users, Palette, FileText, Store, ClipboardList } from 'lucide-react';
+import {
+  Home,
+  Box,
+  Quote,
+  DollarSign,
+  Factory,
+  Settings,
+  Users,
+  Palette,
+  FileText,
+  Store,
+  ClipboardList
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const items = [
@@ -33,7 +45,14 @@ export function Sidebar() {
           const Icon = item.icon;
           const active = pathname === item.href;
           return (
-            <Link key={item.label} href={item.href} className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-textMuted hover:bg-panelMuted hover:text-text', active && 'bg-panelMuted text-text')}>
+            <Link
+              key={item.label}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-textMuted hover:bg-panelMuted hover:text-text',
+                active && 'bg-panelMuted text-text'
+              )}
+            >
               <Icon size={16} />
               {item.label}
             </Link>

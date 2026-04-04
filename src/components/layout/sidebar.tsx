@@ -57,14 +57,15 @@ import {
   HeartPulse,
   LifeBuoy,
   BookOpen,
-  LogOut
+  LogOut,
+  type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type NavItem = {
   label: string;
   href?: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   children?: Array<{
     label: string;
     href: string;
@@ -188,7 +189,7 @@ const navItems: NavItem[] = [
   { label: 'Logout', href: '/logout', icon: LogOut }
 ];
 
-const iconMap: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+const iconMap: Record<string, LucideIcon> = {
   Categories: Tags,
   Collections: FolderTree,
   Tags: Tag,
@@ -328,7 +329,7 @@ export function Sidebar() {
               </button>
 
               {openGroups[item.label] ? (
-                <div className="mt-1 space-y-1 border-l border-border/60 pl-4 ml-4">
+                <div className="ml-4 mt-1 space-y-1 border-l border-border/60 pl-4">
                   {item.children?.map((child) => {
                     const ChildIcon = iconMap[child.label] ?? FileText;
                     const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);

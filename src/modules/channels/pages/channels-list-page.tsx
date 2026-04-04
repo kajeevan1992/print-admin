@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { Input } from '@/components/forms/input';
@@ -25,7 +25,7 @@ export function ChannelsListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -42,9 +42,11 @@ export function ChannelsListPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, status]);
 
-  useEffect(() => { load(); }, [search, status]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   return (
     <div>

@@ -1,215 +1,24 @@
-import { productsMock } from '@/data/products';
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
-import type {
-  Product,
-  ProductAttribute,
-  ProductComment,
-  ProductFormValues,
-  ProductInventory,
-  ProductListQuery,
-  RelatedProduct
-} from '@/modules/products/types';
+import { http } from '@/services/api/http';
+import type { Product, ProductAttribute, ProductComment, ProductFormValues, ProductInventory, ProductListQuery, RelatedProduct } from '@/modules/products/types';
 
-const database: Product[] = [...productsMock];
-
-const generateId = () => `p-${Math.floor(Math.random() * 9000) + 1000}`;
-
-const createSlug = (name: string) => name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-
-const applyFilters = (items: Product[], params: ProductListQuery): Product[] => {
-  let filtered = [...items];
-
-  if (params.search) {
-    const term = params.search.toLowerCase();
-    filtered = filtered.filter((item) =>
-      [item.name, item.slug, item.productNumbers.itemNumber].some((value) => value.toLowerCase().includes(term))
-    );
-  }
-
-  if (params.categoryId) {
-    filtered = filtered.filter((item) => item.categoryId === params.categoryId);
-  }
-
-  if (params.vendorId) {
-    filtered = filtered.filter((item) => item.vendorId === params.vendorId);
-  }
-
-  if (params.uncategorized) {
-    filtered = filtered.filter((item) => !item.categoryId);
-  }
-
-  return filtered;
-};
-
+type Envelope<T> = { success: boolean; data: T };
+type ListData<T> = { items: T[]; pagination?: { page: number; limit: number; total: number; totalPages?: number } };
+const asArray = <T>(value: unknown): T[] => Array.isArray(value) ? value as T[] : [];
+const mapProduct = (raw: Record<string, any>): Product => ({
+  id: String(raw.id), sortOrder: Number(raw.sortOrder ?? 0), slug: String(raw.slug ?? ''), name: String(raw.name ?? ''), description: String(raw.description ?? ''), productType: (raw.productType as Product['productType']) ?? 'online', creationMethod: (raw.creationMethod as Product['creationMethod']) ?? 'blank', categoryId: String(raw.categoryId ?? ''), vendorId: String(raw.vendorId ?? ''), hotFolder: String(raw.hotFolder ?? ''), pdfFileUrl: raw.pdfFileUrl ? String(raw.pdfFileUrl) : undefined, pages: Number(raw.pages ?? 1), units: String(raw.units ?? 'mm'), width: Number(raw.width ?? 0), height: Number(raw.height ?? 0), bleed: Number(raw.bleed ?? 0), cmsPageLink: String(raw.cmsPageLink ?? ''), previewUrl: String(raw.previewUrl ?? ''), status: raw.published ? 'active' : 'draft', published: Boolean(raw.published), isGlobal: Boolean(raw.isGlobal), storefrontIds: asArray<string>(raw.storefrontIds), channelIds: asArray<any>(raw.channels).map((item) => String(item.channelId ?? item.id ?? '')), thumbnail: String(raw.thumbnail ?? 'https://placehold.co/96x96/111827/ffffff?text=PR'), lastSavedAt: String(raw.lastSavedAt ?? raw.updatedAt ?? new Date().toISOString()), productNumbers: raw.productNumbers ?? { itemNumber: '', modelNumber: '', integrationId: '' }, templateDefaults: raw.templateDefaults ?? { scaleFactor: 1, zoomState: 'fit', palette: 'Default', colorSpace: 'CMYK', editorMode: 'simple', textModes: ['point'], imageMode: 'contain', previewType: '2D', photoGroup: 'Default', model3d: '', defaultFont: '', toggles: [], rules: [] }, templateSetup: raw.templateSetup ?? { setupProfile: 'default', allowUpload: true, allowLayers: false, smartSnapping: true, bleedLocked: false, showSafeArea: true }, templateAssets: raw.templateAssets ?? { fonts: [], layouts: [], themes: [], cliparts: [] }, priceMapping: raw.priceMapping ?? { basePrice: 0, sizeLabel: '', dielineMapping: '', currency: 'USD' }, tags: asArray<any>(raw.tags).map((tag) => ({ id: String(tag.id), label: String(tag.label ?? tag.name), color: 'blue' })), comments: asArray<ProductComment>(raw.comments), internalNotes: String(raw.internalNotes ?? ''), inventory: raw.inventory ?? { onHandQuantity: 0, reorderQuantity: 0 }, relatedProducts: asArray<RelatedProduct>(raw.relatedProducts), attributes: asArray<ProductAttribute>(raw.attributes), alternateViews: asArray<any>(raw.alternateViews), updatedAt: String(raw.updatedAt ?? new Date().toISOString().slice(0,10))
+});
+const toPayload = (values: ProductFormValues | Partial<Product>) => values;
 export const productsService = {
-  listProducts: async (params: ProductListQuery = {}): Promise<PaginatedResponse<Product>> => {
-    const page = params.page ?? 1;
-    const perPage = params.perPage ?? 20;
-    const filtered = applyFilters(database, params);
-    const start = (page - 1) * perPage;
-    const items = filtered.slice(start, start + perPage);
-
-    return okPaginated(items, {
-      page,
-      perPage,
-      total: filtered.length,
-      totalPages: Math.max(1, Math.ceil(filtered.length / perPage))
-    });
-  },
-
-  getProduct: async (id: string): Promise<ApiResponse<Product>> => {
-    const product = database.find((item) => item.id === id);
-
-    if (!product) {
-      throw new Error('Product not found');
-    }
-
-    return ok(product);
-  },
-
-  createProduct: async (payload: ProductFormValues): Promise<ApiResponse<Product>> => {
-    const now = new Date().toISOString();
-    const id = generateId();
-    const product: Product = {
-      id,
-      sortOrder: database.length * 10 + 10,
-      slug: createSlug(payload.name),
-      name: payload.name,
-      description: '',
-      productType: payload.productType,
-      creationMethod: payload.creationMethod,
-      categoryId: payload.categoryId,
-      vendorId: '',
-      hotFolder: '',
-      pages: Number(payload.pages) || 1,
-      units: payload.units || 'mm',
-      width: Number(payload.width) || 0,
-      height: Number(payload.height) || 0,
-      bleed: Number(payload.bleed) || 0,
-      cmsPageLink: `/products/${id}`,
-      previewUrl: '',
-      status: 'draft',
-      published: false,
-      isGlobal: false,
-      storefrontIds: [],
-      channelIds: [],
-      thumbnail: 'https://placehold.co/96x96/111827/ffffff?text=NP',
-      lastSavedAt: now,
-      productNumbers: { itemNumber: '', modelNumber: '', integrationId: '' },
-      templateDefaults: {
-        scaleFactor: 1,
-        zoomState: 'fit',
-        palette: 'Default',
-        colorSpace: 'CMYK',
-        editorMode: 'simple',
-        textModes: ['point'],
-        imageMode: 'contain',
-        previewType: '2D',
-        photoGroup: 'Default',
-        model3d: '',
-        defaultFont: '',
-        toggles: [],
-        rules: []
-      },
-      templateSetup: {
-        setupProfile: 'default',
-        allowUpload: true,
-        allowLayers: false,
-        smartSnapping: true,
-        bleedLocked: false,
-        showSafeArea: true
-      },
-      templateAssets: { fonts: [], layouts: [], themes: [], cliparts: [] },
-      priceMapping: {
-        basePrice: 0,
-        sizeLabel: '',
-        dielineMapping: '',
-        currency: 'USD',
-        parametricStandard:
-          payload.creationMethod === 'parametric-standard'
-            ? {
-                standard: payload.parametricStandard,
-                size: payload.parametricSize,
-                allowance: payload.parametricAllowance,
-                material: payload.parametricMaterial
-              }
-            : undefined
-      },
-      tags: [],
-      comments: [],
-      internalNotes: '',
-      inventory: { onHandQuantity: 0, reorderQuantity: 0 },
-      relatedProducts: [],
-      attributes: [],
-      alternateViews: [],
-      updatedAt: now.slice(0, 10),
-      pdfFileUrl: payload.productType === 'static' ? payload.idmlFileName || payload.printEditorTemplateName || '' : undefined
-    };
-
-    database.unshift(product);
-
-    return ok(product);
-  },
-
-  updateProduct: async (id: string, changes: Partial<Product>): Promise<ApiResponse<Product>> => {
-    const index = database.findIndex((item) => item.id === id);
-
-    if (index < 0) {
-      throw new Error('Product not found');
-    }
-
-    database[index] = {
-      ...database[index],
-      ...changes,
-      lastSavedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString().slice(0, 10)
-    };
-
-    return ok(database[index]);
-  },
-
-  deleteProduct: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
-    const index = database.findIndex((item) => item.id === id);
-    if (index >= 0) database.splice(index, 1);
-    return ok({ success: true });
-  },
-
-  cloneProduct: async (id: string): Promise<ApiResponse<Product>> => {
-    const product = database.find((item) => item.id === id);
-    if (!product) throw new Error('Product not found');
-
-    const clone: Product = {
-      ...product,
-      id: generateId(),
-      slug: `${product.slug}-copy`,
-      name: `${product.name} (Copy)`,
-      published: false,
-      status: 'draft',
-      updatedAt: new Date().toISOString().slice(0, 10)
-    };
-
-    database.unshift(clone);
-    return ok(clone);
-  },
-
-  getProductAttributes: async (id: string): Promise<ApiResponse<{ items: ProductAttribute[] }>> => {
-    const product = database.find((item) => item.id === id);
-    return ok({ items: product?.attributes ?? [] });
-  },
-
-  getRelatedProducts: async (id: string): Promise<ApiResponse<{ items: RelatedProduct[] }>> => {
-    const product = database.find((item) => item.id === id);
-    return ok({ items: product?.relatedProducts ?? [] });
-  },
-
-  getProductComments: async (id: string): Promise<ApiResponse<{ items: ProductComment[] }>> => {
-    const product = database.find((item) => item.id === id);
-    return ok({ items: product?.comments ?? [] });
-  },
-
-  getProductInventory: async (id: string): Promise<ApiResponse<{ item: ProductInventory }>> => {
-    const product = database.find((item) => item.id === id);
-    return ok({ item: product?.inventory ?? { onHandQuantity: 0, reorderQuantity: 0 } });
-  }
+  listProducts: async (params: ProductListQuery = {}): Promise<PaginatedResponse<Product>> => { const response = await http.get<Envelope<ListData<Record<string, any>>>>('/products', { page: params.page ?? 1, limit: params.perPage ?? 20, search: params.search, categoryId: params.categoryId }); const items = asArray<Record<string, any>>(response.data.items).map(mapProduct); const p = response.data.pagination; return okPaginated(items, { page: p?.page ?? 1, perPage: p?.limit ?? items.length || 1, total: p?.total ?? items.length, totalPages: p?.totalPages ?? 1 }); },
+  getProduct: async (id: string): Promise<ApiResponse<Product>> => { const response = await http.get<Envelope<Record<string, any>>>(`/products/${id}`); return ok(mapProduct(response.data)); },
+  createProduct: async (payload: ProductFormValues): Promise<ApiResponse<Product>> => { const response = await http.post<Envelope<Record<string, any>>>('/products', { name: payload.name, slug: payload.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), creationMethod: payload.creationMethod, productType: payload.productType, categoryId: payload.categoryId || null, vendorId: '', pages: Number(payload.pages) || 1, units: payload.units || 'mm', width: Number(payload.width) || 0, height: Number(payload.height) || 0, bleed: Number(payload.bleed) || 0, pdfFileUrl: payload.idmlFileName || payload.printEditorTemplateName || '', cmsPageLink: '', previewUrl: '', thumbnail: 'https://placehold.co/96x96/111827/ffffff?text=NP', sortOrder: 0, comments: [], internalNotes: '', inventory: { onHandQuantity: 0, reorderQuantity: 0 }, attributes: [], relatedProducts: [], alternateViews: [], priceMapping: { basePrice: 0, sizeLabel: payload.parametricSize || '', dielineMapping: '', currency: 'USD', parametricStandard: payload.creationMethod === 'parametric-standard' ? { standard: payload.parametricStandard, size: payload.parametricSize, allowance: payload.parametricAllowance, material: payload.parametricMaterial } : undefined } }); return ok(mapProduct(response.data)); },
+  updateProduct: async (id: string, changes: Partial<Product>): Promise<ApiResponse<Product>> => { const response = await http.patch<Envelope<Record<string, any>>>(`/products/${id}`, toPayload(changes)); return ok(mapProduct(response.data)); },
+  deleteProduct: async (id: string): Promise<ApiResponse<{ success: boolean }>> => { const response = await http.delete<Envelope<{ success: boolean }>>(`/products/${id}`); return ok(response.data); },
+  cloneProduct: async (id: string): Promise<ApiResponse<Product>> => { const product = await productsService.getProduct(id); return productsService.createProduct({ name: `${product.data.name} Copy`, categoryId: product.data.categoryId, creationMethod: product.data.creationMethod, productType: product.data.productType, idmlFileName: product.data.pdfFileUrl ?? '', printEditorTemplateName: '', pages: String(product.data.pages), units: product.data.units, width: String(product.data.width), height: String(product.data.height), bleed: String(product.data.bleed), parametricStandard: '', parametricSize: '', parametricAllowance: '', parametricMaterial: '' }); },
+  getProductAttributes: async (id: string): Promise<ApiResponse<{ items: ProductAttribute[] }>> => { const product = await productsService.getProduct(id); return ok({ items: product.data.attributes }); },
+  getRelatedProducts: async (id: string): Promise<ApiResponse<{ items: RelatedProduct[] }>> => { const product = await productsService.getProduct(id); return ok({ items: product.data.relatedProducts }); },
+  getProductComments: async (id: string): Promise<ApiResponse<{ items: ProductComment[] }>> => { const product = await productsService.getProduct(id); return ok({ items: product.data.comments }); },
+  getProductInventory: async (id: string): Promise<ApiResponse<ProductInventory>> => { const product = await productsService.getProduct(id); return ok(product.data.inventory); }
 };

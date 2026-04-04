@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { FilterBar } from '@/components/data-table/filter-bar';
@@ -22,29 +23,36 @@ const emptyForm: ProductFormValues = {
   productType: 'online',
   idmlFileName: '',
   printEditorTemplateName: '',
-  pages: '1',
+  pages: '2',
   units: 'mm',
-  width: '0',
-  height: '0',
-  bleed: '0',
-  parametricStandard: '',
-  parametricSize: '',
-  parametricAllowance: '',
-  parametricMaterial: ''
+  width: '210',
+  height: '297',
+  bleed: '3',
+  parametricStandard: 'Mailer Box',
+  parametricSize: 'Medium',
+  parametricAllowance: 'Standard',
+  parametricMaterial: '350gsm SBS'
 };
 
 export function ProductsListPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ProductFormValues>(emptyForm);
   const [creationSuccess, setCreationSuccess] = useState(false);
+  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
 
-  const [params, setParams] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc' });
+  const [params, setParams] = useState<ProductListQuery>({
+    page: 1,
+    perPage: 20,
+    sortBy: 'lastSavedAt',
+    sortDirection: 'desc'
+  });
 
   const loadProducts = async (nextParams: ProductListQuery) => {
     setLoading(true);
@@ -61,20 +69,23 @@ export function ProductsListPage() {
   };
 
   useEffect(() => {
-    loadProducts(params);
+    void loadProducts(params);
   }, [params]);
 
   useEffect(() => {
-    Promise.all([categoriesService.listCategories(), vendorsService.listVendors()]).then(([categories, vendors]) => {
+    void Promise.all([categoriesService.listCategories(), vendorsService.listVendors()]).then(([categories, vendors]) => {
       const catOptions = categories.data.items.map((item) => ({ value: item.id, label: item.name }));
       const venOptions = vendors.data.items.map((item) => ({ value: item.id, label: item.name }));
       setCategoryOptions(catOptions);
       setVendorOptions(venOptions);
-      setForm((prev) => ({ ...prev, categoryId: catOptions[0] ? String(catOptions[0].value) : '' }));
+      setForm((prev) => ({ ...prev, categoryId: prev.categoryId || (catOptions[0] ? String(catOptions[0].value) : '') }));
     });
   }, []);
 
-  const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
+  const subtitle = useMemo(
+    () => `${total} products total · Create and manage print products with template files, pricing, editor configuration, and publishing.`,
+    [total]
+  );
 
   const handleToggle = async (id: string, key: 'published' | 'isGlobal', value: boolean) => {
     await productsService.updateProduct(id, { [key]: value });
@@ -85,20 +96,54 @@ export function ProductsListPage() {
     if (action === 'clone') await productsService.cloneProduct(id);
     if (action === 'delete') await productsService.deleteProduct(id);
     if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
-    if (action === 'preview') window.open(products.find((item) => item.id === id)?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
+    if (action === 'preview') {
+      const product = products.find((item) => item.id === id);
+      window.open(product?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
+    }
     await loadProducts(params);
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.categoryId) return;
-    await productsService.createProduct(form);
+    if (!form.name.trim() || !form.categoryId) {
+      setError('Product name and category are required.');
+      return;
+    }
+
+    if (form.creationMethod === 'idml' && !form.idmlFileName) {
+      setError('Please select an IDML or PDF file.');
+      return;
+    }
+
+    if (form.creationMethod === 'print-editor-template' && !form.printEditorTemplateName) {
+      setError('Please select a Print Editor template file.');
+      return;
+    }
+
+    if (form.creationMethod === 'parametric-standard' && (!form.parametricStandard || !form.parametricSize || !form.parametricMaterial)) {
+      setError('Please complete the parametric standard configuration.');
+      return;
+    }
+
+    setError(null);
+    const response = await productsService.createProduct(form);
+    setCreatedProductId(response.data.id);
     setCreationSuccess(true);
     await loadProducts(params);
   };
 
   const resetCreation = () => {
     setCreationSuccess(false);
-    setForm({ ...emptyForm, categoryId: form.categoryId });
+    setCreatedProductId(null);
+    setForm((prev) => ({
+      ...emptyForm,
+      categoryId: prev.categoryId || categoryOptions[0]?.value?.toString() || ''
+    }));
+  };
+
+  const closeModal = () => {
+    setOpen(false);
+    setCreationSuccess(false);
+    setCreatedProductId(null);
   };
 
   return (
@@ -106,32 +151,54 @@ export function ProductsListPage() {
       <PageHeader
         title="Products"
         subtitle={subtitle}
-        actions={<><Button>Import</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
+        actions={<><Button type="button">Import</Button><Button type="button">Export</Button><PrimaryButton type="button" onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
       />
 
       <FilterBar>
-        <Input placeholder="Search by name / slug / item number" value={params.search ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, search: e.target.value || undefined }))} />
-        <Select options={[{ value: '', label: 'All categories' }, { value: '__uncategorized__', label: 'Uncategorized' }, ...categoryOptions]} value={params.uncategorized ? '__uncategorized__' : params.categoryId ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, uncategorized: e.target.value === '__uncategorized__' || undefined, categoryId: e.target.value && e.target.value !== '__uncategorized__' ? e.target.value : undefined }))} />
-        <Select options={[{ value: '', label: 'All vendors' }, ...vendorOptions]} value={params.vendorId ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, vendorId: e.target.value || undefined }))} />
+        <Input
+          placeholder="Search by name / slug / item number / model number"
+          value={params.search ?? ''}
+          onChange={(e) => setParams((prev) => ({ ...prev, search: e.target.value || undefined }))}
+        />
+        <Select
+          options={[{ value: '', label: 'All categories' }, { value: '__uncategorized__', label: 'Uncategorized' }, ...categoryOptions]}
+          value={params.uncategorized ? '__uncategorized__' : params.categoryId ?? ''}
+          onChange={(e) => setParams((prev) => ({
+            ...prev,
+            uncategorized: e.target.value === '__uncategorized__' || undefined,
+            categoryId: e.target.value && e.target.value !== '__uncategorized__' ? e.target.value : undefined
+          }))}
+        />
+        <Select
+          options={[{ value: '', label: 'All vendors' }, ...vendorOptions]}
+          value={params.vendorId ?? ''}
+          onChange={(e) => setParams((prev) => ({ ...prev, vendorId: e.target.value || undefined }))}
+        />
       </FilterBar>
 
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading products...</div> : null}
-      {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
+      {error ? <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
 
       {!loading && !error && products.length === 0 ? (
-        <EmptyModuleState title="No products yet" description="Create your first product with template upload, blank setup, or parametric standard generation." action={<PrimaryButton onClick={() => setOpen(true)}>Add Product</PrimaryButton>} />
+        <EmptyModuleState
+          title="No products yet"
+          description="Create your first product with template upload, blank setup, or parametric standard generation."
+          action={<PrimaryButton type="button" onClick={() => setOpen(true)}>Add Product</PrimaryButton>}
+        />
       ) : null}
 
-      {!loading && !error && products.length > 0 ? <ProductTable products={products} onToggle={handleToggle} onAction={handleAction} /> : null}
+      {!loading && products.length > 0 ? <ProductTable products={products} onToggle={handleToggle} onAction={handleAction} /> : null}
 
-      <BaseModal open={open} onClose={() => { setOpen(false); setCreationSuccess(false); }} title="Add Product">
+      <BaseModal open={open} onClose={closeModal} title="Add Product">
         <ProductForm
           values={form}
           categoryOptions={categoryOptions}
           onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
-          onCancel={() => setOpen(false)}
+          onCancel={closeModal}
           onSubmit={handleCreate}
           success={creationSuccess}
+          createdProductId={createdProductId}
+          onEditCreated={() => createdProductId ? router.push(`/products/${createdProductId}`) : closeModal()}
           onReset={resetCreation}
         />
       </BaseModal>

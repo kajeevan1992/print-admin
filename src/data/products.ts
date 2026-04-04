@@ -14,59 +14,44 @@ export const productVendors = [
 ];
 
 export const storefrontOptions = [
-  { id: 'store-na', name: 'North America' },
-  { id: 'store-eu', name: 'Europe' },
-  { id: 'store-b2b', name: 'Wholesale Portal' }
+  { id: 'store-na', name: 'North America Store' },
+  { id: 'store-eu', name: 'Europe Store' },
+  { id: 'store-b2b', name: 'B2B Wholesale Store' }
 ];
 
-export const productTagSuggestions: ProductTag[] = [
-  { id: 'tag-premium', label: 'Premium', color: 'violet' },
-  { id: 'tag-fast', label: 'Fast Turnaround', color: 'emerald' },
-  { id: 'tag-featured', label: 'Featured', color: 'blue' },
-  { id: 'tag-wholesale', label: 'Wholesale', color: 'amber' }
+const sharedTags: ProductTag[] = [
+  { id: 't1', label: 'Premium', color: 'violet' },
+  { id: 't2', label: 'Fast Turnaround', color: 'emerald' },
+  { id: 't3', label: 'Top Seller', color: 'blue' }
 ];
 
 export const productsMock: Product[] = [
   {
     id: 'p-1001',
-    slug: 'premium-catalog-a4',
     sortOrder: 10,
+    slug: 'premium-catalog-a4',
     name: 'Premium Catalog A4',
-    description: 'High-end stitched catalog for product showcases.',
-    thumbnail: 'https://placehold.co/100x100/111827/ffffff?text=PC',
-    previewUrl: 'https://preview.print.local/p-1001',
-    cmsPageLink: '/products/premium-catalog-a4',
-    commentsSummary: 2,
-    lastSavedAt: '2026-04-03 14:20 UTC',
-    published: true,
-    isGlobal: true,
-    storefrontAssignments: [
-      { storefrontId: 'store-na', storefrontName: 'North America' },
-      { storefrontId: 'store-eu', storefrontName: 'Europe' }
-    ],
-    channelIds: ['ch-1'],
+    description: 'High-end stitched catalog built for product showcases and premium brochures.',
+    productType: 'online',
+    creationMethod: 'print-editor-template',
     categoryId: 'cat-catalogs',
     vendorId: 'ven-blueline',
-    hotFolder: '/hotfolders/catalog',
-    productType: 'online',
-    creationMethod: 'print_editor_template',
-    status: 'active',
+    hotFolder: 'catalog/a4',
     pages: 24,
     units: 'mm',
     width: 210,
     height: 297,
     bleed: 3,
-    productNumbers: {
-      itemNumber: 'ITM-89311',
-      modelNumber: 'MDL-CAT-A4',
-      integrationId: 'ERP-CAT-001'
-    },
-    priceMapping: {
-      basePrice: 12.5,
-      sizeLabel: 'A4',
-      dielineMapping: 'CATALOG_A4_DIELINE',
-      currency: 'USD'
-    },
+    cmsPageLink: '/products/premium-catalog-a4',
+    previewUrl: 'https://preview.example.com/p-1001',
+    status: 'active',
+    published: true,
+    isGlobal: true,
+    storefrontIds: ['store-na', 'store-eu'],
+    channelIds: ['ch-1'],
+    thumbnail: 'https://placehold.co/96x96/1f2937/ffffff?text=PC',
+    lastSavedAt: '2026-04-02 14:30 UTC',
+    productNumbers: { itemNumber: 'I-88341', modelNumber: 'M-CAT-2401', integrationId: 'INT-CAT-1' },
     templateDefaults: {
       scaleFactor: 1,
       zoomState: 'fit',
@@ -75,123 +60,107 @@ export const productsMock: Product[] = [
       editorMode: 'advanced',
       textModes: ['point', 'paragraph'],
       imageMode: 'cover',
-      previewType: '3D',
+      previewType: '2D',
       photoGroup: 'Catalog Lifestyle',
-      model3d: 'Catalog_A4_Stapled',
-      defaultFont: ''
+      model3d: 'CatalogStapledA4',
+      defaultFont: 'Inter',
+      toggles: [{ key: 'Snap to grid', enabled: true }],
+      rules: ['Minimum 8pt for body copy']
     },
     templateSetup: {
-      showToolbar: true,
-      showLayersPanel: true,
-      showRulesPanel: true,
-      lockBleed: true,
-      rulesEngine: 'print-core-default'
+      setupProfile: 'catalog-standard',
+      allowUpload: true,
+      allowLayers: true,
+      smartSnapping: true,
+      bleedLocked: true,
+      showSafeArea: true
     },
     templateAssets: {
       fonts: ['Inter', 'Montserrat'],
-      layouts: ['A4 portrait'],
-      themes: ['Corporate'],
-      cliparts: ['Arrows', 'Badges']
+      layouts: ['A4 Portrait'],
+      themes: ['Corporate Dark'],
+      cliparts: ['Arrows', 'Callouts']
     },
-    attributes: [
-      { id: 'attr-1', type: 'Paper', value: '170gsm Silk' },
-      { id: 'attr-2', type: 'Finish', value: 'Matte' }
-    ],
-    comments: [
-      { id: 'cm-1', author: 'Alex Rivera', timestamp: '2026-04-02 09:12 UTC', message: 'Verify font fallback before publishing.' },
-      { id: 'cm-2', author: 'Mina Chen', timestamp: '2026-04-03 10:51 UTC', message: 'Dieline mapping reviewed and approved.' }
-    ],
-    relatedProducts: [
-      { id: 'p-1002', name: 'Matte Business Card', slug: 'matte-business-card', thumbnail: 'https://placehold.co/80x80/0f172a/fff?text=BC' }
-    ],
-    alternateViews: [
-      { id: 'view-1', label: 'Front View', url: 'https://placehold.co/400x220/111827/fff?text=Front' }
-    ],
-    inventory: { onHandQuantity: 1220, reorderQuantity: 350 },
-    tags: [productTagSuggestions[0], productTagSuggestions[2]],
-    actionState: {
-      canPreview: true,
-      canOpenPrintEditor: true,
-      canDownloadPdf: true
-    },
-    updatedAt: '2026-04-03'
+    priceMapping: { basePrice: 12.5, sizeLabel: 'A4', dielineMapping: 'A4_CATALOG_DIELINE', currency: 'USD' },
+    tags: [sharedTags[0], sharedTags[2]],
+    comments: [{ id: 'c1', author: 'Alex Rivera', timestamp: '2026-03-30 10:12', label: 'internal', message: 'Need to verify bleed setup before pushing globally.' }],
+    internalNotes: 'Font coverage warning pending.',
+    inventory: { onHandQuantity: 1240, reorderQuantity: 400 },
+    relatedProducts: [{ id: 'p-1002', name: 'Matte Business Card', slug: 'matte-business-card', thumbnail: 'https://placehold.co/80x80?text=BC' }],
+    attributes: [{ id: 'a1', type: 'Paper Type', value: 'Silk 170gsm' }],
+    alternateViews: [{ id: 'av1', label: 'Front Angle', url: 'https://placehold.co/300x180?text=Front' }],
+    updatedAt: '2026-04-02'
   },
   {
     id: 'p-1002',
-    slug: 'matte-business-card',
     sortOrder: 20,
+    slug: 'matte-business-card',
     name: 'Matte Business Card',
-    description: 'Static proof-driven business card product.',
-    thumbnail: 'https://placehold.co/100x100/1f2937/ffffff?text=BC',
-    previewUrl: 'https://preview.print.local/p-1002',
-    cmsPageLink: '/products/matte-business-card',
-    commentsSummary: 1,
-    lastSavedAt: '2026-04-01 18:10 UTC',
-    published: false,
-    isGlobal: false,
-    storefrontAssignments: [{ storefrontId: 'store-na', storefrontName: 'North America' }],
-    channelIds: ['ch-1', 'ch-2'],
+    description: 'Standard matte card with optional foil and spot UV upgrades.',
+    productType: 'static',
+    creationMethod: 'idml',
     categoryId: 'cat-business-cards',
     vendorId: 'ven-printwave',
-    hotFolder: '/hotfolders/cards',
-    productType: 'static',
-    creationMethod: 'idml_template',
-    status: 'draft',
-    pdfFileName: 'matte-business-card-proof.pdf',
-    pdfFileUrl: 'https://files.print.local/matte-business-card-proof.pdf',
+    hotFolder: 'cards/matte',
+    pdfFileUrl: 'https://files.example.com/products/p-1002.pdf',
     pages: 2,
     units: 'mm',
     width: 90,
     height: 50,
     bleed: 2,
-    productNumbers: {
-      itemNumber: 'ITM-22001',
-      modelNumber: 'MDL-BC-STD',
-      integrationId: 'ERP-BC-210'
-    },
-    priceMapping: {
-      basePrice: 0.2,
-      sizeLabel: '90x50',
-      dielineMapping: 'BC_90_50',
-      currency: 'USD'
-    },
+    cmsPageLink: '/products/matte-business-card',
+    previewUrl: 'https://preview.example.com/p-1002',
+    status: 'active',
+    published: true,
+    isGlobal: false,
+    storefrontIds: ['store-na'],
+    channelIds: ['ch-1', 'ch-2'],
+    thumbnail: 'https://placehold.co/96x96/0f172a/ffffff?text=BC',
+    lastSavedAt: '2026-04-01 20:22 UTC',
+    productNumbers: { itemNumber: 'I-14328', modelNumber: 'M-BC-9005', integrationId: 'INT-BC-2' },
     templateDefaults: {
       scaleFactor: 1,
-      zoomState: 'fit',
+      zoomState: 'fill',
       palette: 'Default',
       colorSpace: 'CMYK',
-      editorMode: 'guided',
+      editorMode: 'simple',
       textModes: ['point'],
       imageMode: 'contain',
-      previewType: 'proof',
-      photoGroup: 'Business Cards',
-      model3d: '',
-      defaultFont: 'Roboto'
+      previewType: 'Proof',
+      photoGroup: 'Studio',
+      model3d: 'BusinessCard',
+      defaultFont: 'Roboto',
+      toggles: [{ key: 'Bleed guides', enabled: true }],
+      rules: ['No transparent text']
     },
     templateSetup: {
-      showToolbar: false,
-      showLayersPanel: false,
-      showRulesPanel: false,
-      lockBleed: true,
-      rulesEngine: 'none'
+      setupProfile: 'card-standard',
+      allowUpload: true,
+      allowLayers: false,
+      smartSnapping: true,
+      bleedLocked: true,
+      showSafeArea: true
     },
     templateAssets: {
       fonts: ['Roboto'],
-      layouts: [],
-      themes: [],
+      layouts: ['Business Card Horizontal'],
+      themes: ['Clean Light'],
       cliparts: []
     },
-    attributes: [{ id: 'attr-3', type: 'Stock', value: '350gsm Matte' }],
-    comments: [{ id: 'cm-3', author: 'Vendor Ops', timestamp: '2026-03-30 07:00 UTC', message: 'Awaiting supplier stock update.' }],
-    relatedProducts: [],
-    alternateViews: [],
+    priceMapping: { basePrice: 0.14, sizeLabel: '90x50mm', dielineMapping: 'BC_90X50', currency: 'USD' },
+    tags: [sharedTags[1]],
+    comments: [],
+    internalNotes: '',
     inventory: { onHandQuantity: 0, reorderQuantity: 200 },
-    tags: [productTagSuggestions[1]],
-    actionState: {
-      canPreview: false,
-      canOpenPrintEditor: false,
-      canDownloadPdf: true
-    },
+    relatedProducts: [],
+    attributes: [{ id: 'a2', type: 'Finish', value: 'Matte' }],
+    alternateViews: [],
     updatedAt: '2026-04-01'
   }
+];
+
+export const suggestedProductTags: ProductTag[] = [
+  { id: 'st1', label: 'Eco', color: 'emerald' },
+  { id: 'st2', label: 'Event', color: 'blue' },
+  { id: 'st3', label: 'Luxury', color: 'violet' }
 ];

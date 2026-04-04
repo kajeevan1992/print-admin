@@ -1,47 +1,43 @@
 import { Button } from '@/components/ui/buttons';
-import type { Product } from '@/modules/products/types';
 import { ProductSectionCard } from './product-section-card';
 import { TagManager } from './tag-manager';
-import { productTagSuggestions } from '@/data/products';
+import type { Product } from '@/modules/products/types';
+import { suggestedProductTags } from '@/data/products';
 
 export function ProductRightSidebar({ product }: { product: Product }) {
-  const actions = [
-    { label: 'Print Editor', disabled: product.productType === 'static' },
-    { label: 'Item Manager', disabled: false },
-    { label: 'Template Data', disabled: false },
-    { label: 'Remove Thumbnail', disabled: false },
-    { label: 'Download PDF', disabled: !product.actionState.canDownloadPdf },
-    { label: 'Download Low-res Proof', disabled: false },
-    { label: 'Download Assets', disabled: false }
-  ];
-
   return (
     <div className="space-y-4">
-      <ProductSectionCard title="Meta">
-        <p className="mb-2 text-sm text-textMuted">Last Saved: {product.lastSavedAt}</p>
-        <Button className="w-full" disabled={!product.actionState.canPreview}>Preview</Button>
-      </ProductSectionCard>
-
-      <ProductSectionCard title="Thumbnail">
-        <img src={product.thumbnail} alt={product.name} className="mb-2 h-36 w-full rounded border border-border object-cover" />
-        <Button className="w-full">Reload Thumbnail</Button>
-      </ProductSectionCard>
-
-      <ProductSectionCard title="Actions">
-        <div className="grid gap-2">
-          {actions.map((action) => <Button key={action.label} disabled={action.disabled} className="justify-start">{action.label}</Button>)}
+      <ProductSectionCard title="Product Status">
+        <div className="space-y-2 text-sm">
+          <p className="text-textMuted">Last Saved: {product.lastSavedAt}</p>
+          <Button className="w-full">Preview</Button>
         </div>
       </ProductSectionCard>
 
-      <TagManager tags={product.tags} suggested={productTagSuggestions} />
-
-      <ProductSectionCard title="Inventory">
-        <p className="text-sm">On Hand Quantity: {product.inventory.onHandQuantity}</p>
-        <p className="text-sm">Reorder Quantity: {product.inventory.reorderQuantity}</p>
+      <ProductSectionCard title="Thumbnail">
+        <img src={product.thumbnail} alt={product.name} className="mb-2 h-40 w-full rounded border border-border object-cover" />
+        <Button className="w-full">Reload Thumbnail</Button>
       </ProductSectionCard>
 
-      <ProductSectionCard title="AccuZip Config">
-        <p className="text-sm text-textMuted">Placeholder block for AccuZip settings and mapping.</p>
+      <ProductSectionCard title="Actions Menu">
+        <div className="grid gap-2 text-sm">
+          {['Print Editor', 'Item Manager', 'Template Data', 'Remove Thumbnail', 'Download PDF', 'Download Low-res Proof', 'Download Assets'].map((item) => (
+            <Button key={item} className="justify-start text-left">{item}</Button>
+          ))}
+        </div>
+      </ProductSectionCard>
+
+      <TagManager tags={product.tags} suggested={suggestedProductTags} />
+
+      <ProductSectionCard title="Inventory">
+        <div className="space-y-2 text-sm">
+          <p>On Hand Quantity: {product.inventory.onHandQuantity}</p>
+          <p>Reorder Quantity: {product.inventory.reorderQuantity}</p>
+        </div>
+      </ProductSectionCard>
+
+      <ProductSectionCard title="AccuZip Configuration">
+        <p className="text-sm text-textMuted">Placeholder for AccuZip integration settings.</p>
       </ProductSectionCard>
     </div>
   );

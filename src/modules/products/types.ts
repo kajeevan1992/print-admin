@@ -2,24 +2,45 @@ import type { EntityStatus, Id } from '@/types/common';
 import type { ListQueryParams } from '@/services/api/types';
 
 export type ProductStatus = EntityStatus;
-export type ProductType = 'static' | 'online';
-export type CreationMethod = 'idml_template' | 'print_editor_template' | 'blank' | 'parametric_standard';
-
-export type StorefrontAssignment = {
-  storefrontId: Id;
-  storefrontName: string;
-};
-
-export type ProductActionState = {
-  canPreview: boolean;
-  canOpenPrintEditor: boolean;
-  canDownloadPdf: boolean;
-};
+export type ProductType = 'online' | 'static' | 'parametric';
+export type CreationMethod = 'idml' | 'print-editor-template' | 'blank' | 'parametric-standard';
 
 export type ProductNumbering = {
   itemNumber: string;
   modelNumber: string;
   integrationId: string;
+};
+
+export type ProductTemplateDefaults = {
+  scaleFactor: number;
+  zoomState: 'fit' | 'fill' | 'custom';
+  palette: string;
+  colorSpace: 'CMYK' | 'RGB';
+  editorMode: 'simple' | 'advanced';
+  textModes: string[];
+  imageMode: 'cover' | 'contain';
+  previewType: string;
+  photoGroup: string;
+  model3d: string;
+  defaultFont: string;
+  toggles: Array<{ key: string; enabled: boolean }>;
+  rules: string[];
+};
+
+export type ProductTemplateAssets = {
+  fonts: string[];
+  layouts: string[];
+  themes: string[];
+  cliparts: string[];
+};
+
+export type ProductTemplateSetup = {
+  setupProfile: string;
+  allowUpload: boolean;
+  allowLayers: boolean;
+  smartSnapping: boolean;
+  bleedLocked: boolean;
+  showSafeArea: boolean;
 };
 
 export type ParametricStandardConfig = {
@@ -34,49 +55,32 @@ export type ProductPriceMapping = {
   sizeLabel: string;
   dielineMapping: string;
   currency: 'USD';
-  parametric?: ParametricStandardConfig;
-};
-
-export type ProductTemplateDefaults = {
-  scaleFactor: number;
-  zoomState: 'fit' | 'fill' | 'custom';
-  palette: string;
-  colorSpace: 'CMYK' | 'RGB';
-  editorMode: 'guided' | 'advanced';
-  textModes: string[];
-  imageMode: 'cover' | 'contain';
-  previewType: '2D' | '3D' | 'proof';
-  photoGroup: string;
-  model3d: string;
-  defaultFont: string;
-};
-
-export type ProductTemplateSetup = {
-  showToolbar: boolean;
-  showLayersPanel: boolean;
-  showRulesPanel: boolean;
-  lockBleed: boolean;
-  rulesEngine: string;
-};
-
-export type ProductTemplateAssets = {
-  fonts: string[];
-  layouts: string[];
-  themes: string[];
-  cliparts: string[];
-};
-
-export type ProductAttribute = {
-  id: Id;
-  type: string;
-  value: string;
+  parametricStandard?: ParametricStandardConfig;
 };
 
 export type ProductComment = {
   id: Id;
   author: string;
   timestamp: string;
+  label: 'internal' | 'qa' | 'vendor';
   message: string;
+};
+
+export type ProductTag = {
+  id: Id;
+  label: string;
+  color: 'blue' | 'violet' | 'emerald' | 'amber';
+};
+
+export type ProductInventory = {
+  onHandQuantity: number;
+  reorderQuantity: number;
+};
+
+export type ProductAttribute = {
+  id: Id;
+  type: string;
+  value: string;
 };
 
 export type RelatedProduct = {
@@ -92,84 +96,72 @@ export type AlternateView = {
   url: string;
 };
 
-export type ProductInventory = {
-  onHandQuantity: number;
-  reorderQuantity: number;
-};
-
-export type ProductTag = {
-  id: Id;
-  label: string;
-  color: 'blue' | 'violet' | 'emerald' | 'amber';
-};
-
 export type Product = {
   id: Id;
-  slug: string;
   sortOrder: number;
+  slug: string;
   name: string;
   description: string;
-  thumbnail: string;
-  previewUrl: string;
-  cmsPageLink: string;
-  commentsSummary: number;
-  lastSavedAt: string;
-  published: boolean;
-  isGlobal: boolean;
-  storefrontAssignments: StorefrontAssignment[];
-  channelIds?: Id[];
+  productType: ProductType;
+  creationMethod: CreationMethod;
   categoryId: Id;
   vendorId: Id;
   hotFolder: string;
-  productType: ProductType;
-  creationMethod: CreationMethod;
-  status: ProductStatus;
-  pdfFileName?: string;
   pdfFileUrl?: string;
   pages: number;
   units: string;
   width: number;
   height: number;
   bleed: number;
+  cmsPageLink: string;
+  previewUrl: string;
+  status: ProductStatus;
+  published: boolean;
+  isGlobal: boolean;
+  storefrontIds: Id[];
+  channelIds?: Id[];
+  thumbnail: string;
+  lastSavedAt: string;
   productNumbers: ProductNumbering;
-  priceMapping: ProductPriceMapping;
   templateDefaults: ProductTemplateDefaults;
   templateSetup: ProductTemplateSetup;
   templateAssets: ProductTemplateAssets;
-  attributes: ProductAttribute[];
-  comments: ProductComment[];
-  relatedProducts: RelatedProduct[];
-  alternateViews: AlternateView[];
-  inventory: ProductInventory;
+  priceMapping: ProductPriceMapping;
   tags: ProductTag[];
-  actionState: ProductActionState;
+  comments: ProductComment[];
+  internalNotes: string;
+  inventory: ProductInventory;
+  relatedProducts: RelatedProduct[];
+  attributes: ProductAttribute[];
+  alternateViews: AlternateView[];
   updatedAt: string;
+};
+
+export type ProductFormValues = {
+  name: string;
+  categoryId: Id;
+  creationMethod: CreationMethod;
+  productType: ProductType;
+  idmlFileName: string;
+  printEditorTemplateName: string;
+  pages: string;
+  units: string;
+  width: string;
+  height: string;
+  bleed: string;
+  parametricStandard: string;
+  parametricSize: string;
+  parametricAllowance: string;
+  parametricMaterial: string;
 };
 
 export type ProductListFilters = {
   search?: string;
   categoryId?: string;
   vendorId?: string;
-  published?: 'all' | 'published' | 'draft';
-  global?: 'all' | 'global' | 'channel';
   uncategorized?: boolean;
 };
 
 export type ProductSortBy = 'name' | 'updatedAt' | 'sortOrder' | 'lastSavedAt';
 
 export type ProductListQuery = ListQueryParams<ProductSortBy, ProductListFilters>;
-
-export type ProductCreateInput = {
-  name: string;
-  categoryId: string;
-  creationMethod: CreationMethod;
-  productType: ProductType;
-  idmlFileName?: string;
-  printEditorTemplateFileName?: string;
-  pages?: number;
-  units?: string;
-  width?: number;
-  height?: number;
-  bleed?: number;
-  parametric?: ParametricStandardConfig;
-};

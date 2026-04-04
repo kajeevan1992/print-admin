@@ -7,46 +7,52 @@ import { FilterBar } from '@/components/data-table/filter-bar';
 import { Input } from '@/components/forms/input';
 import { Select, type SelectOption } from '@/components/forms/select';
 import { BaseModal } from '@/components/modals/base-modal';
-import { ProductForm } from '@/modules/products/components/product-form';
-import { ProductTable, type ProductRowAction } from '@/modules/products/components/product-table';
 import { EmptyModuleState } from '@/modules/products/components/empty-module-state';
+import { ProductForm } from '@/modules/products/components/product-form';
+import { ProductTable, type ProductTableAction } from '@/modules/products/components/product-table';
+import { productsService } from '@/services/products.service';
 import { categoriesService } from '@/services/categories.service';
 import { vendorsService } from '@/services/vendors.service';
-import { productsService } from '@/services/products.service';
-import type { Product, ProductCreateInput, ProductListQuery } from '@/modules/products/types';
+import type { Product, ProductFormValues, ProductListQuery } from '@/modules/products/types';
 
-const initialCreateInput: ProductCreateInput = {
+const emptyForm: ProductFormValues = {
   name: '',
   categoryId: '',
-  creationMethod: 'idml_template',
-  productType: 'online'
+  creationMethod: 'idml',
+  productType: 'online',
+  idmlFileName: '',
+  printEditorTemplateName: '',
+  pages: '1',
+  units: 'mm',
+  width: '0',
+  height: '0',
+  bleed: '0',
+  parametricStandard: '',
+  parametricSize: '',
+  parametricAllowance: '',
+  parametricMaterial: ''
 };
 
 export function ProductsListPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [query, setQuery] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc', published: 'all', global: 'all' });
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
+  const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<ProductFormValues>(emptyForm);
+  const [creationSuccess, setCreationSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  const [uncategorizedCount, setUncategorizedCount] = useState(0);
-  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
-  const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
 
-  const [openCreate, setOpenCreate] = useState(false);
-  const [createInput, setCreateInput] = useState<ProductCreateInput>(initialCreateInput);
-  const [createSuccess, setCreateSuccess] = useState(false);
-  const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [params, setParams] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc' });
 
-  const loadProducts = async (nextQuery: ProductListQuery) => {
+  const loadProducts = async (nextParams: ProductListQuery) => {
     setLoading(true);
     setError(null);
-
     try {
-      const res = await productsService.listProducts(nextQuery);
-      const uncategorizedRes = await productsService.listProducts({ ...nextQuery, uncategorized: true, page: 1, perPage: 1 });
-      setProducts(res.data.items);
-      setTotal(res.meta.total);
-      setUncategorizedCount(uncategorizedRes.meta.total);
+      const response = await productsService.listProducts(nextParams);
+      setProducts(response.data.items);
+      setTotal(response.meta.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load products');
     } finally {
@@ -55,38 +61,44 @@ export function ProductsListPage() {
   };
 
   useEffect(() => {
-    loadProducts(query);
-  }, [query]);
+    loadProducts(params);
+  }, [params]);
 
   useEffect(() => {
-    Promise.all([categoriesService.listCategories(), vendorsService.listVendors()]).then(([catRes, vendorRes]) => {
-      const categories = catRes.data.items.map((item) => ({ value: item.id, label: item.name }));
-      const vendors = vendorRes.data.items.map((item) => ({ value: item.id, label: item.name }));
-      setCategoryOptions(categories);
-      setVendorOptions(vendors);
-      setCreateInput((prev) => ({ ...prev, categoryId: categories[0] ? String(categories[0].value) : '' }));
+    Promise.all([categoriesService.listCategories(), vendorsService.listVendors()]).then(([categories, vendors]) => {
+      const catOptions = categories.data.items.map((item) => ({ value: item.id, label: item.name }));
+      const venOptions = vendors.data.items.map((item) => ({ value: item.id, label: item.name }));
+      setCategoryOptions(catOptions);
+      setVendorOptions(venOptions);
+      setForm((prev) => ({ ...prev, categoryId: catOptions[0] ? String(catOptions[0].value) : '' }));
     });
   }, []);
 
-  const subtitle = useMemo(() => `${total} products in print catalog control center`, [total]);
+  const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
 
-  const onRowAction = async (id: string, action: ProductRowAction) => {
-    if (action === 'clone') await productsService.cloneProduct(id);
-    if (action === 'delete') await productsService.deleteProduct(id);
-    if (action === 'new_window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
-    if (action === 'preview') {
-      const row = products.find((item) => item.id === id);
-      if (row?.previewUrl) window.open(row.previewUrl, '_blank', 'noopener,noreferrer');
-    }
-    await loadProducts(query);
+  const handleToggle = async (id: string, key: 'published' | 'isGlobal', value: boolean) => {
+    await productsService.updateProduct(id, { [key]: value });
+    await loadProducts(params);
   };
 
-  const onCreate = async () => {
-    if (!createInput.name.trim() || !createInput.categoryId) return;
-    const created = await productsService.createProduct(createInput);
-    setCreatedProductId(created.data.id);
-    setCreateSuccess(true);
-    await loadProducts(query);
+  const handleAction = async (id: string, action: ProductTableAction) => {
+    if (action === 'clone') await productsService.cloneProduct(id);
+    if (action === 'delete') await productsService.deleteProduct(id);
+    if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
+    if (action === 'preview') window.open(products.find((item) => item.id === id)?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
+    await loadProducts(params);
+  };
+
+  const handleCreate = async () => {
+    if (!form.name.trim() || !form.categoryId) return;
+    await productsService.createProduct(form);
+    setCreationSuccess(true);
+    await loadProducts(params);
+  };
+
+  const resetCreation = () => {
+    setCreationSuccess(false);
+    setForm({ ...emptyForm, categoryId: form.categoryId });
   };
 
   return (
@@ -94,37 +106,33 @@ export function ProductsListPage() {
       <PageHeader
         title="Products"
         subtitle={subtitle}
-        actions={<><Button>Import</Button><Button>Export</Button><Button>Bulk Tools ▾</Button><PrimaryButton onClick={() => setOpenCreate(true)}>Add Product</PrimaryButton></>}
+        actions={<><Button>Import</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
       />
 
       <FilterBar>
-        <Input placeholder="Search name, slug, item #, model #" value={query.search ?? ''} onChange={(e) => setQuery((prev) => ({ ...prev, search: e.target.value || undefined }))} />
-        <Select options={[{ value: '', label: 'All categories' }, ...categoryOptions]} value={query.categoryId ?? ''} onChange={(e) => setQuery((prev) => ({ ...prev, categoryId: e.target.value || undefined }))} />
-        <Select options={[{ value: '', label: 'All vendors' }, ...vendorOptions]} value={query.vendorId ?? ''} onChange={(e) => setQuery((prev) => ({ ...prev, vendorId: e.target.value || undefined }))} />
-        <Select options={[{ value: 'all', label: 'Published: All' }, { value: 'published', label: 'Published' }, { value: 'draft', label: 'Unpublished' }]} value={query.published ?? 'all'} onChange={(e) => setQuery((prev) => ({ ...prev, published: e.target.value as ProductListQuery['published'] }))} />
-        <Select options={[{ value: 'all', label: 'Global: All' }, { value: 'global', label: 'Global only' }, { value: 'channel', label: 'Channel-specific' }]} value={query.global ?? 'all'} onChange={(e) => setQuery((prev) => ({ ...prev, global: e.target.value as ProductListQuery['global'] }))} />
-        <Button onClick={() => setQuery((prev) => ({ ...prev, uncategorized: !prev.uncategorized }))}>Uncategorized <span className="ml-2 rounded-full bg-panelMuted px-2 py-0.5 text-xs">{uncategorizedCount}</span></Button>
+        <Input placeholder="Search by name / slug / item number" value={params.search ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, search: e.target.value || undefined }))} />
+        <Select options={[{ value: '', label: 'All categories' }, { value: '__uncategorized__', label: 'Uncategorized' }, ...categoryOptions]} value={params.uncategorized ? '__uncategorized__' : params.categoryId ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, uncategorized: e.target.value === '__uncategorized__' || undefined, categoryId: e.target.value && e.target.value !== '__uncategorized__' ? e.target.value : undefined }))} />
+        <Select options={[{ value: '', label: 'All vendors' }, ...vendorOptions]} value={params.vendorId ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, vendorId: e.target.value || undefined }))} />
       </FilterBar>
 
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading products...</div> : null}
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
 
       {!loading && !error && products.length === 0 ? (
-        <EmptyModuleState title="No products available" description="Import a catalog or create your first print product." action={<PrimaryButton onClick={() => setOpenCreate(true)}>Add Product</PrimaryButton>} />
+        <EmptyModuleState title="No products yet" description="Create your first product with template upload, blank setup, or parametric standard generation." action={<PrimaryButton onClick={() => setOpen(true)}>Add Product</PrimaryButton>} />
       ) : null}
 
-      {!loading && !error && products.length > 0 ? <ProductTable products={products} onAction={onRowAction} onToggle={async (id, key, value) => { await productsService.updateProduct(id, { [key]: value }); await loadProducts(query); }} /> : null}
+      {!loading && !error && products.length > 0 ? <ProductTable products={products} onToggle={handleToggle} onAction={handleAction} /> : null}
 
-      <BaseModal open={openCreate} onClose={() => { setOpenCreate(false); setCreateSuccess(false); }} title="Add Product">
+      <BaseModal open={open} onClose={() => { setOpen(false); setCreationSuccess(false); }} title="Add Product">
         <ProductForm
-          values={createInput}
+          values={form}
           categoryOptions={categoryOptions}
-          onChange={(changes) => setCreateInput((prev) => ({ ...prev, ...changes }))}
-          onSubmit={onCreate}
-          onCancel={() => setOpenCreate(false)}
-          success={createSuccess}
-          onReset={() => { setCreateSuccess(false); setCreateInput({ ...initialCreateInput, categoryId: createInput.categoryId }); }}
-          onEditCreated={() => { if (createdProductId) window.location.href = `/products/${createdProductId}`; }}
+          onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
+          onCancel={() => setOpen(false)}
+          onSubmit={handleCreate}
+          success={creationSuccess}
+          onReset={resetCreation}
         />
       </BaseModal>
     </div>

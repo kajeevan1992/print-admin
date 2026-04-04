@@ -1,20 +1,145 @@
+import { accuZipOptionsMock, attributeSetOptionsMock, categoriesMock, categoryTagsMock, pricingOptionsMock } from '@/data/categories';
+import { productsMock } from '@/data/products';
 import { ok } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
-import { http } from '@/services/api/http';
 import type { Category, CategoryFormValues, CategoryTag } from '@/modules/categories/types';
 
-type Envelope<T> = { success: boolean; data: T };
-const mapCategory = (raw: Record<string, any>): Category => ({ id: String(raw.id), name: String(raw.name ?? ''), description: String(raw.description ?? ''), parentId: raw.parentId ? String(raw.parentId) : null, pricingId: String(raw.pricingId ?? ''), attributeSetId: String(raw.attributeSetId ?? ''), published: Boolean(raw.published), thumbnail: String(raw.thumbnail ?? 'https://placehold.co/96x96/111827/ffffff?text=CT'), friendlyUrl: String(raw.friendlyUrl ?? ''), productCount: Number(raw.productCount ?? 0), sortOrder: Number(raw.sortOrder ?? 0), accuZipConfig: String(raw.accuZipConfig ?? ''), useAlternateMaster: Boolean(raw.useAlternateMaster), tags: Array.isArray(raw.tags) ? raw.tags.map((tag: any) => ({ id: String(tag.id), label: String(tag.label) })) : [], canBrowse: Boolean(raw.canBrowse), canUpload: Boolean(raw.canUpload), canUploadLater: Boolean(raw.canUploadLater), canCreate: Boolean(raw.canCreate), canCustom: Boolean(raw.canCustom) });
+let categoriesStore: Category[] = [...categoriesMock];
+let categoryTagsStore: CategoryTag[] = [...categoryTagsMock];
+
+const STORAGE_KEY = 'print-admin-categories-store';
+const TAGS_KEY = 'print-admin-category-tags-store';
+const wait = async () => new Promise((resolve) => setTimeout(resolve, 60));
+
+function readCategories(): Category[] {
+  if (typeof window === 'undefined') return categoriesStore;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return categoriesStore;
+    const parsed = JSON.parse(raw) as Category[];
+    return Array.isArray(parsed) ? parsed : categoriesStore;
+  } catch {
+    return categoriesStore;
+  }
+}
+
+function writeCategories(next: Category[]) {
+  categoriesStore = next;
+  if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
+
+function readTags(): CategoryTag[] {
+  if (typeof window === 'undefined') return categoryTagsStore;
+  try {
+    const raw = window.localStorage.getItem(TAGS_KEY);
+    if (!raw) return categoryTagsStore;
+    const parsed = JSON.parse(raw) as CategoryTag[];
+    return Array.isArray(parsed) ? parsed : categoryTagsStore;
+  } catch {
+    return categoryTagsStore;
+  }
+}
+
+function writeTags(next: CategoryTag[]) {
+  categoryTagsStore = next;
+  if (typeof window !== 'undefined') window.localStorage.setItem(TAGS_KEY, JSON.stringify(next));
+}
+
+const countProducts = (categoryId: string) => productsMock.filter((product) => product.categoryId === categoryId && product.published).length;
+
+function buildCategory(id: string, values: CategoryFormValues): Category {
+  const existing = readCategories().find((item) => item.id === id);
+  return {
+    id,
+    name: values.name,
+    description: values.description,
+    parentId: values.parentId || null,
+    pricingId: values.pricingId,
+    attributeSetId: values.attributeSetId,
+    published: values.published,
+    thumbnail: values.thumbnail || `https://placehold.co/96x96/111827/ffffff?text=${encodeURIComponent(values.name.slice(0, 2).toUpperCase() || 'CT')}`,
+    friendlyUrl: values.friendlyUrl || `/${values.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+    productCount: countProducts(id),
+    sortOrder: existing?.sortOrder ?? (readCategories().length + 1) * 10,
+    accuZipConfig: values.accuZipConfig,
+    useAlternateMaster: values.useAlternateMaster,
+    tags: readTags().filter((tag) => values.tagIds.includes(tag.id)),
+    canBrowse: values.canBrowse,
+    canUpload: values.canUpload,
+    canUploadLater: values.canUploadLater,
+    canCreate: values.canCreate,
+    canCustom: values.canCustom
+  };
+}
+
 export const categoriesService = {
-  listCategories: async (): Promise<ApiResponse<{ items: Category[] }>> => { const response = await http.get<Envelope<{ items: Record<string, any>[] }>>('/categories'); return ok({ items: (response.data.items ?? []).map(mapCategory) }); },
-  createCategory: async (values: CategoryFormValues): Promise<ApiResponse<Category>> => { const response = await http.post<Envelope<Record<string, any>>>('/categories', { ...values, parentId: values.parentId || null, tagIds: values.tagIds }); return ok(mapCategory(response.data)); },
-  updateCategory: async (id: string, values: CategoryFormValues): Promise<ApiResponse<Category>> => { const response = await http.patch<Envelope<Record<string, any>>>(`/categories/${id}`, { ...values, parentId: values.parentId || null, tagIds: values.tagIds }); return ok(mapCategory(response.data)); },
-  deleteCategory: async (id: string): Promise<ApiResponse<{ success: boolean }>> => { const response = await http.delete<Envelope<{ success: boolean }>>(`/categories/${id}`); return ok(response.data); },
-  togglePublished: async (id: string, published: boolean): Promise<ApiResponse<Category>> => { const response = await http.patch<Envelope<Record<string, any>>>(`/categories/${id}`, { published }); return ok(mapCategory(response.data)); },
-  moveCategory: async (id: string, direction: 'up' | 'down'): Promise<ApiResponse<{ items: Category[] }>> => { const response = await http.post<Envelope<{ items: Record<string, any>[] }>>(`/categories/${id}/move`, { direction }); return ok({ items: (response.data.items ?? []).map(mapCategory) }); },
-  listCategoryTags: async (): Promise<ApiResponse<{ items: CategoryTag[] }>> => { const response = await http.get<Envelope<{ items: CategoryTag[] }>>('/categories/tags/list'); return ok({ items: response.data.items ?? [] }); },
-  saveCategoryTags: async (labels: string[]): Promise<ApiResponse<{ items: CategoryTag[] }>> => { const response = await http.put<Envelope<{ items: CategoryTag[] }>>('/categories/tags/list', { labels }); return ok({ items: response.data.items ?? [] }); },
-  listPricingOptions: async (): Promise<ApiResponse<{ items: Array<{ id: string; name: string }> }>> => ok({ items: [{ id: 'price-catalog', name: 'Catalog Pricing' }, { id: 'price-card', name: 'Card Pricing' }, { id: 'price-signage', name: 'Signage Pricing' }, { id: 'price-static', name: 'Custom Size / Static' }] }),
-  listAttributeSets: async (): Promise<ApiResponse<{ items: Array<{ id: string; name: string }> }>> => ok({ items: [{ id: 'attr-print-core', name: 'Print Core' }, { id: 'attr-paper-finishes', name: 'Paper & Finish' }, { id: 'attr-large-format', name: 'Large Format' }] }),
-  listAccuZipConfigs: async (): Promise<ApiResponse<{ items: Array<{ id: string; name: string }> }>> => ok({ items: [{ id: 'accu-std', name: 'Standard Postal Presort' }, { id: 'accu-bulk', name: 'Bulk Mail Processing' }] })
+  listCategories: async (): Promise<ApiResponse<{ items: Category[] }>> => {
+    await wait();
+    return ok({ items: [...readCategories()].sort((a, b) => a.sortOrder - b.sortOrder) });
+  },
+
+  createCategory: async (values: CategoryFormValues): Promise<ApiResponse<Category>> => {
+    await wait();
+    const id = `cat-${Math.floor(Math.random() * 9000 + 1000)}`;
+    const category = buildCategory(id, values);
+    writeCategories([...readCategories(), category]);
+    return ok(category);
+  },
+
+  updateCategory: async (id: string, values: CategoryFormValues): Promise<ApiResponse<Category>> => {
+    await wait();
+    const category = buildCategory(id, values);
+    writeCategories(readCategories().map((item) => (item.id === id ? category : item)));
+    return ok(category);
+  },
+
+  deleteCategory: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
+    await wait();
+    writeCategories(readCategories().filter((item) => item.id !== id));
+    return ok({ success: true });
+  },
+
+  togglePublished: async (id: string, published: boolean): Promise<ApiResponse<Category>> => {
+    await wait();
+    const category = readCategories().find((item) => item.id === id);
+    if (!category) throw new Error('Category not found');
+    const updated = { ...category, published };
+    writeCategories(readCategories().map((item) => (item.id === id ? updated : item)));
+    return ok(updated);
+  },
+
+  moveCategory: async (id: string, direction: 'up' | 'down'): Promise<ApiResponse<{ items: Category[] }>> => {
+    await wait();
+    const sorted = [...readCategories()].sort((a, b) => a.sortOrder - b.sortOrder);
+    const index = sorted.findIndex((item) => item.id === id);
+    if (index === -1) return ok({ items: sorted });
+    const target = direction === 'up' ? index - 1 : index + 1;
+    if (target < 0 || target >= sorted.length) return ok({ items: sorted });
+    [sorted[index], sorted[target]] = [sorted[target], sorted[index]];
+    const reordered = sorted.map((item, idx) => ({ ...item, sortOrder: (idx + 1) * 10 }));
+    writeCategories(reordered);
+    return ok({ items: reordered });
+  },
+
+  listCategoryTags: async (): Promise<ApiResponse<{ items: CategoryTag[] }>> => {
+    await wait();
+    return ok({ items: readTags() });
+  },
+
+  saveCategoryTags: async (labels: string[]): Promise<ApiResponse<{ items: CategoryTag[] }>> => {
+    await wait();
+    const nextTags = labels.filter(Boolean).map((label, index) => ({ id: `ct-${index + 1}`, label: label.trim() }));
+    writeTags(nextTags);
+    writeCategories(
+      readCategories().map((category) => ({
+        ...category,
+        tags: category.tags.filter((tag) => nextTags.some((saved) => saved.id === tag.id))
+      }))
+    );
+    return ok({ items: nextTags });
+  },
+
+  listPricingOptions: async () => ok({ items: pricingOptionsMock }),
+  listAttributeSets: async () => ok({ items: attributeSetOptionsMock }),
+  listAccuZipConfigs: async () => ok({ items: accuZipOptionsMock })
 };

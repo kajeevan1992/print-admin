@@ -1,6 +1,6 @@
+import { productsMock } from '@/data/products';
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
-import { http } from '@/services/api/http';
 import type {
   Product,
   ProductAttribute,
@@ -8,46 +8,86 @@ import type {
   ProductFormValues,
   ProductInventory,
   ProductListQuery,
+  ProductTag,
   RelatedProduct
 } from '@/modules/products/types';
 
-type Envelope<T> = { success: boolean; data: T };
-type ListData<T> = {
-  items: T[];
-  pagination?: { page: number; limit: number; total: number; totalPages?: number };
-};
+let productsStore: Product[] = [...productsMock];
 
-const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+const STORAGE_KEY = 'print-admin-products-store';
 
-const mapProduct = (raw: Record<string, any>): Product => ({
-  id: String(raw.id),
-  sortOrder: Number(raw.sortOrder ?? 0),
-  slug: String(raw.slug ?? ''),
-  name: String(raw.name ?? ''),
-  description: String(raw.description ?? ''),
-  productType: (raw.productType as Product['productType']) ?? 'online',
-  creationMethod: (raw.creationMethod as Product['creationMethod']) ?? 'blank',
-  categoryId: String(raw.categoryId ?? ''),
-  vendorId: String(raw.vendorId ?? ''),
-  hotFolder: String(raw.hotFolder ?? ''),
-  pdfFileUrl: raw.pdfFileUrl ? String(raw.pdfFileUrl) : undefined,
-  pages: Number(raw.pages ?? 1),
-  units: String(raw.units ?? 'mm'),
-  width: Number(raw.width ?? 0),
-  height: Number(raw.height ?? 0),
-  bleed: Number(raw.bleed ?? 0),
-  cmsPageLink: String(raw.cmsPageLink ?? ''),
-  previewUrl: String(raw.previewUrl ?? ''),
-  status: raw.published ? 'active' : 'draft',
-  published: Boolean(raw.published),
-  isGlobal: Boolean(raw.isGlobal),
-  storefrontIds: asArray<string>(raw.storefrontIds),
-  channelIds: asArray<any>(raw.channels).map((item) => String(item.channelId ?? item.id ?? '')),
-  thumbnail: String(raw.thumbnail ?? 'https://placehold.co/96x96/111827/ffffff?text=PR'),
-  lastSavedAt: String(raw.lastSavedAt ?? raw.updatedAt ?? new Date().toISOString()),
-  productNumbers: raw.productNumbers ?? { itemNumber: '', modelNumber: '', integrationId: '' },
-  templateDefaults:
-    raw.templateDefaults ?? {
+function readStore(): Product[] {
+  if (typeof window === 'undefined') return productsStore;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return productsStore;
+    const parsed = JSON.parse(raw) as Product[];
+    return Array.isArray(parsed) && parsed.length ? parsed : productsStore;
+  } catch {
+    return productsStore;
+  }
+}
+
+function writeStore(next: Product[]) {
+  productsStore = next;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+}
+
+const wait = async () => new Promise((resolve) => setTimeout(resolve, 80));
+
+function makeSlug(name: string) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function createProductFromForm(payload: ProductFormValues): Product {
+  const id = `p-${Math.floor(Math.random() * 9000 + 1000)}`;
+  const name = payload.name.trim();
+  const now = new Date();
+  const iso = now.toISOString();
+
+  return {
+    id,
+    sortOrder: productsStore.length + 1,
+    slug: makeSlug(name),
+    name,
+    description: '',
+    productType: payload.productType,
+    creationMethod: payload.creationMethod,
+    categoryId: payload.categoryId,
+    vendorId: '',
+    hotFolder: '',
+    pdfFileUrl:
+      payload.creationMethod === 'idml'
+        ? payload.idmlFileName
+        : payload.creationMethod === 'print-editor-template'
+          ? payload.printEditorTemplateName
+          : undefined,
+    pages: Number(payload.pages) || 1,
+    units: payload.units || 'mm',
+    width: Number(payload.width) || 0,
+    height: Number(payload.height) || 0,
+    bleed: Number(payload.bleed) || 0,
+    cmsPageLink: `/products/${makeSlug(name)}`,
+    previewUrl: `/products/${id}`,
+    status: 'draft',
+    published: false,
+    isGlobal: false,
+    storefrontIds: [],
+    channelIds: [],
+    thumbnail: `https://placehold.co/96x96/111827/ffffff?text=${encodeURIComponent(name.slice(0, 2).toUpperCase() || 'NP')}`,
+    lastSavedAt: iso,
+    productNumbers: {
+      itemNumber: `ITM-${id.toUpperCase()}`,
+      modelNumber: `MOD-${id.toUpperCase()}`,
+      integrationId: ''
+    },
+    templateDefaults: {
       scaleFactor: 1,
       zoomState: 'fit',
       palette: 'Default',
@@ -58,136 +98,156 @@ const mapProduct = (raw: Record<string, any>): Product => ({
       previewType: '2D',
       photoGroup: 'Default',
       model3d: '',
-      defaultFont: '',
-      toggles: [],
+      defaultFont: 'Inter',
+      toggles: [{ key: 'Snap to grid', enabled: true }],
       rules: []
     },
-  templateSetup:
-    raw.templateSetup ?? {
+    templateSetup: {
       setupProfile: 'default',
       allowUpload: true,
-      allowLayers: false,
+      allowLayers: true,
       smartSnapping: true,
       bleedLocked: false,
       showSafeArea: true
     },
-  templateAssets: raw.templateAssets ?? { fonts: [], layouts: [], themes: [], cliparts: [] },
-  priceMapping: raw.priceMapping ?? { basePrice: 0, sizeLabel: '', dielineMapping: '', currency: 'USD' },
-  tags: asArray<any>(raw.tags).map((tag) => ({
-    id: String(tag.id),
-    label: String(tag.label ?? tag.name),
-    color: 'blue'
-  })),
-  comments: asArray<ProductComment>(raw.comments),
-  internalNotes: String(raw.internalNotes ?? ''),
-  inventory: raw.inventory ?? { onHandQuantity: 0, reorderQuantity: 0 },
-  relatedProducts: asArray<RelatedProduct>(raw.relatedProducts),
-  attributes: asArray<ProductAttribute>(raw.attributes),
-  alternateViews: asArray<any>(raw.alternateViews),
-  updatedAt: String(raw.updatedAt ?? new Date().toISOString().slice(0, 10))
-});
-
-const toPayload = (values: ProductFormValues | Partial<Product>) => values;
+    templateAssets: { fonts: ['Inter'], layouts: [], themes: [], cliparts: [] },
+    priceMapping: {
+      basePrice: 0,
+      sizeLabel: payload.parametricSize || (payload.width && payload.height ? `${payload.width}x${payload.height}` : ''),
+      dielineMapping: '',
+      currency: 'USD',
+      parametricStandard:
+        payload.creationMethod === 'parametric-standard'
+          ? {
+              standard: payload.parametricStandard,
+              size: payload.parametricSize,
+              allowance: payload.parametricAllowance,
+              material: payload.parametricMaterial
+            }
+          : undefined
+    },
+    tags: [],
+    comments: [],
+    internalNotes: '',
+    inventory: { onHandQuantity: 0, reorderQuantity: 0 },
+    relatedProducts: [],
+    attributes: [],
+    alternateViews: [],
+    updatedAt: iso.slice(0, 10)
+  };
+}
 
 export const productsService = {
   listProducts: async (params: ProductListQuery = {}): Promise<PaginatedResponse<Product>> => {
-    const response = await http.get<Envelope<ListData<Record<string, any>>>>('/products', {
-      page: params.page ?? 1,
-      limit: params.perPage ?? 20,
-      search: params.search,
-      categoryId: params.categoryId
-    });
+    await wait();
+    let items = [...readStore()];
 
-    const items = asArray<Record<string, any>>(response.data.items).map(mapProduct);
-    const p = response.data.pagination;
+    if (params.search) {
+      const term = params.search.toLowerCase();
+      items = items.filter(
+        (product) =>
+          product.name.toLowerCase().includes(term) ||
+          product.slug.toLowerCase().includes(term) ||
+          product.productNumbers.itemNumber.toLowerCase().includes(term) ||
+          product.productNumbers.modelNumber.toLowerCase().includes(term)
+      );
+    }
 
-    return okPaginated(items, {
-      page: p?.page ?? 1,
-      perPage: p?.limit ?? (items.length || 1),
-      total: p?.total ?? items.length,
-      totalPages: p?.totalPages ?? 1
+    if (params.categoryId) {
+      items = items.filter((product) => product.categoryId === params.categoryId);
+    }
+
+    if (params.vendorId) {
+      items = items.filter((product) => product.vendorId === params.vendorId);
+    }
+
+    if (params.uncategorized) {
+      items = items.filter((product) => !product.categoryId);
+    }
+
+    if (params.sortBy) {
+      items.sort((a, b) => {
+        const direction = params.sortDirection === 'asc' ? 1 : -1;
+        if (params.sortBy === 'name') return a.name.localeCompare(b.name) * direction;
+        if (params.sortBy === 'sortOrder') return (a.sortOrder - b.sortOrder) * direction;
+        if (params.sortBy === 'updatedAt') return a.updatedAt.localeCompare(b.updatedAt) * direction;
+        return a.lastSavedAt.localeCompare(b.lastSavedAt) * direction;
+      });
+    }
+
+    const page = params.page ?? 1;
+    const perPage = params.perPage ?? 20;
+    const start = (page - 1) * perPage;
+    const paged = items.slice(start, start + perPage);
+
+    return okPaginated(paged, {
+      page,
+      perPage,
+      total: items.length,
+      totalPages: Math.max(1, Math.ceil(items.length / perPage))
     });
   },
 
   getProduct: async (id: string): Promise<ApiResponse<Product>> => {
-    const response = await http.get<Envelope<Record<string, any>>>(`/products/${id}`);
-    return ok(mapProduct(response.data));
+    await wait();
+    const product = readStore().find((item) => item.id === id);
+    if (!product) throw new Error('Product not found');
+    return ok(product);
   },
 
   createProduct: async (payload: ProductFormValues): Promise<ApiResponse<Product>> => {
-    const response = await http.post<Envelope<Record<string, any>>>('/products', {
-      name: payload.name,
-      slug: payload.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      creationMethod: payload.creationMethod,
-      productType: payload.productType,
-      categoryId: payload.categoryId || null,
-      vendorId: '',
-      pages: Number(payload.pages) || 1,
-      units: payload.units || 'mm',
-      width: Number(payload.width) || 0,
-      height: Number(payload.height) || 0,
-      bleed: Number(payload.bleed) || 0,
-      pdfFileUrl: payload.idmlFileName || payload.printEditorTemplateName || '',
-      cmsPageLink: '',
-      previewUrl: '',
-      thumbnail: 'https://placehold.co/96x96/111827/ffffff?text=NP',
-      sortOrder: 0,
-      comments: [],
-      internalNotes: '',
-      inventory: { onHandQuantity: 0, reorderQuantity: 0 },
-      attributes: [],
-      relatedProducts: [],
-      alternateViews: [],
-      priceMapping: {
-        basePrice: 0,
-        sizeLabel: payload.parametricSize || '',
-        dielineMapping: '',
-        currency: 'USD',
-        parametricStandard:
-          payload.creationMethod === 'parametric-standard'
-            ? {
-                standard: payload.parametricStandard,
-                size: payload.parametricSize,
-                allowance: payload.parametricAllowance,
-                material: payload.parametricMaterial
-              }
-            : undefined
-      }
-    });
-
-    return ok(mapProduct(response.data));
+    await wait();
+    const created = createProductFromForm(payload);
+    writeStore([created, ...readStore()]);
+    return ok(created);
   },
 
   updateProduct: async (id: string, changes: Partial<Product>): Promise<ApiResponse<Product>> => {
-    const response = await http.patch<Envelope<Record<string, any>>>(`/products/${id}`, toPayload(changes));
-    return ok(mapProduct(response.data));
+    await wait();
+    const current = readStore().find((item) => item.id === id);
+    if (!current) throw new Error('Product not found');
+
+    const updated: Product = {
+      ...current,
+      ...changes,
+      productNumbers: { ...current.productNumbers, ...changes.productNumbers },
+      templateDefaults: { ...current.templateDefaults, ...changes.templateDefaults },
+      templateSetup: { ...current.templateSetup, ...changes.templateSetup },
+      templateAssets: { ...current.templateAssets, ...changes.templateAssets },
+      priceMapping: { ...current.priceMapping, ...changes.priceMapping },
+      inventory: { ...current.inventory, ...changes.inventory },
+      lastSavedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString().slice(0, 10)
+    };
+
+    writeStore(readStore().map((item) => (item.id === id ? updated : item))); 
+    return ok(updated);
   },
 
   deleteProduct: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
-    const response = await http.delete<Envelope<{ success: boolean }>>(`/products/${id}`);
-    return ok(response.data);
+    await wait();
+    writeStore(readStore().filter((item) => item.id !== id));
+    return ok({ success: true });
   },
 
   cloneProduct: async (id: string): Promise<ApiResponse<Product>> => {
-    const product = await productsService.getProduct(id);
-
-    return productsService.createProduct({
-      name: `${product.data.name} Copy`,
-      categoryId: product.data.categoryId,
-      creationMethod: product.data.creationMethod,
-      productType: product.data.productType,
-      idmlFileName: product.data.pdfFileUrl ?? '',
-      printEditorTemplateName: '',
-      pages: String(product.data.pages),
-      units: product.data.units,
-      width: String(product.data.width),
-      height: String(product.data.height),
-      bleed: String(product.data.bleed),
-      parametricStandard: '',
-      parametricSize: '',
-      parametricAllowance: '',
-      parametricMaterial: ''
-    });
+    await wait();
+    const product = readStore().find((item) => item.id === id);
+    if (!product) throw new Error('Product not found');
+    const cloned: Product = {
+      ...product,
+      id: `p-${Math.floor(Math.random() * 9000 + 1000)}`,
+      name: `${product.name} Copy`,
+      slug: makeSlug(`${product.name} copy`),
+      productNumbers: {
+        ...product.productNumbers,
+        itemNumber: `${product.productNumbers.itemNumber}-COPY`
+      },
+      lastSavedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString().slice(0, 10)
+    };
+    writeStore([cloned, ...readStore()]);
+    return ok(cloned);
   },
 
   getProductAttributes: async (id: string): Promise<ApiResponse<{ items: ProductAttribute[] }>> => {
@@ -208,5 +268,12 @@ export const productsService = {
   getProductInventory: async (id: string): Promise<ApiResponse<ProductInventory>> => {
     const product = await productsService.getProduct(id);
     return ok(product.data.inventory);
+  },
+
+  listProductTags: async (): Promise<ApiResponse<{ items: ProductTag[] }>> => {
+    await wait();
+    const seen = new Map<string, ProductTag>();
+    readStore().flatMap((item) => item.tags).forEach((tag) => seen.set(tag.id, tag));
+    return ok({ items: Array.from(seen.values()) });
   }
 };

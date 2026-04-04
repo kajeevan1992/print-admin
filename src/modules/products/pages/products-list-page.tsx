@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { FilterBar } from '@/components/data-table/filter-bar';
@@ -34,19 +35,21 @@ const emptyForm: ProductFormValues = {
 };
 
 export function ProductsListPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ProductFormValues>(emptyForm);
   const [creationSuccess, setCreationSuccess] = useState(false);
+  const [createdProductId, setCreatedProductId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
 
   const [params, setParams] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc' });
 
-  const loadProducts = async (nextParams: ProductListQuery) => {
+  const loadProducts = useCallback(async (nextParams: ProductListQuery) => {
     setLoading(true);
     setError(null);
     try {
@@ -58,11 +61,11 @@ export function ProductsListPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadProducts(params);
-  }, [params]);
+    void loadProducts(params);
+  }, [loadProducts, params]);
 
   useEffect(() => {
     Promise.all([categoriesService.listCategories(), vendorsService.listVendors()]).then(([categories, vendors]) => {
@@ -91,13 +94,15 @@ export function ProductsListPage() {
 
   const handleCreate = async () => {
     if (!form.name.trim() || !form.categoryId) return;
-    await productsService.createProduct(form);
+    const created = await productsService.createProduct(form);
+    setCreatedProductId(created.data.id);
     setCreationSuccess(true);
     await loadProducts(params);
   };
 
   const resetCreation = () => {
     setCreationSuccess(false);
+    setCreatedProductId('');
     setForm({ ...emptyForm, categoryId: form.categoryId });
   };
 
@@ -134,6 +139,12 @@ export function ProductsListPage() {
           success={creationSuccess}
           onReset={resetCreation}
         />
+        {creationSuccess && createdProductId ? (
+          <div className="mt-3 flex justify-end gap-2">
+            <Button onClick={() => router.push(`/products/${createdProductId}`)}>Edit Product</Button>
+            <Button onClick={() => setOpen(false)}>Return to Products</Button>
+          </div>
+        ) : null}
       </BaseModal>
     </div>
   );

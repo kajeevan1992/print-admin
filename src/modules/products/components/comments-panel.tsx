@@ -3,7 +3,13 @@ import { Button } from '@/components/ui/buttons';
 import { ProductSectionCard } from './product-section-card';
 import type { ProductComment } from '@/modules/products/types';
 
-export function CommentsPanel({ comments }: { comments: ProductComment[] }) {
+export function CommentsPanel({
+  comments,
+  onAdd
+}: {
+  comments: ProductComment[];
+  onAdd?: (message: string) => void;
+}) {
   const [note, setNote] = useState('');
 
   return (
@@ -26,7 +32,17 @@ export function CommentsPanel({ comments }: { comments: ProductComment[] }) {
           placeholder="Write internal note..."
           className="w-full rounded-lg border border-border bg-panelMuted p-3 text-sm outline-none"
         />
-        <div className="flex justify-end"><Button>Save Note</Button></div>
+        <div className="flex justify-end">
+          <Button
+            onClick={() => {
+              if (!note.trim()) return;
+              onAdd?.(note.trim());
+              setNote('');
+            }}
+          >
+            Save Note
+          </Button>
+        </div>
       </div>
     </ProductSectionCard>
   );

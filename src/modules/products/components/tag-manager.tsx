@@ -1,3 +1,5 @@
+'use client';
+
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/buttons';
 import type { ProductTag } from '@/modules/products/types';

@@ -1,3 +1,5 @@
+'use client';
+
 import { useMemo } from 'react';
 import { BaseModal } from '@/components/modals/base-modal';
 import { FormGrid } from '@/components/forms/form-grid';

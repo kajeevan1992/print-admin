@@ -5,26 +5,41 @@ export default function Page() {
     <ConfigWorkspacePage
       storageKey="config-admin-theme"
       title="Admin Theme"
-      subtitle="Customize admin appearance, density, and operational display preferences."
+      subtitle="Customize admin appearance, density, navigation style, and operator display preferences."
       sections={[
         {
-          title: 'Primary Settings',
+          title: 'Brand & Layout',
+          description: 'Define how the admin experience feels for operators and merchant admins.',
           fields: [
-            { key: 'primaryName', label: 'Primary Name', placeholder: 'Admin Theme profile' },
-            { key: 'status', label: 'Status', type: 'select', options: ['Draft', 'Active', 'Disabled'] },
-            { key: 'owner', label: 'Owner', placeholder: 'Operations team' },
-            { key: 'enabled', label: 'Enabled', type: 'toggle' }
+            { key: 'profileName', label: 'Profile Name', placeholder: 'Operations Dark Theme' },
+            { key: 'themeMode', label: 'Theme Mode', type: 'select', options: ['dark', 'light', 'system'] },
+            { key: 'density', label: 'Density', type: 'select', options: ['comfortable', 'compact', 'dense'] },
+            { key: 'stickySidebar', label: 'Sticky Sidebar', type: 'toggle' }
           ]
         },
         {
-          title: 'Operational Notes',
+          title: 'Dashboard Preferences',
           fields: [
-            { key: 'contact', label: 'Contact', placeholder: 'ops@example.com' },
-            { key: 'reference', label: 'Reference', placeholder: 'REF-001' },
-            { key: 'reviewCycle', label: 'Review Cycle', type: 'select', options: ['Weekly', 'Monthly', 'Quarterly'] },
-            { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Add internal notes, procedures, and exceptions...' }
+            { key: 'defaultLanding', label: 'Default Landing', type: 'select', options: ['dashboard', 'orders', 'production', 'products'] },
+            { key: 'showPlanPanel', label: 'Show Plan Panel', type: 'toggle' },
+            { key: 'showStoreSwitcher', label: 'Show Store Switcher', type: 'toggle' },
+            { key: 'dashboardNotes', label: 'Dashboard Notes', type: 'textarea', placeholder: 'Add operator hints, notice copy, or onboarding guidance...' }
+          ]
+        },
+        {
+          title: 'Accessibility',
+          fields: [
+            { key: 'fontScale', label: 'Font Scale', type: 'select', options: ['100%', '110%', '125%'] },
+            { key: 'reducedMotion', label: 'Reduced Motion', type: 'toggle' },
+            { key: 'highContrast', label: 'High Contrast', type: 'toggle' },
+            { key: 'focusOutlines', label: 'Always Show Focus', type: 'toggle' }
           ]
         }
+      ]}
+      insights={[
+        'Keep one theme profile per operations team or merchant group.',
+        'Match dashboard defaults to the role that uses the admin most often.',
+        'Use higher contrast and larger font scale for warehouse or print-room stations.'
       ]}
     />
   );

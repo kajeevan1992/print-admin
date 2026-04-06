@@ -34,6 +34,8 @@ export function LocalRecordsPage({
   initialItems,
   buildCardMeta,
   buildSubtitle,
+  cardMetaFields,
+  subtitleFields,
   searchKeys
 }: {
   storageKey: string;
@@ -44,6 +46,8 @@ export function LocalRecordsPage({
   initialItems: RecordItem[];
   buildCardMeta?: (item: RecordItem) => string;
   buildSubtitle?: (item: RecordItem) => string;
+  cardMetaFields?: string[];
+  subtitleFields?: string[];
   searchKeys?: string[];
 }) {
   const [items, setItems] = useState<RecordItem[]>(initialItems);
@@ -141,8 +145,8 @@ export function LocalRecordsPage({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold">{item.title}</h3>
-                      <p className="mt-1 text-sm text-textMuted">{buildSubtitle ? buildSubtitle(item) : item.subtitle}</p>
-                      <p className="mt-2 text-xs text-textMuted">{buildCardMeta ? buildCardMeta(item) : item.meta}</p>
+                      <p className="mt-1 text-sm text-textMuted">{buildSubtitle ? buildSubtitle(item) : (subtitleFields?.length ? subtitleFields.map((key) => String(item[key] ?? '').trim()).filter(Boolean).join(' • ') : item.subtitle)}</p>
+                      <p className="mt-2 text-xs text-textMuted">{buildCardMeta ? buildCardMeta(item) : (cardMetaFields?.length ? cardMetaFields.map((key) => String(item[key] ?? '').trim()).filter(Boolean).join(' • ') : item.meta)}</p>
                     </div>
                   </div>
                 </button>

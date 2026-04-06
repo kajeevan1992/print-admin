@@ -5,26 +5,31 @@ export default function Page() {
     <ConfigWorkspacePage
       storageKey="config-checkout-styles"
       title="Checkout Styles"
-      subtitle="Configure theme, spacing, and customer-facing checkout layout preferences."
+      subtitle="Define checkout presentation, brand accents, panel styles, and trust messaging."
       sections={[
         {
-          title: 'Primary Settings',
+          title: 'Branding',
           fields: [
-            { key: 'primaryName', label: 'Primary Name', placeholder: 'Checkout Styles profile' },
-            { key: 'status', label: 'Status', type: 'select', options: ['Draft', 'Active', 'Disabled'] },
-            { key: 'owner', label: 'Owner', placeholder: 'Operations team' },
-            { key: 'enabled', label: 'Enabled', type: 'toggle' }
+            { key: 'themeName', label: 'Theme Name', placeholder: 'Modern Checkout' },
+            { key: 'accentColor', label: 'Accent Color', placeholder: '#2563EB' },
+            { key: 'buttonStyle', label: 'Button Style', type: 'select', options: ['Rounded', 'Square', 'Soft'] },
+            { key: 'logoUrl', label: 'Logo URL', type: 'url', placeholder: 'https://example.com/logo.svg' }
           ]
         },
         {
-          title: 'Operational Notes',
+          title: 'Layout & Messaging',
           fields: [
-            { key: 'contact', label: 'Contact', placeholder: 'ops@example.com' },
-            { key: 'reference', label: 'Reference', placeholder: 'REF-001' },
-            { key: 'reviewCycle', label: 'Review Cycle', type: 'select', options: ['Weekly', 'Monthly', 'Quarterly'] },
-            { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Add internal notes, procedures, and exceptions...' }
+            { key: 'layoutMode', label: 'Layout Mode', type: 'select', options: ['Two Column', 'Single Column', 'Compact'] },
+            { key: 'showTrustBadges', label: 'Show Trust Badges', type: 'toggle' },
+            { key: 'showOrderSummarySticky', label: 'Sticky Order Summary', type: 'toggle' },
+            { key: 'checkoutNotice', label: 'Checkout Notice', type: 'textarea', placeholder: 'Add reassurance copy, SLA notes, or compliance text...' }
           ]
         }
+      ]}
+      insights={[
+        'Keep CTA color contrast high for payment step clarity.',
+        'Trust badges and secure checkout copy improve conversion confidence.',
+        'Review styling on mobile if the order summary is set to sticky.'
       ]}
     />
   );

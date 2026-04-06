@@ -52,6 +52,8 @@ export default function Page() {
         { key: 'proofingRequired', label: 'Proofing Required', toggle: true },
         { key: 'notes', label: 'Operational Notes', type: 'textarea', placeholder: 'Add production notes, SLAs, and routing specifics...' }
       ]}
+      buildSubtitle={(item) => `${item.subtitle ?? ''}`}
+      buildCardMeta={(item) => `${item.region ?? ''} · ${item.capability ?? ''} · ${item.status ?? ''}`}
       searchKeys={['title', 'subtitle', 'contactName', 'region', 'capability', 'status']}
     />
   );

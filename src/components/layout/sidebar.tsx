@@ -117,8 +117,11 @@ const navItems: NavItem[] = [
       { label: 'Content', href: '/content' },
       { label: 'Blog Content', href: '/blog-content' },
       { label: 'Page Content', href: '/page-content' },
+      { label: 'Product Content', href: '/product-content' },
       { label: 'Category CMS', href: '/category-cms' },
+      { label: 'Tag Content', href: '/tag-content' },
       { label: 'Extended Content', href: '/extended-content' },
+      { label: 'Landing Pages', href: '/landing-pages' },
       { label: 'HTML Snippets', href: '/html-snippets' }
     ]
   },

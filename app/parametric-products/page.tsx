@@ -49,6 +49,7 @@ export default function Page() {
         { key: 'storefrontVisible', label: 'Visible on Storefront', toggle: true },
         { key: 'notes', label: 'Product Notes', type: 'textarea', placeholder: 'Add material constraints, minimum dimensions, and pricing notes...' }
       ]}
+      buildCardMeta={(item) => `${item.standard ?? ''} · ${item.material ?? ''} · ${item.status ?? ''}`}
       searchKeys={['title', 'subtitle', 'standard', 'material', 'category', 'status']}
     />
   );

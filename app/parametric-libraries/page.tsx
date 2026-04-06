@@ -1,3 +1,5 @@
+'use client';
+
 import { LocalRecordsPage } from '@/components/configuration/local-records-page';
 
 const items = [

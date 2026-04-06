@@ -43,8 +43,8 @@ export function TagContentPage() {
         { key: 'sidebar', label: 'Sidebar', options: ['enabled', 'disabled'] },
         { key: 'seoTitle', label: 'SEO Title', placeholder: 'Business Essentials Print Products' }
       ]}
-      buildSubtitle={(item) => `Tag: ${item.tagName} • ${item.status}`}
-      buildCardMeta={(item) => `Parent: ${item.parentTag} • Sidebar: ${item.sidebar}`}
+      subtitleFields={['tagName', 'status']}
+      cardMetaFields={['parentTag', 'sidebar']}
       searchKeys={['title', 'tagName', 'parentTag', 'status', 'seoTitle']}
     />
   );

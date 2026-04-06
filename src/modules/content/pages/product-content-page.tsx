@@ -43,8 +43,8 @@ export function ProductContentPage() {
         { key: 'seoTitle', label: 'SEO Title', placeholder: 'Premium Business Cards' },
         { key: 'sectionCount', label: 'Content Sections', type: 'number', placeholder: '6' }
       ]}
-      buildSubtitle={(item) => `${item.template} • ${item.status}`}
-      buildCardMeta={(item) => `Slug: ${item.slug} • SEO: ${item.seoTitle}`}
+      subtitleFields={['template', 'status']}
+      cardMetaFields={['slug', 'seoTitle']}
       searchKeys={['title', 'slug', 'seoTitle', 'template', 'status']}
     />
   );

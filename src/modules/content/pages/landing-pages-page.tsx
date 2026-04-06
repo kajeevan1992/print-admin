@@ -43,8 +43,8 @@ export function LandingPagesPage() {
         { key: 'audience', label: 'Audience', options: ['all-customers', 'education', 'retail', 'b2b', 'trade'] },
         { key: 'primaryGoal', label: 'Primary Goal', options: ['lead-generation', 'catalog-access', 'promotion-redemption', 'quote-request'] }
       ]}
-      buildSubtitle={(item) => `${item.layout} • ${item.status}`}
-      buildCardMeta={(item) => `Audience: ${item.audience} • Goal: ${item.primaryGoal}`}
+      subtitleFields={['layout', 'status']}
+      cardMetaFields={['audience', 'primaryGoal']}
       searchKeys={['title', 'slug', 'layout', 'status', 'audience', 'primaryGoal']}
     />
   );

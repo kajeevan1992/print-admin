@@ -32,8 +32,8 @@ export function LocalRecordsPage({
   createLabel,
   fields,
   initialItems,
-  cardMetaFields,
-  subtitleFields,
+  buildCardMeta,
+  buildSubtitle,
   searchKeys
 }: {
   storageKey: string;
@@ -42,8 +42,8 @@ export function LocalRecordsPage({
   createLabel: string;
   fields: Field[];
   initialItems: RecordItem[];
-  cardMetaFields?: string[];
-  subtitleFields?: string[];
+  buildCardMeta?: (item: RecordItem) => string;
+  buildSubtitle?: (item: RecordItem) => string;
   searchKeys?: string[];
 }) {
   const [items, setItems] = useState<RecordItem[]>(initialItems);
@@ -78,14 +78,6 @@ export function LocalRecordsPage({
   }, [items, query, searchKeys]);
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
-
-  const renderFromFields = (item: RecordItem | null, keys?: string[]) => {
-    if (!item || !keys?.length) return '';
-    return keys
-      .map((key) => String(item[key] ?? '').trim())
-      .filter(Boolean)
-      .join(' • ');
-  };
 
   const updateSelected = (changes: Record<string, string | boolean>) => {
     if (!selected) return;
@@ -149,8 +141,8 @@ export function LocalRecordsPage({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold">{item.title}</h3>
-                      <p className="mt-1 text-sm text-textMuted">{renderFromFields(item, subtitleFields) || item.subtitle}</p>
-                      <p className="mt-2 text-xs text-textMuted">{renderFromFields(item, cardMetaFields) || item.meta}</p>
+                      <p className="mt-1 text-sm text-textMuted">{buildSubtitle ? buildSubtitle(item) : item.subtitle}</p>
+                      <p className="mt-2 text-xs text-textMuted">{buildCardMeta ? buildCardMeta(item) : item.meta}</p>
                     </div>
                   </div>
                 </button>

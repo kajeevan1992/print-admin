@@ -5,26 +5,24 @@ export default function Page() {
     <ConfigWorkspacePage
       storageKey="config-email-account"
       title="Email Account"
-      subtitle="Configure SMTP sender accounts, authentication, and reply-to handling for the platform."
+      subtitle="Manage outbound sender identity and SMTP-style operational settings."
       sections={[
         {
-          title: 'SMTP Connection',
+          title: 'Primary Settings',
           fields: [
-            { key: 'senderName', label: 'Sender Name', placeholder: 'Print Support' },
-            { key: 'senderEmail', label: 'Sender Email', type: 'email', placeholder: 'support@example.com' },
-            { key: 'host', label: 'SMTP Host', placeholder: 'smtp.example.com' },
-            { key: 'port', label: 'Port', type: 'number', placeholder: '587' },
-            { key: 'encryption', label: 'Encryption', type: 'select', options: ['TLS', 'SSL', 'None'] },
-            { key: 'authRequired', label: 'Authentication Required', type: 'toggle' }
+            { key: 'primaryName', label: 'Primary Name', placeholder: 'Email Account profile' },
+            { key: 'status', label: 'Status', type: 'select', options: ['Draft', 'Active', 'Disabled'] },
+            { key: 'owner', label: 'Owner', placeholder: 'Operations team' },
+            { key: 'enabled', label: 'Enabled', type: 'toggle' }
           ]
         },
         {
-          title: 'Delivery Handling',
+          title: 'Operational Notes',
           fields: [
-            { key: 'replyTo', label: 'Reply-To', type: 'email', placeholder: 'helpdesk@example.com' },
-            { key: 'bounceAddress', label: 'Bounce Address', type: 'email', placeholder: 'bounce@example.com' },
-            { key: 'dailyLimit', label: 'Daily Limit', type: 'number', placeholder: '10000' },
-            { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Document provider notes, API credentials storage, or sending rules...' }
+            { key: 'contact', label: 'Contact', placeholder: 'ops@example.com' },
+            { key: 'reference', label: 'Reference', placeholder: 'REF-001' },
+            { key: 'reviewCycle', label: 'Review Cycle', type: 'select', options: ['Weekly', 'Monthly', 'Quarterly'] },
+            { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Add internal notes, procedures, and exceptions...' }
           ]
         }
       ]}

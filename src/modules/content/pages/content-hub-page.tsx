@@ -16,29 +16,14 @@ const sections = [
     description: 'Maintain standard storefront pages such as about, contact, support, and policy pages.'
   },
   {
-    title: 'Product Content',
-    href: '/product-content',
-    description: 'Manage product detail CMS content, SEO blocks, merchandising copy, and promotional sections.'
-  },
-  {
     title: 'Category CMS',
     href: '/category-cms',
     description: 'Control category landing copy, browse/upload/create flags, and merchandising content.'
   },
   {
-    title: 'Tag Content',
-    href: '/tag-content',
-    description: 'Manage tag browse pages, sidebar visibility, parent tag context, and search-friendly copy.'
-  },
-  {
     title: 'Extended Content',
     href: '/extended-content',
     description: 'Create flexible campaign and custom audience pages with custom SEO and copy blocks.'
-  },
-  {
-    title: 'Landing Pages',
-    href: '/landing-pages',
-    description: 'Create campaign landing pages, sector funnels, promotional hubs, and storefront acquisition pages.'
   },
   {
     title: 'HTML Snippets',

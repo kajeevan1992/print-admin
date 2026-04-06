@@ -46,7 +46,7 @@ export default function Page() {
         { key: 'enabled', label: 'Enabled', toggle: true },
         { key: 'notes', label: 'Rule Notes', type: 'textarea', placeholder: 'Describe what this rule does and who owns the logic...' }
       ]}
-      cardMetaFields={['ruleType', 'scope', 'severity']}
+      buildCardMeta={(item) => `${item.ruleType ?? ''} · ${item.scope ?? ''} · ${item.severity ?? ''}`}
       searchKeys={['title', 'subtitle', 'ruleType', 'scope', 'severity', 'trigger']}
     />
   );

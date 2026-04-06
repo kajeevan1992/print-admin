@@ -49,7 +49,7 @@ export default function Page() {
         { key: 'editable', label: 'Editable', toggle: true },
         { key: 'notes', label: 'Library Notes', type: 'textarea', placeholder: 'Add sync details, publishing notes, and downstream dependencies...' }
       ]}
-      cardMetaFields={['libraryType', 'itemCount', 'syncStatus']}
+      buildCardMeta={(item) => `${item.libraryType ?? ''} · ${item.itemCount ?? '0'} items · ${item.syncStatus ?? ''}`}
       searchKeys={['title', 'subtitle', 'libraryType', 'owner', 'syncStatus', 'environment']}
     />
   );

@@ -83,6 +83,28 @@ export function LocalRecordsPage({
 
   const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null;
 
+  const subtitleTextForItem = (item: RecordItem) => {
+    if (buildSubtitle) return buildSubtitle(item);
+    if (subtitleFields?.length) {
+      return subtitleFields
+        .map((key) => String(item[key] ?? '').trim())
+        .filter(Boolean)
+        .join(' • ');
+    }
+    return item.subtitle ?? '';
+  };
+
+  const cardMetaTextForItem = (item: RecordItem) => {
+    if (buildCardMeta) return buildCardMeta(item);
+    if (cardMetaFields?.length) {
+      return cardMetaFields
+        .map((key) => String(item[key] ?? '').trim())
+        .filter(Boolean)
+        .join(' • ');
+    }
+    return item.meta ?? '';
+  };
+
   const updateSelected = (changes: Record<string, string | boolean>) => {
     if (!selected) return;
     setItems((prev) => prev.map((item) => (item.id === selected.id ? { ...item, ...changes } : item)));
@@ -145,8 +167,8 @@ export function LocalRecordsPage({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-semibold">{item.title}</h3>
-                      <p className="mt-1 text-sm text-textMuted">{buildSubtitle ? buildSubtitle(item) : (subtitleFields?.length ? subtitleFields.map((key) => String(item[key] ?? '').trim()).filter(Boolean).join(' • ') : item.subtitle)}</p>
-                      <p className="mt-2 text-xs text-textMuted">{buildCardMeta ? buildCardMeta(item) : (cardMetaFields?.length ? cardMetaFields.map((key) => String(item[key] ?? '').trim()).filter(Boolean).join(' • ') : item.meta)}</p>
+                      <p className="mt-1 text-sm text-textMuted">{subtitleTextForItem(item)}</p>
+                      <p className="mt-2 text-xs text-textMuted">{cardMetaTextForItem(item)}</p>
                     </div>
                   </div>
                 </button>

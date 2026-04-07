@@ -28,7 +28,12 @@ const routeLabelMap: Record<string, string> = {
   '/saved-views': 'Saved Views',
   '/command-center': 'Command Center',
   '/product-launch-wizard': 'Product Wizard',
-  '/store-launch-wizard': 'Store Wizard'
+  '/store-launch-wizard': 'Store Wizard',
+  '/launch-readiness': 'Launch Readiness',
+  '/experience-review': 'Experience Review',
+  '/design-studio': 'Design Studio',
+  '/catalog-launch-wizard': 'Catalog Wizard',
+  '/launch-qa': 'Launch QA'
 };
 
 const quickLinks = [
@@ -39,7 +44,12 @@ const quickLinks = [
   { href: '/content', label: 'Content', icon: Zap },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/command-center', label: 'Command Center', icon: Command },
-  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles }
+  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles },
+  { href: '/catalog-launch-wizard', label: 'Catalog Wizard', icon: Command },
+  { href: '/design-studio', label: 'Design Studio', icon: Sparkles },
+  { href: '/launch-readiness', label: 'Launch Readiness', icon: Bell },
+  { href: '/launch-qa', label: 'Launch QA', icon: Sparkles },
+  { href: '/experience-review', label: 'Experience Review', icon: Sparkles }
 ];
 
 type RecentRoute = {
@@ -94,13 +104,13 @@ export function Topbar() {
   const activeStore = stores.find((store) => store.id === storeId) ?? stores[0];
 
   return (
-    <header className="mb-6 rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.82)_0%,rgba(8,13,24,0.78)_100%)] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+    <header className="mb-5 rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.82)_0%,rgba(8,13,24,0.78)_100%)] p-3 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <label className="flex min-h-[48px] flex-1 items-center gap-3 rounded-2xl border border-white/8 bg-panelMuted/80 px-4">
+        <label className="flex min-h-[44px] flex-1 items-center gap-3 rounded-2xl border border-white/8 bg-panelMuted/80 px-4">
           <Search size={16} className="text-textMuted" />
           <input
             placeholder="Search products, orders, users..."
-            className="w-full bg-transparent text-[13px] text-text outline-none placeholder:text-textMuted/70"
+            className="w-full bg-transparent text-[12px] text-text outline-none placeholder:text-textMuted/70"
           />
         </label>
 

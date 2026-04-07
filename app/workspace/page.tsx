@@ -32,6 +32,16 @@ const sections = [
       { href: '/content', label: 'Open Content Hub' },
       { href: '/landing-pages', label: 'Open Landing Pages' }
     ]
+  },
+  {
+    title: 'Team productivity',
+    description: 'Keep daily admin work moving with alerts, saved views, and command tasks.',
+    links: [
+      { href: '/notifications', label: 'Open Notifications' },
+      { href: '/saved-views', label: 'Open Saved Views' },
+      { href: '/command-center', label: 'Open Command Center' },
+      { href: '/support-tickets', label: 'Open Support Tickets' }
+    ]
   }
 ];
 
@@ -43,7 +53,7 @@ export default function WorkspacePage() {
         subtitle="A faster launch point for the busiest admin workflows across catalog, commerce, and storefront operations."
       />
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
         {sections.map((section) => (
           <Card key={section.title} className="space-y-4">
             <div>

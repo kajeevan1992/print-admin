@@ -23,7 +23,10 @@ const routeLabelMap: Record<string, string> = {
   '/content': 'Content',
   '/reports': 'Reports',
   '/settings': 'General Settings',
-  '/support': 'Support'
+  '/support': 'Support',
+  '/notifications': 'Notifications',
+  '/saved-views': 'Saved Views',
+  '/command-center': 'Command Center'
 };
 
 const quickLinks = [
@@ -32,7 +35,9 @@ const quickLinks = [
   { href: '/orders', label: 'Orders' },
   { href: '/customers', label: 'Customers' },
   { href: '/content', label: 'Content' },
-  { href: '/reports', label: 'Reports' }
+  { href: '/reports', label: 'Reports' },
+  { href: '/notifications', label: 'Notifications' },
+  { href: '/command-center', label: 'Command Center' }
 ];
 
 type RecentRoute = {
@@ -151,9 +156,9 @@ export function Topbar() {
           ) : null}
         </div>
 
-        <button className="rounded-lg border border-border p-2 hover:bg-panelMuted">
+        <Link href="/notifications" className="rounded-lg border border-border p-2 hover:bg-panelMuted">
           <Bell size={16} />
-        </button>
+        </Link>
         <div className="rounded-lg border border-border px-3 py-2 text-sm">Alex Rivera · Admin</div>
       </div>
     </header>

@@ -44,16 +44,6 @@ const sections = [
       { href: '/general-settings', label: 'Open general settings' },
       { href: '/site-theme', label: 'Open site theme' }
     ]
-  },
-  {
-    title: 'Catalog launch',
-    description: 'Shape the structure of products, categories, collections, tags, and launch content before rollout.',
-    links: [
-      { href: '/catalog-launch-wizard', label: 'Open catalog wizard' },
-      { href: '/categories', label: 'Open categories' },
-      { href: '/collections', label: 'Open collections' },
-      { href: '/design-studio', label: 'Open design studio' }
-    ]
   }
 ];
 
@@ -91,7 +81,7 @@ export default function WorkspacePage() {
               <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-textMuted">
                 <Sparkles size={12} /> Product-grade admin UX
               </div>
-              <h2 className="mt-4 max-w-2xl text-[2.35rem] font-semibold tracking-[-0.05em] text-white">
+              <h2 className="mt-4 max-w-2xl text-[2.1rem] font-semibold tracking-[-0.05em] text-white">
                 Guided flows for catalog, commerce, and storefront work.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-textMuted">
@@ -104,8 +94,8 @@ export default function WorkspacePage() {
                 <Link href="/command-center" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
                   Open command center <Command size={14} />
                 </Link>
-                <Link href="/catalog-launch-wizard" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
-                  Open catalog wizard <ArrowRight size={14} />
+                <Link href="/launch-readiness" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
+                  Open launch readiness <ArrowRight size={14} />
                 </Link>
               </div>
             </div>
@@ -131,7 +121,7 @@ export default function WorkspacePage() {
 
       <AmbientIllustration className="h-48" />
 
-      <div className="grid gap-4 xl:grid-cols-5">
+      <div className="grid gap-4 xl:grid-cols-4">
         {sections.map((section, index) => (
           <Card key={section.title} className="space-y-4">
             <div className="flex items-start justify-between gap-4">

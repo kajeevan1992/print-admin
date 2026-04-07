@@ -28,19 +28,18 @@ const routeLabelMap: Record<string, string> = {
   '/saved-views': 'Saved Views',
   '/command-center': 'Command Center',
   '/product-launch-wizard': 'Product Wizard',
-  '/store-launch-wizard': 'Store Wizard',
-  '/catalog-launch-wizard': 'Catalog Wizard',
-  '/design-studio': 'Design Studio'
+  '/store-launch-wizard': 'Store Wizard'
 };
 
 const quickLinks = [
   { href: '/workspace', label: 'Workspace', icon: Sparkles },
   { href: '/product-launch-wizard', label: 'Product Wizard', icon: Command },
-  { href: '/catalog-launch-wizard', label: 'Catalog Wizard', icon: Command },
-  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles },
-  { href: '/design-studio', label: 'Design Studio', icon: Sparkles },
+  { href: '/products', label: 'Products', icon: Zap },
+  { href: '/orders', label: 'Orders', icon: Zap },
+  { href: '/content', label: 'Content', icon: Zap },
   { href: '/notifications', label: 'Notifications', icon: Bell },
-  { href: '/command-center', label: 'Command Center', icon: Command }
+  { href: '/command-center', label: 'Command Center', icon: Command },
+  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles }
 ];
 
 type RecentRoute = {

@@ -27,7 +27,8 @@ const routeLabelMap: Record<string, string> = {
   '/notifications': 'Notifications',
   '/saved-views': 'Saved Views',
   '/command-center': 'Command Center',
-  '/product-launch-wizard': 'Product Wizard'
+  '/product-launch-wizard': 'Product Wizard',
+  '/store-launch-wizard': 'Store Wizard'
 };
 
 const quickLinks = [
@@ -37,7 +38,8 @@ const quickLinks = [
   { href: '/orders', label: 'Orders', icon: Zap },
   { href: '/content', label: 'Content', icon: Zap },
   { href: '/notifications', label: 'Notifications', icon: Bell },
-  { href: '/command-center', label: 'Command Center', icon: Command }
+  { href: '/command-center', label: 'Command Center', icon: Command },
+  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles }
 ];
 
 type RecentRoute = {
@@ -92,18 +94,18 @@ export function Topbar() {
   const activeStore = stores.find((store) => store.id === storeId) ?? stores[0];
 
   return (
-    <header className="mb-7 rounded-[26px] border border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.88)_0%,rgba(9,14,28,0.82)_100%)] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+    <header className="mb-6 rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.82)_0%,rgba(8,13,24,0.78)_100%)] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <label className="flex min-h-[52px] flex-1 items-center gap-3 rounded-2xl border border-white/8 bg-panelMuted/80 px-4">
+        <label className="flex min-h-[48px] flex-1 items-center gap-3 rounded-2xl border border-white/8 bg-panelMuted/80 px-4">
           <Search size={16} className="text-textMuted" />
           <input
             placeholder="Search products, orders, users..."
-            className="w-full bg-transparent text-[14px] text-text outline-none placeholder:text-textMuted/70"
+            className="w-full bg-transparent text-[13px] text-text outline-none placeholder:text-textMuted/70"
           />
         </label>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-[13px] font-medium text-white">
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
             <Store size={15} className="text-accentAlt" />
             {activeStore.name}
           </div>
@@ -112,7 +114,7 @@ export function Topbar() {
             <button
               type="button"
               onClick={() => setLinksOpen((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-[13px] font-medium text-white transition hover:bg-white/[0.05]"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white transition hover:bg-white/[0.05]"
             >
               <Zap size={15} className="text-accentAlt" />
               Quick links
@@ -141,7 +143,7 @@ export function Topbar() {
             <button
               type="button"
               onClick={() => setRecentOpen((prev) => !prev)}
-              className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-[13px] font-medium text-white transition hover:bg-white/[0.05]"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white transition hover:bg-white/[0.05]"
             >
               <Clock3 size={15} className="text-textMuted" />
               Recent
@@ -166,10 +168,10 @@ export function Topbar() {
             ) : null}
           </div>
 
-          <Link href="/notifications" className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-text transition hover:bg-white/[0.05]">
+          <Link href="/notifications" className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-text transition hover:bg-white/[0.05]">
             <Bell size={15} />
           </Link>
-          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-[13px] font-medium text-white">Alex Rivera · Admin</div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">Alex Rivera · Admin</div>
         </div>
       </div>
     </header>

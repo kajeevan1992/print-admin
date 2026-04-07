@@ -4,7 +4,7 @@ export function Card({ className, children }: { className?: string; children: Re
   return (
     <section
       className={cn(
-        'rounded-2xl border border-white/5 bg-panel/92 p-4 shadow-card backdrop-blur-sm md:p-5',
+        'rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(15,21,37,0.92),rgba(11,16,29,0.94))] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur-md md:p-5',
         className
       )}
     >

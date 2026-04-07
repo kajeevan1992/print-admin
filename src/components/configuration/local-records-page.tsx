@@ -153,7 +153,7 @@ export function LocalRecordsPage({
         subtitle={subtitle}
         actions={<PrimaryButton onClick={createItem}>{createLabel}</PrimaryButton>}
       />
-              <p className="max-w-2xl text-sm leading-6 text-textMuted">Use a lighter local workflow for fast prototyping and admin reviews before wiring everything to live APIs.</p>
+              <p className="max-w-2xl text-[13px] leading-6 text-textMuted">Use a lighter local workflow for fast prototyping and admin reviews before wiring everything to live APIs.</p>
             </div>
           </div>
           <div className="border-t border-white/6 bg-white/[0.02] p-6 md:border-l md:border-t-0">
@@ -189,8 +189,8 @@ export function LocalRecordsPage({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-[15px] font-semibold text-white">{item.title}</h3>
-                      <p className="mt-1 text-[13px] text-textMuted">{subtitleTextForItem(item)}</p>
+                      <h3 className="text-[14px] font-semibold text-white">{item.title}</h3>
+                      <p className="mt-1 text-[11px] text-textMuted">{subtitleTextForItem(item)}</p>
                       <p className="mt-2 text-[12px] text-textMuted">{cardMetaTextForItem(item)}</p>
                     </div>
                   </div>

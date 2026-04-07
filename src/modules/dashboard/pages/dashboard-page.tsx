@@ -46,7 +46,7 @@ function DashboardKpiGrid({ kpis }: { kpis: KpiItem[] }) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase text-textMuted">{kpi.label}</p>
-              <h3 className="mt-3 text-[2.2rem] font-semibold tracking-[-0.03em] text-white">{kpi.value}</h3>
+              <h3 className="mt-3 text-[1.95rem] font-semibold tracking-[-0.03em] text-white">{kpi.value}</h3>
               <p className="mt-2 text-sm text-textMuted">{kpi.hint}</p>
             </div>
 
@@ -159,7 +159,7 @@ function PlanSummaryCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase text-textMuted">Plan Info</p>
-          <h2 className="mt-1 text-[2.1rem] font-semibold tracking-[-0.035em] text-white">{planName}</h2>
+          <h2 className="mt-1 text-[1.9rem] font-semibold tracking-[-0.035em] text-white">{planName}</h2>
           <p className="mt-1 text-sm text-textMuted">
             {billingCycle} · {subscriptionStatus} · Support: {supportTier}
           </p>
@@ -171,12 +171,12 @@ function PlanSummaryCard({
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-panelMuted p-4">
           <p className="text-xs uppercase text-textMuted">Next Payment</p>
-          <p className="mt-2 text-[2rem] font-semibold tracking-[-0.03em] text-white">{nextPaymentDate}</p>
+          <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-white">{nextPaymentDate}</p>
         </div>
 
         <div className="rounded-xl border border-border bg-panelMuted p-4">
           <p className="text-xs uppercase text-textMuted">Stores Used</p>
-          <p className="mt-2 text-[2rem] font-semibold tracking-[-0.03em] text-white">
+          <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-white">
             {storesUsed} / {storesAllowed}
           </p>
           <div className="mt-3 h-2 rounded-full bg-slate-800">
@@ -230,7 +230,7 @@ function VisitorsOverviewCard({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase text-textMuted">Visitors Overview</p>
-          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">{title}</h3>
+          <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">{title}</h3>
           <p className="mt-2 text-sm text-textMuted">
             {compareEnabled ? `${currentChange} vs previous period` : compareLabel}
           </p>
@@ -256,7 +256,7 @@ function VisitorsOverviewCard({
 
       <div className="mt-4 flex items-end justify-between gap-4">
         <div>
-          <p className="text-4xl font-semibold tracking-tight">{currentValue}</p>
+          <p className="text-[2.5rem] font-semibold tracking-tight">{currentValue}</p>
           <p className="mt-2 text-sm text-textMuted">{currentChange}</p>
         </div>
         {compareEnabled ? (
@@ -450,7 +450,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">Store Overview</p>
-          <h2 className="mt-2 text-[2.1rem] font-semibold tracking-[-0.035em] text-white">{selectedStore?.name ?? '—'}</h2>
+          <h2 className="mt-2 text-[1.9rem] font-semibold tracking-[-0.035em] text-white">{selectedStore?.name ?? '—'}</h2>
           <p className="mt-1 text-sm text-textMuted">{selectedStore?.domain ?? '—'}</p>
 
           <div className="mt-4 rounded-xl border border-border bg-panelMuted p-4">
@@ -516,7 +516,7 @@ export function DashboardPage() {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase text-textMuted">Alerts</p>
-              <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Action Center</h3>
+              <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">Action Center</h3>
             </div>
             <Button>View All</Button>
           </div>
@@ -540,7 +540,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Store Usage Snapshot</p>
-          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Usage</h3>
+          <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">Usage</h3>
 
           <div className="mt-5 space-y-3">
             <div className="rounded-xl border border-border bg-panelMuted px-4 py-3.5 text-[15px]">
@@ -562,7 +562,7 @@ export function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_1fr]">
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Quick Actions</p>
-          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Common Tasks</h3>
+          <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">Common Tasks</h3>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {payload.quickActions.map((action) => (
@@ -579,7 +579,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Business Health</p>
-          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">System Status</h3>
+          <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">System Status</h3>
 
           <div className="mt-5 space-y-3">
             {payload.health.map((item) => (
@@ -598,7 +598,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Recent Activity</p>
-          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Updates</h3>
+          <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">Updates</h3>
 
           <div className="mt-5 space-y-3">
             {payload.activity.map((item) => (
@@ -628,7 +628,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Dashboard Notes</p>
-          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">What this gives you</h3>
+          <h3 className="mt-1 text-[1.75rem] font-semibold tracking-[-0.04em] text-white">What this gives you</h3>
           <ul className="mt-5 space-y-3 text-sm text-textMuted">
             <li>• One place to switch between multiple stores.</li>
             <li>• Plan visibility with next billing date and site usage.</li>

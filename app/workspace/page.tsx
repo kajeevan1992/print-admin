@@ -1,7 +1,9 @@
 import Link from 'next/link';
-import { ArrowRight, Command, Layers3, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
+import { AmbientIllustration } from '@/components/ui/ambient-illustration';
+import { AmbientIllustration } from '@/components/ui/ambient-illustration';
 
 const sections = [
   {
@@ -32,6 +34,16 @@ const sections = [
       { href: '/themes', label: 'Open site theme' },
       { href: '/content', label: 'Open content hub' },
       { href: '/landing-pages', label: 'Open landing pages' }
+    ]
+  },
+  {
+    title: 'Store launch',
+    description: 'Bring new storefronts online with a guided route through store setup, theme review, and go-live checks.',
+    links: [
+      { href: '/store-launch-wizard', label: 'Open store wizard' },
+      { href: '/print-store', label: 'Open print store' },
+      { href: '/general-settings', label: 'Open general settings' },
+      { href: '/site-theme', label: 'Open site theme' }
     ]
   }
 ];
@@ -105,13 +117,15 @@ export default function WorkspacePage() {
         </div>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <AmbientIllustration className="h-48" />
+
+      <div className="grid gap-4 xl:grid-cols-4">
         {sections.map((section, index) => (
           <Card key={section.title} className="space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-accentAlt">
-                  {index === 0 ? <Layers3 size={18} /> : index === 1 ? <Command size={18} /> : <Wand2 size={18} />}
+                  {index === 0 ? <Layers3 size={18} /> : index === 1 ? <Command size={18} /> : index === 2 ? <Wand2 size={18} /> : <Globe2 size={18} />}
                 </div>
                 <h2 className="mt-4 text-xl font-semibold tracking-[-0.03em] text-white">{section.title}</h2>
                 <p className="mt-2 text-sm leading-6 text-textMuted">{section.description}</p>

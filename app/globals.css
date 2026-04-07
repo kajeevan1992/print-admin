@@ -7,12 +7,12 @@
 }
 
 html {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 @media (min-width: 1440px) {
   html {
-    font-size: 13.5px;
+    font-size: 12.5px;
   }
 }
 
@@ -25,7 +25,7 @@ body {
     linear-gradient(180deg, rgba(8, 12, 23, 0.98) 0%, rgba(4, 7, 15, 1) 100%);
   font-feature-settings: 'ss01' on, 'cv01' on, 'cv11' on;
   letter-spacing: -0.012em;
-  line-height: 1.45;
+  line-height: 1.4;
 }
 
 button,

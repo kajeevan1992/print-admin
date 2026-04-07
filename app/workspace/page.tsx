@@ -44,6 +44,16 @@ const sections = [
       { href: '/general-settings', label: 'Open general settings' },
       { href: '/site-theme', label: 'Open site theme' }
     ]
+  },
+  {
+    title: 'Catalog launch',
+    description: 'Shape the structure of products, categories, collections, tags, and launch content before rollout.',
+    links: [
+      { href: '/catalog-launch-wizard', label: 'Open catalog wizard' },
+      { href: '/categories', label: 'Open categories' },
+      { href: '/collections', label: 'Open collections' },
+      { href: '/design-studio', label: 'Open design studio' }
+    ]
   }
 ];
 
@@ -94,6 +104,9 @@ export default function WorkspacePage() {
                 <Link href="/command-center" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
                   Open command center <Command size={14} />
                 </Link>
+                <Link href="/catalog-launch-wizard" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
+                  Open catalog wizard <ArrowRight size={14} />
+                </Link>
               </div>
             </div>
           </div>
@@ -118,7 +131,7 @@ export default function WorkspacePage() {
 
       <AmbientIllustration className="h-48" />
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-5">
         {sections.map((section, index) => (
           <Card key={section.title} className="space-y-4">
             <div className="flex items-start justify-between gap-4">

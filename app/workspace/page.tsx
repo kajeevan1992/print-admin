@@ -3,7 +3,6 @@ import { ArrowRight, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-re
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { AmbientIllustration } from '@/components/ui/ambient-illustration';
-import { AmbientIllustration } from '@/components/ui/ambient-illustration';
 
 const sections = [
   {

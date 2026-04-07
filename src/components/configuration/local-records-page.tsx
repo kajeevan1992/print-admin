@@ -142,16 +142,39 @@ export function LocalRecordsPage({
   };
 
   return (
-    <div>
-      <PageHeader
+    <div className="space-y-6">
+      <Card className="overflow-hidden p-0">
+        <div className="grid gap-0 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="relative overflow-hidden p-6 md:p-7">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(124,140,255,0.18),transparent_40%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.12),transparent_26%)]" />
+            <div className="relative">
+              <PageHeader
         title={title}
         subtitle={subtitle}
         actions={<PrimaryButton onClick={createItem}>{createLabel}</PrimaryButton>}
       />
+              <p className="max-w-2xl text-sm leading-6 text-textMuted">Use a lighter local workflow for fast prototyping and admin reviews before wiring everything to live APIs.</p>
+            </div>
+          </div>
+          <div className="border-t border-white/6 bg-white/[0.02] p-6 md:border-l md:border-t-0">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Workflow notes</p>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="text-sm font-medium text-white">Fast edits</p>
+                <p className="mt-1 text-[13px] leading-6 text-textMuted">Switch between records and keep changes automatically saved in browser state.</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="text-sm font-medium text-white">Cleaner cards</p>
+                <p className="mt-1 text-[13px] leading-6 text-textMuted">Smaller typography and softer surfaces create a calmer, more premium rhythm.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className="grid gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
         <div className="space-y-4">
-          <Card>
+          <Card className="p-3">
             <Input placeholder={`Search ${title.toLowerCase()}...`} value={query} onChange={(event) => setQuery(event.target.value)} />
           </Card>
 
@@ -162,13 +185,13 @@ export function LocalRecordsPage({
                 <button
                   key={item.id}
                   onClick={() => setSelectedId(item.id)}
-                  className={`w-full rounded-xl border p-4 text-left shadow-card transition ${active ? 'border-accent bg-panel' : 'border-border bg-panel hover:border-accent/40'}`}
+                  className={`w-full rounded-2xl border p-4 text-left shadow-card transition ${active ? 'border-accent/35 bg-white/[0.04]' : 'border-white/8 bg-white/[0.02] hover:bg-white/[0.04]'}`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-semibold">{item.title}</h3>
-                      <p className="mt-1 text-sm text-textMuted">{subtitleTextForItem(item)}</p>
-                      <p className="mt-2 text-xs text-textMuted">{cardMetaTextForItem(item)}</p>
+                      <h3 className="text-[15px] font-semibold text-white">{item.title}</h3>
+                      <p className="mt-1 text-[13px] text-textMuted">{subtitleTextForItem(item)}</p>
+                      <p className="mt-2 text-[12px] text-textMuted">{cardMetaTextForItem(item)}</p>
                     </div>
                   </div>
                 </button>
@@ -183,7 +206,7 @@ export function LocalRecordsPage({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-base font-semibold">Edit {selected.title}</h3>
+                    <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">Edit {selected.title}</h3>
                     <p className="text-sm text-textMuted">Update the selected record and changes are saved locally.</p>
                   </div>
                   <Button onClick={deleteSelected}>Delete</Button>
@@ -200,7 +223,7 @@ export function LocalRecordsPage({
 
                     if (field.toggle) {
                       return (
-                        <div key={field.key} className="flex items-center justify-between rounded-lg border border-border bg-panelMuted px-3 py-2">
+                        <div key={field.key} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
                           <span className="text-sm">{field.label}</span>
                           <Toggle checked={Boolean(value)} onChange={(checked) => updateSelected({ [field.key]: checked })} />
                         </div>
@@ -224,7 +247,7 @@ export function LocalRecordsPage({
                             value={String(value ?? '')}
                             placeholder={field.placeholder}
                             onChange={(event) => updateSelected({ [field.key]: event.target.value })}
-                            className="min-h-28 w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm outline-none focus:border-accent"
+                            className="min-h-28 w-full rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm outline-none focus:border-accent"
                           />
                         </label>
                       );

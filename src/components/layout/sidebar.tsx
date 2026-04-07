@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Home,
+  Sparkles,
   Box,
   Tags,
   FolderTree,
@@ -75,6 +76,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: Home },
+  { label: 'Workspace', href: '/workspace', icon: Sparkles },
   { label: 'Products', href: '/products', icon: Box },
   { label: 'Categories', href: '/categories', icon: Tags },
   { label: 'Collections', href: '/collections', icon: FolderTree },
@@ -204,6 +206,7 @@ const iconMap: Record<string, LucideIcon> = {
   'Pricing Rules': BadgePoundSterling,
   Reports: BarChart3,
   'Activity Log': Activity,
+  Workspace: Sparkles,
   'Print Store': Store,
   Users,
   'Site Users': UserCircle2,
@@ -286,10 +289,11 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="hidden h-screen w-80 shrink-0 border-r border-border bg-panel/80 p-4 lg:block">
-      <div className="mb-5 rounded-xl border border-border bg-panelMuted p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Print SaaS Admin</p>
-        <p className="mt-1 text-sm font-semibold text-text">Unified Control Center</p>
+    <aside className="hidden h-screen w-[292px] shrink-0 border-r border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.96)_0%,rgba(7,11,22,0.98)_100%)] p-4 lg:block">
+      <div className="mb-5 rounded-[24px] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(124,140,255,0.18),transparent_45%),rgba(15,23,42,0.88)] p-4">
+        <p className="text-[11px] uppercase tracking-[0.28em] text-textMuted">Print SaaS Admin</p>
+        <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-white">Unified Control Center</p>
+        <p className="mt-1 text-[13px] text-textMuted">Precision controls for catalog, storefront, and operations.</p>
       </div>
 
       <nav className="space-y-1 overflow-y-auto pb-10">
@@ -305,8 +309,8 @@ export function Sidebar() {
                 key={item.label}
                 href={item.href as any}
                 className={cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-textMuted transition hover:bg-panelMuted hover:text-text',
-                  (active || hasActiveChild) && 'bg-panelMuted text-text'
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
+                  (active || hasActiveChild) && 'bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
                 )}
               >
                 <Icon size={16} />
@@ -321,8 +325,8 @@ export function Sidebar() {
                 type="button"
                 onClick={() => toggleGroup(item.label)}
                 className={cn(
-                  'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm text-textMuted transition hover:bg-panelMuted hover:text-text',
-                  hasActiveChild && 'bg-panelMuted text-text'
+                  'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
+                  hasActiveChild && 'bg-white/[0.05] text-white'
                 )}
               >
                 <span className="flex items-center gap-3">
@@ -333,7 +337,7 @@ export function Sidebar() {
               </button>
 
               {openGroups[item.label] ? (
-                <div className="ml-4 mt-1 space-y-1 border-l border-border/60 pl-4">
+                <div className="ml-4 mt-1 space-y-1 border-l border-white/8 pl-4">
                   {item.children?.map((child) => {
                     const ChildIcon = iconMap[child.label] ?? FileText;
                     const childActive = pathname === child.href || pathname.startsWith(`${child.href}/`);
@@ -343,8 +347,8 @@ export function Sidebar() {
                         key={child.label}
                         href={child.href as any}
                         className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-textMuted transition hover:bg-panelMuted hover:text-text',
-                          childActive && 'bg-panelMuted text-text'
+                          'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
+                          childActive && 'bg-white/[0.05] text-white'
                         )}
                       >
                         <ChildIcon size={14} />

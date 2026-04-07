@@ -46,11 +46,11 @@ function DashboardKpiGrid({ kpis }: { kpis: KpiItem[] }) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs uppercase text-textMuted">{kpi.label}</p>
-              <h3 className="mt-3 text-4xl font-semibold tracking-tight">{kpi.value}</h3>
+              <h3 className="mt-3 text-[2.2rem] font-semibold tracking-[-0.03em] text-white">{kpi.value}</h3>
               <p className="mt-2 text-sm text-textMuted">{kpi.hint}</p>
             </div>
 
-            <div className="rounded-full border border-border px-3 py-2 text-sm text-text">
+            <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-[13px] text-text">
               {kpi.change}
             </div>
           </div>
@@ -159,7 +159,7 @@ function PlanSummaryCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase text-textMuted">Plan Info</p>
-          <h2 className="mt-1 text-3xl font-semibold tracking-tight">{planName}</h2>
+          <h2 className="mt-1 text-[2.1rem] font-semibold tracking-[-0.035em] text-white">{planName}</h2>
           <p className="mt-1 text-sm text-textMuted">
             {billingCycle} · {subscriptionStatus} · Support: {supportTier}
           </p>
@@ -171,12 +171,12 @@ function PlanSummaryCard({
       <div className="mt-5 grid gap-4 md:grid-cols-2">
         <div className="rounded-xl border border-border bg-panelMuted p-4">
           <p className="text-xs uppercase text-textMuted">Next Payment</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">{nextPaymentDate}</p>
+          <p className="mt-2 text-[2rem] font-semibold tracking-[-0.03em] text-white">{nextPaymentDate}</p>
         </div>
 
         <div className="rounded-xl border border-border bg-panelMuted p-4">
           <p className="text-xs uppercase text-textMuted">Stores Used</p>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">
+          <p className="mt-2 text-[2rem] font-semibold tracking-[-0.03em] text-white">
             {storesUsed} / {storesAllowed}
           </p>
           <div className="mt-3 h-2 rounded-full bg-slate-800">
@@ -230,7 +230,7 @@ function VisitorsOverviewCard({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase text-textMuted">Visitors Overview</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">{title}</h3>
+          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">{title}</h3>
           <p className="mt-2 text-sm text-textMuted">
             {compareEnabled ? `${currentChange} vs previous period` : compareLabel}
           </p>
@@ -260,7 +260,7 @@ function VisitorsOverviewCard({
           <p className="mt-2 text-sm text-textMuted">{currentChange}</p>
         </div>
         {compareEnabled ? (
-          <div className="rounded-full border border-border px-3 py-2 text-sm text-text">
+          <div className="rounded-full border border-white/8 bg-white/[0.03] px-3 py-2 text-[13px] text-text">
             Comparing previous period
           </div>
         ) : null}
@@ -371,7 +371,7 @@ export function DashboardPage() {
           <div className="flex flex-wrap items-center gap-3">
             <StoreSwitcher stores={payload.stores} selectedStoreId={selectedStoreId} onChange={setSelectedStoreId} />
 
-            <label className="flex items-center gap-2 rounded-xl border border-border bg-panel px-3 py-3 text-sm text-textMuted">
+            <label className="flex items-center gap-2 rounded-2xl border border-white/8 bg-panel px-3.5 py-3 text-[13px] text-textMuted">
               <span>Date Range</span>
               <select
                 value={selectedRangeId}
@@ -386,7 +386,7 @@ export function DashboardPage() {
               </select>
             </label>
 
-            <label className="flex items-center gap-2 rounded-xl border border-border bg-panel px-3 py-3 text-sm text-textMuted">
+            <label className="flex items-center gap-2 rounded-2xl border border-white/8 bg-panel px-3.5 py-3 text-[13px] text-textMuted">
               <input
                 type="checkbox"
                 checked={compareEnabled}
@@ -395,10 +395,45 @@ export function DashboardPage() {
               Compare with previous period
             </label>
 
-            <Button onClick={() => void loadDashboard()}>Refresh</Button>
+            <Button onClick={() => void loadDashboard()} className="px-4">Refresh</Button>
           </div>
         }
       />
+
+
+      <Card className="overflow-hidden p-0">
+        <div className="grid gap-0 xl:grid-cols-[1.35fr_0.95fr]">
+          <div className="relative overflow-hidden p-6 md:p-7">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(124,140,255,0.22),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(56,189,248,0.12),transparent_28%)]" />
+            <div className="relative">
+              <div className="inline-flex items-center rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-textMuted">Operating overview</div>
+              <h2 className="mt-4 max-w-2xl text-[2.25rem] font-semibold tracking-[-0.045em] text-white">Designed to feel calmer, faster, and more premium.</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-textMuted">This dashboard now prioritizes plan clarity, store switching, and daily actions with a lighter visual rhythm that feels closer to a polished desktop product.</p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link href="/workspace" className="inline-flex items-center rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-950 transition hover:opacity-90">Open Workspace</Link>
+                <Link href="/product-launch-wizard" className="inline-flex items-center rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Launch Product Wizard</Link>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-white/6 bg-white/[0.02] p-6 md:border-l md:border-t-0">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Today’s focus</p>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="text-sm font-medium text-white">Review pricing drift</p>
+                <p className="mt-1 text-[13px] leading-6 text-textMuted">Two vendor matrices need a review before tomorrow’s production window.</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="text-sm font-medium text-white">Prep catalog changes</p>
+                <p className="mt-1 text-[13px] leading-6 text-textMuted">Collections, tags, and product content are ready for a guided publishing pass.</p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-black/20 p-4">
+                <p className="text-sm font-medium text-white">Plan usage</p>
+                <p className="mt-1 text-[13px] leading-6 text-textMuted">You are using {payload.organization.storesUsed} of {payload.organization.storesAllowed} allowed storefronts.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[2.1fr_1fr]">
         <PlanSummaryCard
@@ -414,13 +449,13 @@ export function DashboardPage() {
         />
 
         <Card className="p-5">
-          <p className="text-xs uppercase text-textMuted">Store Overview</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight">{selectedStore?.name ?? '—'}</h2>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">Store Overview</p>
+          <h2 className="mt-2 text-[2.1rem] font-semibold tracking-[-0.035em] text-white">{selectedStore?.name ?? '—'}</h2>
           <p className="mt-1 text-sm text-textMuted">{selectedStore?.domain ?? '—'}</p>
 
           <div className="mt-4 rounded-xl border border-border bg-panelMuted p-4">
             <p className="text-xs uppercase text-textMuted">Applied Range</p>
-            <p className="mt-2 text-xl font-semibold">{selectedRange.label}</p>
+            <p className="mt-2 text-lg font-semibold text-white">{selectedRange.label}</p>
             <p className="mt-1 text-sm text-textMuted">
               {selectedRange.helper} · {selectedRange.granularity}
             </p>
@@ -429,27 +464,27 @@ export function DashboardPage() {
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-border bg-panelMuted p-4">
               <p className="text-xs text-textMuted">Organization</p>
-              <p className="mt-2 text-xl font-semibold">{selectedStore?.organization ?? '—'}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{selectedStore?.organization ?? '—'}</p>
             </div>
             <div className="rounded-xl border border-border bg-panelMuted p-4">
               <p className="text-xs text-textMuted">Status</p>
-              <p className="mt-2 text-xl font-semibold">{selectedStore?.status ?? '—'}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{selectedStore?.status ?? '—'}</p>
             </div>
             <div className="rounded-xl border border-border bg-panelMuted p-4">
               <p className="text-xs text-textMuted">Theme</p>
-              <p className="mt-2 text-xl font-semibold">{selectedStore?.theme ?? '—'}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{selectedStore?.theme ?? '—'}</p>
             </div>
             <div className="rounded-xl border border-border bg-panelMuted p-4">
               <p className="text-xs text-textMuted">Plan</p>
-              <p className="mt-2 text-xl font-semibold">{selectedStore?.plan ?? '—'}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{selectedStore?.plan ?? '—'}</p>
             </div>
             <div className="rounded-xl border border-border bg-panelMuted p-4">
               <p className="text-xs text-textMuted">Locale</p>
-              <p className="mt-2 text-xl font-semibold">{selectedStore?.locale ?? '—'}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{selectedStore?.locale ?? '—'}</p>
             </div>
             <div className="rounded-xl border border-border bg-panelMuted p-4">
               <p className="text-xs text-textMuted">Currency</p>
-              <p className="mt-2 text-xl font-semibold">{selectedStore?.currency ?? '—'}</p>
+              <p className="mt-2 text-lg font-semibold text-white">{selectedStore?.currency ?? '—'}</p>
             </div>
           </div>
         </Card>
@@ -481,7 +516,7 @@ export function DashboardPage() {
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase text-textMuted">Alerts</p>
-              <h3 className="mt-1 text-3xl font-semibold tracking-tight">Action Center</h3>
+              <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Action Center</h3>
             </div>
             <Button>View All</Button>
           </div>
@@ -496,7 +531,7 @@ export function DashboardPage() {
                     : 'border-cyan-700/60 bg-cyan-500/10'
                 }`}
               >
-                <p className="text-xl font-semibold">{alert.title}</p>
+                <p className="text-lg font-semibold text-white">{alert.title}</p>
                 <p className="mt-2 text-sm text-textMuted">{alert.description}</p>
               </div>
             ))}
@@ -505,19 +540,19 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Store Usage Snapshot</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">Usage</h3>
+          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Usage</h3>
 
           <div className="mt-5 space-y-3">
-            <div className="rounded-xl border border-border bg-panelMuted px-4 py-4 text-lg">
+            <div className="rounded-xl border border-border bg-panelMuted px-4 py-3.5 text-[15px]">
               Site name: <span className="font-semibold">{payload.organization.siteName}</span>
             </div>
-            <div className="rounded-xl border border-border bg-panelMuted px-4 py-4 text-lg">
+            <div className="rounded-xl border border-border bg-panelMuted px-4 py-3.5 text-[15px]">
               Stores used: <span className="font-semibold">{payload.organization.storesUsed}</span>
             </div>
-            <div className="rounded-xl border border-border bg-panelMuted px-4 py-4 text-lg">
+            <div className="rounded-xl border border-border bg-panelMuted px-4 py-3.5 text-[15px]">
               Stores allowed: <span className="font-semibold">{payload.organization.storesAllowed}</span>
             </div>
-            <div className="rounded-xl border border-border bg-panelMuted px-4 py-4 text-lg">
+            <div className="rounded-xl border border-border bg-panelMuted px-4 py-3.5 text-[15px]">
               Next payment date: <span className="font-semibold">{payload.organization.nextPaymentDate}</span>
             </div>
           </div>
@@ -527,14 +562,14 @@ export function DashboardPage() {
       <div className="grid gap-4 xl:grid-cols-[1.1fr_1.1fr_1fr]">
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Quick Actions</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">Common Tasks</h3>
+          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Common Tasks</h3>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {payload.quickActions.map((action) => (
               <Link
                 key={action.label}
                 href={action.href}
-                className="rounded-xl border border-border bg-panelMuted px-4 py-5 text-lg font-medium hover:border-slate-600"
+                className="rounded-xl border border-border bg-panelMuted px-4 py-4 text-[15px] font-medium hover:border-slate-600"
               >
                 {action.label}
               </Link>
@@ -544,7 +579,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Business Health</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">System Status</h3>
+          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">System Status</h3>
 
           <div className="mt-5 space-y-3">
             {payload.health.map((item) => (
@@ -552,7 +587,7 @@ export function DashboardPage() {
                 key={item.label}
                 className="flex items-center justify-between rounded-xl border border-border bg-panelMuted px-4 py-4"
               >
-                <span className="text-xl">{item.label}</span>
+                <span className="text-[15px] font-medium text-white">{item.label}</span>
                 <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-sm text-emerald-300">
                   {item.status}
                 </span>
@@ -563,13 +598,13 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Recent Activity</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">Updates</h3>
+          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">Updates</h3>
 
           <div className="mt-5 space-y-3">
             {payload.activity.map((item) => (
               <div
                 key={item}
-                className="rounded-xl border border-border bg-panelMuted px-4 py-4 text-lg"
+                className="rounded-xl border border-border bg-panelMuted px-4 py-3.5 text-[15px]"
               >
                 {item}
               </div>
@@ -593,7 +628,7 @@ export function DashboardPage() {
 
         <Card className="p-5">
           <p className="text-xs uppercase text-textMuted">Dashboard Notes</p>
-          <h3 className="mt-1 text-3xl font-semibold tracking-tight">What this gives you</h3>
+          <h3 className="mt-1 text-[2rem] font-semibold tracking-[-0.04em] text-white">What this gives you</h3>
           <ul className="mt-5 space-y-3 text-sm text-textMuted">
             <li>• One place to switch between multiple stores.</li>
             <li>• Plan visibility with next billing date and site usage.</li>

@@ -2,7 +2,10 @@ export type SelectOption = string | { label: string; value: string };
 
 export function Select({ options, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & { options: SelectOption[] }) {
   return (
-    <select {...props} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm outline-none focus:border-accent">
+    <select
+      {...props}
+      className="h-11 w-full rounded-xl border border-white/8 bg-panelMuted/90 px-3.5 text-[13px] text-text outline-none transition focus:border-accent/70 focus:bg-panelMuted"
+    >
       {options.map((option) => {
         if (typeof option === 'string') {
           return (

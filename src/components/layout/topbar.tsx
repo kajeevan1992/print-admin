@@ -33,7 +33,9 @@ const routeLabelMap: Record<string, string> = {
   '/catalog-launch-wizard': 'Catalog Wizard',
   '/launch-readiness': 'Launch Readiness',
   '/experience-review': 'Experience Review',
-  '/launch-qa': 'Launch QA'
+  '/launch-qa': 'Launch QA',
+  '/brand-system': 'Brand System',
+  '/launch-gallery': 'Launch Gallery'
 };
 
 const quickLinks = [
@@ -47,6 +49,8 @@ const quickLinks = [
   { href: '/launch-readiness', label: 'Launch Readiness', icon: Bell },
   { href: '/experience-review', label: 'Experience Review', icon: Sparkles },
   { href: '/launch-qa', label: 'Launch QA', icon: Sparkles },
+  { href: '/brand-system', label: 'Brand System', icon: Sparkles },
+  { href: '/launch-gallery', label: 'Launch Gallery', icon: Sparkles },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/command-center', label: 'Command Center', icon: Command },
   { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles }

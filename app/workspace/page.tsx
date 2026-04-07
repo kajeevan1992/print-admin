@@ -64,6 +64,16 @@ const sections = [
       { href: '/launch-qa', label: 'Open launch QA' },
       { href: '/design-studio', label: 'Open design studio' }
     ]
+  },
+  {
+    title: 'UI polish',
+    description: 'Review the premium admin language, visual system, and launch-ready surfaces.',
+    links: [
+      { href: '/brand-system', label: 'Open brand system' },
+      { href: '/launch-gallery', label: 'Open launch gallery' },
+      { href: '/experience-review', label: 'Open experience review' },
+      { href: '/design-studio', label: 'Open design studio' }
+    ]
   }
 ];
 
@@ -122,6 +132,9 @@ export default function WorkspacePage() {
                 </Link>
                 <Link href="/launch-qa" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
                   Launch QA <ArrowRight size={14} />
+                </Link>
+                <Link href="/brand-system" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
+                  Brand system <ArrowRight size={14} />
                 </Link>
               </div>
             </div>

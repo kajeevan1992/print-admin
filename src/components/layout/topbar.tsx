@@ -59,7 +59,7 @@ export function Topbar() {
 
   useEffect(() => {
     if (!pathname) return;
-    const label = routeLabelMap[pathname] ?? pathname.replace(/\//g, ' ').trim() || 'Dashboard';
+    const label = routeLabelMap[pathname] ?? (pathname.replace(/\//g, ' ').trim() || 'Dashboard');
     const next = [{ href: pathname, label }, ...recentRoutes.filter((item) => item.href !== pathname)].slice(0, 6);
     setRecentRoutes(next);
     window.localStorage.setItem(RECENT_ROUTES_KEY, JSON.stringify(next));

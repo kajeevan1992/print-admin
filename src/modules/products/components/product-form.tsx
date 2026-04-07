@@ -224,7 +224,12 @@ export function ProductForm({
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                 <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">Product</p>
                 <p className="mt-2 text-lg font-semibold text-white">{values.name || 'Untitled product'}</p>
-                <p className="mt-1 text-sm text-textMuted">Category: {categoryOptions.find((item) => typeof item !== 'string' && item.value === values.categoryId)?.label ?? 'Not selected'}</p>
+                <p className="mt-1 text-sm text-textMuted">Category: {(() => {
+                  const selected = categoryOptions.find(
+                    (item): item is Exclude<SelectOption, string> => typeof item !== 'string' && item.value === values.categoryId
+                  );
+                  return selected?.label ?? 'Not selected';
+                })()}</p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
                 <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">Method</p>

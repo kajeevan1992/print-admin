@@ -13,6 +13,8 @@ const sections = [
       { href: '/product-builder-studio', label: 'Open product builder' },
       { href: '/config-templates', label: 'Open config templates' },
       { href: '/materials-library', label: 'Open materials library' },
+      { href: '/product-rules-lab', label: 'Open product rules lab' },
+      { href: '/artwork-preflight-studio', label: 'Open artwork preflight' },
       { href: '/pricing-engine-lab', label: 'Open pricing engine' }
     ]
   },

@@ -1,31 +1,26 @@
-'use client';
-
 import { LocalRecordsPage } from '@/components/configuration/local-records-page';
-import { configTemplates } from '@/lib/product-system-store';
 
 export default function Page() {
   return (
     <LocalRecordsPage
       storageKey="print-admin.config-templates"
       title="Config Templates"
-      subtitle="Reusable field groups for dropdowns, text inputs, size selection, artwork prompts, and production-aware storefront configuration."
-      createLabel="Add template"
-      initialItems={configTemplates.map((template) => ({
-        id: template.id,
-        title: template.name,
-        description: template.description,
-        category: template.category,
-        fieldCount: String(template.fields.length),
-        meta: `${template.category} · ${template.fields.length} fields`
-      }))}
-      fields={[
-        { key: 'description', label: 'Description', type: 'textarea' },
-        { key: 'category', label: 'Category' },
-        { key: 'fieldCount', label: 'Field count', type: 'number' }
+      subtitle="Reusable option blueprints for dropdowns, text fields, size selectors, artwork controls, and storefront-facing configuration."
+      createLabel="Add Template"
+      initialItems={[
+        { id: 'tpl-1', title: 'Business Cards', subtitle: 'Marketing', meta: 'size • sides • white ink • artwork notes', category: 'Marketing', fields: '4', audience: 'storefront + admin', state: 'active' },
+        { id: 'tpl-2', title: 'Flyers & Leaflets', subtitle: 'Marketing', meta: 'size • folding • perforation • campaign code', category: 'Marketing', fields: '4', audience: 'storefront + admin', state: 'active' },
+        { id: 'tpl-3', title: 'Booklets', subtitle: 'Booklets', meta: 'size • binding • page count • spine text', category: 'Books', fields: '4', audience: 'admin + prepress', state: 'draft' }
       ]}
-      buildSubtitle={(item) => String(item.description ?? '')}
-      buildCardMeta={(item) => `${item.category ?? 'General'} · ${item.fieldCount ?? '0'} fields`}
-      searchKeys={['title', 'description', 'category']}
+      fields={[
+        { key: 'category', label: 'Category' },
+        { key: 'fields', label: 'Field Count', type: 'number' },
+        { key: 'audience', label: 'Audience', options: ['storefront + admin', 'admin-only', 'admin + prepress'] },
+        { key: 'state', label: 'State', options: ['draft', 'active', 'archived'] }
+      ]}
+      subtitleFields={['category', 'state']}
+      cardMetaFields={['audience', 'fields']}
+      searchKeys={['title', 'category', 'audience', 'state']}
     />
   );
 }

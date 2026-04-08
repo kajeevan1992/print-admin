@@ -83,6 +83,8 @@ const navItems: NavItem[] = [
   { label: 'Materials Library', href: '/materials-library', icon: Archive },
   { label: 'Finish Library', href: '/finish-library', icon: Palette },
   { label: 'Printer Profiles', href: '/printer-profiles', icon: Printer },
+  { label: 'Product Rules Lab', href: '/product-rules-lab', icon: GitBranch },
+  { label: 'Artwork Preflight', href: '/artwork-preflight-studio', icon: Shield },
   { label: 'Pricing Engine', href: '/pricing-engine-lab', icon: DollarSign },
   { label: 'Categories', href: '/categories', icon: Tags },
   { label: 'Collections', href: '/collections', icon: FolderTree },

@@ -137,6 +137,8 @@ const navItems: NavItem[] = [
       { label: 'API Access', href: '/api-access' },
       { label: 'API Keys', href: '/api-keys' },
       { label: 'Admin Users', href: '/admin-users' },
+      { label: 'Licensing Center', href: '/licensing-center' },
+      { label: 'Tenant Control', href: '/tenant-control' },
       { label: 'Organizations', href: '/organizations' },
       { label: 'Merchant Accounts', href: '/merchant-accounts' },
       { label: 'Shipping Methods', href: '/shipping-methods' },
@@ -157,6 +159,7 @@ const navItems: NavItem[] = [
       { label: 'Attribute Sets', href: '/attribute-sets' },
       { label: 'Inventory', href: '/inventory' },
       { label: 'Order Status', href: '/order-status' },
+      { label: 'Packaging Studio', href: '/packaging-studio' },
       { label: 'Redirects', href: '/redirects' },
       { label: 'Robots.txt', href: '/robots-txt' },
       { label: 'Site Bindings', href: '/site-bindings' },
@@ -171,6 +174,7 @@ const navItems: NavItem[] = [
     icon: Factory,
     children: [
       { label: 'Production', href: '/production' },
+      { label: 'Production Planner', href: '/production-planner' },
       { label: 'Printer Management', href: '/printer-management' },
       { label: 'Production Board', href: '/production-board' }
     ]
@@ -233,6 +237,8 @@ const iconMap: Record<string, LucideIcon> = {
   'API Access': KeyRound,
   'API Keys': KeyRound,
   'Admin Users': Shield,
+  'Licensing Center': KeyRound,
+  'Tenant Control': Building2,
   Organizations: Building2,
   'Merchant Accounts': CreditCard,
   'Shipping Methods': Package,
@@ -258,6 +264,7 @@ const iconMap: Record<string, LucideIcon> = {
   Production: Factory,
   'Printer Management': Printer,
   'Production Board': LayoutGrid,
+  'Production Planner': LayoutGrid,
   Account: User,
   'Admin Theme': Palette,
   'Uptime Report': HeartPulse,

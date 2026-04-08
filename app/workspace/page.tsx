@@ -44,36 +44,6 @@ const sections = [
       { href: '/general-settings', label: 'Open general settings' },
       { href: '/site-theme', label: 'Open site theme' }
     ]
-  },
-  {
-    title: 'Catalog launch',
-    description: 'Move through products, categories, collections, and tags with a clearer launch sequence.',
-    links: [
-      { href: '/catalog-launch-wizard', label: 'Open catalog wizard' },
-      { href: '/products', label: 'Open products' },
-      { href: '/collections', label: 'Open collections' },
-      { href: '/tags', label: 'Open tags' }
-    ]
-  },
-  {
-    title: 'Experience review',
-    description: 'Review typography, spacing, and launch quality before go-live.',
-    links: [
-      { href: '/experience-review', label: 'Open experience review' },
-      { href: '/launch-readiness', label: 'Open launch readiness' },
-      { href: '/launch-qa', label: 'Open launch QA' },
-      { href: '/design-studio', label: 'Open design studio' }
-    ]
-  },
-  {
-    title: 'UI polish',
-    description: 'Review the premium admin language, visual system, and launch-ready surfaces.',
-    links: [
-      { href: '/brand-system', label: 'Open brand system' },
-      { href: '/launch-gallery', label: 'Open launch gallery' },
-      { href: '/experience-review', label: 'Open experience review' },
-      { href: '/design-studio', label: 'Open design studio' }
-    ]
   }
 ];
 
@@ -124,18 +94,6 @@ export default function WorkspacePage() {
                 <Link href="/command-center" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
                   Open command center <Command size={14} />
                 </Link>
-                <Link href="/design-studio" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
-                  Design studio <Sparkles size={14} />
-                </Link>
-                <Link href="/launch-readiness" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
-                  Launch readiness <ArrowRight size={14} />
-                </Link>
-                <Link href="/launch-qa" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
-                  Launch QA <ArrowRight size={14} />
-                </Link>
-                <Link href="/brand-system" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">
-                  Brand system <ArrowRight size={14} />
-                </Link>
               </div>
             </div>
           </div>
@@ -160,7 +118,7 @@ export default function WorkspacePage() {
 
       <AmbientIllustration className="h-48" />
 
-      <div className="grid gap-4 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-4 xl:grid-cols-4">
         {sections.map((section, index) => (
           <Card key={section.title} className="space-y-4">
             <div className="flex items-start justify-between gap-4">

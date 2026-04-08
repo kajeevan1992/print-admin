@@ -28,14 +28,7 @@ const routeLabelMap: Record<string, string> = {
   '/saved-views': 'Saved Views',
   '/command-center': 'Command Center',
   '/product-launch-wizard': 'Product Wizard',
-  '/store-launch-wizard': 'Store Wizard',
-  '/design-studio': 'Design Studio',
-  '/catalog-launch-wizard': 'Catalog Wizard',
-  '/launch-readiness': 'Launch Readiness',
-  '/experience-review': 'Experience Review',
-  '/launch-qa': 'Launch QA',
-  '/brand-system': 'Brand System',
-  '/launch-gallery': 'Launch Gallery'
+  '/store-launch-wizard': 'Store Wizard'
 };
 
 const quickLinks = [
@@ -44,13 +37,6 @@ const quickLinks = [
   { href: '/products', label: 'Products', icon: Zap },
   { href: '/orders', label: 'Orders', icon: Zap },
   { href: '/content', label: 'Content', icon: Zap },
-  { href: '/catalog-launch-wizard', label: 'Catalog Wizard', icon: Command },
-  { href: '/design-studio', label: 'Design Studio', icon: Sparkles },
-  { href: '/launch-readiness', label: 'Launch Readiness', icon: Bell },
-  { href: '/experience-review', label: 'Experience Review', icon: Sparkles },
-  { href: '/launch-qa', label: 'Launch QA', icon: Sparkles },
-  { href: '/brand-system', label: 'Brand System', icon: Sparkles },
-  { href: '/launch-gallery', label: 'Launch Gallery', icon: Sparkles },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/command-center', label: 'Command Center', icon: Command },
   { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles }

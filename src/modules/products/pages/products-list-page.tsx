@@ -31,7 +31,13 @@ const emptyForm: ProductFormValues = {
   parametricStandard: '',
   parametricSize: '',
   parametricAllowance: '',
-  parametricMaterial: ''
+  parametricMaterial: '',
+  configTemplateId: 'business-cards',
+  materialId: 'silk-350',
+  finishId: 'none',
+  printerProfileId: 'hp-indigo-7k',
+  quantity: '100',
+  dynamicFields: {}
 };
 
 export function ProductsListPage() {

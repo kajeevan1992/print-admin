@@ -153,6 +153,12 @@ export type ProductFormValues = {
   parametricSize: string;
   parametricAllowance: string;
   parametricMaterial: string;
+  configTemplateId: string;
+  materialId: string;
+  finishId: string;
+  printerProfileId: string;
+  quantity: string;
+  dynamicFields: Record<string, string>;
 };
 
 export type ProductListFilters = {

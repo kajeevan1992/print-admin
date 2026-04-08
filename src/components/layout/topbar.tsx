@@ -28,7 +28,16 @@ const routeLabelMap: Record<string, string> = {
   '/saved-views': 'Saved Views',
   '/command-center': 'Command Center',
   '/product-launch-wizard': 'Product Wizard',
-  '/store-launch-wizard': 'Store Wizard'
+  '/store-launch-wizard': 'Store Wizard',
+  '/pricing-command': 'Pricing Command',
+  '/artwork-intelligence': 'Artwork Intelligence',
+  '/dispatch-center': 'Dispatch Center',
+  '/product-builder-studio': 'Product Builder',
+  '/config-templates': 'Config Templates',
+  '/materials-library': 'Materials Library',
+  '/finish-library': 'Finish Library',
+  '/printer-profiles': 'Printer Profiles',
+  '/pricing-engine-lab': 'Pricing Engine'
 };
 
 const quickLinks = [
@@ -39,7 +48,13 @@ const quickLinks = [
   { href: '/content', label: 'Content', icon: Zap },
   { href: '/notifications', label: 'Notifications', icon: Bell },
   { href: '/command-center', label: 'Command Center', icon: Command },
-  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles }
+  { href: '/store-launch-wizard', label: 'Store Wizard', icon: Sparkles },
+  { href: '/pricing-command', label: 'Pricing Command', icon: Zap },
+  { href: '/artwork-intelligence', label: 'Artwork Intelligence', icon: Bell },
+  { href: '/dispatch-center', label: 'Dispatch Center', icon: Store },
+  { href: '/product-builder-studio', label: 'Product Builder', icon: Command },
+  { href: '/config-templates', label: 'Config Templates', icon: Sparkles },
+  { href: '/pricing-engine-lab', label: 'Pricing Engine', icon: Zap }
 ];
 
 type RecentRoute = {

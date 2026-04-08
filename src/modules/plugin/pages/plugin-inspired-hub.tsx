@@ -2,7 +2,6 @@ import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Cpu, Package2, ShieldCheck, Sparkles, Workflow } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
-import { PrimaryButton } from '@/components/ui/buttons';
 import { AmbientIllustration } from '@/components/ui/ambient-illustration';
 
 type MiniCard = { title: string; body: string };
@@ -24,7 +23,13 @@ export function PluginInspiredHub({ title, subtitle, eyebrow, ctaHref, ctaLabel,
   const icons = [Sparkles, ShieldCheck, Cpu, Package2];
   return (
     <div className="space-y-6">
-      <PageHeader title={title} subtitle={subtitle} actions={<PrimaryButton asChild><Link href={ctaHref}>{ctaLabel}</Link></PrimaryButton>} />
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        actions={
+          <Link href={ctaHref} className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-accent to-accentAlt px-3.5 py-2 text-[12px] font-semibold text-white shadow-[0_10px_30px_rgba(82,123,255,0.28)] transition hover:brightness-110">{ctaLabel}</Link>
+        }
+      />
 
       <Card className="overflow-hidden p-0">
         <div className="grid gap-0 xl:grid-cols-[1.2fr_0.8fr]">

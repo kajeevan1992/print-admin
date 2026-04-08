@@ -5,6 +5,17 @@ import { PageHeader } from '@/components/ui/page-header';
 import { AmbientIllustration } from '@/components/ui/ambient-illustration';
 
 const sections = [
+
+  {
+    title: 'Product system',
+    description: 'Model print-business products with templates, option schemas, material choices, finishes, printer routing, and pricing logic inspired by the plugin foundations.',
+    links: [
+      { href: '/product-builder-studio', label: 'Open product builder' },
+      { href: '/config-templates', label: 'Open config templates' },
+      { href: '/materials-library', label: 'Open materials library' },
+      { href: '/pricing-engine-lab', label: 'Open pricing engine' }
+    ]
+  },
   {
     title: 'Catalog control',
     description: 'Products, categories, collections, and tags with guided entry points for day-to-day merchandising.',
@@ -33,6 +44,16 @@ const sections = [
       { href: '/themes', label: 'Open site theme' },
       { href: '/content', label: 'Open content hub' },
       { href: '/landing-pages', label: 'Open landing pages' }
+    ]
+  },
+  {
+    title: 'Launch operations',
+    description: 'Pricing, proofing, and dispatch reviews shaped by plugin-inspired workflows so launch teams can move faster.',
+    links: [
+      { href: '/pricing-command', label: 'Open pricing command' },
+      { href: '/artwork-intelligence', label: 'Open artwork intelligence' },
+      { href: '/dispatch-center', label: 'Open dispatch center' },
+      { href: '/launch-qa', label: 'Open launch QA' }
     ]
   },
   {
@@ -118,13 +139,13 @@ export default function WorkspacePage() {
 
       <AmbientIllustration className="h-48" />
 
-      <div className="grid gap-4 xl:grid-cols-4">
+      <div className="grid gap-4 xl:grid-cols-5">
         {sections.map((section, index) => (
           <Card key={section.title} className="space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/8 bg-white/[0.04] text-accentAlt">
-                  {index === 0 ? <Layers3 size={18} /> : index === 1 ? <Command size={18} /> : index === 2 ? <Wand2 size={18} /> : <Globe2 size={18} />}
+                  {index === 0 ? <Layers3 size={18} /> : index === 1 ? <Command size={18} /> : index === 2 ? <Wand2 size={18} /> : index === 3 ? <Globe2 size={18} /> : <Sparkles size={18} />}
                 </div>
                 <h2 className="mt-4 text-xl font-semibold tracking-[-0.03em] text-white">{section.title}</h2>
                 <p className="mt-2 text-sm leading-6 text-textMuted">{section.description}</p>

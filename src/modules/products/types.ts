@@ -50,6 +50,17 @@ export type ParametricStandardConfig = {
   material: string;
 };
 
+
+export type ProductSystemConfig = {
+  templateId: string;
+  materialId: string;
+  finishId: string;
+  printerId: string;
+  quantity: number;
+  turnaround: 'standard' | 'priority' | 'rush';
+  fieldValues: Record<string, string>;
+};
+
 export type ProductPriceMapping = {
   basePrice: number;
   sizeLabel: string;
@@ -135,6 +146,7 @@ export type Product = {
   attributes: ProductAttribute[];
   alternateViews: AlternateView[];
   updatedAt: string;
+  productSystem?: ProductSystemConfig;
 };
 
 export type ProductFormValues = {
@@ -153,6 +165,13 @@ export type ProductFormValues = {
   parametricSize: string;
   parametricAllowance: string;
   parametricMaterial: string;
+  templateId: string;
+  materialId: string;
+  finishId: string;
+  printerId: string;
+  quantity: string;
+  turnaround: 'standard' | 'priority' | 'rush';
+  configValues: Record<string, string>;
 };
 
 export type ProductListFilters = {

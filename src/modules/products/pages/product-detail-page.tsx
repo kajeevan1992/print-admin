@@ -12,6 +12,7 @@ import { CommentsPanel } from '@/modules/products/components/comments-panel';
 import { PrintEditorForm } from '@/modules/products/components/print-editor-form';
 import { ProductRightSidebar } from '@/modules/products/components/product-right-sidebar';
 import { productsService } from '@/services/products.service';
+import { calculateProductEstimate, getArtworkProfile, getCompatibleFinishes, getCompatibleMaterials, getCompatiblePrinters, getRuleWarnings } from '@/lib/product-system';
 import type { Product } from '@/modules/products/types';
 
 const defaultTab = 'Product Information';
@@ -64,7 +65,40 @@ export function ProductDetailPage({ productId }: { productId: string }) {
         <div>
           <ProductTabs active={active} onChange={setActive} />
 
-          {active === 'Product Information' && <ProductInfoForm product={product} onUpdate={persistProduct} />}
+          {active === 'Product Information' && (<div className="space-y-4">
+            <ProductInfoForm product={product} onUpdate={persistProduct} />
+            <ProductSectionCard title="Product System">
+              {(() => {
+                const system = product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} };
+                const materials = getCompatibleMaterials(system.templateId);
+                const material = materials.find((item) => item.id === system.materialId) ?? materials[0];
+                const finishes = getCompatibleFinishes(system.templateId, material?.id ?? system.materialId);
+                const printers = getCompatiblePrinters(system.templateId, material?.id ?? system.materialId, system.fieldValues);
+                const estimate = calculateProductEstimate(system.quantity, material?.id ?? system.materialId, system.finishId, system.printerId, system.turnaround, system.fieldValues);
+                const artwork = getArtworkProfile(system.templateId);
+                const warnings = getRuleWarnings(system.templateId, system.fieldValues);
+                const updateSystem = (changes: Partial<typeof system>) => {
+                  void persistProduct({ productSystem: { ...system, ...changes } });
+                };
+                return (
+                  <div className="space-y-4">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2"><span className="text-sm font-medium">Template</span><select value={system.templateId} onChange={(e) => updateSystem({ templateId: e.target.value })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"><option value="business-cards">Business Cards</option><option value="flyers">Flyers & Leaflets</option><option value="booklets">Booklets</option></select></label>
+                      <label className="space-y-2"><span className="text-sm font-medium">Material</span><select value={material?.id ?? ''} onChange={(e) => updateSystem({ materialId: e.target.value })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{materials.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                      <label className="space-y-2"><span className="text-sm font-medium">Finish</span><select value={system.finishId} onChange={(e) => updateSystem({ finishId: e.target.value })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{finishes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                      <label className="space-y-2"><span className="text-sm font-medium">Printer</span><select value={system.printerId} onChange={(e) => updateSystem({ printerId: e.target.value })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{printers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                      <label className="space-y-2"><span className="text-sm font-medium">Quantity</span><Input type="number" value={String(system.quantity)} onChange={(e) => updateSystem({ quantity: Number(e.target.value) || 0 })} /></label>
+                      <label className="space-y-2"><span className="text-sm font-medium">Turnaround</span><select value={system.turnaround} onChange={(e) => updateSystem({ turnaround: e.target.value as typeof system.turnaround })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"><option value="standard">Standard</option><option value="priority">Priority</option><option value="rush">Rush</option></select></label>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-border p-4"><p className="text-xs uppercase tracking-[0.2em] text-textMuted">Artwork profile</p><p className="mt-2 font-medium text-white">{artwork.name}</p><ul className="mt-2 space-y-1 text-sm text-textMuted">{artwork.checklist.map((item) => <li key={item}>• {item}</li>)}</ul></div>
+                      <div className="rounded-lg border border-border p-4"><p className="text-xs uppercase tracking-[0.2em] text-textMuted">Live estimate</p><p className="mt-2 text-2xl font-semibold text-white">£{estimate.total}</p><p className="mt-1 text-sm text-textMuted">{estimate.tierLabel} · {estimate.turnaroundDays} day lead</p><div className="mt-3 space-y-1 text-sm text-textMuted">{warnings.length ? warnings.map((item) => <div key={item}>• {item}</div>) : <div>No product-rule warnings.</div>}</div></div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </ProductSectionCard>
+          </div>)}
 
           {active === 'Print Editor' && <PrintEditorForm product={product} onUpdate={persistProduct} />}
 

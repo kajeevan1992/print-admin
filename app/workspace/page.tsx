@@ -13,7 +13,9 @@ const sections = [
       { href: '/product-builder-studio', label: 'Open product builder' },
       { href: '/config-templates', label: 'Open config templates' },
       { href: '/materials-library', label: 'Open materials library' },
+      { href: '/option-sets', label: 'Open option sets' },
       { href: '/product-rules-lab', label: 'Open product rules lab' },
+      { href: '/production-routing-lab', label: 'Open production routing' },
       { href: '/artwork-preflight-studio', label: 'Open artwork preflight' },
       { href: '/pricing-engine-lab', label: 'Open pricing engine' }
     ]

@@ -38,7 +38,10 @@ const routeLabelMap: Record<string, string> = {
   '/finish-library': 'Finish Library',
   '/printer-profiles': 'Printer Profiles',
   '/pricing-engine-lab': 'Pricing Engine',
+  '/product-system-console': 'Product System Console',
   '/product-rules-lab': 'Product Rules Lab',
+  '/production-routing-lab': 'Production Routing',
+  '/option-sets': 'Option Sets',
   '/artwork-preflight-studio': 'Artwork Preflight'
 };
 
@@ -56,7 +59,9 @@ const quickLinks = [
   { href: '/dispatch-center', label: 'Dispatch Center', icon: Store },
   { href: '/product-builder-studio', label: 'Product Builder', icon: Command },
   { href: '/config-templates', label: 'Config Templates', icon: Sparkles },
+  { href: '/option-sets', label: 'Option Sets', icon: Sparkles },
   { href: '/product-rules-lab', label: 'Product Rules Lab', icon: Sparkles },
+  { href: '/production-routing-lab', label: 'Production Routing', icon: Store },
   { href: '/artwork-preflight-studio', label: 'Artwork Preflight', icon: Bell },
   { href: '/pricing-engine-lab', label: 'Pricing Engine', icon: Zap }
 ];

@@ -1,6 +1,7 @@
 import { productsMock } from '@/data/products';
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
+import { calculateProductEstimate, getFinishById, getMaterialById, getPrinterById, getTemplateById } from '@/lib/product-system';
 import type {
   Product,
   ProductAttribute,
@@ -112,7 +113,7 @@ function createProductFromForm(payload: ProductFormValues): Product {
     },
     templateAssets: { fonts: ['Inter'], layouts: [], themes: [], cliparts: [] },
     priceMapping: {
-      basePrice: 0,
+      basePrice: calculateProductEstimate(Number(payload.quantity) || 250, payload.materialId || 'silk-350', payload.finishId || 'matt-lam', payload.printerId || 'hp-indigo-7k', payload.turnaround || 'standard').total,
       sizeLabel: payload.parametricSize || (payload.width && payload.height ? `${payload.width}x${payload.height}` : ''),
       dielineMapping: '',
       currency: 'USD',
@@ -133,7 +134,16 @@ function createProductFromForm(payload: ProductFormValues): Product {
     relatedProducts: [],
     attributes: [],
     alternateViews: [],
-    updatedAt: iso.slice(0, 10)
+    updatedAt: iso.slice(0, 10),
+    productSystem: {
+      templateId: payload.templateId || 'business-cards',
+      materialId: payload.materialId || 'silk-350',
+      finishId: payload.finishId || 'matt-lam',
+      printerId: payload.printerId || 'hp-indigo-7k',
+      quantity: Number(payload.quantity) || 250,
+      turnaround: payload.turnaround || 'standard',
+      fieldValues: payload.configValues || {}
+    }
   };
 }
 

@@ -1,8 +1,10 @@
+import Link from 'next/link';
 import { FormGrid } from '@/components/forms/form-grid';
 import { FormSection } from '@/components/forms/form-section';
 import { Input } from '@/components/forms/input';
 import { Select, type SelectOption } from '@/components/forms/select';
 import { Toggle } from '@/components/forms/toggle';
+import { calculateProductEstimate, printerProfiles, productFinishes, productMaterials, productTemplates } from '@/lib/product-system';
 import { productCategories, productVendors, storefrontOptions } from '@/data/products';
 import type { Product } from '@/modules/products/types';
 
@@ -79,6 +81,34 @@ export function ProductInfoForm({ product, onUpdate }: { product: Product; onUpd
             </FormGrid>
           </div>
         ) : null}
+      </FormSection>
+
+
+
+      <FormSection title="Product System">
+        <FormGrid>
+          <Select value={product.productSystem?.templateId ?? 'business-cards'} options={productTemplates.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), templateId: e.target.value } })} />
+          <Select value={product.productSystem?.materialId ?? 'silk-350'} options={productMaterials.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), materialId: e.target.value } })} />
+          <Select value={product.productSystem?.finishId ?? 'matt-lam'} options={productFinishes.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), finishId: e.target.value } })} />
+          <Select value={product.productSystem?.printerId ?? 'hp-indigo-7k'} options={printerProfiles.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), printerId: e.target.value } })} />
+          <Input value={String(product.productSystem?.quantity ?? 250)} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), quantity: Number(e.target.value) || 250 } })} placeholder="Quantity" />
+          <Select value={product.productSystem?.turnaround ?? 'standard'} options={[{ value: 'standard', label: 'Standard' }, { value: 'priority', label: 'Priority' }, { value: 'rush', label: 'Rush' }]} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), turnaround: e.target.value as Product['productSystem']['turnaround'] } })} />
+        </FormGrid>
+        <div className="mt-3 rounded-lg border border-border p-3 text-sm">
+          <p className="mb-2 text-xs uppercase text-textMuted">System links</p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/product-builder-studio" className="inline-flex items-center rounded-xl border border-white/7 bg-white/[0.018] px-3 py-2 text-[12px] text-text">Open Builder Studio</Link>
+            <Link href="/pricing-engine-lab" className="inline-flex items-center rounded-xl border border-white/7 bg-white/[0.018] px-3 py-2 text-[12px] text-text">Pricing Engine</Link>
+            <Link href="/materials-library" className="inline-flex items-center rounded-xl border border-white/7 bg-white/[0.018] px-3 py-2 text-[12px] text-text">Materials</Link>
+            <Link href="/printer-profiles" className="inline-flex items-center rounded-xl border border-white/7 bg-white/[0.018] px-3 py-2 text-[12px] text-text">Printers</Link>
+          </div>
+          <div className="mt-3 rounded-xl border border-white/7 bg-white/[0.02] p-3">
+            {(() => {
+              const estimate = calculateProductEstimate(product.productSystem?.quantity ?? 250, product.productSystem?.materialId ?? 'silk-350', product.productSystem?.finishId ?? 'matt-lam', product.productSystem?.printerId ?? 'hp-indigo-7k', product.productSystem?.turnaround ?? 'standard');
+              return <><p className="font-medium text-white">Live estimate: ${estimate.total}</p><p className="mt-1 text-textMuted">{estimate.tierLabel} · {estimate.turnaroundDays} day lead time</p></>;
+            })()}
+          </div>
+        </div>
       </FormSection>
 
       <FormSection title="Product Numbers">

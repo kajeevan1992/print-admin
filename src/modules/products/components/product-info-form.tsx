@@ -6,7 +6,7 @@ import { Select, type SelectOption } from '@/components/forms/select';
 import { Toggle } from '@/components/forms/toggle';
 import { calculateProductEstimate, printerProfiles, productFinishes, productMaterials, productTemplates } from '@/lib/product-system';
 import { productCategories, productVendors, storefrontOptions } from '@/data/products';
-import type { Product } from '@/modules/products/types';
+import type { Product, ProductSystemConfig } from '@/modules/products/types';
 
 const productTypeOptions: SelectOption[] = [
   { value: 'online', label: 'Online' },
@@ -92,7 +92,7 @@ export function ProductInfoForm({ product, onUpdate }: { product: Product; onUpd
           <Select value={product.productSystem?.finishId ?? 'matt-lam'} options={productFinishes.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), finishId: e.target.value } })} />
           <Select value={product.productSystem?.printerId ?? 'hp-indigo-7k'} options={printerProfiles.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), printerId: e.target.value } })} />
           <Input value={String(product.productSystem?.quantity ?? 250)} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), quantity: Number(e.target.value) || 250 } })} placeholder="Quantity" />
-          <Select value={product.productSystem?.turnaround ?? 'standard'} options={[{ value: 'standard', label: 'Standard' }, { value: 'priority', label: 'Priority' }, { value: 'rush', label: 'Rush' }]} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), turnaround: e.target.value as Product['productSystem']['turnaround'] } })} />
+          <Select value={product.productSystem?.turnaround ?? 'standard'} options={[{ value: 'standard', label: 'Standard' }, { value: 'priority', label: 'Priority' }, { value: 'rush', label: 'Rush' }]} onChange={(e) => onUpdate({ productSystem: { ...(product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} }), turnaround: e.target.value as ProductSystemConfig['turnaround'] } })} />
         </FormGrid>
         <div className="mt-3 rounded-lg border border-border p-3 text-sm">
           <p className="mb-2 text-xs uppercase text-textMuted">System links</p>

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { LicensingCenterPage } from '@/modules/plugin/pages/licensing-center-page';
 
 export default function Page() {

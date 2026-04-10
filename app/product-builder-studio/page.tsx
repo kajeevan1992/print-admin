@@ -1,5 +1,8 @@
 'use client';
 
+
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Layers3, Printer, ShieldCheck, WandSparkles } from 'lucide-react';
 import { Card } from '@/components/ui/card';

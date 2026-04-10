@@ -1,5 +1,8 @@
 'use client';
 
+
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { Boxes, Calculator, Layers3, Printer, SwatchBook, WandSparkles } from 'lucide-react';
 import { Card } from '@/components/ui/card';

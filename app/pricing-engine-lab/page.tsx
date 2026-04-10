@@ -1,5 +1,8 @@
 'use client';
 
+
+export const dynamic = 'force-dynamic';
+
 import { useMemo, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';

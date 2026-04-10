@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { ConfigWorkspacePage } from '@/components/configuration/config-workspace-page';
 
 export default function Page() {

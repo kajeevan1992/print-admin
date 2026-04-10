@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { ArrowRight, CheckCircle2, Globe2, LayoutPanelTop, Palette, ShieldCheck, Store } from 'lucide-react';
 import { Card } from '@/components/ui/card';

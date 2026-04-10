@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { SimpleListPage } from '@/components/configuration/simple-list-page';
 
 export default function Page() {

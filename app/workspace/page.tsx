@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { ArrowRight, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';

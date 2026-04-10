@@ -1,5 +1,8 @@
 'use client';
 
+
+export const dynamic = 'force-dynamic';
+
 import { LocalRecordsPage } from '@/components/configuration/local-records-page';
 
 const items = [

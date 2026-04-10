@@ -2,13 +2,13 @@
 nixPkgs = ["nodejs_20", "npm-10_x"]
 
 [phases.install]
-cmds = ["npm i"]
+cmds = ["npm ci --include=dev --no-audit --no-fund"]
 cacheDirectories = ["/root/.npm"]
 paths = ["/app/node_modules/.bin"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["NEXT_TELEMETRY_DISABLED=1 npm run build"]
 cacheDirectories = [".next/cache", "node_modules/.cache"]
 
 [start]
-cmd = "npm run start"
+cmd = "NEXT_TELEMETRY_DISABLED=1 npm run start"

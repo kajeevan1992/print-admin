@@ -54,6 +54,11 @@ export function SavedViewsPage() {
       subtitleFields={['target', 'scope']}
       cardMetaFields={['owner']}
       searchKeys={['title', 'target', 'scope', 'owner', 'filterSummary', 'notes']}
+      primaryFilterKey="scope"
+      quickTemplates={[
+        { label: 'Shared view', values: { title: 'New shared view', target: 'dashboard', scope: 'shared', owner: 'Admin Team' } },
+        { label: 'Private view', values: { title: 'New private view', target: 'products', scope: 'private', owner: 'Catalog Admin' } }
+      ]}
     />
   );
 }

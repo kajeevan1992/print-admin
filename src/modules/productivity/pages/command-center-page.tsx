@@ -58,6 +58,11 @@ export function CommandCenterPage() {
       subtitleFields={['category', 'status']}
       cardMetaFields={['owner', 'priority', 'dueWindow']}
       searchKeys={['title', 'category', 'priority', 'status', 'owner', 'dueWindow', 'checklist']}
+      primaryFilterKey="status"
+      quickTemplates={[
+        { label: 'Launch task', values: { title: 'New launch task', category: 'launch', priority: 'high', status: 'queued', owner: 'Launch Lead', dueWindow: 'This week' } },
+        { label: 'Ops review', values: { title: 'New ops review', category: 'operations', priority: 'medium', status: 'queued', owner: 'Operations' } }
+      ]}
     />
   );
 }

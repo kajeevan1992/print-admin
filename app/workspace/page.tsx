@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { ArrowRight, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, BellDot, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { AmbientIllustration } from '@/components/ui/ambient-illustration';
@@ -74,6 +74,14 @@ const sections = [
   }
 ];
 
+
+const spotlightStats = [
+  { label: 'Open launch tasks', value: '12', helper: '3 need approval today' },
+  { label: 'Products in setup', value: '28', helper: '7 priced and ready to publish' },
+  { label: 'Production alerts', value: '4', helper: '2 tied to routing rules' },
+  { label: 'Saved team views', value: '19', helper: 'Ops and sales presets' }
+];
+
 const wizardSteps = [
   {
     step: '01',
@@ -140,6 +148,28 @@ export default function WorkspacePage() {
               ))}
             </div>
           </div>
+        </div>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        {spotlightStats.map((stat) => (
+          <Card key={stat.label}>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">{stat.label}</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{stat.value}</p>
+            <p className="mt-2 text-[12px] leading-6 text-textMuted">{stat.helper}</p>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Daily command strip</p>
+          <p className="mt-2 text-sm text-white">Jump straight into the three pages your team will use most while the API layer is still being connected.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/command-center" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Command center <ArrowRight size={14} /></Link>
+          <Link href="/notifications" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Notifications <BellDot size={14} /></Link>
+          <Link href="/saved-views" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Saved views <ArrowRight size={14} /></Link>
         </div>
       </Card>
 

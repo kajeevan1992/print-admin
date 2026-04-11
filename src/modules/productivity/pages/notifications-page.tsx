@@ -54,6 +54,11 @@ export function NotificationsPage() {
       subtitleFields={['type', 'area']}
       cardMetaFields={['assignee', 'status']}
       searchKeys={['title', 'type', 'area', 'assignee', 'status', 'message']}
+      primaryFilterKey="status"
+      quickTemplates={[
+        { label: 'Warning', values: { title: 'New warning', type: 'warning', area: 'production', assignee: 'Ops Desk', status: 'open' } },
+        { label: 'Approval', values: { title: 'New approval', type: 'approval', area: 'theme', assignee: 'Creative Lead', status: 'pending' } }
+      ]}
     />
   );
 }

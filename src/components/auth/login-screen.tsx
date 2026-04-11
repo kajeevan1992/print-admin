@@ -101,12 +101,12 @@ export function LoginScreen() {
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Email</label>
-              <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="owner@printadmin.app" />
+              <label htmlFor="login-email" className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Email</label>
+              <Input id="login-email" name="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="owner@printadmin.app" />
             </div>
             <div>
-              <label className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Password</label>
-              <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="demo123" />
+              <label htmlFor="login-password" className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Password</label>
+              <Input id="login-password" name="password" autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="demo123" />
             </div>
 
             {error ? <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p> : null}

@@ -1,0 +1,6 @@
+v76 owner escalations build
+
+- Added Owner Escalations workflow at /owner-escalations
+- Added local storage backed owner escalations service + seed data
+- Added Owner Escalations to super-admin sidebar
+- No deploy/auth config changes

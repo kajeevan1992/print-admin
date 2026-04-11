@@ -44,10 +44,13 @@ const routeLabelMap: Record<string, string> = {
   '/production-routing-lab': 'Production Routing',
   '/option-sets': 'Option Sets',
   '/artwork-preflight-studio': 'Artwork Preflight',
-  '/super-admin': 'Super Admin'
+  '/super-admin': 'Super Admin',
+  '/tenant-control': 'Tenant Control',
+  '/licensing-center': 'Licensing Center',
+  '/admin-users': 'Admin Users'
 };
 
-const quickLinks = [
+const tenantQuickLinks = [
   { href: '/workspace', label: 'Workspace', icon: Sparkles },
   { href: '/product-launch-wizard', label: 'Product Wizard', icon: Command },
   { href: '/products', label: 'Products', icon: Zap },
@@ -66,6 +69,15 @@ const quickLinks = [
   { href: '/production-routing-lab', label: 'Production Routing', icon: Store },
   { href: '/artwork-preflight-studio', label: 'Artwork Preflight', icon: Bell },
   { href: '/pricing-engine-lab', label: 'Pricing Engine', icon: Zap }
+];
+
+const ownerQuickLinks = [
+  { href: '/super-admin', label: 'Overview', icon: Shield },
+  { href: '/tenant-control', label: 'Tenant Control', icon: Store },
+  { href: '/licensing-center', label: 'Licensing Center', icon: Shield },
+  { href: '/admin-users', label: 'Admin Users', icon: Bell },
+  { href: '/reports', label: 'Reports', icon: Zap },
+  { href: '/support-tickets', label: 'Support Hub', icon: Bell }
 ];
 
 type RecentRoute = {
@@ -119,6 +131,8 @@ export function Topbar() {
   );
 
   const activeStore = stores.find((store) => store.id === storeId) ?? stores[0];
+  const quickLinks = session?.role === 'super_admin' ? ownerQuickLinks : tenantQuickLinks;
+  const searchPlaceholder = session?.role === 'super_admin' ? 'Search tenants, licences, deployments...' : 'Search products, orders, users...';
 
   return (
     <header className="mb-6 rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.82)_0%,rgba(8,13,24,0.78)_100%)] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">
@@ -129,16 +143,23 @@ export function Topbar() {
             id="global-search"
             name="globalSearch"
             autoComplete="off"
-            placeholder="Search products, orders, users..."
+            placeholder={searchPlaceholder}
             className="w-full bg-transparent text-[13px] text-text outline-none placeholder:text-textMuted/70"
           />
         </label>
 
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
-            <Store size={15} className="text-accentAlt" />
-            {activeStore.name}
-          </div>
+          {session?.role === 'super_admin' ? (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
+              <Shield size={15} className="text-accentAlt" />
+              Owner Console
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
+              <Store size={15} className="text-accentAlt" />
+              {activeStore.name}
+            </div>
+          )}
 
           <div className="relative">
             <button

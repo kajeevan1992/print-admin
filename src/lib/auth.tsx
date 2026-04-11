@@ -10,6 +10,7 @@ export type AppSession = {
   email: string;
   role: AppRole;
   company: string;
+  tenantId: string;
 };
 
 type DemoAccount = AppSession & {
@@ -37,6 +38,7 @@ const demoAccounts: DemoAccount[] = [
     password: 'demo123',
     role: 'super_admin',
     company: 'Print Admin SaaS',
+    tenantId: 'owner-console',
     defaultRoute: '/super-admin'
   },
   {
@@ -46,7 +48,8 @@ const demoAccounts: DemoAccount[] = [
     password: 'demo123',
     role: 'tenant_admin',
     company: 'Northstar Print',
-    defaultRoute: '/'
+    tenantId: 'northstar-print',
+    defaultRoute: '/workspace'
   },
   {
     id: 'ops-manager',
@@ -55,6 +58,7 @@ const demoAccounts: DemoAccount[] = [
     password: 'demo123',
     role: 'ops_manager',
     company: 'Northstar Print',
+    tenantId: 'northstar-print',
     defaultRoute: '/workspace'
   }
 ];
@@ -100,7 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       name: account.name,
       email: account.email,
       role: account.role,
-      company: account.company
+      company: account.company,
+      tenantId: account.tenantId
     };
 
     safeSessionWrite(nextSession);
@@ -122,6 +127,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }), [ready, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+
+export function updateSession(patch: Partial<AppSession>) {
+  const current = readSession();
+  if (!current) return null;
+  const nextSession = { ...current, ...patch } as AppSession;
+  safeSessionWrite(nextSession);
+  return nextSession;
 }
 
 export function useAuth() {

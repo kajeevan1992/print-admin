@@ -4,10 +4,17 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Bell, ChevronDown, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
-import { useAuth } from '@/lib/auth';
+import { updateSession, useAuth } from '@/lib/auth';
 
 const RECENT_ROUTES_KEY = 'print-admin.recent-routes';
 const DASHBOARD_STORE_KEY = 'print-admin.dashboard.store';
+
+const tenantOptions = [
+  { id: 'northstar-print', name: 'Northstar Print' },
+  { id: 'trade-portal', name: 'Trade Portal' },
+  { id: 'harbor-print', name: 'Harbor Print Co.' },
+  { id: 'owner-console', name: 'Owner Console' }
+];
 
 const routeLabelMap: Record<string, string> = {
   '/': 'Dashboard',
@@ -121,16 +128,10 @@ export function Topbar() {
     setRecentOpen(false);
   }, [pathname]);
 
-  const stores = useMemo(
-    () => [
-      { id: 'store-1', name: 'Harbor Print Co.' },
-      { id: 'store-2', name: 'Trade Portal' },
-      { id: 'store-3', name: 'Northwind B2B' }
-    ],
-    []
-  );
+  const stores = useMemo(() => tenantOptions.filter((item) => item.id !== 'owner-console'), []);
 
-  const activeStore = stores.find((store) => store.id === storeId) ?? stores[0];
+  const activeTenantId = session?.tenantId ?? (session?.role === 'super_admin' ? 'owner-console' : storeId);
+  const activeStore = tenantOptions.find((store) => store.id === activeTenantId) ?? tenantOptions[0];
   const quickLinks = session?.role === 'super_admin' ? ownerQuickLinks : tenantQuickLinks;
   const searchPlaceholder = session?.role === 'super_admin' ? 'Search tenants, licences, billing, activations...' : 'Search products, orders, users...';
 
@@ -157,7 +158,25 @@ export function Topbar() {
           ) : (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
               <Store size={15} className="text-accentAlt" />
-              {activeStore.name}
+              <select
+                id="tenant-switcher"
+                name="tenantSwitcher"
+                value={activeTenantId}
+                onChange={(event) => {
+                  const nextTenant = event.target.value;
+                  setStoreId(nextTenant);
+                  window.localStorage.setItem(DASHBOARD_STORE_KEY, nextTenant);
+                  updateSession({ tenantId: nextTenant });
+                  window.location.reload();
+                }}
+                className="bg-transparent text-[12px] font-medium text-white outline-none"
+              >
+                {stores.map((store) => (
+                  <option key={store.id} value={store.id} className="bg-slate-950 text-white">
+                    {store.name}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

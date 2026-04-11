@@ -131,7 +131,7 @@ export function OrganizationsPage() {
 
           <Card>
             <DataTable columns={[
-              { key: 'name', header: isOwner ? 'Activation Group' : 'Organization', render: (row) => <button type="button" className="text-left" onClick={() => setSelectedId(row.id)}><div className="font-medium">{row.name}</div><div className="text-xs text-textMuted">{row.code} · {row.primaryContact}</div></button> }, className: 'w-[240px]' },
+              { key: 'name', header: isOwner ? 'Activation Group' : 'Organization', render: (row) => <button type="button" className="text-left" onClick={() => setSelectedId(row.id)}><div className="font-medium">{row.name}</div><div className="text-xs text-textMuted">{row.code} · {row.primaryContact}</div></button>, className: 'w-[240px]' },
               { key: 'storefronts', header: isOwner ? 'Stores' : 'Storefronts', render: (row) => row.storefronts.join(', ') || '—' },
               { key: 'collections', header: isOwner ? 'Launch Packs' : 'Collections', render: (row) => row.collections.join(', ') || '—' },
               { key: 'billing', header: isOwner ? 'Commercial Model' : 'Billing', render: (row) => row.billingModel },

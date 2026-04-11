@@ -110,7 +110,7 @@ export function MerchantAccountsPage() {
 
           <Card>
             <DataTable columns={[
-              { key: 'name', header: isOwner ? 'Billing Account' : 'Merchant', render: (row) => <button type="button" className="text-left" onClick={() => setSelectedId(row.id)}><div className="font-medium">{row.name}</div><div className="text-xs text-textMuted">{row.provider} · {row.merchantId}</div></button> }, className: 'w-[240px]' },
+              { key: 'name', header: isOwner ? 'Billing Account' : 'Merchant', render: (row) => <button type="button" className="text-left" onClick={() => setSelectedId(row.id)}><div className="font-medium">{row.name}</div><div className="text-xs text-textMuted">{row.provider} · {row.merchantId}</div></button>, className: 'w-[240px]' },
               { key: 'mode', header: 'Mode', render: (row) => `${row.mode} · ${row.status}` },
               { key: 'methods', header: 'Methods', render: (row) => row.supportedMethods.join(', ') || '—' },
               { key: 'fees', header: 'Fees', render: (row) => row.feeProfile },

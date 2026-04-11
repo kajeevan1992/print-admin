@@ -1,8 +1,6 @@
 [variables]
 NODE_ENV = "production"
 NPM_CONFIG_PRODUCTION = "false"
-PNPM_HOME = "/root/.local/share/pnpm"
-PATH = "/root/.local/share/pnpm:/app/node_modules/.bin:$PATH"
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm", "curl", "wget"]
@@ -10,11 +8,11 @@ nixPkgs = ["nodejs_20", "pnpm", "curl", "wget"]
 [phases.install]
 cmds = [
   "pnpm --version",
-  "pnpm config set store-dir /root/.local/share/pnpm/store",
+  "pnpm config set store-dir /root/.pnpm-store",
   "pnpm install --no-frozen-lockfile --prefer-offline --shamefully-hoist"
 ]
-cacheDirectories = ["/root/.local/share/pnpm/store"]
-paths = ["/app/node_modules/.bin", "/root/.local/share/pnpm"]
+cacheDirectories = ["/root/.pnpm-store"]
+paths = ["/app/node_modules/.bin"]
 
 [phases.build]
 cmds = [

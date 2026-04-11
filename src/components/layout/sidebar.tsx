@@ -301,6 +301,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Invitations', href: '/owner-invitations', icon: Mail },
   { label: 'Launch Checklist', href: '/owner-launch-checklist', icon: ClipboardCheck },
   { label: 'Owner Escalations', href: '/owner-escalations', icon: AlertTriangle },
+  { label: 'Owner Audit Log', href: '/owner-audit-log', icon: History },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

@@ -1,13 +1,12 @@
 export const dynamic = 'force-dynamic';
 
 import Link from 'next/link';
-import { ArrowRight, BellDot, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-react';
+import { ArrowRight, BellDot, CalendarDays, Command, Globe2, Layers3, Sparkles, Wand2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { AmbientIllustration } from '@/components/ui/ambient-illustration';
 
 const sections = [
-
   {
     title: 'Product system',
     description: 'Model print-business products with templates, option schemas, material choices, finishes, printer routing, and pricing logic inspired by the plugin foundations.',
@@ -74,7 +73,6 @@ const sections = [
   }
 ];
 
-
 const spotlightStats = [
   { label: 'Open launch tasks', value: '12', helper: '3 need approval today' },
   { label: 'Products in setup', value: '28', helper: '7 priced and ready to publish' },
@@ -83,21 +81,15 @@ const spotlightStats = [
 ];
 
 const wizardSteps = [
-  {
-    step: '01',
-    title: 'Shape the product',
-    description: 'Choose the creation method, core dimensions, and storefront category.'
-  },
-  {
-    step: '02',
-    title: 'Design the experience',
-    description: 'Define editor behavior, content, and presentation with theme-friendly defaults.'
-  },
-  {
-    step: '03',
-    title: 'Launch with confidence',
-    description: 'Review publishing, pricing readiness, and store availability before go-live.'
-  }
+  { step: '01', title: 'Shape the product', description: 'Choose the creation method, core dimensions, and storefront category.' },
+  { step: '02', title: 'Design the experience', description: 'Define editor behavior, content, and presentation with theme-friendly defaults.' },
+  { step: '03', title: 'Launch with confidence', description: 'Review publishing, pricing readiness, and store availability before go-live.' }
+];
+
+const todayAgenda = [
+  { title: 'Approve store theme publish', owner: 'Creative Lead', href: '/notifications', status: 'Pending review' },
+  { title: 'Review pricing rule deltas', owner: 'Pricing Team', href: '/pricing-command', status: 'Due today' },
+  { title: 'Clear routing blockers', owner: 'Production Ops', href: '/production-routing-lab', status: '2 blockers' }
 ];
 
 export default function WorkspacePage() {
@@ -161,17 +153,36 @@ export default function WorkspacePage() {
         ))}
       </div>
 
-      <Card className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Daily command strip</p>
-          <p className="mt-2 text-sm text-white">Jump straight into the three pages your team will use most while the API layer is still being connected.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/command-center" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Command center <ArrowRight size={14} /></Link>
-          <Link href="/notifications" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Notifications <BellDot size={14} /></Link>
-          <Link href="/saved-views" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Saved views <ArrowRight size={14} /></Link>
-        </div>
-      </Card>
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Daily command strip</p>
+            <p className="mt-2 text-sm text-white">Jump straight into the three pages your team will use most while the API layer is still being connected.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/command-center" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Command center <ArrowRight size={14} /></Link>
+            <Link href="/notifications" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Notifications <BellDot size={14} /></Link>
+            <Link href="/saved-views" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-[13px] font-medium text-white transition hover:bg-white/[0.08]">Saved views <ArrowRight size={14} /></Link>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-textMuted"><CalendarDays size={12} /> Today&apos;s agenda</div>
+          <div className="mt-4 space-y-3">
+            {todayAgenda.map((item) => (
+              <Link key={item.title} href={item.href} className="block rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">{item.title}</p>
+                    <p className="mt-1 text-[12px] text-textMuted">{item.owner}</p>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-textMuted">{item.status}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </Card>
+      </div>
 
       <AmbientIllustration className="h-48" />
 

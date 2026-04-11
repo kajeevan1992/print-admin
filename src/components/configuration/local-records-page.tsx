@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Copy, Download, Filter, RotateCcw, Search, Upload } from 'lucide-react';
+import { ArrowUpDown, CheckCheck, CheckCircle2, Copy, Download, Filter, Pin, RotateCcw, Search, Star, Trash2, Upload } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
@@ -23,6 +23,9 @@ type RecordItem = {
   title: string;
   subtitle?: string;
   meta?: string;
+  pinned?: boolean;
+  starred?: boolean;
+  createdAt?: string;
   [key: string]: string | boolean | undefined;
 };
 
@@ -30,6 +33,13 @@ type QuickTemplate = {
   label: string;
   values: Record<string, string | boolean>;
 };
+
+const sortOptions = [
+  { value: 'recent', label: 'Newest first' },
+  { value: 'title', label: 'Title A–Z' },
+  { value: 'status', label: 'Status' },
+  { value: 'owner', label: 'Owner / Assignee' }
+];
 
 export function LocalRecordsPage({
   storageKey,
@@ -60,10 +70,17 @@ export function LocalRecordsPage({
   primaryFilterKey?: string;
   quickTemplates?: QuickTemplate[];
 }) {
-  const [items, setItems] = useState<RecordItem[]>(initialItems);
-  const [selectedId, setSelectedId] = useState<string>(initialItems[0]?.id ?? '');
+  const seedItems = useMemo(
+    () => initialItems.map((item, index) => ({ ...item, createdAt: item.createdAt ?? new Date(Date.now() - index * 1000 * 60 * 30).toISOString(), pinned: Boolean(item.pinned), starred: Boolean(item.starred) })),
+    [initialItems]
+  );
+
+  const [items, setItems] = useState<RecordItem[]>(seedItems);
+  const [selectedId, setSelectedId] = useState<string>(seedItems[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('recent');
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -72,7 +89,7 @@ export function LocalRecordsPage({
     try {
       const parsed = JSON.parse(raw) as RecordItem[];
       if (Array.isArray(parsed) && parsed.length > 0) {
-        setItems(parsed);
+        setItems(parsed.map((item) => ({ pinned: false, starred: false, ...item, createdAt: item.createdAt ?? new Date().toISOString() })));
         setSelectedId(parsed[0].id);
       }
     } catch {
@@ -92,13 +109,23 @@ export function LocalRecordsPage({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter((item) => {
+    const result = items.filter((item) => {
       const keys = searchKeys ?? ['title', 'subtitle', 'meta'];
       const matchesQuery = !q || keys.some((key) => String(item[key] ?? '').toLowerCase().includes(q));
       const matchesFilter = activeFilter === 'all' || !primaryFilterKey || String(item[primaryFilterKey] ?? '') === activeFilter;
-      return matchesQuery && matchesFilter;
+      const attentionState = [String(item.priority ?? ''), String(item.type ?? ''), String(item.status ?? '')].join(' ').toLowerCase();
+      const matchesAttention = !attentionOnly || /(critical|high|warning|security|blocked|due-soon|pending|open)/.test(attentionState);
+      return matchesQuery && matchesFilter && matchesAttention;
     });
-  }, [activeFilter, items, primaryFilterKey, query, searchKeys]);
+
+    return result.sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      if (sortBy === 'title') return String(a.title).localeCompare(String(b.title));
+      if (sortBy === 'status') return String(a.status ?? '').localeCompare(String(b.status ?? ''));
+      if (sortBy === 'owner') return String(a.owner ?? a.assignee ?? '').localeCompare(String(b.owner ?? b.assignee ?? ''));
+      return String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''));
+    });
+  }, [activeFilter, attentionOnly, items, primaryFilterKey, query, searchKeys, sortBy]);
 
   const selected = items.find((item) => item.id === selectedId) ?? filtered[0] ?? items[0] ?? null;
 
@@ -126,12 +153,16 @@ export function LocalRecordsPage({
 
   const stats = useMemo(() => {
     const completed = items.filter((item) => ['done', 'resolved'].includes(String(item.status ?? ''))).length;
-    const urgent = items.filter((item) => ['critical', 'high', 'warning', 'security', 'due-soon', 'blocked'].includes(String(item.priority ?? item.type ?? item.status ?? ''))).length;
+    const urgent = items.filter((item) => ['critical', 'high', 'warning', 'security', 'due-soon', 'blocked', 'pending', 'open'].includes(String(item.priority ?? item.type ?? item.status ?? ''))).length;
+    const pinned = items.filter((item) => item.pinned).length;
+    const starred = items.filter((item) => item.starred).length;
     return {
       total: items.length,
       showing: filtered.length,
       completed,
-      urgent
+      urgent,
+      pinned,
+      starred
     };
   }, [filtered.length, items]);
 
@@ -146,7 +177,10 @@ export function LocalRecordsPage({
       id,
       title: template?.values.title ? String(template.values.title) : `New ${title.replace(/s$/,'') || 'Record'}`,
       subtitle: '',
-      meta: ''
+      meta: '',
+      pinned: false,
+      starred: false,
+      createdAt: new Date().toISOString()
     };
 
     fields.forEach((field) => {
@@ -172,7 +206,8 @@ export function LocalRecordsPage({
     const clone = {
       ...selected,
       id,
-      title: `${selected.title} Copy`
+      title: `${selected.title} Copy`,
+      createdAt: new Date().toISOString()
     };
     setItems((prev) => [clone, ...prev]);
     setSelectedId(id);
@@ -183,6 +218,22 @@ export function LocalRecordsPage({
     const next = items.filter((item) => item.id !== selected.id);
     setItems(next);
     setSelectedId(next[0]?.id ?? '');
+  };
+
+  const markSelectedDone = () => {
+    if (!selected) return;
+    if (!fields.some((field) => field.key === 'status')) return;
+    updateSelected({ status: 'done' });
+  };
+
+  const toggleSelectedPin = () => {
+    if (!selected) return;
+    updateSelected({ pinned: !selected.pinned });
+  };
+
+  const toggleSelectedStar = () => {
+    if (!selected) return;
+    updateSelected({ starred: !selected.starred });
   };
 
   const exportItems = () => {
@@ -202,8 +253,9 @@ export function LocalRecordsPage({
       const text = await file.text();
       const parsed = JSON.parse(text) as RecordItem[];
       if (Array.isArray(parsed) && parsed.length) {
-        setItems(parsed);
-        setSelectedId(parsed[0].id);
+        const hydrated = parsed.map((item) => ({ pinned: false, starred: false, ...item, createdAt: item.createdAt ?? new Date().toISOString() }));
+        setItems(hydrated);
+        setSelectedId(hydrated[0].id);
       }
     } catch {
       alert('Could not import JSON file.');
@@ -213,18 +265,26 @@ export function LocalRecordsPage({
   };
 
   const resetItems = () => {
-    setItems(initialItems);
-    setSelectedId(initialItems[0]?.id ?? '');
+    setItems(seedItems);
+    setSelectedId(seedItems[0]?.id ?? '');
     setActiveFilter('all');
     setQuery('');
+    setSortBy('recent');
+    setAttentionOnly(false);
   };
 
   const longNotes = [selected?.checklist, selected?.message, selected?.filterSummary, selected?.notes].find((value) => String(value ?? '').trim().length > 0);
   const checklistItems = String(longNotes ?? '')
-    .split(/[
-;,]+/)
+    .split(/[\n;,]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+
+  const detailPairs = selected
+    ? fields
+        .filter((field) => field.key !== 'message' && field.key !== 'checklist' && field.key !== 'filterSummary' && field.key !== 'notes')
+        .map((field) => ({ label: field.label, value: String(selected[field.key] ?? '').trim() }))
+        .filter((item) => item.value)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -238,7 +298,7 @@ export function LocalRecordsPage({
                 subtitle={subtitle}
                 actions={<PrimaryButton onClick={() => createItem()}>{createLabel}</PrimaryButton>}
               />
-              <p className="max-w-2xl text-[13px] leading-6 text-textMuted">Use this production-ready front-end workflow to shape how teams will actually manage records before APIs and database wiring are introduced.</p>
+              <p className="max-w-2xl text-[13px] leading-6 text-textMuted">Use this product-grade front-end workflow to shape how teams will actually manage records before APIs and database wiring are introduced.</p>
               {quickTemplates.length ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {quickTemplates.map((template) => (
@@ -250,12 +310,14 @@ export function LocalRecordsPage({
           </div>
           <div className="border-t border-white/6 bg-white/[0.02] p-6 md:border-l md:border-t-0">
             <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Overview</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
               {[
                 { label: 'Total records', value: stats.total },
                 { label: 'Filtered view', value: stats.showing },
                 { label: 'Resolved', value: stats.completed },
-                { label: 'Needs attention', value: stats.urgent }
+                { label: 'Needs attention', value: stats.urgent },
+                { label: 'Pinned', value: stats.pinned },
+                { label: 'Starred', value: stats.starred }
               ].map((item) => (
                 <div key={item.label} className="rounded-2xl border border-white/8 bg-black/20 p-4">
                   <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">{item.label}</p>
@@ -274,12 +336,25 @@ export function LocalRecordsPage({
               <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
               <Input className="pl-9" placeholder={`Search ${title.toLowerCase()}...`} value={query} onChange={(event) => setQuery(event.target.value)} />
             </div>
-            {filterOptions.length ? (
+            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-1">
+              {filterOptions.length ? (
+                <div className="grid gap-2">
+                  <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-textMuted"><Filter size={12} /> Filter</div>
+                  <Select value={activeFilter} options={['all', ...filterOptions]} onChange={(event) => setActiveFilter(event.target.value)} />
+                </div>
+              ) : null}
               <div className="grid gap-2">
-                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-textMuted"><Filter size={12} /> Filter</div>
-                <Select value={activeFilter} options={['all', ...filterOptions]} onChange={(event) => setActiveFilter(event.target.value)} />
+                <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-textMuted"><ArrowUpDown size={12} /> Sort</div>
+                <Select value={sortBy} options={sortOptions} onChange={(event) => setSortBy(event.target.value)} />
               </div>
-            ) : null}
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
+              <div>
+                <p className="text-sm font-medium text-white">Attention mode</p>
+                <p className="text-[12px] text-textMuted">Focus on records that need action.</p>
+              </div>
+              <Toggle checked={attentionOnly} onChange={setAttentionOnly} />
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={duplicateSelected} disabled={!selected}><Copy size={13} className="mr-1" /> Duplicate</Button>
               <Button onClick={exportItems}><Download size={13} className="mr-1" /> Export</Button>
@@ -300,7 +375,11 @@ export function LocalRecordsPage({
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-[14px] font-semibold text-white">{item.title}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-[14px] font-semibold text-white">{item.title}</h3>
+                        {item.pinned ? <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-amber-200"><Pin size={10} /> Pinned</span> : null}
+                        {item.starred ? <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/25 bg-cyan-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.18em] text-cyan-200"><Star size={10} /> Starred</span> : null}
+                      </div>
                       <p className="mt-1 text-[11px] text-textMuted">{subtitleTextForItem(item)}</p>
                       <p className="mt-2 text-[12px] text-textMuted">{cardMetaTextForItem(item)}</p>
                     </div>
@@ -321,8 +400,24 @@ export function LocalRecordsPage({
                     <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">Edit {selected.title}</h3>
                     <p className="text-sm text-textMuted">Update the selected record and changes are saved locally.</p>
                   </div>
-                  <Button onClick={deleteSelected}>Delete</Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button onClick={toggleSelectedPin}>{selected.pinned ? <><Pin size={13} className="mr-1" /> Unpin</> : <><Pin size={13} className="mr-1" /> Pin</>}</Button>
+                    <Button onClick={toggleSelectedStar}>{selected.starred ? <><Star size={13} className="mr-1" /> Unstar</> : <><Star size={13} className="mr-1" /> Star</>}</Button>
+                    {fields.some((field) => field.key === 'status') ? <Button onClick={markSelectedDone}><CheckCheck size={13} className="mr-1" /> Mark done</Button> : null}
+                    <Button onClick={deleteSelected}><Trash2 size={13} className="mr-1" /> Delete</Button>
+                  </div>
                 </div>
+
+                {detailPairs.length ? (
+                  <div className="grid gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-4 md:grid-cols-2 xl:grid-cols-3">
+                    {detailPairs.slice(0, 6).map((pair) => (
+                      <div key={pair.label}>
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">{pair.label}</p>
+                        <p className="mt-1 text-sm text-white">{pair.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="space-y-2 md:col-span-2">

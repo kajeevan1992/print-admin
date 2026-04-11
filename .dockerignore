@@ -1,9 +1,12 @@
 node_modules
+.next
+.git
+*.log
+.env
+.cache
+pnpm-store
 .pnpm-store
-.next/cache
+coverage
 npm-debug.log*
 pnpm-debug.log*
-.git
-.gitignore
 .DS_Store
-*.local

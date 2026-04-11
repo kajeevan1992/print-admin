@@ -1,3 +1,0 @@
-export const settingsModule = {
-  name: 'settings'
-};

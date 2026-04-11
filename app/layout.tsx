@@ -1,6 +1,7 @@
 import './globals.css';
-import { AdminShell } from '@/components/layout/admin-shell';
 import type { Metadata } from 'next';
+import { AuthProvider } from '@/lib/auth';
+import { AppFrame } from '@/components/layout/app-frame';
 
 export const metadata: Metadata = {
   title: 'Print Admin',
@@ -11,7 +12,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="dark">
       <body>
-        <AdminShell>{children}</AdminShell>
+        <AuthProvider>
+          <AppFrame>{children}</AppFrame>
+        </AuthProvider>
       </body>
     </html>
   );

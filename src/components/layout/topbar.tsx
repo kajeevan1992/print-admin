@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Bell, ChevronDown, Clock3, Command, Search, Sparkles, Store, Zap } from 'lucide-react';
+import { Bell, ChevronDown, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
 
 const RECENT_ROUTES_KEY = 'print-admin.recent-routes';
 const DASHBOARD_STORE_KEY = 'print-admin.dashboard.store';
@@ -42,7 +43,8 @@ const routeLabelMap: Record<string, string> = {
   '/product-rules-lab': 'Product Rules Lab',
   '/production-routing-lab': 'Production Routing',
   '/option-sets': 'Option Sets',
-  '/artwork-preflight-studio': 'Artwork Preflight'
+  '/artwork-preflight-studio': 'Artwork Preflight',
+  '/super-admin': 'Super Admin'
 };
 
 const quickLinks = [
@@ -73,6 +75,7 @@ type RecentRoute = {
 
 export function Topbar() {
   const pathname = usePathname();
+  const { session } = useAuth();
   const [storeId, setStoreId] = useState('store-1');
   const [recentRoutes, setRecentRoutes] = useState<RecentRoute[]>([]);
   const [linksOpen, setLinksOpen] = useState(false);
@@ -195,7 +198,10 @@ export function Topbar() {
           <Link href="/notifications" className="rounded-2xl border border-white/8 bg-white/[0.03] p-2.5 text-text transition hover:bg-white/[0.05]">
             <Bell size={15} />
           </Link>
-          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">Alex Rivera · Admin</div>
+          <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
+            {session?.role === 'super_admin' ? <Shield size={14} className="text-cyan-200" /> : null}
+            <span>{session?.name ?? 'Guest'} · {(session?.role ?? 'viewer').replace('_', ' ')}</span>
+          </div>
         </div>
       </div>
     </header>

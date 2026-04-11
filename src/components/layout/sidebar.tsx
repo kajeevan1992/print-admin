@@ -64,6 +64,7 @@ import {
   type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/lib/auth';
 
 type NavItem = {
   label: string;
@@ -75,7 +76,7 @@ type NavItem = {
   }>;
 };
 
-const navItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: Home },
   { label: 'Workspace', href: '/workspace', icon: Sparkles },
   { label: 'Products', href: '/products', icon: Box },
@@ -292,6 +293,7 @@ const iconMap: Record<string, LucideIcon> = {
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { session } = useAuth();
 
   const defaultOpen = useMemo(() => {
     const openMap: Record<string, boolean> = {};
@@ -385,6 +387,16 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+        <p className="text-[11px] uppercase tracking-[0.2em] text-textMuted">{session?.role === 'super_admin' ? 'SaaS owner access' : 'Tenant workspace'}</p>
+        <p className="mt-2 text-sm font-semibold text-white">{session?.name ?? 'Guest'}</p>
+        <p className="mt-1 text-xs text-textMuted">{session?.company ?? 'Print Admin'}</p>
+        <div className="mt-3 flex gap-2">
+          {session?.role === 'super_admin' ? <Link href="/super-admin" className="flex-1 rounded-xl border border-white/8 px-3 py-2 text-center text-xs text-text transition hover:bg-white/[0.05]">Control</Link> : null}
+          <Link href="/logout" className="flex-1 rounded-xl border border-white/8 px-3 py-2 text-center text-xs text-text transition hover:bg-white/[0.05]">Logout</Link>
+        </div>
+      </div>
     </aside>
   );
 }

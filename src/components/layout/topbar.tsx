@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Bell, ChevronDown, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
+import { Bell, ChevronDown, ClipboardCheck, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
 import { updateSession, useAuth } from '@/lib/auth';
 
 const RECENT_ROUTES_KEY = 'print-admin.recent-routes';
@@ -55,7 +55,8 @@ const routeLabelMap: Record<string, string> = {
   '/tenant-control': 'Tenant Control',
   '/licensing-center': 'Licensing Center',
   '/admin-users': 'Admin Users',
-  '/owner-onboarding': 'Owner Onboarding'
+  '/owner-onboarding': 'Owner Onboarding',
+  '/owner-launch-checklist': 'Launch Checklist'
 };
 
 const tenantQuickLinks = [
@@ -83,6 +84,7 @@ const ownerQuickLinks = [
   { href: '/super-admin', label: 'Overview', icon: Shield },
   { href: '/tenant-control', label: 'Tenant Control', icon: Store },
   { href: '/owner-onboarding', label: 'Owner Onboarding', icon: Sparkles },
+  { href: '/owner-launch-checklist', label: 'Launch Checklist', icon: ClipboardCheck },
   { href: '/licensing-center', label: 'Licensing Center', icon: Shield },
   { href: '/admin-users', label: 'Admin Users', icon: Bell },
   { href: '/reports', label: 'Reports', icon: Zap },

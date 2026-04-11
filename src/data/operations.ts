@@ -29,6 +29,18 @@ export type ProductionJob = {
   dueDate: string;
 };
 
+export type ArtworkProof = {
+  id: string;
+  orderNumber: string;
+  customer: string;
+  product: string;
+  owner: string;
+  status: 'awaiting-review' | 'changes-requested' | 'customer-approval' | 'approved';
+  risk: 'low' | 'medium' | 'high';
+  dueDate: string;
+  notes: string;
+};
+
 export type GeneralSetting = {
   id: string;
   key: string;
@@ -53,6 +65,14 @@ export const productionJobsMock: ProductionJob[] = [
   { id: 'pj-1001', orderNumber: 'ORD-32018', product: 'Premium Catalog A4', plant: 'Nevada DC', stage: 'printing', slaRisk: 'medium', dueDate: '2026-04-07' },
   { id: 'pj-1002', orderNumber: 'ORD-32024', product: 'Matte Business Card', plant: 'Texas Plant', stage: 'queued', slaRisk: 'low', dueDate: '2026-04-08' },
   { id: 'pj-1003', orderNumber: 'ORD-32031', product: 'Direct Mail Letter Pack', plant: 'New Jersey Hub', stage: 'proofing', slaRisk: 'high', dueDate: '2026-04-06' }
+];
+
+
+export const artworkProofsMock: ArtworkProof[] = [
+  { id: 'ap-1001', orderNumber: 'ORD-32018', customer: 'Northwind Office', product: 'Premium Catalog A4', owner: 'Prepress Team', status: 'customer-approval', risk: 'medium', dueDate: '2026-04-08', notes: 'Customer requested final colour confirmation on inside spreads.' },
+  { id: 'ap-1002', orderNumber: 'ORD-32024', customer: 'Acme Office', product: 'Matte Business Card', owner: 'Studio Desk', status: 'awaiting-review', risk: 'low', dueDate: '2026-04-09', notes: 'Awaiting internal review before customer send.' },
+  { id: 'ap-1003', orderNumber: 'ORD-32031', customer: 'Bright Dental', product: 'Direct Mail Letter Pack', owner: 'Prepress Team', status: 'changes-requested', risk: 'high', dueDate: '2026-04-06', notes: 'Bleed issue on folded panel and missing postage zone margin.' },
+  { id: 'ap-1004', orderNumber: 'ORD-32044', customer: 'Nova Retail', product: 'Window Vinyl Kit', owner: 'Account Team', status: 'approved', risk: 'low', dueDate: '2026-04-10', notes: 'Approved and handed to production board.' }
 ];
 
 export const generalSettingsMock: GeneralSetting[] = [

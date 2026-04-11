@@ -1,4 +1,4 @@
-import { customersMock, generalSettingsMock, productionJobsMock, quotesMock, type CustomerRecord, type GeneralSetting, type ProductionJob, type QuoteRecord } from '@/data/operations';
+import { artworkProofsMock, customersMock, generalSettingsMock, productionJobsMock, quotesMock, type ArtworkProof, type CustomerRecord, type GeneralSetting, type ProductionJob, type QuoteRecord } from '@/data/operations';
 
 function load<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -15,6 +15,7 @@ const KEYS = {
   quotes: 'admin_quotes_store',
   customers: 'admin_customers_store',
   production: 'admin_production_store',
+  artworkProofs: 'admin_artwork_proofs_store',
   settings: 'admin_general_settings_store'
 };
 
@@ -45,6 +46,15 @@ export const operationsService = {
     return job;
   },
   deleteProductionJob: async (id: string) => save(KEYS.production, load(KEYS.production, productionJobsMock).filter((item) => item.id !== id)),
+
+  getArtworkProofs: async (): Promise<ArtworkProof[]> => load(KEYS.artworkProofs, artworkProofsMock),
+  saveArtworkProof: async (proof: ArtworkProof) => {
+    const items = load(KEYS.artworkProofs, artworkProofsMock);
+    const next = items.some((item) => item.id === proof.id) ? items.map((item) => (item.id === proof.id ? proof : item)) : [proof, ...items];
+    save(KEYS.artworkProofs, next);
+    return proof;
+  },
+  deleteArtworkProof: async (id: string) => save(KEYS.artworkProofs, load(KEYS.artworkProofs, artworkProofsMock).filter((item) => item.id !== id)),
 
   getGeneralSettings: async (): Promise<GeneralSetting[]> => load(KEYS.settings, generalSettingsMock),
   saveGeneralSetting: async (setting: GeneralSetting) => {

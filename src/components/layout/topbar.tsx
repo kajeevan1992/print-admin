@@ -54,7 +54,8 @@ const routeLabelMap: Record<string, string> = {
   '/super-admin': 'Super Admin',
   '/tenant-control': 'Tenant Control',
   '/licensing-center': 'Licensing Center',
-  '/admin-users': 'Admin Users'
+  '/admin-users': 'Admin Users',
+  '/owner-onboarding': 'Owner Onboarding'
 };
 
 const tenantQuickLinks = [
@@ -81,6 +82,7 @@ const tenantQuickLinks = [
 const ownerQuickLinks = [
   { href: '/super-admin', label: 'Overview', icon: Shield },
   { href: '/tenant-control', label: 'Tenant Control', icon: Store },
+  { href: '/owner-onboarding', label: 'Owner Onboarding', icon: Sparkles },
   { href: '/licensing-center', label: 'Licensing Center', icon: Shield },
   { href: '/admin-users', label: 'Admin Users', icon: Bell },
   { href: '/reports', label: 'Reports', icon: Zap },

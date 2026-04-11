@@ -291,16 +291,28 @@ const iconMap: Record<string, LucideIcon> = {
   Logout: LogOut
 };
 
+
+const superAdminNavItems: NavItem[] = [
+  { label: 'Super Admin', href: '/super-admin', icon: Shield },
+  { label: 'Tenant Control', href: '/tenant-control', icon: Building2 },
+  { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
+  { label: 'Admin Users', href: '/admin-users', icon: Users2 },
+  { label: 'Reports', href: '/reports', icon: BarChart3 },
+  { label: 'Support Hub', href: '/support-tickets', icon: LifeBuoy },
+  { label: 'Knowledge Base', href: '/knowledge-base', icon: BookOpen },
+  { label: 'Logout', href: '/logout', icon: LogOut }
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const { session } = useAuth();
 
   const navItems = useMemo(() => {
-    const items = [...baseNavItems];
-    if (session?.role !== 'super_admin') {
-      return items.filter((item) => item.href !== '/super-admin');
+    if (session?.role === 'super_admin') {
+      return superAdminNavItems;
     }
-    return items;
+
+    return baseNavItems.filter((item) => item.href !== '/super-admin');
   }, [session?.role]);
 
 
@@ -326,8 +338,8 @@ export function Sidebar() {
     <aside className="hidden h-screen w-[292px] shrink-0 border-r border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.96)_0%,rgba(7,11,22,0.98)_100%)] p-4 lg:block">
       <div className="mb-5 rounded-[24px] border border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(124,140,255,0.18),transparent_45%),rgba(15,23,42,0.88)] p-4">
         <p className="text-[11px] uppercase tracking-[0.28em] text-textMuted">Print SaaS Admin</p>
-        <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-white">Unified Control Center</p>
-        <p className="mt-1 text-[13px] text-textMuted">Precision controls for catalog, storefront, and operations.</p>
+        <p className="mt-2 text-lg font-semibold tracking-[-0.03em] text-white">{session?.role === 'super_admin' ? 'SaaS Owner Console' : 'Unified Control Center'}</p>
+        <p className="mt-1 text-[13px] text-textMuted">{session?.role === 'super_admin' ? 'Tenant, licensing, deployment, and commercial controls for your SaaS.' : 'Precision controls for catalog, storefront, and operations.'}</p>
       </div>
 
       <nav className="space-y-1 overflow-y-auto pb-10">

@@ -126,6 +126,9 @@ export function Topbar() {
         <label className="flex min-h-[48px] flex-1 items-center gap-3 rounded-2xl border border-white/8 bg-panelMuted/80 px-4">
           <Search size={16} className="text-textMuted" />
           <input
+            id="global-search"
+            name="globalSearch"
+            autoComplete="off"
             placeholder="Search products, orders, users..."
             className="w-full bg-transparent text-[13px] text-text outline-none placeholder:text-textMuted/70"
           />

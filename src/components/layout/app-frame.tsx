@@ -20,7 +20,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       return;
     }
     if (pathname === '/login' && session) {
-      router.replace(session.role === 'super_admin' ? '/super-admin' : '/');
+      router.replace(session.role === 'super_admin' ? '/super-admin' : '/workspace');
     }
   }, [pathname, ready, router, session, signOut]);
 

@@ -57,6 +57,10 @@ export const superAdminService = {
     writeStore(STORAGE_KEYS.deployments, exists ? items.map((item) => (item.id === record.id ? record : item)) : [record, ...items]);
     return record;
   },
+  async deleteDeployment(id: string) {
+    await wait();
+    writeStore(STORAGE_KEYS.deployments, readStore<DeploymentRecord>(STORAGE_KEYS.deployments, deploymentSeed).filter((item) => item.id !== id));
+  },
   async resetDeployments() {
     await wait();
     writeStore(STORAGE_KEYS.deployments, deploymentSeed);
@@ -73,6 +77,10 @@ export const superAdminService = {
     const exists = items.some((item) => item.id === record.id);
     writeStore(STORAGE_KEYS.demos, exists ? items.map((item) => (item.id === record.id ? record : item)) : [record, ...items]);
     return record;
+  },
+  async deleteDemoUpload(id: string) {
+    await wait();
+    writeStore(STORAGE_KEYS.demos, readStore<DemoUploadRecord>(STORAGE_KEYS.demos, demoUploadSeed).filter((item) => item.id !== id));
   },
   async resetDemoUploads() {
     await wait();

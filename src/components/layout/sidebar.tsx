@@ -60,6 +60,8 @@ import {
   HeartPulse,
   LifeBuoy,
   BookOpen,
+  UploadCloud,
+  Rocket,
   LogOut,
   type LucideIcon
 } from 'lucide-react';
@@ -299,6 +301,8 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },
   { label: 'Billing Ops', href: '/merchant-accounts', icon: CreditCard },
+  { label: 'Owner Deployments', href: '/owner-deployments', icon: Rocket },
+  { label: 'Demo Library', href: '/demo-library', icon: UploadCloud },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
   { label: 'Support Hub', href: '/support-tickets', icon: LifeBuoy },
   { label: 'Knowledge Base', href: '/knowledge-base', icon: BookOpen },

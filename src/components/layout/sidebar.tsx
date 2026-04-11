@@ -295,6 +295,15 @@ export function Sidebar() {
   const pathname = usePathname();
   const { session } = useAuth();
 
+  const navItems = useMemo(() => {
+    const items = [...baseNavItems];
+    if (session?.role !== 'super_admin') {
+      return items.filter((item) => item.href !== '/super-admin');
+    }
+    return items;
+  }, [session?.role]);
+
+
   const defaultOpen = useMemo(() => {
     const openMap: Record<string, boolean> = {};
 

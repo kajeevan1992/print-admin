@@ -36,7 +36,17 @@ export function LoginScreen() {
       return;
     }
 
-    router.replace(result.redirectTo ?? '/');
+    const destination = result.redirectTo ?? '/';
+    try {
+      router.replace(destination);
+      setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname !== destination) {
+          window.location.assign(destination);
+        }
+      }, 120);
+    } catch {
+      if (typeof window !== 'undefined') window.location.assign(destination);
+    }
   }
 
   return (

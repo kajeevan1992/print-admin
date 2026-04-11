@@ -19,6 +19,16 @@ type DemoAccount = AppSession & {
 
 const SESSION_KEY = 'print-admin.session.v1';
 
+function safeSessionWrite(session: AppSession | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (session) window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    else window.localStorage.removeItem(SESSION_KEY);
+  } catch {
+    // ignore browser storage failures and rely on in-memory session
+  }
+}
+
 const demoAccounts: DemoAccount[] = [
   {
     id: 'saas-owner',
@@ -93,18 +103,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       company: account.company
     };
 
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
-    }
-
+    safeSessionWrite(nextSession);
     setSession(nextSession);
     return { ok: true, redirectTo: account.defaultRoute };
   }
 
   function signOut() {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(SESSION_KEY);
-    }
+    safeSessionWrite(null);
     setSession(null);
   }
 

@@ -40,7 +40,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     return <div className="flex min-h-screen items-center justify-center bg-background text-textMuted">Redirecting…</div>;
   }
 
-  if (pathname.startsWith('/super-admin') && session.role !== 'super_admin') {
+  if ((pathname ?? '').startsWith('/super-admin') && session.role !== 'super_admin') {
     return (
       <AdminShell>
         <AccessDenied />

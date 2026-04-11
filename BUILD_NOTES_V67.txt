@@ -1,0 +1,7 @@
+v67 cumulative build
+
+- Added owner-only super-admin navigation for Store Activations and Billing Ops
+- Updated owner search placeholder to include billing and activations
+- Added role-aware owner wording to Merchant Accounts page (Billing Ops)
+- Added role-aware owner wording to Organizations page (Store Activations)
+- Kept stable deploy/auth setup unchanged

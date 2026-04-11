@@ -132,7 +132,7 @@ export function Topbar() {
 
   const activeStore = stores.find((store) => store.id === storeId) ?? stores[0];
   const quickLinks = session?.role === 'super_admin' ? ownerQuickLinks : tenantQuickLinks;
-  const searchPlaceholder = session?.role === 'super_admin' ? 'Search tenants, licences, deployments...' : 'Search products, orders, users...';
+  const searchPlaceholder = session?.role === 'super_admin' ? 'Search tenants, licences, billing, activations...' : 'Search products, orders, users...';
 
   return (
     <header className="mb-6 rounded-[24px] border border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.82)_0%,rgba(8,13,24,0.78)_100%)] p-3.5 shadow-[0_20px_60px_rgba(0,0,0,0.24)] backdrop-blur-xl">

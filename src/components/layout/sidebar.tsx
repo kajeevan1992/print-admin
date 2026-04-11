@@ -297,6 +297,8 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Tenant Control', href: '/tenant-control', icon: Building2 },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
+  { label: 'Store Activations', href: '/organizations', icon: Store },
+  { label: 'Billing Ops', href: '/merchant-accounts', icon: CreditCard },
   { label: 'Reports', href: '/reports', icon: BarChart3 },
   { label: 'Support Hub', href: '/support-tickets', icon: LifeBuoy },
   { label: 'Knowledge Base', href: '/knowledge-base', icon: BookOpen },

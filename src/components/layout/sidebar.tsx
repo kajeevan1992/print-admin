@@ -323,6 +323,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Backups', href: '/owner-backups', icon: DatabaseBackup },
   { label: 'Owner Maintenance Windows', href: '/owner-maintenance-windows', icon: Wrench },
   { label: 'Owner Incidents', href: '/owner-incidents', icon: AlertOctagon },
+  { label: 'Owner Runbooks', href: '/owner-runbooks', icon: FileText },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

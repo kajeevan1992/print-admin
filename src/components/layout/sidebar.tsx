@@ -320,6 +320,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Environments', href: '/owner-environments', icon: Globe2 },
   { label: 'Owner Domains', href: '/owner-domains', icon: Globe2 },
   { label: 'Owner Backups', href: '/owner-backups', icon: DatabaseBackup },
+  { label: 'Owner Maintenance Windows', href: '/owner-maintenance-windows', icon: Wrench },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

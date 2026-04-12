@@ -316,6 +316,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Usage Limits', href: '/owner-usage-limits', icon: Gauge },
   { label: 'Owner Billing Plans', href: '/owner-billing-plans', icon: CreditCard },
   { label: 'Owner Environments', href: '/owner-environments', icon: Globe },
+  { label: 'Owner Domains', href: '/owner-domains', icon: Globe2 },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

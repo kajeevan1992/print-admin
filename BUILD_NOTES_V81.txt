@@ -1,0 +1,14 @@
+
+v81 SSR global hotfix
+
+- Fixed missing lucide imports in src/components/layout/sidebar.tsx:
+  - History
+  - BellRing
+  - Flag
+- Added src/lib/browser.ts for future SSR-safe browser access helpers
+- No deploy/auth config changes
+
+Why this fixes the build:
+- The v80 deploy log failed during prerender with:
+  ReferenceError: History is not defined
+- That error was caused by sidebar nav items referencing History without importing it.

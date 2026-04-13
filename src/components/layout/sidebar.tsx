@@ -334,6 +334,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Customer Health', href: '/owner-customer-health', icon: Activity },
   { label: 'Owner Renewals', href: '/owner-renewals', icon: CalendarClock },
   { label: 'Owner QBRs', href: '/owner-qbrs', icon: Presentation },
+  { label: 'Owner Onboarding Pipeline', href: '/owner-onboarding-pipeline', icon: Rocket },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

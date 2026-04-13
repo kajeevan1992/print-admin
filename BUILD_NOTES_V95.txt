@@ -1,0 +1,7 @@
+
+v95 owner release approvals build
+
+- Added Owner Release Approvals workflow at /owner-release-approvals
+- Added local storage backed owner release approvals service + seed data
+- Added Owner Release Approvals to super-admin sidebar
+- No deploy/auth config changes

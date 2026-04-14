@@ -75,6 +75,7 @@ import {
   BookOpen,
   UploadCloud,
   Rocket,
+  Target,
   LogOut,
   type LucideIcon
 } from 'lucide-react';
@@ -336,6 +337,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner QBRs', href: '/owner-qbrs', icon: Presentation },
   { label: 'Owner Onboarding Pipeline', href: '/owner-onboarding-pipeline', icon: Rocket },
   { label: 'Owner Portfolio Risks', href: '/owner-portfolio-risks', icon: AlertTriangle },
+  { label: 'Owner Success Plans', href: '/owner-success-plans', icon: Target },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

@@ -81,6 +81,7 @@ import {
   UploadCloud,
   Rocket,
   Target,
+  Map as MapIcon,
   LogOut,
   type LucideIcon
 } from 'lucide-react';

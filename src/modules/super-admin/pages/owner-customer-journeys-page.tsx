@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Map, Search, ShieldCheck } from 'lucide-react';
+import { Map as MapIcon, Search, ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/forms/input';
@@ -101,7 +101,7 @@ export function OwnerCustomerJourneysPage() {
         <div className="space-y-4">
           <Card>
             <div className="mb-3 flex items-center gap-2">
-              <Map className="h-4 w-4 text-sky-300" />
+              <MapIcon className="h-4 w-4 text-sky-300" />
               <p className="text-sm font-medium text-white">Journey spotlight</p>
             </div>
             {selected ? (

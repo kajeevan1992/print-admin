@@ -348,7 +348,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Onboarding Pipeline', href: '/owner-onboarding-pipeline', icon: Rocket },
   { label: 'Owner Portfolio Risks', href: '/owner-portfolio-risks', icon: AlertTriangle },
   { label: 'Owner Success Plans', href: '/owner-success-plans', icon: Target },
-  { label: 'Owner Customer Journeys', href: '/owner-customer-journeys', icon: Map },
+  { label: 'Owner Customer Journeys', href: '/owner-customer-journeys', icon: MapIcon },
   { label: 'Owner Account Plans', href: '/owner-account-plans', icon: ClipboardList },
   { label: 'Owner Stakeholder Map', href: '/owner-stakeholder-map', icon: Users },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },

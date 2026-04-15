@@ -1,0 +1,6 @@
+v111 hotfix build
+
+- Fixed client-side crash caused by lucide Map icon name colliding with JavaScript Map
+- Aliased Map imports to MapIcon where needed
+- Patched sidebar/icon references safely
+- No feature additions in this build

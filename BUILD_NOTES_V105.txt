@@ -1,0 +1,7 @@
+
+v105 owner stakeholder map build
+
+- Added Owner Stakeholder Map workflow at /owner-stakeholder-map
+- Added local storage backed owner stakeholder map service + seed data
+- Added Owner Stakeholder Map to super-admin sidebar
+- No deploy/auth config changes

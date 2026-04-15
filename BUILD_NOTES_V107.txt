@@ -1,0 +1,7 @@
+
+v107 owner executive briefings build
+
+- Added Owner Executive Briefings workflow at /owner-executive-briefings
+- Added local storage backed owner executive briefings service + seed data
+- Added Owner Executive Briefings to super-admin sidebar
+- No deploy/auth config changes

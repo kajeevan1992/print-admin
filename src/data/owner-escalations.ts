@@ -1,51 +1,51 @@
-export type OwnerEscalationSeverity = 'watch' | 'high' | 'critical';
-export type OwnerEscalationStatus = 'open' | 'investigating' | 'blocked' | 'resolved';
-export type OwnerEscalationDomain = 'billing' | 'activation' | 'deployment' | 'support';
+
+export type OwnerEscalationStatus = 'open' | 'monitoring' | 'resolved';
+export type OwnerEscalationScope = 'customer' | 'billing' | 'technical';
 
 export type OwnerEscalationRecord = {
   id: string;
   tenant: string;
-  domain: OwnerEscalationDomain;
   title: string;
-  summary: string;
-  severity: OwnerEscalationSeverity;
+  scope: OwnerEscalationScope;
   status: OwnerEscalationStatus;
+  severity: string;
   owner: string;
-  updatedAt: string;
+  dueDate: string;
+  summary: string;
 };
 
 export const ownerEscalationSeed: OwnerEscalationRecord[] = [
   {
-    id: 'esc-1',
-    tenant: 'BluePeak Mailers',
-    domain: 'billing',
-    title: 'Payout risk hold',
-    summary: 'Finance flagged the account after two failed settlement retries ahead of next release.',
-    severity: 'critical',
-    status: 'investigating',
-    owner: 'Finance Ops',
-    updatedAt: '2026-04-11'
-  },
-  {
-    id: 'esc-2',
-    tenant: 'PixelPress Studio',
-    domain: 'activation',
-    title: 'Launch readiness blocked',
-    summary: 'Store cannot go live until demo content approval and storefront QA are signed off.',
-    severity: 'high',
-    status: 'blocked',
-    owner: 'Owner Ops',
-    updatedAt: '2026-04-10'
-  },
-  {
-    id: 'esc-3',
+    id: 'escalation-1',
     tenant: 'Northstar Print',
-    domain: 'deployment',
-    title: 'Release watchlist',
-    summary: 'Production deployment is healthy, but owner visibility is needed before the evening window.',
-    severity: 'watch',
+    title: 'Executive pricing exception review',
+    scope: 'billing',
     status: 'open',
-    owner: 'Platform Ops',
-    updatedAt: '2026-04-09'
+    severity: 'High',
+    owner: 'Owner Ops',
+    dueDate: '2026-04-21',
+    summary: 'Escalation opened to resolve a pricing exception before expansion approval.'
+  },
+  {
+    id: 'escalation-2',
+    tenant: 'BluePeak Mailers',
+    title: 'Renewal risk sponsor escalation',
+    scope: 'customer',
+    status: 'monitoring',
+    severity: 'Medium',
+    owner: 'Finance Admin',
+    dueDate: '2026-04-24',
+    summary: 'Monitoring sponsor engagement after renewal risk discussion and billing review.'
+  },
+  {
+    id: 'escalation-3',
+    tenant: 'PixelPress Studio',
+    title: 'Launch blocker technical escalation',
+    scope: 'technical',
+    status: 'resolved',
+    severity: 'High',
+    owner: 'Support Admin',
+    dueDate: '2026-04-16',
+    summary: 'Technical blocker was escalated and resolved ahead of launch validation.'
   }
 ];

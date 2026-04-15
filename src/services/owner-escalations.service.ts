@@ -1,8 +1,9 @@
+
 import { ownerEscalationSeed, type OwnerEscalationRecord } from '@/data/owner-escalations';
 
 const STORAGE_KEY = 'print-admin.owner-escalations';
 
-const wait = async () => new Promise((resolve) => setTimeout(resolve, 70));
+const wait = async () => new Promise((resolve) => setTimeout(resolve, 60));
 
 function readStore<T>(key: string, fallback: T[]): T[] {
   if (typeof window === 'undefined') return fallback;

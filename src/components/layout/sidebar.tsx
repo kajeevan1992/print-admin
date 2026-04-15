@@ -339,6 +339,7 @@ const superAdminNavItems: NavItem[] = [
   { label: 'Owner Portfolio Risks', href: '/owner-portfolio-risks', icon: AlertTriangle },
   { label: 'Owner Success Plans', href: '/owner-success-plans', icon: Target },
   { label: 'Owner Customer Journeys', href: '/owner-customer-journeys', icon: Map },
+  { label: 'Owner Account Plans', href: '/owner-account-plans', icon: ClipboardList },
   { label: 'Licensing Center', href: '/licensing-center', icon: KeyRound },
   { label: 'Admin Users', href: '/admin-users', icon: Users2 },
   { label: 'Store Activations', href: '/organizations', icon: Store },

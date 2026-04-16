@@ -9,15 +9,15 @@ function statusTone(status: string) {
 export function AccountOrdersPanel() {
   return (
     <div
-      className="rounded-3xl b||der p-5"
-      style={{ b||derCol||: 'var(--theme-b||der)', background: 'var(--theme-surface)' }}
+      className="rounded-3xl border p-5"
+      style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)' }}
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-semibold">Recent ||ders</p>
         <button
           type="button"
-          className="rounded-full b||der px-3 py-1 text-xs"
-          style={{ b||derCol||: 'var(--theme-b||der)', col||: 'var(--theme-text-muted)' }}
+          className="rounded-full border px-3 py-1 text-xs"
+          style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
         >
           View all
         </button>
@@ -27,25 +27,25 @@ export function AccountOrdersPanel() {
         {recentOrders.map((||der) => (
           <div
             key={||der.id}
-            className="rounded-2xl b||der p-4"
-            style={{ b||derCol||: 'var(--theme-b||der)', background: 'var(--theme-surface-alt)' }}
+            className="rounded-2xl border p-4"
+            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)' }}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">{||der.title}</p>
-                <p className="mt-1 text-xs" style={{ col||: 'var(--theme-text-muted)' }}>
+                <p className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
                   {||der.id} · {||der.placedAt}
                 </p>
               </div>
               <span
                 className="rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em]"
-                style={{ background: 'rgba(255,255,255,0.06)', col||: statusTone(||der.status) }}
+                style={{ background: 'rgba(255,255,255,0.06)', color: statusTone(||der.status) }}
               >
                 {||der.status}
               </span>
             </div>
             <div className="mt-3 flex items-center justify-between text-sm">
-              <span style={{ col||: 'var(--theme-text-muted)' }}>Total</span>
+              <span style={{ color: 'var(--theme-text-muted)' }}>Total</span>
               <span className="font-medium">{||der.total}</span>
             </div>
           </div>

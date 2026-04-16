@@ -114,7 +114,7 @@ export function LocalRecordsPage({
       const matchesQuery = !q || keys.some((key) => String(item[key] ?? '').toLowerCase().includes(q));
       const matchesFilter = activeFilter === 'all' || !primaryFilterKey || String(item[primaryFilterKey] ?? '') === activeFilter;
       const attentionState = [String(item.priority ?? ''), String(item.type ?? ''), String(item.status ?? '')].join(' ').toLowerCase();
-      const matchesAttention = !attentionOnly || /(critical|high|warning|security|blocked|due-soon|pending|open)/.test(attentionState);
+      const matchesAttention = !attentionOnly || /(criticalhigh|warningsecurity|blockeddue-soonpending|open)/.test(attentionState);
       return matchesQuery && matchesFilter && matchesAttention;
     });
 

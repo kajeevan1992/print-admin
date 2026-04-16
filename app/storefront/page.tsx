@@ -41,6 +41,13 @@ export default function StorefrontHomePage() {
             >
               Upload artwork
             </Link>
+            <Link
+              href="/storefront-isolation"
+              className="rounded-full border px-5 py-3 text-sm"
+              style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+            >
+              Storefront isolation
+            </Link>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-imp||t { recentOrders } from '@/data/customer-account';
+import { recentOrders } from '@/data/customer-account';
 
 function statusTone(status: string) {
   if (status === 'delivered' || status === 'shipped') return 'var(--theme-success)';
@@ -6,7 +6,7 @@ function statusTone(status: string) {
   return 'var(--theme-accent)';
 }
 
-exp||t function AccountOrdersPanel() {
+export function AccountOrdersPanel() {
   return (
     <div
       className="rounded-3xl b||der p-5"

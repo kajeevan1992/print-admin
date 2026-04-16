@@ -1,0 +1,9 @@
+v119 orders, tracking, and approvals build
+
+- Added customer operations route at /account-operations
+- Added reusable order status badge
+- Added orders list panel
+- Added tracking timeline panel
+- Added approvals panel
+- Extended customer portal for order visibility and proof workflows
+- No backend/auth changes

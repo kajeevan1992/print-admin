@@ -1,12 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { demoPage } from '@/storefront/editor/page-schema';
+import { demoPage, sectionPresets, type SectionType } from '@/storefront/editor/page-schema';
 import { SectionRenderer } from '@/components/editor/section-renderer';
 import { VisualEditorPanel } from '@/components/editor/visual-editor-panel';
+import { SectionLibrary } from '@/components/editor/section-library';
 
 export default function StorefrontEditorPage() {
   const [page, setPage] = useState(demoPage);
+
+  function addSection(type: SectionType) {
+    const nextSection = sectionPresets[type]();
+    setPage((current) => ({
+      ...current,
+      sections: [...current.sections, nextSection]
+    }));
+  }
 
   return (
     <div className="grid gap-6 p-6 xl:grid-cols-[420px_1fr]">
@@ -17,11 +26,14 @@ export default function StorefrontEditorPage() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">{page.name}</h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            Edit section content on the left and preview the storefront output on the right.
+            Add, remove, and edit structured storefront sections while keeping the page JSON schema clean.
           </p>
         </div>
 
-        <VisualEditorPanel page={page} onChange={setPage} />
+        <div className="space-y-4">
+          <SectionLibrary onAdd={addSection} />
+          <VisualEditorPanel page={page} onChange={setPage} />
+        </div>
       </div>
 
       <div>

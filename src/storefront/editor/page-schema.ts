@@ -12,6 +12,32 @@ export type PageSchema = {
   sections: Section[];
 };
 
+export const sectionPresets: Record<SectionType, () => Section> = {
+  hero: () => ({
+    id: `hero-${Date.now()}`,
+    type: 'hero',
+    props: {
+      title: 'New hero title',
+      subtitle: 'New hero subtitle'
+    }
+  }),
+  text: () => ({
+    id: `text-${Date.now()}`,
+    type: 'text',
+    props: {
+      text: 'New editable text block'
+    }
+  }),
+  cta: () => ({
+    id: `cta-${Date.now()}`,
+    type: 'cta',
+    props: {
+      label: 'Call to action',
+      description: 'New call-to-action description'
+    }
+  })
+};
+
 export const demoPage: PageSchema = {
   id: 'home',
   name: 'Homepage',

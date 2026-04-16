@@ -27,6 +27,14 @@ export function VisualEditorPanel({
     onChange(updated);
   }
 
+  function removeSection(id: string) {
+    const updated = {
+      ...page,
+      sections: page.sections.filter((section) => section.id !== id)
+    };
+    onChange(updated);
+  }
+
   return (
     <div className="space-y-4">
       {page.sections.map((section) => (
@@ -40,12 +48,22 @@ export function VisualEditorPanel({
               <p className="text-sm font-semibold">{section.type}</p>
               <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{section.id}</p>
             </div>
-            <span
-              className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
-              style={{ background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
-            >
-              Editable
-            </span>
+            <div className="flex items-center gap-2">
+              <span
+                className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
+                style={{ background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
+              >
+                Editable
+              </span>
+              <button
+                type="button"
+                onClick={() => removeSection(section.id)}
+                className="rounded-full border px-3 py-1 text-[11px]"
+                style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
+              >
+                Remove
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -67,6 +85,15 @@ export function VisualEditorPanel({
           </div>
         </div>
       ))}
+
+      {!page.sections.length ? (
+        <div
+          className="rounded-3xl border p-4 text-sm"
+          style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)', color: 'var(--theme-text-muted)' }}
+        >
+          This page has no sections yet. Add one from the section library above.
+        </div>
+      ) : null}
     </div>
   );
 }

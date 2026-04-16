@@ -13,7 +13,7 @@ export function AccountOrdersPanel() {
       style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)' }}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold">Recent ||ders</p>
+        <p className="text-sm font-semibold">Recent orders</p>
         <button
           type="button"
           className="rounded-full border px-3 py-1 text-xs"
@@ -24,29 +24,33 @@ export function AccountOrdersPanel() {
       </div>
 
       <div className="mt-4 space-y-3">
-        {recentOrders.map((||der) => (
+        {recentOrders.map((order) => (
           <div
-            key={||der.id}
+            key={order.id}
             className="rounded-2xl border p-4"
             style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)' }}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-medium">{||der.title}</p>
-                <p className="mt-1 text-xs" style={{ color: 'var(--theme-text-muted)' }}>
-                  {||der.id} · {||der.placedAt}
+                <p className="text-sm font-medium">{order.title}</p>
+                <p
+                  className="mt-1 text-xs"
+                  style={{ color: 'var(--theme-text-muted)' }}
+                >
+                  {order.id} · {order.placedAt}
                 </p>
               </div>
               <span
                 className="rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em]"
-                style={{ background: 'rgba(255,255,255,0.06)', color: statusTone(||der.status) }}
+                style={{ background: 'rgba(255,255,255,0.06)', color: statusTone(order.status) }}
               >
-                {||der.status}
+                {order.status}
               </span>
             </div>
+
             <div className="mt-3 flex items-center justify-between text-sm">
               <span style={{ color: 'var(--theme-text-muted)' }}>Total</span>
-              <span className="font-medium">{||der.total}</span>
+              <span className="font-medium">{order.total}</span>
             </div>
           </div>
         ))}

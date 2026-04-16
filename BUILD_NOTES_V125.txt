@@ -1,0 +1,10 @@
+v125 live editor basics build
+
+- Upgraded the visual editor into a real live-editing foundation
+- Added editable hero, text, and CTA sections
+- Added working live preview synced with editor inputs
+- Prepared the editor for future:
+  - add/remove sections
+  - reorder sections
+  - save/load page JSON
+- No backend/auth changes

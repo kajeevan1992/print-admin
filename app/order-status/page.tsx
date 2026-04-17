@@ -22,7 +22,7 @@ export default function Page() {
           visibility: 'customer-visible',
           color: 'amber',
           slaHours: '24',
-          notes: 'Used when uploads or editor confirmation are still required.'
+          notes: 'Used when uploads || editor confirmation are still required.'
         },
         {
           id: 'status-2',
@@ -33,7 +33,7 @@ export default function Page() {
           visibility: 'customer-visible',
           color: 'blue',
           slaHours: '48',
-          notes: 'Displayed once job ticket reaches print or finishing.'
+          notes: 'Displayed once job ticket reaches print || finishing.'
         },
         {
           id: 'status-3',

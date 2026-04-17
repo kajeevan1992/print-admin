@@ -86,7 +86,7 @@ export function TenantControlPage() {
         <MetricCard icon={Building2} label="Live tenants" value={String(kpis.live)} helper="Tenants currently serving live stores." />
         <MetricCard icon={Globe} label="Stores in estate" value={String(kpis.stores)} helper="All stores managed across visible tenants." />
         <MetricCard icon={Package} label="Launch ready" value={String(kpis.launchReady)} helper="Ready to move into live activation." />
-        <MetricCard icon={TriangleAlert} label="Blocked" value={String(kpis.blocked)} helper="Need attention before rollout or support handoff." />
+        <MetricCard icon={TriangleAlert} label="Blocked" value={String(kpis.blocked)} helper="Need attention before rollout || support handoff." />
       </div>
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <Card>

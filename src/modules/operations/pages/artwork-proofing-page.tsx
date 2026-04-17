@@ -140,7 +140,7 @@ export function ArtworkProofingPage() {
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
-            <Input className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order, customer, owner, or issue..." />
+            <Input className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order, customer, owner, || issue..." />
           </div>
           <Select value={status} options={['all', ...statusOrder]} onChange={(e) => setStatus(e.target.value)} />
           <Select value={risk} options={['all', 'low', 'medium', 'high']} onChange={(e) => setRisk(e.target.value)} />

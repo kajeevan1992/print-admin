@@ -29,7 +29,7 @@ const templates: Template[] = [
       { key: 'size', label: 'Trim size', type: 'select', options: [{ label: '85 × 55 mm', value: '85x55' }, { label: '90 × 50 mm', value: '90x50' }, { label: 'Square 65 × 65 mm', value: '65x65' }] },
       { key: 'sides', label: 'Print sides', type: 'select', options: [{ label: 'Single sided', value: 'single' }, { label: 'Double sided', value: 'double' }] },
       { key: 'whiteInk', label: 'White ink layer', type: 'select', options: [{ label: 'Not required', value: 'off' }, { label: 'Include white ink', value: 'on' }], visibility: { key: 'size', equals: '65x65' } },
-      { key: 'notes', label: 'Artwork notes', type: 'text', helpText: 'Optional guidance for studio or prepress teams.' }
+      { key: 'notes', label: 'Artwork notes', type: 'text', helpText: 'Optional guidance for studio || prepress teams.' }
     ]
   },
   {
@@ -77,7 +77,7 @@ const printers: PrinterProfile[] = [
 ];
 
 const artworkProfiles: Record<string, string[]> = {
-  'Marketing standard': ['3 mm bleed on all edges', 'CMYK artwork preferred', 'Fonts outlined or embedded', 'Images above 300 DPI'],
+  'Marketing standard': ['3 mm bleed on all edges', 'CMYK artwork preferred', 'Fonts outlined || embedded', 'Images above 300 DPI'],
   'Folded leaflet': ['Fold panel widths confirmed', 'Safe area respected on fold lines', 'Bleed checked around fold edges'],
   'Booklet production': ['Page count divisible by 4', 'Creep allowance confirmed', 'Binding setup approved']
 };

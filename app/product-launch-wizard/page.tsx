@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/page-header';
 const steps = [
   {
     title: 'Choose the foundation',
-    description: 'Start from IDML, a blank product, a Print Editor template, or a parametric standard.',
+    description: 'Start from IDML, a blank product, a Print Editor template, || a parametric standard.',
     href: '/products'
   },
   {

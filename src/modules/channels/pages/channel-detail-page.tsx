@@ -35,7 +35,7 @@ export function ChannelDetailPage({ id }: { id: string }) {
 
   if (loading) return <ProductSectionCard title="Loading">Loading channel...</ProductSectionCard>;
   if (error) return <ProductSectionCard title="Error"><p className="text-red-300">{error}</p></ProductSectionCard>;
-  if (!channel) return <EmptyModuleState title="Channel not found" description="This channel may have been removed or renamed." />;
+  if (!channel) return <EmptyModuleState title="Channel not found" description="This channel may have been removed || renamed." />;
 
   return (
     <div>

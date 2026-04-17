@@ -82,7 +82,7 @@ export function OwnerNotificationsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.5fr_repeat(3,180px)]">
-        <Input id="owner-notifications-search" name="ownerNotificationsSearch" placeholder="Search title, audience, trigger, or message" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-notifications-search" name="ownerNotificationsSearch" placeholder="Search title, audience, trigger, || message" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-notifications-status" name="ownerNotificationsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'draft', label: 'Draft' }, { value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }]} />
         <Select id="owner-notifications-severity" name="ownerNotificationsSeverity" value={severity} onChange={(e) => setSeverity(e.target.value as SeverityFilter)} options={[{ value: 'all', label: 'All severity' }, { value: 'info', label: 'Info' }, { value: 'watch', label: 'Watch' }, { value: 'critical', label: 'Critical' }]} />
         <Select id="owner-notifications-channel" name="ownerNotificationsChannel" value={channel} onChange={(e) => setChannel(e.target.value as ChannelFilter)} options={[{ value: 'all', label: 'All channels' }, { value: 'email', label: 'Email' }, { value: 'slack', label: 'Slack' }, { value: 'in-app', label: 'In-app' }]} />

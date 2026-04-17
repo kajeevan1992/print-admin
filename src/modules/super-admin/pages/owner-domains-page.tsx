@@ -73,7 +73,7 @@ export function OwnerDomainsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-domains-search" name="ownerDomainsSearch" placeholder="Search tenant, hostname, DNS, owner, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-domains-search" name="ownerDomainsSearch" placeholder="Search tenant, hostname, DNS, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-domains-status" name="ownerDomainsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'verified', label: 'Verified' }, { value: 'pending', label: 'Pending' }, { value: 'issue', label: 'Issue' }]} />
         <Select id="owner-domains-type" name="ownerDomainsType" value={type} onChange={(e) => setType(e.target.value as TypeFilter)} options={[{ value: 'all', label: 'All types' }, { value: 'primary', label: 'Primary' }, { value: 'redirect', label: 'Redirect' }, { value: 'preview', label: 'Preview' }]} />
       </div>

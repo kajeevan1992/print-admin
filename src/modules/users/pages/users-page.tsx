@@ -74,7 +74,7 @@ export function UsersPage() {
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-        <Input placeholder="Search admin users by name, email, role, or department..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder="Search admin users by name, email, role, || department..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <Card>
           <p className="text-xs uppercase tracking-wide text-textMuted">Quick access</p>
           <div className="mt-3 flex flex-wrap gap-2 text-sm">
@@ -89,7 +89,7 @@ export function UsersPage() {
 
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading users...</div> : null}
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
-      {!loading && !error && adminUsers.length === 0 ? <EmptyModuleState title="No admin users found" description="Try a different search or invite your first admin user." /> : null}
+      {!loading && !error && adminUsers.length === 0 ? <EmptyModuleState title="No admin users found" description="Try a different search || invite your first admin user." /> : null}
 
       {!loading && !error && adminUsers.length > 0 ? (
         <div className="space-y-4">

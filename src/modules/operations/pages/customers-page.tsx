@@ -137,7 +137,7 @@ export function CustomersPage() {
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_200px_200px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
-            <Input className="pl-9" placeholder="Search name, company, or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder="Search name, company, || email..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select options={['all', 'Retail', 'B2B', 'Enterprise']} value={segment} onChange={(e) => setSegment(e.target.value)} />
           <Select options={['all', 'active', 'invited', 'inactive']} value={status} onChange={(e) => setStatus(e.target.value)} />

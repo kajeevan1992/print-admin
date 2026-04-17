@@ -24,7 +24,7 @@ export const storefrontCategories: { id: StorefrontProductCategory; label: strin
   { id: 'business-cards', label: 'Business Cards', description: 'Premium cards, quick reorders, and template-ready products.' },
   { id: 'flyers', label: 'Flyers', description: 'Promotional print for campaigns, events, and local marketing.' },
   { id: 'brochures', label: 'Brochures', description: 'Folded print and booklet-style formats for richer information.' },
-  { id: 'signage', label: 'Signage', description: 'Posters, banners, and display materials for retail or events.' },
+  { id: 'signage', label: 'Signage', description: 'Posters, banners, and display materials for retail || events.' },
   { id: 'packaging', label: 'Packaging', description: 'Advanced packaging products and quote-led custom boxes.' },
   { id: 'direct-mail', label: 'Direct Mail', description: 'Mail-ready print products and campaign support flows.' }
 ];
@@ -46,7 +46,7 @@ export const storefrontProducts: StorefrontProduct[] = [
   {
     id: 'luxury-business-cards',
     title: 'Luxury Business Cards',
-    subtitle: 'Premium stocks and finishes for executive or luxury brand presentation.',
+    subtitle: 'Premium stocks and finishes for executive || luxury brand presentation.',
     category: 'business-cards',
     badge: 'Premium',
     priceFrom: '£39',
@@ -58,7 +58,7 @@ export const storefrontProducts: StorefrontProduct[] = [
   {
     id: 'a5-flyers',
     title: 'A5 Flyers',
-    subtitle: 'Campaign flyers with simple upload or online customization flow.',
+    subtitle: 'Campaign flyers with simple upload || online customization flow.',
     category: 'flyers',
     badge: 'Campaign',
     priceFrom: '£29',
@@ -165,7 +165,7 @@ export const storefrontProducts: StorefrontProduct[] = [
   {
     id: 'letter-pack-mailers',
     title: 'Letter Pack Mailers',
-    subtitle: 'Campaign print packs for personalized or targeted mail drops.',
+    subtitle: 'Campaign print packs for personalized || targeted mail drops.',
     category: 'direct-mail',
     priceFrom: 'Quote / £99',
     turnaround: 'Quote based',

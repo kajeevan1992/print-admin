@@ -49,7 +49,7 @@ export default function StoreLaunchWizardPage() {
               <Globe2 size={12} /> Store-grade workflow
             </div>
             <h2 className="mt-4 max-w-2xl text-[2rem] font-semibold tracking-[-0.05em] text-white">Launch a storefront with fewer handoffs and cleaner review points.</h2>
-            <p className="mt-3 max-w-2xl text-[13px] leading-6 text-textMuted">Use this guided path when a new storefront, portal, or client experience needs a polished setup rather than a list of disconnected admin pages.</p>
+            <p className="mt-3 max-w-2xl text-[13px] leading-6 text-textMuted">Use this guided path when a new storefront, portal, || client experience needs a polished setup rather than a list of disconnected admin pages.</p>
             <div className="mt-6 grid gap-3 md:grid-cols-3">
               {phases.map((phase, index) => {
                 const Icon = phase.icon;

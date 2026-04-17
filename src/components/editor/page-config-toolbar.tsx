@@ -47,7 +47,7 @@ export function PageConfigToolbar({
       <div className="mb-3">
         <p className="text-sm font-semibold">Page config</p>
         <p className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-          Save the current page schema, load it back, reset to demo content, or copy JSON for future persistence.
+          Save the current page schema, load it back, reset to demo content, || copy JSON for future persistence.
         </p>
       </div>
 

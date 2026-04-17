@@ -62,7 +62,7 @@ export function OwnerAuditLogPage() {
         <Input
           id="owner-audit-search"
           name="ownerAuditSearch"
-          placeholder="Search actor, tenant, action, or summary"
+          placeholder="Search actor, tenant, action, || summary"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           leadingIcon={<Search className="h-4 w-4" />}

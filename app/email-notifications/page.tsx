@@ -110,7 +110,7 @@ export default function Page() {
             owner: 'Trade buying',
             subject: 'Confirm ETA for outstanding subcontract work',
             slaHours: '4',
-            notes: 'Used when subcontract finishing or overflow print is slipping.'
+            notes: 'Used when subcontract finishing || overflow print is slipping.'
           }
         }
       ]}

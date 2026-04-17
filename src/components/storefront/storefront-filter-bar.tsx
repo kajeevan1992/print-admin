@@ -28,7 +28,7 @@ export function StorefrontFilterBar({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search products, categories, or print needs"
+          placeholder="Search products, categories, || print needs"
           className="w-full rounded-2xl border px-4 py-3 text-sm outline-none"
           style={{
             borderColor: 'var(--theme-border)',

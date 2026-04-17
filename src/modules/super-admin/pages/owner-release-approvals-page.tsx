@@ -73,7 +73,7 @@ export function OwnerReleaseApprovalsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-release-approvals-search" name="ownerReleaseApprovalsSearch" placeholder="Search tenant, title, approver, risk, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-release-approvals-search" name="ownerReleaseApprovalsSearch" placeholder="Search tenant, title, approver, risk, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-release-approvals-status" name="ownerReleaseApprovalsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'blocked', label: 'Blocked' }]} />
         <Select id="owner-release-approvals-scope" name="ownerReleaseApprovalsScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'tenant', label: 'Tenant' }, { value: 'platform', label: 'Platform' }, { value: 'environment', label: 'Environment' }]} />
       </div>

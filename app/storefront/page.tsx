@@ -79,7 +79,7 @@ export default function StorefrontHomePage() {
         body="These blocks are reusable across theme variants and client-branded storefront implementations."
       >
         <div className="grid gap-4 md:grid-cols-3">
-          <StorefrontProductCard title="Business Cards" subtitle="Fast-turn cards with upload or online customization flow." price="From £19" badge="Top seller" />
+          <StorefrontProductCard title="Business Cards" subtitle="Fast-turn cards with upload || online customization flow." price="From £19" badge="Top seller" />
           <StorefrontProductCard title="Marketing Flyers" subtitle="Promotional print with reusable templates and campaign layouts." price="From £29" badge="Campaign" />
           <StorefrontProductCard title="Custom Packaging" subtitle="Advanced product path for parametric packaging and quote-led ordering." price="Quote / From £89" badge="Advanced" />
         </div>
@@ -88,12 +88,12 @@ export default function StorefrontHomePage() {
       <StorefrontSection
         eyebrow="Customer journey"
         title="Built for multiple print buying paths"
-        body="The storefront is being structured so one product can support upload, online design, template-driven, or quote-first flows."
+        body="The storefront is being structured so one product can support upload, online design, template-driven, || quote-first flows."
       >
         <div className="grid gap-4 md:grid-cols-4">
           {[
             ['Browse', 'Customers find products through category-first navigation and reusable listing layouts.'],
-            ['Choose flow', 'Each product can branch into upload artwork, use template, customize online, or request quote.'],
+            ['Choose flow', 'Each product can branch into upload artwork, use template, customize online, || request quote.'],
             ['Checkout', 'Shared commerce shell will support shipping, payment, PO/invoice, and approval states.'],
             ['Track & reorder', 'Account area will handle projects, approvals, tracking, and repeat ordering.']
           ].map(([title, body]) => (

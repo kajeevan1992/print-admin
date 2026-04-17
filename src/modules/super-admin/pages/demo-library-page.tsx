@@ -89,7 +89,7 @@ export function DemoLibraryPage() {
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenant, pack, or owner..." />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenant, pack, || owner..." />
             <Select value={status} onChange={(e) => setStatus(e.target.value as DemoStatus)} options={[{ value: 'all', label: 'All status' }, { value: 'draft', label: 'Draft' }, { value: 'uploaded', label: 'Uploaded' }, { value: 'approved', label: 'Approved' }]} />
           </div>
           <div className="space-y-3">
@@ -134,7 +134,7 @@ export function DemoLibraryPage() {
             <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Usage guidance</p>
             <ul className="mt-4 space-y-2 text-sm text-textMuted">
               <li>Use <span className="text-white">Draft</span> while building sample assets and storefront data.</li>
-              <li>Use <span className="text-white">Uploaded</span> once the pack has been attached to a tenant or sales demo.</li>
+              <li>Use <span className="text-white">Uploaded</span> once the pack has been attached to a tenant || sales demo.</li>
               <li>Use <span className="text-white">Approved</span> when the pack is safe for reuse in onboarding.</li>
             </ul>
           </Card>

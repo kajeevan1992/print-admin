@@ -8,7 +8,7 @@ export function ProductPreviewPanel() {
         <div>
           <p className="text-sm font-semibold">Preview area</p>
           <p className="mt-1 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            Shared preview shell for gallery, flat artwork previews, 3D views, or template previews.
+            Shared preview shell for gallery, flat artwork previews, 3D views, || template previews.
           </p>
         </div>
         <div className="rounded-full px-3 py-1 text-xs" style={{ background: 'var(--theme-surface)', color: 'var(--theme-text-muted)' }}>
@@ -23,7 +23,7 @@ export function ProductPreviewPanel() {
         <div className="text-center">
           <p className="text-sm font-medium">Product visual placeholder</p>
           <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            This panel will later support mockups, upload previews, editor previews, or 3D packaging views.
+            This panel will later support mockups, upload previews, editor previews, || 3D packaging views.
           </p>
         </div>
       </div>

@@ -167,7 +167,7 @@ export function QuotesPage() {
       <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr]">
         <Card className="space-y-4">
           <div className="grid gap-2 md:grid-cols-[2fr_1fr_1fr]">
-            <Input placeholder="Search quotes, customer, or channel..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder="Search quotes, customer, || channel..." value={search} onChange={(e) => setSearch(e.target.value)} />
             <Select options={['all', ...statusOptions]} value={status} onChange={(e) => setStatus(e.target.value as 'all' | QuoteRecord['status'])} />
             <Select options={['all', ...channelOptions]} value={channel} onChange={(e) => setChannel(e.target.value)} />
           </div>
@@ -236,7 +236,7 @@ export function QuotesPage() {
               </div>
 
               <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">
-                Recommended next step: {selected.status === 'draft' ? 'finalise pricing and send to customer.' : selected.status === 'sent' ? 'follow up and convert to approved order.' : selected.status === 'approved' ? 'handoff to order creation and production.' : 're-open or duplicate for a refreshed quote.'}
+                Recommended next step: {selected.status === 'draft' ? 'finalise pricing and send to customer.' : selected.status === 'sent' ? 'follow up and convert to approved order.' : selected.status === 'approved' ? 'handoff to order creation and production.' : 're-open || duplicate for a refreshed quote.'}
               </div>
             </>
           ) : (

@@ -73,7 +73,7 @@ export function OwnerEnvironmentsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-environments-search" name="ownerEnvironmentsSearch" placeholder="Search tenant, env, region, channel, owner, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-environments-search" name="ownerEnvironmentsSearch" placeholder="Search tenant, env, region, channel, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-environments-status" name="ownerEnvironmentsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'healthy', label: 'Healthy' }, { value: 'warning', label: 'Warning' }, { value: 'maintenance', label: 'Maintenance' }]} />
         <Select id="owner-environments-type" name="ownerEnvironmentsType" value={type} onChange={(e) => setType(e.target.value as TypeFilter)} options={[{ value: 'all', label: 'All types' }, { value: 'production', label: 'Production' }, { value: 'staging', label: 'Staging' }, { value: 'demo', label: 'Demo' }]} />
       </div>

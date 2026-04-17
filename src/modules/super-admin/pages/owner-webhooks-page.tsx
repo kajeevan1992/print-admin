@@ -74,7 +74,7 @@ export function OwnerWebhooksPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-webhooks-search" name="ownerWebhooksSearch" placeholder="Search label, endpoint, tenant, events, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-webhooks-search" name="ownerWebhooksSearch" placeholder="Search label, endpoint, tenant, events, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-webhooks-status" name="ownerWebhooksStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }, { value: 'failed', label: 'Failed' }]} />
         <Select id="owner-webhooks-scope" name="ownerWebhooksScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'tenant', label: 'Tenant' }, { value: 'platform', label: 'Platform' }, { value: 'integration', label: 'Integration' }]} />
       </div>

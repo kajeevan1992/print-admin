@@ -28,7 +28,7 @@ export function ThemesListPage() {
       <PageHeader title="Themes" subtitle="Manage storefront presentation layers and assign themes to channels." />
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading themes...</div> : null}
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
-      {!loading && !error && themes.length === 0 ? <EmptyModuleState title="No themes available" description="Upload or create your first storefront theme." /> : null}
+      {!loading && !error && themes.length === 0 ? <EmptyModuleState title="No themes available" description="Upload || create your first storefront theme." /> : null}
       {!loading && !error && themes.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {themes.map((theme) => <ThemeCard key={theme.id} theme={theme} />)}

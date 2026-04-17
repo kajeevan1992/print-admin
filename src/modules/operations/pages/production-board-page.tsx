@@ -144,7 +144,7 @@ export function ProductionBoardPage() {
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} />
-            <Input className="pl-9" placeholder="Search order, product, or plant..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder="Search order, product, || plant..." value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={plant} options={plants} onChange={(e) => setPlant(e.target.value)} />
           <Select value={riskFilter} options={['all', 'low', 'medium', 'high']} onChange={(e) => setRiskFilter(e.target.value)} />

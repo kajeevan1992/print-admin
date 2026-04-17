@@ -73,7 +73,7 @@ export function OwnerPortfolioRisksPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-risks-search" name="ownerRisksSearch" placeholder="Search tenant, title, owner, impact, or plan" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-risks-search" name="ownerRisksSearch" placeholder="Search tenant, title, owner, impact, || plan" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-risks-status" name="ownerRisksStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'open', label: 'Open' }, { value: 'watching', label: 'Watching' }, { value: 'mitigated', label: 'Mitigated' }]} />
         <Select id="owner-risks-scope" name="ownerRisksScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'customer', label: 'Customer' }, { value: 'revenue', label: 'Revenue' }, { value: 'operations', label: 'Operations' }]} />
       </div>

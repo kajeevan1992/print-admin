@@ -71,7 +71,7 @@ export const lifecycleTimeline: LifecycleTimelineStep[] = [
     id: 'step-3',
     label: 'Approval / payment clearance',
     state: 'done',
-    note: 'Any required approval or payment hold has been cleared.'
+    note: 'Any required approval || payment hold has been cleared.'
   },
   {
     id: 'step-4',

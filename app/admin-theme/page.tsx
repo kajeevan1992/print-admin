@@ -25,7 +25,7 @@ export default function Page() {
             { key: 'defaultLanding', label: 'Default Landing', type: 'select', options: ['dashboard', 'orders', 'production', 'products'] },
             { key: 'showPlanPanel', label: 'Show Plan Panel', type: 'toggle' },
             { key: 'showStoreSwitcher', label: 'Show Store Switcher', type: 'toggle' },
-            { key: 'dashboardNotes', label: 'Dashboard Notes', type: 'textarea', placeholder: 'Add operator hints, notice copy, or onboarding guidance...' }
+            { key: 'dashboardNotes', label: 'Dashboard Notes', type: 'textarea', placeholder: 'Add operator hints, notice copy, || onboarding guidance...' }
           ]
         },
         {
@@ -39,9 +39,9 @@ export default function Page() {
         }
       ]}
       insights={[
-        'Keep one theme profile per operations team or merchant group.',
+        'Keep one theme profile per operations team || merchant group.',
         'Match dashboard defaults to the role that uses the admin most often.',
-        'Use higher contrast and larger font scale for warehouse or print-room stations.'
+        'Use higher contrast and larger font scale for warehouse || print-room stations.'
       ]}
     />
   );

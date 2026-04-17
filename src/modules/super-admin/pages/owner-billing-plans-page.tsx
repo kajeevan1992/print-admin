@@ -75,7 +75,7 @@ export function OwnerBillingPlansPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-billing-plans-search" name="ownerBillingPlansSearch" placeholder="Search plan, tier, owner, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-billing-plans-search" name="ownerBillingPlansSearch" placeholder="Search plan, tier, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-billing-plans-status" name="ownerBillingPlansStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'draft', label: 'Draft' }, { value: 'active', label: 'Active' }, { value: 'retired', label: 'Retired' }]} />
         <Select id="owner-billing-plans-tier" name="ownerBillingPlansTier" value={tier} onChange={(e) => setTier(e.target.value as TierFilter)} options={[{ value: 'all', label: 'All tiers' }, { value: 'starter', label: 'Starter' }, { value: 'growth', label: 'Growth' }, { value: 'enterprise', label: 'Enterprise' }]} />
       </div>

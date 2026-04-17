@@ -60,7 +60,7 @@ export function LoginScreen() {
             </div>
             <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-white">Secure SaaS access for operators and owners.</h1>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-textMuted">
-              Sign in as a tenant user to operate a print business, or use the super admin account to manage customers,
+              Sign in as a tenant user to operate a print business, || use the super admin account to manage customers,
               licensing, billing controls, store activations, demo uploads, and deployments across your SaaS.
             </p>
 

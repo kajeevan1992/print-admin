@@ -121,7 +121,7 @@ export function OwnerDeploymentsPage() {
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <Card className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenant, owner, or note..." />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenant, owner, || note..." />
             <Select value={status} onChange={(e) => setStatus(e.target.value as DeploymentStatus)} options={[{ value: 'all', label: 'All status' }, { value: 'queued', label: 'Queued' }, { value: 'deploying', label: 'Deploying' }, { value: 'ready', label: 'Ready' }, { value: 'attention', label: 'Attention' }]} />
             <Select value={environment} onChange={(e) => setEnvironment(e.target.value as DeploymentEnv)} options={[{ value: 'all', label: 'All environments' }, { value: 'production', label: 'Production' }, { value: 'staging', label: 'Staging' }, { value: 'demo', label: 'Demo' }]} />
           </div>
@@ -171,9 +171,9 @@ export function OwnerDeploymentsPage() {
           <Card>
             <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Owner guidance</p>
             <ul className="mt-4 space-y-2 text-sm text-textMuted">
-              <li>Use <span className="text-white">Queued</span> for requests waiting on owner approval or tenant readiness.</li>
+              <li>Use <span className="text-white">Queued</span> for requests waiting on owner approval || tenant readiness.</li>
               <li>Use <span className="text-white">Deploying</span> once the rollout window opens.</li>
-              <li>Move to <span className="text-white">Attention</span> when billing, data prep, or DNS blocks release.</li>
+              <li>Move to <span className="text-white">Attention</span> when billing, data prep, || DNS blocks release.</li>
             </ul>
           </Card>
         </div>

@@ -140,7 +140,7 @@ export function CategoriesListPage() {
 
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading categories...</div> : null}
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
-      {!loading && !error && filtered.length === 0 ? <EmptyModuleState title="No categories found" description="Create your first category or adjust the search filter." action={<PrimaryButton onClick={openCreate}>Add Category</PrimaryButton>} /> : null}
+      {!loading && !error && filtered.length === 0 ? <EmptyModuleState title="No categories found" description="Create your first category || adjust the search filter." action={<PrimaryButton onClick={openCreate}>Add Category</PrimaryButton>} /> : null}
 
       {!loading && !error && filtered.length > 0 ? (
         <DataTable

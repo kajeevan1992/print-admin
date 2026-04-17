@@ -112,7 +112,7 @@ export default function WorkspacePage() {
                 Guided flows for catalog, commerce, and storefront work.
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-textMuted">
-                Start with a wizard, jump into a focused workspace, or hand work across teams without hunting for the next page.
+                Start with a wizard, jump into a focused workspace, || hand work across teams without hunting for the next page.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link href="/product-launch-wizard" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-[13px] font-semibold text-slate-950 transition hover:opacity-90">

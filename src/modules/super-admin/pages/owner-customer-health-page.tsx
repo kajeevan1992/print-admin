@@ -73,7 +73,7 @@ export function OwnerCustomerHealthPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-health-search" name="ownerHealthSearch" placeholder="Search tenant, risk, owner, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-health-search" name="ownerHealthSearch" placeholder="Search tenant, risk, owner, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-health-status" name="ownerHealthStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'healthy', label: 'Healthy' }, { value: 'watch', label: 'Watch' }, { value: 'at-risk', label: 'At risk' }]} />
         <Select id="owner-health-scope" name="ownerHealthScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'adoption', label: 'Adoption' }, { value: 'billing', label: 'Billing' }, { value: 'operations', label: 'Operations' }]} />
       </div>

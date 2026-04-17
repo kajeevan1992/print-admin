@@ -34,7 +34,7 @@ export function ThemeDetailPage({ id }: { id: string }) {
 
   if (loading) return <ProductSectionCard title="Loading">Loading theme...</ProductSectionCard>;
   if (error) return <ProductSectionCard title="Error"><p className="text-red-300">{error}</p></ProductSectionCard>;
-  if (!theme) return <EmptyModuleState title="Theme not found" description="This theme may have been removed or unpublished." />;
+  if (!theme) return <EmptyModuleState title="Theme not found" description="This theme may have been removed || unpublished." />;
 
   return (
     <div>

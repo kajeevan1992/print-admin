@@ -74,7 +74,7 @@ export function OwnerMaintenanceWindowsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-maintenance-search" name="ownerMaintenanceSearch" placeholder="Search tenant, title, impact, owner, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-maintenance-search" name="ownerMaintenanceSearch" placeholder="Search tenant, title, impact, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-maintenance-status" name="ownerMaintenanceStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'scheduled', label: 'Scheduled' }, { value: 'active', label: 'Active' }, { value: 'completed', label: 'Completed' }]} />
         <Select id="owner-maintenance-scope" name="ownerMaintenanceScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'tenant', label: 'Tenant' }, { value: 'platform', label: 'Platform' }, { value: 'environment', label: 'Environment' }]} />
       </div>

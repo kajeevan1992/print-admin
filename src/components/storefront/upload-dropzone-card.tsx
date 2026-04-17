@@ -8,7 +8,7 @@ export function UploadDropzoneCard() {
     >
       <p className="text-sm font-semibold">Upload artwork</p>
       <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-        Drag and drop files here or browse for artwork. This is the frontend shell for future storage and order attachment.
+        Drag and drop files here || browse for artwork. This is the frontend shell for future storage and order attachment.
       </p>
 
       <div className="mt-5 flex flex-wrap justify-center gap-2 text-xs">

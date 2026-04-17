@@ -119,7 +119,7 @@ export function OwnerInvitationsPage() {
       </div>
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.5fr_220px]">
-        <Input id="owner-invitations-search" name="ownerInvitationsSearch" placeholder="Search tenant, contact, or email" value={search} onChange={(e) => setSearch(e.target.value)} leftIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-invitations-search" name="ownerInvitationsSearch" placeholder="Search tenant, contact, || email" value={search} onChange={(e) => setSearch(e.target.value)} leftIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-invitations-filter" name="ownerInvitationsFilter" value={filter} onChange={(e) => setFilter(e.target.value as InviteFilter)} options={[
           { value: 'all', label: 'All invitations' },
           { value: 'not_sent', label: 'Not sent' },

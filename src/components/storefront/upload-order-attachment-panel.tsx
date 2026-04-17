@@ -9,9 +9,9 @@ export function UploadOrderAttachmentPanel() {
       <p className="text-sm font-semibold">Attach artwork to workflow</p>
       <div className="mt-4 grid gap-3">
         {[
-          ['New order', 'Send uploaded artwork into the order flow after checkout or quote approval.'],
-          ['Existing order', 'Attach updated files to a live order or production job.'],
-          ['Approval request', 'Submit artwork for review before print or customer sign-off.']
+          ['New order', 'Send uploaded artwork into the order flow after checkout || quote approval.'],
+          ['Existing order', 'Attach updated files to a live order || production job.'],
+          ['Approval request', 'Submit artwork for review before print || customer sign-off.']
         ].map(([title, body], idx) => (
           <button
             key={title}

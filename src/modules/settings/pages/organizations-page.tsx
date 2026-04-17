@@ -123,7 +123,7 @@ export function OrganizationsPage() {
       <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
           <Card className="grid gap-3 md:grid-cols-4">
-            <Input placeholder={isOwner ? 'Search tenant, storefront, or billing model...' : 'Search organizations...'} value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input placeholder={isOwner ? 'Search tenant, storefront, || billing model...' : 'Search organizations...'} value={search} onChange={(event) => setSearch(event.target.value)} />
             <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
             <Select value={billingFilter} onChange={(event) => setBillingFilter(event.target.value as typeof billingFilter)} options={[{ value: 'all', label: isOwner ? 'All commercial models' : 'All billing' }, { value: 'invoice', label: 'Invoice' }, { value: 'card', label: 'Card' }, { value: 'hybrid', label: 'Hybrid' }]} />
             <Select value={healthFilter} onChange={(event) => setHealthFilter(event.target.value as typeof healthFilter)} options={[{ value: 'all', label: isOwner ? 'All activation health' : 'All records' }, { value: 'healthy', label: 'Healthy' }, { value: 'watch', label: 'Watch' }, { value: 'critical', label: 'Critical' }]} />
@@ -166,7 +166,7 @@ export function OrganizationsPage() {
               </div>
               <div className="rounded-2xl border border-white/8 bg-panelMuted/60 p-4 text-sm text-textMuted">
                 <p className="mb-2 text-xs uppercase tracking-wide">{isOwner ? 'Readiness notes' : 'Notes'}</p>
-                <p>{selected.notes || (isOwner ? 'No owner notes yet. Add launch blockers, demo instructions, or deployment constraints from edit mode.' : 'No notes recorded.')}</p>
+                <p>{selected.notes || (isOwner ? 'No owner notes yet. Add launch blockers, demo instructions, || deployment constraints from edit mode.' : 'No notes recorded.')}</p>
               </div>
             </>
           ) : null}
@@ -182,7 +182,7 @@ export function OrganizationsPage() {
         { key: 'collections', label: 'Collections', placeholder: 'Healthcare Essentials, Corporate Templates' },
         { key: 'userGroups', label: 'User Groups', placeholder: 'Northwind Buyers' },
         { key: 'billingModel', label: 'Billing Model', type: 'select', options: ['invoice', 'card', 'hybrid'] },
-        { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Add launch blockers, PO requirements, or billing notes...' }
+        { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Add launch blockers, PO requirements, || billing notes...' }
       ]} values={form} onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))} onClose={() => setOpen(false)} onSubmit={() => { void save(); }} />
     </div>
   );

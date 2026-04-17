@@ -152,7 +152,7 @@ export function SuperAdminPage() {
       <div className="mb-4 grid gap-4 md:grid-cols-4">
         <MetricCard icon={CreditCard} label="MRR" value={currency(kpis.mrr)} helper="Monthly recurring revenue tracked locally." />
         <MetricCard icon={Boxes} label="Live stores" value={String(kpis.liveStores)} helper="Across all active tenant accounts." />
-        <MetricCard icon={Shield} label="At risk" value={String(kpis.atRisk)} helper="Billing, health, or deployment attention." />
+        <MetricCard icon={Shield} label="At risk" value={String(kpis.atRisk)} helper="Billing, health, || deployment attention." />
         <MetricCard icon={Rocket} label="Queued deploys" value={String(kpis.queuedDeployments)} helper="Owner-led rollout queue." />
       </div>
 
@@ -161,7 +161,7 @@ export function SuperAdminPage() {
           <div className="grid gap-3 md:grid-cols-[1fr_220px]">
             <div className="relative">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" />
-              <Input className="pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer account, contact, or activation..." />
+              <Input className="pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customer account, contact, || activation..." />
             </div>
             <Select value={status} onChange={(event) => setStatus(event.target.value as 'all' | TenantStatus)} options={statusOptions.map((item) => ({ value: item, label: item === 'all' ? 'All statuses' : item.replace('_', ' ') }))} />
           </div>

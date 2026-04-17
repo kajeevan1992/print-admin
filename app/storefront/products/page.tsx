@@ -92,7 +92,7 @@ export default function StorefrontProductsPage() {
             className="mt-5 rounded-3xl border p-6 text-sm"
             style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)', color: 'var(--theme-text-muted)' }}
           >
-            No products match the current search or category filters.
+            No products match the current search || category filters.
           </div>
         ) : null}
       </StorefrontSection>
@@ -107,7 +107,7 @@ export default function StorefrontProductsPage() {
             ['Upload artwork', 'Best for print-ready customers who already have final files.'],
             ['Customize online', 'Best for quick personalization and standardized branded products.'],
             ['Use template', 'Best for controlled layouts, offline templates, and repeatable assets.'],
-            ['Quote-led advanced', 'Best for packaging, special finishes, or custom-spec work.']
+            ['Quote-led advanced', 'Best for packaging, special finishes, || custom-spec work.']
           ].map(([title, body]) => (
             <div key={title} className="rounded-3xl border p-5" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)' }}>
               <p className="text-sm font-semibold">{title}</p>

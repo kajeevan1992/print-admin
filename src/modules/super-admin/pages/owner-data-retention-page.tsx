@@ -73,7 +73,7 @@ export function OwnerDataRetentionPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-retention-search" name="ownerRetentionSearch" placeholder="Search tenant, category, owner, period, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-retention-search" name="ownerRetentionSearch" placeholder="Search tenant, category, owner, period, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-retention-status" name="ownerRetentionStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'review', label: 'Review' }, { value: 'expired', label: 'Expired' }]} />
         <Select id="owner-retention-scope" name="ownerRetentionScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'tenant', label: 'Tenant' }, { value: 'platform', label: 'Platform' }, { value: 'compliance', label: 'Compliance' }]} />
       </div>

@@ -73,7 +73,7 @@ export function OwnerExecutiveBriefingsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-briefings-search" name="ownerBriefingsSearch" placeholder="Search tenant, title, owner, audience, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-briefings-search" name="ownerBriefingsSearch" placeholder="Search tenant, title, owner, audience, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-briefings-status" name="ownerBriefingsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'draft', label: 'Draft' }, { value: 'scheduled', label: 'Scheduled' }, { value: 'delivered', label: 'Delivered' }]} />
         <Select id="owner-briefings-scope" name="ownerBriefingsScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'customer', label: 'Customer' }, { value: 'portfolio', label: 'Portfolio' }, { value: 'renewal', label: 'Renewal' }]} />
       </div>

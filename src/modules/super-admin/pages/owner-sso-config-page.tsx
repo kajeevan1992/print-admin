@@ -73,7 +73,7 @@ export function OwnerSsoConfigPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-sso-search" name="ownerSsoSearch" placeholder="Search tenant, provider, domain, owner, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-sso-search" name="ownerSsoSearch" placeholder="Search tenant, provider, domain, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-sso-status" name="ownerSsoStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'draft', label: 'Draft' }, { value: 'active', label: 'Active' }, { value: 'paused', label: 'Paused' }]} />
         <Select id="owner-sso-protocol" name="ownerSsoProtocol" value={protocol} onChange={(e) => setProtocol(e.target.value as ProtocolFilter)} options={[{ value: 'all', label: 'All protocols' }, { value: 'saml', label: 'SAML' }, { value: 'oidc', label: 'OIDC' }]} />
       </div>

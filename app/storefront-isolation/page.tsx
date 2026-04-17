@@ -48,7 +48,7 @@ function InnerPage() {
                 <p>• printcore.com for SaaS</p>
                 <p>• printcore.com/dashboard for clients</p>
                 <p>• printcore.com/superadmin for platform control</p>
-                <p>• userX.printcore.com or custom domains for storefronts</p>
+                <p>• userX.printcore.com || custom domains for storefronts</p>
               </div>
             </div>
           </div>

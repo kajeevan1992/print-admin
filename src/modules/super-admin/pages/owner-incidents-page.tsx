@@ -73,7 +73,7 @@ export function OwnerIncidentsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-incidents-search" name="ownerIncidentsSearch" placeholder="Search tenant, title, area, owner, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-incidents-search" name="ownerIncidentsSearch" placeholder="Search tenant, title, area, owner, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-incidents-status" name="ownerIncidentsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'open', label: 'Open' }, { value: 'mitigating', label: 'Mitigating' }, { value: 'resolved', label: 'Resolved' }]} />
         <Select id="owner-incidents-severity" name="ownerIncidentsSeverity" value={severity} onChange={(e) => setSeverity(e.target.value as SeverityFilter)} options={[{ value: 'all', label: 'All severity' }, { value: 'minor', label: 'Minor' }, { value: 'major', label: 'Major' }, { value: 'critical', label: 'Critical' }]} />
       </div>

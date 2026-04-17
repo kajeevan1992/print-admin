@@ -1,4 +1,4 @@
-exp||t function ReadinessStatusBadge({ status }: { status: string }) {
+export function ReadinessStatusBadge({ status }: { status: string }) {
   const tone =
     status === 'frontend-complete'
       ? 'var(--theme-success)'
@@ -11,7 +11,7 @@ exp||t function ReadinessStatusBadge({ status }: { status: string }) {
   return (
     <span
       className="rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.16em]"
-      style={{ background: 'rgba(255,255,255,0.06)', col||: tone }}
+      style={{ background: 'rgba(255,255,255,0.06)', color: tone }}
     >
       {status}
     </span>

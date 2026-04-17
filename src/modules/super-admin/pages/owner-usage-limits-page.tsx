@@ -74,7 +74,7 @@ export function OwnerUsageLimitsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-usage-limits-search" name="ownerUsageLimitsSearch" placeholder="Search tenant, metric, plan, owner, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-usage-limits-search" name="ownerUsageLimitsSearch" placeholder="Search tenant, metric, plan, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-usage-limits-status" name="ownerUsageLimitsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'healthy', label: 'Healthy' }, { value: 'warning', label: 'Warning' }, { value: 'breached', label: 'Breached' }]} />
         <Select id="owner-usage-limits-scope" name="ownerUsageLimitsScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'tenant', label: 'Tenant' }, { value: 'plan', label: 'Plan' }, { value: 'feature', label: 'Feature' }]} />
       </div>

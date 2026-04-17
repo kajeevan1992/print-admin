@@ -228,7 +228,7 @@ export function ProductionPlannerPage() {
           <Card>
             <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
               <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-3"><div className="flex items-center gap-2 text-white"><Factory size={16} /> Machine choice</div><p className="mt-2 text-sm text-textMuted">Make machine assignment visible before jobs crowd the production board.</p></div>
-              <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-3"><div className="flex items-center gap-2 text-white"><ShieldAlert size={16} /> Risk control</div><p className="mt-2 text-sm text-textMuted">Blocked plans stand out early so teams solve supply or artwork issues sooner.</p></div>
+              <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-3"><div className="flex items-center gap-2 text-white"><ShieldAlert size={16} /> Risk control</div><p className="mt-2 text-sm text-textMuted">Blocked plans stand out early so teams solve supply || artwork issues sooner.</p></div>
               <div className="rounded-2xl border border-white/6 bg-white/[0.02] p-3"><div className="flex items-center gap-2 text-white"><WandSparkles size={16} /> Release flow</div><p className="mt-2 text-sm text-textMuted">A clean front-end release step prepares this page for later API-driven orchestration.</p></div>
             </div>
           </Card>

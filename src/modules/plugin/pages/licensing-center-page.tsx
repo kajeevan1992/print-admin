@@ -58,7 +58,7 @@ export function LicensingCenterPage() {
       <MetricCard icon={Users} label="Licensed seats" value={String(kpis.licensedSeats)} helper="Total seats available across visible tenants." />
       <MetricCard icon={Users} label="Used seats" value={String(kpis.usedSeats)} helper="Current assigned seats in the SaaS estate." />
       <MetricCard icon={KeyRound} label="API enabled" value={String(kpis.apiEnabled)} helper="Accounts with API access switched on." />
-      <MetricCard icon={ShieldAlert} label="At risk" value={String(kpis.atRisk)} helper="Grace-period, overage, or renewal attention." />
+      <MetricCard icon={ShieldAlert} label="At risk" value={String(kpis.atRisk)} helper="Grace-period, overage, || renewal attention." />
     </div>
     <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
       <Card>

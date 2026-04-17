@@ -13,12 +13,12 @@ const contentMap: Record<ProductMode, { title: string; body: string; cta: string
   },
   'use-template': {
     title: 'Use a template',
-    body: 'Best for controlled layouts, approved brand assets, and repeatable offline or online templates.',
+    body: 'Best for controlled layouts, approved brand assets, and repeatable offline || online templates.',
     cta: 'Browse templates'
   },
   'get-quote': {
     title: 'Request a quote',
-    body: 'Best for advanced packaging, special finishes, or products with custom specifications.',
+    body: 'Best for advanced packaging, special finishes, || products with custom specifications.',
     cta: 'Request quote'
   }
 };

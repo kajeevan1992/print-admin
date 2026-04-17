@@ -118,7 +118,7 @@ export function OwnerOnboardingPage() {
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
         <Card className="space-y-4">
           <div className="grid gap-3 md:grid-cols-3">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenant, contact, or email..." icon={<Search className="size-4" />} />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search tenant, contact, || email..." icon={<Search className="size-4" />} />
             <Select value={status} onChange={(e) => setStatus(e.target.value as 'all' | OnboardingStatus)} options={[{ value: 'all', label: 'All stages' }, { value: 'draft', label: 'Draft' }, { value: 'invited', label: 'Invited' }, { value: 'configuring', label: 'Configuring' }, { value: 'ready_for_launch', label: 'Ready for launch' }, { value: 'live', label: 'Live' }]} />
             <Select value={plan} onChange={(e) => setPlan(e.target.value as 'all' | BillingPlan)} options={[{ value: 'all', label: 'All plans' }, { value: 'starter', label: 'Starter' }, { value: 'growth', label: 'Growth' }, { value: 'enterprise', label: 'Enterprise' }]} />
           </div>

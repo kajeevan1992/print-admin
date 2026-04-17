@@ -131,7 +131,7 @@ export function ProductsListPage() {
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
 
       {!loading && !error && products.length === 0 ? (
-        <EmptyModuleState title="No products yet" description="Create your first product with template upload, blank setup, or parametric standard generation." action={<PrimaryButton onClick={() => setOpen(true)}>Add Product</PrimaryButton>} />
+        <EmptyModuleState title="No products yet" description="Create your first product with template upload, blank setup, || parametric standard generation." action={<PrimaryButton onClick={() => setOpen(true)}>Add Product</PrimaryButton>} />
       ) : null}
 
       {!loading && !error && products.length > 0 ? <ProductTable products={products} onToggle={handleToggle} onAction={handleAction} /> : null}

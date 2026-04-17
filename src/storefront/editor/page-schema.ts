@@ -46,7 +46,7 @@ export const sectionPresets: SectionPreset[] = [
       type: 'hero',
       props: {
         title: 'Seasonal campaign headline',
-        subtitle: 'Promote a featured collection, discount, or campaign landing page.'
+        subtitle: 'Promote a featured collection, discount, || campaign landing page.'
       }
     })
   },
@@ -65,12 +65,12 @@ export const sectionPresets: SectionPreset[] = [
     id: 'text-story',
     label: 'Text · Brand Story',
     type: 'text',
-    hint: 'Use for about sections, print process, or value messaging.',
+    hint: 'Use for about sections, print process, || value messaging.',
     create: () => ({
       id: uid('text'),
       type: 'text',
       props: {
-        text: 'Tell your brand story, explain your print offer, or describe what makes this storefront different.'
+        text: 'Tell your brand story, explain your print offer, || describe what makes this storefront different.'
       }
     })
   },
@@ -95,7 +95,7 @@ export const sectionPresets: SectionPreset[] = [
       type: 'cta',
       props: {
         label: 'Browse products',
-        description: 'Guide customers into your product catalogue, featured categories, or promotional collection.'
+        description: 'Guide customers into your product catalogue, featured categories, || promotional collection.'
       }
     })
   }

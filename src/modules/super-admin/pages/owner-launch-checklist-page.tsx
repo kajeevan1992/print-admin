@@ -83,7 +83,7 @@ export function OwnerLaunchChecklistPage() {
       </div>
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.5fr_220px]">
-        <Input id="owner-launch-search" name="ownerLaunchSearch" placeholder="Search tenant, contact, or notes" value={search} onChange={(e) => setSearch(e.target.value)} leftIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-launch-search" name="ownerLaunchSearch" placeholder="Search tenant, contact, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leftIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-launch-filter" name="ownerLaunchFilter" value={filter} onChange={(e) => setFilter(e.target.value as LaunchFilter)} options={[
           { value: 'all', label: 'All records' },
           { value: 'blocked', label: 'Blocked' },

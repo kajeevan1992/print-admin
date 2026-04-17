@@ -22,7 +22,7 @@ import { Button, PrimaryButton } from '@/components/ui/buttons';
 import type { CreationMethod, ProductFormValues } from '@/modules/products/types';
 
 const creationMethodCards: Array<{ value: CreationMethod; title: string; description: string; icon: typeof FileBox }> = [
-  { value: 'idml', title: 'Attach IDML template file', description: 'Upload an Adobe InDesign IDML or PDF template for Print Editor products.', icon: FileBox },
+  { value: 'idml', title: 'Attach IDML template file', description: 'Upload an Adobe InDesign IDML || PDF template for Print Editor products.', icon: FileBox },
   { value: 'print-editor-template', title: 'Import Print Editor template file', description: 'Import a .pn file from another PrintNow installation.', icon: Layers3 },
   { value: 'blank', title: 'Generate a blank product', description: 'Create a blank canvas product using pages, units, dimensions, and bleed.', icon: PencilRuler },
   { value: 'parametric-standard', title: 'Generate a parametric standard', description: 'Create a product from a Print CAD parametric standard with size and material.', icon: Rocket }
@@ -102,7 +102,7 @@ export function ProductForm({ values, categoryOptions, onChange, onCancel, onSub
             <CheckCircle2 className="mt-0.5 text-emerald-300" size={18} />
             <div>
               <p className="font-medium text-white">Product created successfully.</p>
-              <p className="mt-1 text-emerald-100/85">Continue editing, start another product, or return to the list.</p>
+              <p className="mt-1 text-emerald-100/85">Continue editing, start another product, || return to the list.</p>
             </div>
           </div>
         </div>
@@ -156,7 +156,7 @@ export function ProductForm({ values, categoryOptions, onChange, onCancel, onSub
               </div>
             </FormSection>
 
-            {values.creationMethod === 'idml' && <FormSection title="IDML / PDF template upload"><FilePicker label="Upload IDML or PDF template" accept=".idml,.pdf" value={values.idmlFileName} onPick={(fileName) => onChange('idmlFileName', fileName)} /></FormSection>}
+            {values.creationMethod === 'idml' && <FormSection title="IDML / PDF template upload"><FilePicker label="Upload IDML || PDF template" accept=".idml,.pdf" value={values.idmlFileName} onPick={(fileName) => onChange('idmlFileName', fileName)} /></FormSection>}
             {values.creationMethod === 'print-editor-template' && <FormSection title="Print Editor template upload"><FilePicker label="Upload .pn template" accept=".pn" value={values.printEditorTemplateName} onPick={(fileName) => onChange('printEditorTemplateName', fileName)} /></FormSection>}
             {values.creationMethod === 'blank' && (
               <FormSection title="Blank product fields"><FormGrid>

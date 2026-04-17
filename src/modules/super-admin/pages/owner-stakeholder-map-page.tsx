@@ -73,7 +73,7 @@ export function OwnerStakeholderMapPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-stakeholder-search" name="ownerStakeholderSearch" placeholder="Search tenant, name, owner, influence, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-stakeholder-search" name="ownerStakeholderSearch" placeholder="Search tenant, name, owner, influence, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-stakeholder-status" name="ownerStakeholderStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'watch', label: 'Watch' }, { value: 'inactive', label: 'Inactive' }]} />
         <Select id="owner-stakeholder-role" name="ownerStakeholderRole" value={role} onChange={(e) => setRole(e.target.value as RoleFilter)} options={[{ value: 'all', label: 'All roles' }, { value: 'executive', label: 'Executive' }, { value: 'admin', label: 'Admin' }, { value: 'champion', label: 'Champion' }]} />
       </div>

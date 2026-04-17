@@ -102,7 +102,7 @@ export function MerchantAccountsPage() {
       <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
           <Card className="grid gap-3 md:grid-cols-4">
-            <Input placeholder={isOwner ? 'Search provider, merchant ID, or payout owner...' : 'Search merchant accounts...'} value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Input placeholder={isOwner ? 'Search provider, merchant ID, || payout owner...' : 'Search merchant accounts...'} value={search} onChange={(event) => setSearch(event.target.value)} />
             <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} />
             <Select value={modeFilter} onChange={(event) => setModeFilter(event.target.value as typeof modeFilter)} options={[{ value: 'all', label: 'All modes' }, { value: 'live', label: 'Live' }, { value: 'test', label: 'Test' }]} />
             <Select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value as typeof riskFilter)} options={[{ value: 'all', label: isOwner ? 'All risk' : 'All records' }, { value: 'healthy', label: 'Healthy' }, { value: 'watch', label: 'Watch' }, { value: 'critical', label: 'Critical' }]} />
@@ -145,7 +145,7 @@ export function MerchantAccountsPage() {
               </div>
               <div className="rounded-2xl border border-white/8 bg-panelMuted/60 p-4 text-sm text-textMuted">
                 <p className="mb-2 text-xs uppercase tracking-wide">Billing notes</p>
-                <p>{selected.notes || 'No billing notes recorded yet. Add chargeback concerns, payout exceptions, or commercial notes from edit mode.'}</p>
+                <p>{selected.notes || 'No billing notes recorded yet. Add chargeback concerns, payout exceptions, || commercial notes from edit mode.'}</p>
               </div>
             </>
           ) : null}

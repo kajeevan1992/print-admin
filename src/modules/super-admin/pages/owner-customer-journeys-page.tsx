@@ -73,7 +73,7 @@ export function OwnerCustomerJourneysPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-journeys-search" name="ownerJourneysSearch" placeholder="Search tenant, owner, touchpoint, goal, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-journeys-search" name="ownerJourneysSearch" placeholder="Search tenant, owner, touchpoint, goal, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-journeys-status" name="ownerJourneysStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'mapped', label: 'Mapped' }, { value: 'in-progress', label: 'In progress' }, { value: 'complete', label: 'Complete' }]} />
         <Select id="owner-journeys-stage" name="ownerJourneysStage" value={stage} onChange={(e) => setStage(e.target.value as StageFilter)} options={[{ value: 'all', label: 'All stages' }, { value: 'onboarding', label: 'Onboarding' }, { value: 'adoption', label: 'Adoption' }, { value: 'expansion', label: 'Expansion' }]} />
       </div>

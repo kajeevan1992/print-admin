@@ -38,7 +38,7 @@ export default function StorefrontCartPage() {
               className="rounded-3xl border p-5 text-sm"
               style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)', color: 'var(--theme-text-muted)' }}
             >
-              <p className="font-medium" style={{ color: 'var(--theme-text)' }}>Need a quote-led or approval-led path?</p>
+              <p className="font-medium" style={{ color: 'var(--theme-text)' }}>Need a quote-led || approval-led path?</p>
               <p className="mt-2">This checkout foundation will later support PO, invoice accounts, approvals, and advanced product routes.</p>
             </div>
           </div>

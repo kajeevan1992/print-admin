@@ -82,7 +82,7 @@ export function OwnerReportsPage() {
         <MetricCard icon={CreditCard} label="MRR tracked" value={money(metrics.mrr)} helper={windowLabel} />
         <MetricCard icon={Users2} label="Seats in use" value={String(metrics.seats)} helper="Across active tenants" />
         <MetricCard icon={Store} label="Live stores" value={String(metrics.stores)} helper="Tenant storefronts" />
-        <MetricCard icon={ShieldAlert} label="At risk" value={String(metrics.atRisk)} helper="Billing or health attention" />
+        <MetricCard icon={ShieldAlert} label="At risk" value={String(metrics.atRisk)} helper="Billing || health attention" />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1.25fr_0.9fr]">

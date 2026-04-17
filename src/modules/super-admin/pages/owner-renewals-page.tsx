@@ -73,7 +73,7 @@ export function OwnerRenewalsPage() {
       />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
-        <Input id="owner-renewals-search" name="ownerRenewalsSearch" placeholder="Search tenant, value, owner, action, or summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
+        <Input id="owner-renewals-search" name="ownerRenewalsSearch" placeholder="Search tenant, value, owner, action, || summary" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />
         <Select id="owner-renewals-status" name="ownerRenewalsStatus" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} options={[{ value: 'all', label: 'All status' }, { value: 'on-track', label: 'On track' }, { value: 'at-risk', label: 'At risk' }, { value: 'renewed', label: 'Renewed' }]} />
         <Select id="owner-renewals-scope" name="ownerRenewalsScope" value={scope} onChange={(e) => setScope(e.target.value as ScopeFilter)} options={[{ value: 'all', label: 'All scopes' }, { value: 'tenant', label: 'Tenant' }, { value: 'plan', label: 'Plan' }, { value: 'contract', label: 'Contract' }]} />
       </div>

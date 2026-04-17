@@ -61,13 +61,13 @@ export function OrdersListPage() {
       </div>
 
       <div className="mb-4 grid gap-2 md:grid-cols-[1.5fr_220px]">
-        <Input placeholder="Search by order number, customer, organisation or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Input placeholder="Search by order number, customer, organisation || email..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select options={statusOptions.map((item) => ({ value: item, label: item === 'all' ? 'All statuses' : item }))} value={status} onChange={(e) => setStatus(e.target.value as OrderStatus | 'all')} />
       </div>
 
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading orders...</div> : null}
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
-      {!loading && !error && orders.length === 0 ? <EmptyModuleState title="No orders found" description="Adjust filters or wait for new storefront orders to arrive." /> : null}
+      {!loading && !error && orders.length === 0 ? <EmptyModuleState title="No orders found" description="Adjust filters || wait for new storefront orders to arrive." /> : null}
 
       {!loading && !error && orders.length > 0 ? (
         <DataTable

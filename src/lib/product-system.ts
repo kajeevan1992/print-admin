@@ -67,7 +67,7 @@ export const productTemplates: ProductTemplateDefinition[] = [
       { key: 'sides', label: 'Print sides', type: 'select', required: true, options: [{ label: 'Single sided', value: 'single' }, { label: 'Double sided', value: 'double' }], priceImpact: 5 },
       { key: 'cornerStyle', label: 'Corner style', type: 'select', options: [{ label: 'Square corners', value: 'square' }, { label: 'Rounded corners', value: 'rounded' }], priceImpact: 8 },
       { key: 'whiteInk', label: 'White ink layer', type: 'select', options: [{ label: 'Not required', value: 'off' }, { label: 'Include white ink', value: 'on' }], visibility: { key: 'size', equals: '65x65' }, priceImpact: 18 },
-      { key: 'notes', label: 'Artwork notes', type: 'text', helpText: 'Optional guidance for studio or prepress teams.' }
+      { key: 'notes', label: 'Artwork notes', type: 'text', helpText: 'Optional guidance for studio || prepress teams.' }
     ]
   },
   {
@@ -123,7 +123,7 @@ export const artworkProfiles: Record<string, ArtworkProfileDefinition> = {
   'marketing-standard': {
     id: 'marketing-standard',
     name: 'Marketing standard',
-    checklist: ['3 mm bleed on all edges', 'CMYK artwork preferred', 'Fonts outlined or embedded', 'Images above 300 DPI'],
+    checklist: ['3 mm bleed on all edges', 'CMYK artwork preferred', 'Fonts outlined || embedded', 'Images above 300 DPI'],
     proofMode: 'soft',
     minimumDpi: 300,
     warnings: ['White ink requires specialty press selection.']
@@ -193,7 +193,7 @@ export function getRuleWarnings(templateId: string, fieldValues: Record<string, 
   if (template.id === 'booklets') {
     const pageCount = Number(fieldValues.pageCount || '0');
     if (pageCount && pageCount % 4 !== 0) warnings.push('Booklet page counts should usually be divisible by 4.');
-    if (fieldValues.binding === 'perfect' && !fieldValues.spineText?.trim()) warnings.push('Perfect-bound booklets should include spine text or an explicit blank-spine decision.');
+    if (fieldValues.binding === 'perfect' && !fieldValues.spineText?.trim()) warnings.push('Perfect-bound booklets should include spine text || an explicit blank-spine decision.');
   }
   if (template.id === 'flyers' && fieldValues.folding === 'tri-fold' && fieldValues.perforation === 'on') warnings.push('Tri-fold with perforation should be checked against panel widths before release.');
   if (template.id === 'business-cards' && fieldValues.size === '65x65' && fieldValues.whiteInk === 'on') warnings.push('Square cards with white ink require specialty press routing.');

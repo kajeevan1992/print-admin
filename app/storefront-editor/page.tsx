@@ -49,7 +49,7 @@ export default function StorefrontEditorPage() {
           </p>
           <h2 className="mt-2 text-xl font-semibold">Storefront preview</h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            Saved page config will become the basis for tenant-specific storefront page persistence later.
+            Saved page config can now be opened via /storefront-preview as a storefront-rendered output.
           </p>
         </div>
 

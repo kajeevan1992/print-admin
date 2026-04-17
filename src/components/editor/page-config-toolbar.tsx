@@ -2,29 +2,11 @@
 
 import { useMemo } from 'react';
 import type { PageSchema } from '@/storefront/editor/page-schema';
-
-const STORAGE_KEY = 'printcore.storefront-editor.page-config';
-
-export function loadSavedPageConfig(): PageSchema | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as PageSchema;
-  } catch {
-    return null;
-  }
-}
-
-export function savePageConfig(page: PageSchema) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(page));
-}
-
-export function clearSavedPageConfig() {
-  if (typeof window === 'undefined') return;
-  window.localStorage.removeItem(STORAGE_KEY);
-}
+import {
+  clearSavedStorefrontPageConfig,
+  loadSavedStorefrontPageConfig,
+  saveStorefrontPageConfig
+} from '@/components/editor/page-config-storage';
 
 export function PageConfigToolbar({
   page,
@@ -38,21 +20,23 @@ export function PageConfigToolbar({
   const prettyJson = useMemo(() => JSON.stringify(page, null, 2), [page]);
 
   function handleSave() {
-    savePageConfig(page);
+    saveStorefrontPageConfig(page);
   }
 
   function handleLoad() {
-    const saved = loadSavedPageConfig();
+    const saved = loadSavedStorefrontPageConfig();
     if (saved) onLoad(saved);
   }
 
-  function handleExport() {
+  async function handleExport() {
     if (typeof window === 'undefined') return;
-    window.navigator.clipboard.writeText(prettyJson);
+    try {
+      await window.navigator.clipboard.writeText(prettyJson);
+    } catch {}
   }
 
   function handleClear() {
-    clearSavedPageConfig();
+    clearSavedStorefrontPageConfig();
   }
 
   return (

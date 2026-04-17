@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { demoPage, sectionPresets, type SectionType } from '@/storefront/editor/page-schema';
+import { demoPage, type SectionPreset } from '@/storefront/editor/page-schema';
 import { SectionRenderer } from '@/components/editor/section-renderer';
 import { VisualEditorPanel } from '@/components/editor/visual-editor-panel';
 import { SectionLibrary } from '@/components/editor/section-library';
@@ -9,8 +9,8 @@ import { SectionLibrary } from '@/components/editor/section-library';
 export default function StorefrontEditorPage() {
   const [page, setPage] = useState(demoPage);
 
-  function addSection(type: SectionType) {
-    const nextSection = sectionPresets[type]();
+  function addSection(preset: SectionPreset) {
+    const nextSection = preset.create();
     setPage((current) => ({
       ...current,
       sections: [...current.sections, nextSection]
@@ -18,7 +18,7 @@ export default function StorefrontEditorPage() {
   }
 
   return (
-    <div className="grid gap-6 p-6 xl:grid-cols-[420px_1fr]">
+    <div className="grid gap-6 p-6 xl:grid-cols-[440px_1fr]">
       <div>
         <div className="mb-4">
           <p className="text-xs uppercase tracking-[0.24em]" style={{ color: 'var(--theme-text-muted)' }}>
@@ -26,7 +26,7 @@ export default function StorefrontEditorPage() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">{page.name}</h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            Add, remove, edit, and now reorder structured storefront sections while keeping the page JSON schema clean.
+            Add, remove, edit, reorder, and now choose from reusable section presets while keeping the page JSON schema clean.
           </p>
         </div>
 
@@ -43,7 +43,7 @@ export default function StorefrontEditorPage() {
           </p>
           <h2 className="mt-2 text-xl font-semibold">Storefront preview</h2>
           <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            Reordering in the editor changes the rendered section order immediately.
+            Section presets let users build pages faster while still keeping output structured and themeable.
           </p>
         </div>
 

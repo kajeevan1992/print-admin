@@ -1,0 +1,7 @@
+v128 section library improvements + saved presets build
+
+- Expanded the visual editor with reusable section presets
+- Added preset filtering by section type
+- Added preset-based add-section flow
+- Preserved structured page schema for future persistence and template systems
+- No backend/auth changes

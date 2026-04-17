@@ -26,7 +26,7 @@ export default function StorefrontEditorPage() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold">{page.name}</h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            Add, remove, and edit structured storefront sections while keeping the page JSON schema clean.
+            Add, remove, edit, and now reorder structured storefront sections while keeping the page JSON schema clean.
           </p>
         </div>
 
@@ -42,6 +42,9 @@ export default function StorefrontEditorPage() {
             Live preview
           </p>
           <h2 className="mt-2 text-xl font-semibold">Storefront preview</h2>
+          <p className="mt-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
+            Reordering in the editor changes the rendered section order immediately.
+          </p>
         </div>
 
         <div className="space-y-4 rounded-[2rem] border p-5" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-bg)' }}>

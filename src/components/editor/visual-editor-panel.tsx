@@ -35,9 +35,26 @@ export function VisualEditorPanel({
     onChange(updated);
   }
 
+  function moveSection(id: string, direction: 'up' | 'down') {
+    const index = page.sections.findIndex((section) => section.id === id);
+    if (index === -1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= page.sections.length) return;
+
+    const nextSections = [...page.sections];
+    const [item] = nextSections.splice(index, 1)
+    nextSections.splice(targetIndex, 0, item);
+
+    onChange({
+      ...page,
+      sections: nextSections
+    });
+  }
+
   return (
     <div className="space-y-4">
-      {page.sections.map((section) => (
+      {page.sections.map((section, index) => (
         <div
           key={section.id}
           className="rounded-3xl border p-4"
@@ -49,6 +66,24 @@ export function VisualEditorPanel({
               <p className="text-xs" style={{ color: 'var(--theme-text-muted)' }}>{section.id}</p>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => moveSection(section.id, 'up')}
+                disabled={index === 0}
+                className="rounded-full border px-3 py-1 text-[11px] disabled:opacity-40"
+                style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
+              >
+                Up
+              </button>
+              <button
+                type="button"
+                onClick={() => moveSection(section.id, 'down')}
+                disabled={index === page.sections.length - 1}
+                className="rounded-full border px-3 py-1 text-[11px] disabled:opacity-40"
+                style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
+              >
+                Down
+              </button>
               <span
                 className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
                 style={{ background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}

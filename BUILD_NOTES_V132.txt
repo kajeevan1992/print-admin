@@ -1,0 +1,8 @@
+v132 artwork upload system frontend build
+
+- Upgraded /storefront/upload-artwork into a real artwork workflow foundation
+- Added upload dropzone shell
+- Added artwork guidelines panel
+- Added recent uploads panel with status badges
+- Added workflow attachment panel for new orders, existing orders, and approvals
+- No backend/auth changes

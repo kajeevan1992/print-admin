@@ -90,6 +90,26 @@ function writeStoredCart(items) {
   } catch {}
 }
 
+const LAST_ORDER_STORAGE_KEY = "printcore.atlantis.last-order";
+
+function writeLastOrder(order) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(LAST_ORDER_STORAGE_KEY, JSON.stringify(order));
+  } catch {}
+}
+
+function readLastOrder() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(LAST_ORDER_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 function mapLiveProduct(product) {
   return {
     id: product.id,
@@ -1947,32 +1967,132 @@ function SecondaryButton({ children, className = "", ...props }) {
 function CheckoutPage({ cart, navigate }) {
   const shipping = cart.subtotal > 0 ? 0 : 0;
   const total = cart.subtotal + shipping;
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    company: "",
+    postcode: "",
+    city: "",
+    address: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMessage, setSubmitMessage] = useState("");
+
+  function updateField(key, value) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function handleSubmitOrder() {
+    if (!cart.items.length) {
+      setSubmitMessage("Your cart is empty.");
+      return;
+    }
+
+    if (!form.firstName || !form.lastName || !form.email) {
+      setSubmitMessage("Please complete first name, last name, and email.");
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitMessage("Submitting order...");
+
+    try {
+      const payload = {
+        customer: {
+          firstName: form.firstName,
+          lastName: form.lastName,
+          email: form.email,
+          phone: form.phone,
+          company: form.company,
+        },
+        shippingAddress: {
+          address: form.address,
+          city: form.city,
+          postcode: form.postcode,
+        },
+        items: cart.items.map((item) => ({
+          productId: item.id,
+          slug: item.slug,
+          name: item.name,
+          variantLabel: item.variantLabel || null,
+          quantity: item.qty,
+          unitPriceMinor: Math.round((item.unitPrice || 0) * 100),
+          lineTotalMinor: Math.round((item.lineTotal || item.unitPrice * item.qty || 0) * 100),
+        })),
+        subtotalMinor: Math.round(cart.subtotal * 100),
+        shippingMinor: Math.round(shipping * 100),
+        totalMinor: Math.round(total * 100),
+        source: "atlantis-theme",
+      };
+
+      const res = await fetch(getProxyUrl("/orders"), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        setSubmitMessage("Order submit reached the API but did not complete successfully.");
+        return;
+      }
+
+      const upstreamPayload = data.payload?.data || data.payload || {};
+      const orderSummary = {
+        submittedAt: new Date().toISOString(),
+        customerName: `${form.firstName} ${form.lastName}`.trim(),
+        email: form.email,
+        totalMinor: Math.round(total * 100),
+        items: cart.items,
+        upstream: upstreamPayload,
+      };
+
+      writeLastOrder(orderSummary);
+      cart.clear();
+      setSubmitMessage("Order submitted successfully.");
+      navigate("/checkout/success");
+    } catch (error) {
+      setSubmitMessage("Storefront could not submit the order yet.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <PageShell
       eyebrow="Checkout"
       title="Checkout foundation"
-      subtitle="This is the next live step after cart. It keeps the Atlantis storefront flow moving toward real order submission."
+      subtitle="This is the next live step after cart. It now submits the checkout to the order API through the local proxy."
     >
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <div>
             <p className="text-sm font-semibold text-slate-900">Customer details</p>
-            <p className="mt-1 text-sm text-slate-500">Frontend foundation for the live order flow.</p>
+            <p className="mt-1 text-sm text-slate-500">Order requests now pass through the local proxy to the live API.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <Input placeholder="First name" />
-            <Input placeholder="Last name" />
-            <Input placeholder="Email address" className="md:col-span-2" />
-            <Input placeholder="Phone number" />
-            <Input placeholder="Company" />
-            <Input placeholder="Delivery postcode" />
-            <Input placeholder="Town / City" />
-            <Textarea placeholder="Delivery address" className="md:col-span-2 min-h-[110px]" />
+            <Input placeholder="First name" value={form.firstName} onChange={(e) => updateField("firstName", e.target.value)} />
+            <Input placeholder="Last name" value={form.lastName} onChange={(e) => updateField("lastName", e.target.value)} />
+            <Input placeholder="Email address" className="md:col-span-2" value={form.email} onChange={(e) => updateField("email", e.target.value)} />
+            <Input placeholder="Phone number" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
+            <Input placeholder="Company" value={form.company} onChange={(e) => updateField("company", e.target.value)} />
+            <Input placeholder="Delivery postcode" value={form.postcode} onChange={(e) => updateField("postcode", e.target.value)} />
+            <Input placeholder="Town / City" value={form.city} onChange={(e) => updateField("city", e.target.value)} />
+            <Textarea placeholder="Delivery address" className="md:col-span-2 min-h-[110px]" value={form.address} onChange={(e) => updateField("address", e.target.value)} />
           </div>
           <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-            Artwork upload and live order submission can plug in next using the existing API direction.
+            Artwork upload can plug in next using the existing API direction.
           </div>
+          {submitMessage ? (
+            <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {submitMessage}
+            </div>
+          ) : null}
         </div>
 
         <div className="space-y-4">
@@ -2004,8 +2124,12 @@ function CheckoutPage({ cart, navigate }) {
               </div>
             </div>
             <div className="mt-6 grid gap-3">
-              <Button className="h-12 rounded-full bg-slate-900 text-white hover:bg-slate-800">
-                Submit order request
+              <Button
+                className="h-12 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+                onClick={handleSubmitOrder}
+                disabled={submitting || !cart.items.length}
+              >
+                {submitting ? "Submitting..." : "Submit order request"}
               </Button>
               <Button
                 variant="outline"
@@ -2015,6 +2139,48 @@ function CheckoutPage({ cart, navigate }) {
                 Back to cart
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
+function CheckoutSuccessPage({ navigate }) {
+  const order = readLastOrder();
+
+  return (
+    <PageShell
+      eyebrow="Order received"
+      title="Thank you for your order"
+      subtitle="Your Atlantis storefront checkout has handed off to the live API path."
+    >
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Submission summary</p>
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p><span className="font-medium text-slate-900">Customer:</span> {order?.customerName || "Not available"}</p>
+            <p><span className="font-medium text-slate-900">Email:</span> {order?.email || "Not available"}</p>
+            <p><span className="font-medium text-slate-900">Submitted:</span> {order?.submittedAt ? new Date(order.submittedAt).toLocaleString() : "Not available"}</p>
+            <p><span className="font-medium text-slate-900">Total:</span> {order?.totalMinor != null ? formatMinorPrice(order.totalMinor, "GBP") : "Not available"}</p>
+            <p><span className="font-medium text-slate-900">API response:</span> {order?.upstream?.orderNumber || order?.upstream?.id || "Stored locally from proxy response"}</p>
+          </div>
+          <div className="mt-6 grid gap-3">
+            <Button className="h-11 rounded-full bg-slate-900 text-white hover:bg-slate-800" onClick={() => navigate("/")}>
+              Continue shopping
+            </Button>
+            <Button variant="outline" className="h-11 rounded-full border-slate-200" onClick={() => navigate("/cart")}>
+              View cart
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Next recommended step</p>
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p>• connect artwork upload into the submitted order</p>
+            <p>• fetch real order details from the API confirmation response</p>
+            <p>• show tenant-branded email/order confirmation next</p>
           </div>
         </div>
       </section>
@@ -2112,6 +2278,9 @@ export default function App() {
       break;
     case "/checkout":
       page = <CheckoutPage cart={cart} navigate={navigate} />;
+      break;
+    case "/checkout/success":
+      page = <CheckoutSuccessPage navigate={navigate} />;
       break;
     default:
       page = <HomePage navigate={navigate} featuredProducts={featuredProductsData} tenantName={"Atlantis Print"} />;

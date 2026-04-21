@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getExternalApiBaseUrl } from '@/external-api/config';
-import { normalizeExternalProducts } from '@/external-api/products';
+import { getExternalApiBaseUrl } from '@/lib/external-api/config';
+import { normalizeExternalProducts } from '@/lib/external-api/products';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

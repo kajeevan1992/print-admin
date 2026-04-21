@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getExternalApiBaseUrl } from '@/external-api/config';
+import { getExternalApiBaseUrl } from '@/lib/external-api/config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;

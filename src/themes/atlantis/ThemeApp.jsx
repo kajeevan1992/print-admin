@@ -41,6 +41,17 @@ const BRAND = {
 
 const THEME_BASE_PATH = "/theme/atlantis";
 
+const DEFAULT_EXTERNAL_API_BASE = "http://y46josgjr3wve61rhl5xwivq.13.61.22.39.sslip.io";
+
+function getApiBaseUrl() {
+  const raw =
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_EXTERNAL_API_BASE_URL ||
+    DEFAULT_EXTERNAL_API_BASE;
+  return raw.replace(/\/$/, "");
+}
+
+
 function stripThemeBase(pathname) {
   if (!pathname) return "/";
   if (pathname === THEME_BASE_PATH) return "/";
@@ -1915,48 +1926,64 @@ function SecondaryButton({ children, className = "", ...props }) {
 export default function App() {
   const { path, navigate } = usePathState();
   const cart = useCart();
-  const [tenant, setTenant] = useState(null);
-  const [liveProducts, setLiveProducts] = useState([]);
-  const [apiState, setApiState] = useState({ loading: true, message: "Connecting storefront..." });
+    const [liveProducts, setLiveProducts] = useState([]);
+  const [apiState, setApiState] = useState({ loading: true, message: "Connecting to live API..." });
 
   useEffect(() => {
     let active = true;
 
     async function loadLiveData() {
       try {
-        const hostname = window.location.hostname;
-        let tenantRes = await fetch(`/api/tenant/resolve?hostname=${encodeURIComponent(hostname)}`, { cache: "no-store" });
-        let tenantPayload = await tenantRes.json().catch(() => null);
+        const apiBase = getApiBaseUrl();
 
-        if (!tenantRes.ok || !tenantPayload?.ok) {
-          tenantRes = await fetch(`/api/tenant/demo`, { cache: "no-store" });
-          tenantPayload = await tenantRes.json().catch(() => null);
-        }
+        const healthRes = await fetch(`${apiBase}/health`, { cache: "no-store" });
+        const healthPayload = await healthRes.json().catch(() => null);
 
-        if (!tenantRes.ok || !tenantPayload?.ok) {
+        if (!healthRes.ok || !healthPayload?.success) {
           if (active) {
-            setApiState({ loading: false, message: "Using theme preview mode until database seed is available." });
+            setApiState({ loading: false, message: "Storefront loaded, but external API health check failed." });
           }
           return;
         }
 
-        const tenantData = tenantPayload.data;
-        if (active) setTenant(tenantData);
+        if (active) {
+          setApiState({ loading: true, message: "External API connected. Loading products..." });
+        }
 
-        const productsRes = await fetch(`/api/products?tenantId=${encodeURIComponent(tenantData.id)}`, { cache: "no-store" });
+        const productsRes = await fetch(`${apiBase}/products?limit=12&page=1`, { cache: "no-store" });
         const productsPayload = await productsRes.json().catch(() => null);
 
-        if (productsRes.ok && productsPayload?.ok) {
-          if (active) {
-            setLiveProducts(productsPayload.data || []);
-            setApiState({ loading: false, message: "Live tenant and product data connected." });
-          }
-        } else if (active) {
-          setApiState({ loading: false, message: "Tenant connected, but products are still using theme placeholders." });
+        const rawProducts = productsPayload?.data?.items || productsPayload?.data || [];
+        const normalizedProducts = Array.isArray(rawProducts)
+          ? rawProducts
+              .filter(Boolean)
+              .map((product) => ({
+                id: product.id,
+                slug: product.slug,
+                title: product.title || product.name,
+                subtitle: product.subtitle || product.description || "",
+                productType: product.productType || "STANDARD",
+                priceFromMinor:
+                  typeof product.priceFromMinor === "number"
+                    ? product.priceFromMinor
+                    : product.priceMapping?.basePriceMinor || null,
+                currency: product.currency || "GBP",
+              }))
+              .filter((product) => product.slug && product.title)
+          : [];
+
+        if (active) {
+          setLiveProducts(normalizedProducts);
+          setApiState({
+            loading: false,
+            message: normalizedProducts.length
+              ? "Connected to live external API data."
+              : "External API connected. No live products returned yet.",
+          });
         }
       } catch (error) {
         if (active) {
-          setApiState({ loading: false, message: "Theme loaded in preview mode. API connection can be enabled after seeding." });
+          setApiState({ loading: false, message: "Storefront loaded, but external API is not reachable yet." });
         }
       }
     }
@@ -2005,14 +2032,14 @@ export default function App() {
       page = <CartPage cart={cart} navigate={navigate} />;
       break;
     default:
-      page = <HomePage navigate={navigate} featuredProducts={featuredProductsData} tenantName={tenant?.name || "Atlantis Print"} />;
+      page = <HomePage navigate={navigate} featuredProducts={featuredProductsData} tenantName={"Atlantis Print"} />;
   }
 
   return (
     <div style={{ backgroundColor: BRAND.bg, color: BRAND.ink }}>
       <div className="border-b px-4 py-2 text-center text-[11px]" style={{ borderColor: BRAND.line, backgroundColor: "#F7FBFC", color: BRAND.muted }}>
         <span className="font-semibold" style={{ color: BRAND.ink }}>
-          {tenant?.name || "Theme Preview"}
+          {"Atlantis Print"}
         </span>
         {" · "}
         {apiState.message}

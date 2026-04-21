@@ -110,6 +110,26 @@ function readLastOrder() {
   }
 }
 
+const ARTWORK_DRAFT_STORAGE_KEY = "printcore.atlantis.artwork-draft";
+
+function writeArtworkDraft(payload) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(ARTWORK_DRAFT_STORAGE_KEY, JSON.stringify(payload));
+  } catch {}
+}
+
+function readArtworkDraft() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(ARTWORK_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 function mapLiveProduct(product) {
   return {
     id: product.id,
@@ -2166,11 +2186,11 @@ function CheckoutSuccessPage({ navigate }) {
             <p><span className="font-medium text-slate-900">API response:</span> {order?.upstream?.orderNumber || order?.upstream?.id || "Stored locally from proxy response"}</p>
           </div>
           <div className="mt-6 grid gap-3">
-            <Button className="h-11 rounded-full bg-slate-900 text-white hover:bg-slate-800" onClick={() => navigate("/")}>
-              Continue shopping
+            <Button className="h-11 rounded-full bg-slate-900 text-white hover:bg-slate-800" onClick={() => navigate("/artwork-upload")}>
+              Upload artwork
             </Button>
-            <Button variant="outline" className="h-11 rounded-full border-slate-200" onClick={() => navigate("/cart")}>
-              View cart
+            <Button variant="outline" className="h-11 rounded-full border-slate-200" onClick={() => navigate("/")}>
+              Continue shopping
             </Button>
           </div>
         </div>
@@ -2181,6 +2201,178 @@ function CheckoutSuccessPage({ navigate }) {
             <p>• connect artwork upload into the submitted order</p>
             <p>• fetch real order details from the API confirmation response</p>
             <p>• show tenant-branded email/order confirmation next</p>
+          </div>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
+
+function ArtworkUploadPage({ navigate }) {
+  const order = readLastOrder();
+  const [form, setForm] = useState(() => ({
+    fileName: readArtworkDraft()?.fileName || "",
+    fileType: readArtworkDraft()?.fileType || "PDF",
+    note: readArtworkDraft()?.note || "",
+  }));
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+
+  function updateField(key, value) {
+    const next = { ...form, [key]: value };
+    setForm(next);
+    writeArtworkDraft(next);
+  }
+
+  async function handleArtworkSubmit() {
+    if (!order) {
+      setMessage("No submitted order was found yet. Complete checkout first.");
+      return;
+    }
+
+    if (!form.fileName) {
+      setMessage("Please provide an artwork file name.");
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage("Submitting artwork...");
+
+    try {
+      const payload = {
+        orderReference: order?.upstream?.orderNumber || order?.upstream?.id || null,
+        customerEmail: order?.email || null,
+        fileName: form.fileName,
+        fileType: form.fileType,
+        note: form.note,
+        source: "atlantis-theme",
+      };
+
+      const res = await fetch(getProxyUrl("/artwork"), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        setMessage("Artwork reached the API path but did not complete successfully.");
+        return;
+      }
+
+      setMessage("Artwork submitted successfully.");
+      navigate("/artwork-upload/success");
+    } catch (error) {
+      setMessage("Storefront could not submit artwork yet.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <PageShell
+      eyebrow="Artwork upload"
+      title="Attach artwork to the submitted order"
+      subtitle="This is the next operational step after checkout, ready for API-linked artwork handling."
+    >
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Artwork details</p>
+            <p className="mt-1 text-sm text-slate-500">This frontend step links artwork metadata to the most recently submitted order.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input
+              placeholder="Artwork file name"
+              className="md:col-span-2"
+              value={form.fileName}
+              onChange={(e) => updateField("fileName", e.target.value)}
+            />
+            <Input
+              placeholder="File type"
+              value={form.fileType}
+              onChange={(e) => updateField("fileType", e.target.value)}
+            />
+            <Input
+              placeholder="Linked order reference"
+              value={order?.upstream?.orderNumber || order?.upstream?.id || "Latest submitted order"}
+              disabled
+            />
+            <Textarea
+              placeholder="Artwork notes, version details, or print instructions"
+              className="md:col-span-2 min-h-[120px]"
+              value={form.note}
+              onChange={(e) => updateField("note", e.target.value)}
+            />
+          </div>
+          <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            File binary upload can plug in next. This step already establishes the order-to-artwork workflow path.
+          </div>
+          {message ? (
+            <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {message}
+            </div>
+          ) : null}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Button
+              className="h-12 rounded-full bg-slate-900 text-white hover:bg-slate-800"
+              disabled={submitting}
+              onClick={handleArtworkSubmit}
+            >
+              {submitting ? "Submitting..." : "Submit artwork"}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 rounded-full border-slate-200"
+              onClick={() => navigate("/checkout/success")}
+            >
+              Back to order success
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Order link summary</p>
+            <div className="mt-4 space-y-3 text-sm text-slate-600">
+              <p><span className="font-medium text-slate-900">Customer:</span> {order?.customerName || "Not available"}</p>
+              <p><span className="font-medium text-slate-900">Email:</span> {order?.email || "Not available"}</p>
+              <p><span className="font-medium text-slate-900">Order reference:</span> {order?.upstream?.orderNumber || order?.upstream?.id || "Not available"}</p>
+              <p><span className="font-medium text-slate-900">Submitted total:</span> {order?.totalMinor != null ? formatMinorPrice(order.totalMinor, "GBP") : "Not available"}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
+function ArtworkUploadSuccessPage({ navigate }) {
+  return (
+    <PageShell
+      eyebrow="Artwork received"
+      title="Artwork handoff recorded"
+      subtitle="The storefront has now passed both order and artwork metadata into the API path."
+    >
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Next operational stage</p>
+          <div className="mt-4 space-y-3 text-sm text-slate-600">
+            <p>• map artwork records to real API order IDs</p>
+            <p>• add binary file storage and upload status</p>
+            <p>• surface artwork review state in customer account and admin dashboard</p>
+          </div>
+          <div className="mt-6 grid gap-3 md:grid-cols-2">
+            <Button className="h-11 rounded-full bg-slate-900 text-white hover:bg-slate-800" onClick={() => navigate("/")}>
+              Back to storefront
+            </Button>
+            <Button variant="outline" className="h-11 rounded-full border-slate-200" onClick={() => navigate("/checkout/success")}>
+              View order summary
+            </Button>
           </div>
         </div>
       </section>
@@ -2281,6 +2473,12 @@ export default function App() {
       break;
     case "/checkout/success":
       page = <CheckoutSuccessPage navigate={navigate} />;
+      break;
+    case "/artwork-upload":
+      page = <ArtworkUploadPage navigate={navigate} />;
+      break;
+    case "/artwork-upload/success":
+      page = <ArtworkUploadSuccessPage navigate={navigate} />;
       break;
     default:
       page = <HomePage navigate={navigate} featuredProducts={featuredProductsData} tenantName={"Atlantis Print"} />;

@@ -1,12 +1,17 @@
 import { fail, ok } from '@/lib/api/responses';
 import { getProductBySlug } from '@/lib/services/products';
+import { hasDatabaseUrl } from '@/lib/api/db-env';
 
-export async function GET(
-  request: Request,
-  context: { params: { slug: string } }
-) {
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function GET(request: Request, context: { params: { slug: string } }) {
   const { searchParams } = new URL(request.url);
   const tenantId = searchParams.get('tenantId') ?? undefined;
+
+  if (!hasDatabaseUrl()) {
+    return fail('DATABASE_NOT_CONFIGURED', 'DATABASE_URL is not configured.', 503);
+  }
 
   const product = await getProductBySlug(context.params.slug, tenantId);
 

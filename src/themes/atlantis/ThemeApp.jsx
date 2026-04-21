@@ -41,14 +41,10 @@ const BRAND = {
 
 const THEME_BASE_PATH = "/theme/atlantis";
 
-const DEFAULT_EXTERNAL_API_BASE = "http://y46josgjr3wve61rhl5xwivq.13.61.22.39.sslip.io";
+const LOCAL_THEME_PROXY_BASE = "/api/proxy";
 
-function getApiBaseUrl() {
-  const raw =
-    process.env.NEXT_PUBLIC_API_BASE_URL ||
-    process.env.NEXT_PUBLIC_EXTERNAL_API_BASE_URL ||
-    DEFAULT_EXTERNAL_API_BASE;
-  return raw.replace(/\/$/, "");
+function getProxyUrl(path) {
+  return `${LOCAL_THEME_PROXY_BASE}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 
@@ -1934,43 +1930,23 @@ export default function App() {
 
     async function loadLiveData() {
       try {
-        const apiBase = getApiBaseUrl();
-
-        const healthRes = await fetch(`${apiBase}/health`, { cache: "no-store" });
+        const healthRes = await fetch(getProxyUrl("/health"), { cache: "no-store" });
         const healthPayload = await healthRes.json().catch(() => null);
 
-        if (!healthRes.ok || !healthPayload?.success) {
+        if (!healthRes.ok || !healthPayload?.ok) {
           if (active) {
-            setApiState({ loading: false, message: "Storefront loaded, but external API health check failed." });
+            setApiState({ loading: false, message: "Storefront loaded, but API proxy could not reach the external API." });
           }
           return;
         }
 
         if (active) {
-          setApiState({ loading: true, message: "External API connected. Loading products..." });
+          setApiState({ loading: true, message: "External API connected through local proxy. Loading products..." });
         }
 
-        const productsRes = await fetch(`${apiBase}/products?limit=12&page=1`, { cache: "no-store" });
+        const productsRes = await fetch(getProxyUrl("/products?limit=12&page=1"), { cache: "no-store" });
         const productsPayload = await productsRes.json().catch(() => null);
-
-        const rawProducts = productsPayload?.data?.items || productsPayload?.data || [];
-        const normalizedProducts = Array.isArray(rawProducts)
-          ? rawProducts
-              .filter(Boolean)
-              .map((product) => ({
-                id: product.id,
-                slug: product.slug,
-                title: product.title || product.name,
-                subtitle: product.subtitle || product.description || "",
-                productType: product.productType || "STANDARD",
-                priceFromMinor:
-                  typeof product.priceFromMinor === "number"
-                    ? product.priceFromMinor
-                    : product.priceMapping?.basePriceMinor || null,
-                currency: product.currency || "GBP",
-              }))
-              .filter((product) => product.slug && product.title)
-          : [];
+        const normalizedProducts = productsPayload?.ok ? productsPayload?.data?.items || [] : [];
 
         if (active) {
           setLiveProducts(normalizedProducts);
@@ -1978,12 +1954,12 @@ export default function App() {
             loading: false,
             message: normalizedProducts.length
               ? "Connected to live external API data."
-              : "External API connected. No live products returned yet.",
+              : "External API connected, but no products were returned yet.",
           });
         }
       } catch (error) {
         if (active) {
-          setApiState({ loading: false, message: "Storefront loaded, but external API is not reachable yet." });
+          setApiState({ loading: false, message: "Storefront loaded, but local API proxy is not reachable yet." });
         }
       }
     }

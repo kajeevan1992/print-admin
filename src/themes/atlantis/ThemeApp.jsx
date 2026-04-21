@@ -69,9 +69,33 @@ function formatMinorPrice(value, currency = "GBP") {
   }).format((value ?? 0) / 100);
 }
 
+const CART_STORAGE_KEY = "printcore.atlantis.cart";
+
+function readStoredCart() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(CART_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredCart(items) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+  } catch {}
+}
+
 function mapLiveProduct(product) {
   return {
+    id: product.id,
+    slug: product.slug,
     title: product.title,
+    unitPriceMinor: product.priceFromMinor ?? null,
     price: product.priceFromMinor != null ? `From ${formatMinorPrice(product.priceFromMinor, product.currency || "GBP")}` : "Request quote",
     badge: product.productType === "QUOTE_LED" ? "Quote" : product.productType === "UPLOAD_LED" ? "Upload Artwork" : "Live Product",
     image:
@@ -1370,7 +1394,7 @@ function ProductAccordion({ title, defaultOpen = false, children }) {
 }
 
 
-function ProductPage({ type, cart, liveProducts = [] }) {
+function ProductPage({ type, cart, liveProducts = [], navigate }) {
   const slugToKey = {
     businessCards: "standard-business-cards",
     flyers: "a5-flyers",
@@ -1919,6 +1943,85 @@ function SecondaryButton({ children, className = "", ...props }) {
   );
 }
 
+
+function CheckoutPage({ cart, navigate }) {
+  const shipping = cart.subtotal > 0 ? 0 : 0;
+  const total = cart.subtotal + shipping;
+
+  return (
+    <PageShell
+      eyebrow="Checkout"
+      title="Checkout foundation"
+      subtitle="This is the next live step after cart. It keeps the Atlantis storefront flow moving toward real order submission."
+    >
+      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">Customer details</p>
+            <p className="mt-1 text-sm text-slate-500">Frontend foundation for the live order flow.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input placeholder="First name" />
+            <Input placeholder="Last name" />
+            <Input placeholder="Email address" className="md:col-span-2" />
+            <Input placeholder="Phone number" />
+            <Input placeholder="Company" />
+            <Input placeholder="Delivery postcode" />
+            <Input placeholder="Town / City" />
+            <Textarea placeholder="Delivery address" className="md:col-span-2 min-h-[110px]" />
+          </div>
+          <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+            Artwork upload and live order submission can plug in next using the existing API direction.
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">Order summary</p>
+            <div className="mt-4 space-y-3">
+              {cart.items.map((item) => (
+                <div key={`${item.id}-${item.variantLabel || "base"}`} className="flex items-start justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium text-slate-900">{item.name}</p>
+                    <p className="mt-1 text-slate-500">{item.variantLabel || "Standard option"} · Qty {item.qty}</p>
+                  </div>
+                  <p className="font-medium text-slate-900">{formatCurrency(item.lineTotal || item.unitPrice * item.qty)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 text-sm">
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Subtotal</span>
+                <span>{formatCurrency(cart.subtotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-slate-600">
+                <span>Shipping</span>
+                <span>{shipping === 0 ? "Included" : formatCurrency(shipping)}</span>
+              </div>
+              <div className="flex items-center justify-between text-base font-semibold text-slate-900">
+                <span>Total</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3">
+              <Button className="h-12 rounded-full bg-slate-900 text-white hover:bg-slate-800">
+                Submit order request
+              </Button>
+              <Button
+                variant="outline"
+                className="h-11 rounded-full border-slate-200"
+                onClick={() => navigate("/cart")}
+              >
+                Back to cart
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
 export default function App() {
   const { path, navigate } = usePathState();
   const cart = useCart();
@@ -1953,7 +2056,7 @@ export default function App() {
           setApiState({
             loading: false,
             message: normalizedProducts.length
-              ? "Connected to live external API data."
+              ? "Connected to live external API data. Cart is ready."
               : "External API connected, but no products were returned yet.",
           });
         }
@@ -1978,19 +2081,19 @@ export default function App() {
       page = <CategoryPage kind="businessCards" navigate={navigate} />;
       break;
     case "/standard-business-cards":
-      page = <ProductPage type="businessCards" cart={cart} liveProducts={liveProducts} />;
+      page = <ProductPage type="businessCards" cart={cart} liveProducts={liveProducts} navigate={navigate} />;
       break;
     case "/category/flyers":
       page = <CategoryPage kind="flyers" navigate={navigate} />;
       break;
     case "/flyers":
-      page = <ProductPage type="flyers" cart={cart} liveProducts={liveProducts} />;
+      page = <ProductPage type="flyers" cart={cart} liveProducts={liveProducts} navigate={navigate} />;
       break;
     case "/category/posters":
       page = <CategoryPage kind="posters" navigate={navigate} />;
       break;
     case "/posters-large-format-prints":
-      page = <ProductPage type="posters" cart={cart} liveProducts={liveProducts} />;
+      page = <ProductPage type="posters" cart={cart} liveProducts={liveProducts} navigate={navigate} />;
       break;
     case "/category/booklets":
       page = <CategoryPage kind="booklets" navigate={navigate} />;
@@ -2006,6 +2109,9 @@ export default function App() {
       break;
     case "/cart":
       page = <CartPage cart={cart} navigate={navigate} />;
+      break;
+    case "/checkout":
+      page = <CheckoutPage cart={cart} navigate={navigate} />;
       break;
     default:
       page = <HomePage navigate={navigate} featuredProducts={featuredProductsData} tenantName={"Atlantis Print"} />;

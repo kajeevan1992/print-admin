@@ -1,0 +1,7 @@
+v148 Atlantis cart foundation build
+
+- Added persistent localStorage cart for Atlantis theme
+- Improved product-to-cart line item handling
+- Added cart quantity controls and subtotal calculation
+- Added checkout foundation page and route
+- No admin/superadmin theme changes

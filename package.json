@@ -13,7 +13,8 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "seed:dev": "echo 'Use POST /api/dev/seed after deploy'"
   },
   "dependencies": {
     "lucide-react": "^0.525.0",

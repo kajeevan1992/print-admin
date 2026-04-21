@@ -2389,6 +2389,76 @@ function ArtworkUploadSuccessPage({ navigate }) {
   );
 }
 
+
+function AccountPage({ navigate }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadOrders() {
+      try {
+        const res = await fetch(getProxyUrl("/orders-list"));
+        const data = await res.json();
+
+        if (!data?.ok) {
+          setError("Could not load orders from API.");
+          return;
+        }
+
+        const list = data.payload?.data || data.payload || [];
+        setOrders(Array.isArray(list) ? list : []);
+      } catch {
+        setError("Failed to connect to orders API.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadOrders();
+  }, []);
+
+  return (
+    <PageShell
+      eyebrow="Account"
+      title="Your orders"
+      subtitle="Live order history from your API connection."
+    >
+      <section className="space-y-4">
+        {loading ? (
+          <p className="text-sm text-slate-500">Loading orders...</p>
+        ) : error ? (
+          <p className="text-sm text-red-500">{error}</p>
+        ) : orders.length === 0 ? (
+          <p className="text-sm text-slate-500">No orders found yet.</p>
+        ) : (
+          <div className="grid gap-4">
+            {orders.map((order, i) => (
+              <div key={order.id || i} className="rounded-xl border p-4 bg-white">
+                <p className="font-medium text-slate-900">
+                  Order #{order.orderNumber || order.id || i}
+                </p>
+                <p className="text-sm text-slate-500">
+                  Status: {order.status || "Pending"}
+                </p>
+                <p className="text-sm text-slate-500">
+                  Total: {order.totalMinor ? formatMinorPrice(order.totalMinor, "GBP") : "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6">
+          <Button onClick={() => navigate("/")}>
+            Back to storefront
+          </Button>
+        </div>
+      </section>
+    </PageShell>
+  );
+}
+
 export default function App() {
   const { path, navigate } = usePathState();
   const cart = useCart();
@@ -2488,6 +2558,9 @@ export default function App() {
       break;
     case "/artwork-upload/success":
       page = <ArtworkUploadSuccessPage navigate={navigate} />;
+      break;
+    case "/account":
+      page = <AccountPage navigate={navigate} />;
       break;
     default:
       page = <HomePage navigate={navigate} featuredProducts={featuredProductsData} tenantName={"Atlantis Print"} />;

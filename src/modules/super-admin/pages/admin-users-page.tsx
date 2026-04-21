@@ -117,7 +117,7 @@ export function AdminUsersPage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => resetAll()}>Reset</Button>
-            <PrimaryButton onClick={() => setEditing({ ...emptyRecord, id: crypto.randomUUID() })}>Invite Admin</PrimaryButton>
+            <PrimaryButton onClick={() => setEditing({ ...emptyRecord, id: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}` })}>Invite Admin</PrimaryButton>
           </div>
         }
       />

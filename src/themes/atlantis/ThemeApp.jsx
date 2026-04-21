@@ -90,6 +90,15 @@ function writeStoredCart(items) {
   } catch {}
 }
 
+function createSafeCartItemId(prefix = "cart-item") {
+  try {
+    if (typeof globalThis !== "undefined" && globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+      return `${prefix}-${globalThis.createSafeCartItemId('uuid')}`;
+    }
+  } catch {}
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 const LAST_ORDER_STORAGE_KEY = "printcore.atlantis.last-order";
 
 function writeLastOrder(order) {
@@ -948,7 +957,7 @@ function useCart() {
     return raw ? JSON.parse(raw) : [];
   });
   useEffect(() => { localStorage.setItem("holo-cart", JSON.stringify(items)); }, [items]);
-  const addItem = (item) => setItems((prev) => [...prev, { ...item, id: crypto.randomUUID(), qty: item.qty || 1 }]);
+  const addItem = (item) => setItems((prev) => [...prev, { ...item, id: createSafeCartItemId('uuid'), qty: item.qty || 1 }]);
   const removeItem = (id) => setItems((prev) => prev.filter((x) => x.id !== id));
   const updateQty = (id, delta) => setItems((prev) => prev.map((x) => (x.id === id ? { ...x, qty: Math.max(1, x.qty + delta) } : x)));
   const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -2120,7 +2129,7 @@ function CheckoutPage({ cart, navigate }) {
             <p className="text-sm font-semibold text-slate-900">Order summary</p>
             <div className="mt-4 space-y-3">
               {cart.items.map((item) => (
-                <div key={`${item.id}-${item.variantLabel || "base"}`} className="flex items-start justify-between gap-3 text-sm">
+                <div key={item.cartItemId || `${item.id}-${item.variantLabel || "base"}`} className="flex items-start justify-between gap-3 text-sm">
                   <div>
                     <p className="font-medium text-slate-900">{item.name}</p>
                     <p className="mt-1 text-slate-500">{item.variantLabel || "Standard option"} · Qty {item.qty}</p>

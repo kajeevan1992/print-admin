@@ -1,0 +1,2 @@
+import { AdminLiveTableBoard } from '@/components/admin-live/admin-live-table-board';
+export default function TagsPage(){ return <AdminLiveTableBoard title="Tags" description="Live-first tags route replacement." endpoint="/api/proxy/catalog-tags" fallbackRows={[{id:'tag-1',name:'Business Cards',friendlyUrl:'/business-cards',published:true}]} columns={[{key:'id',label:'ID'},{key:'name',label:'Name'},{key:'friendlyUrl',label:'Friendly URL'},{key:'published',label:'Published'}]} /> }

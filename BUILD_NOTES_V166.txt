@@ -1,0 +1,13 @@
+v166 real admin route replacement
+
+- Replaced actual admin menu routes with live-first pages for:
+  /products
+  /collections
+  /tags
+  /materials-library
+  /finish-library
+  /option-sets
+  /orders
+  /artwork-proofing
+- Uses existing live proxy routes first, with fallback rows only when endpoints are unavailable
+- Keeps current styling shell while replacing old local/mock page behavior

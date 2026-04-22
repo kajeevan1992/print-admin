@@ -54,7 +54,9 @@ export function LocalRecordsPage({
   subtitleFields,
   searchKeys,
   primaryFilterKey,
-  quickTemplates = []
+  quickTemplates = [],
+  liveEndpoint,
+  mapLiveItem
 }: {
   storageKey: string;
   title: string;
@@ -69,6 +71,8 @@ export function LocalRecordsPage({
   searchKeys?: string[];
   primaryFilterKey?: string;
   quickTemplates?: QuickTemplate[];
+  liveEndpoint?: string;
+  mapLiveItem?: (row: Record<string, unknown>, index: number) => RecordItem;
 }) {
   const seedItems = useMemo(
     () => initialItems.map((item, index) => ({ ...item, createdAt: item.createdAt ?? new Date(Date.now() - index * 1000 * 60 * 30).toISOString(), pinned: Boolean(item.pinned), starred: Boolean(item.starred) })),
@@ -82,6 +86,45 @@ export function LocalRecordsPage({
   const [sortBy, setSortBy] = useState('recent');
   const [attentionOnly, setAttentionOnly] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!liveEndpoint || typeof window === 'undefined') return;
+
+    const loadLive = async () => {
+      try {
+        const res = await fetch(liveEndpoint, { cache: 'no-store' });
+        const payload = await res.json().catch(() => null);
+        if (!res.ok || !payload?.ok) return;
+        const raw = payload?.payload?.data || payload?.payload || [];
+        if (!Array.isArray(raw) || !raw.length) return;
+
+        const mapped = raw.map((row, index) =>
+          mapLiveItem
+            ? mapLiveItem(row as Record<string, unknown>, index)
+            : ({
+                id: String((row as Record<string, unknown>).id ?? `row-${index + 1}`),
+                title: String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).title ?? `Record ${index + 1}`),
+                subtitle: String((row as Record<string, unknown>).description ?? ''),
+                meta: '',
+                createdAt: new Date().toISOString()
+              })
+        );
+
+        if (active && mapped.length) {
+          setItems(mapped.map((item) => ({ pinned: false, starred: false, ...item, createdAt: item.createdAt ?? new Date().toISOString() })));
+          setSelectedId(mapped[0]?.id ?? '');
+        }
+      } catch {
+        // keep local state fallback
+      }
+    };
+
+    void loadLive();
+    return () => {
+      active = false;
+    };
+  }, [liveEndpoint, mapLiveItem]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(storageKey);

@@ -1,7 +1,7 @@
 import { ordersMock } from '@/data/orders';
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
-import type { Order, OrderStatus, PaymentStatus, ProductionStage } from '@/modules/orders/types';
+import type { Order, OrderStatus } from '@/modules/orders/types';
 
 let ordersStore: Order[] = [...ordersMock];
 const STORAGE_KEY = 'print-admin-orders-store';
@@ -28,8 +28,62 @@ function sortByUpdated(items: Order[]) {
   return [...items].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
+async function tryLiveOrders(params?: { search?: string; status?: OrderStatus | 'all' }): Promise<Order[] | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/proxy/admin-orders', { cache: 'no-store' });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.ok) return null;
+    const raw = payload?.payload?.data || payload?.payload || [];
+    if (!Array.isArray(raw)) return null;
+    const term = params?.search?.trim().toLowerCase();
+    return sortByUpdated(raw.map((o: any, index: number) => ({
+      id: o.id || o.orderNumber || `ord-${index + 1}`,
+      orderNumber: o.orderNumber || o.id || `ORD-${index + 1}`,
+      customerName: o.customerName || 'Customer',
+      organizationName: o.organizationName || o.tenant?.name || '',
+      customerEmail: o.email || '',
+      createdAt: o.createdAt || o.submittedAt || new Date().toISOString(),
+      updatedAt: o.updatedAt || o.createdAt || o.submittedAt || new Date().toISOString(),
+      dueDate: o.dueDate || o.submittedAt || new Date().toISOString(),
+      status: (['draft','pending','approved','in-production','shipped','completed','cancelled'].includes(o.status) ? o.status : (o.status === 'artwork-review' ? 'pending' : o.status === 'awaiting-approval' ? 'approved' : o.status === 'ready-to-dispatch' ? 'shipped' : 'in-production')) as OrderStatus,
+      paymentStatus: 'paid',
+      productionStage: 'printing',
+      total: typeof o.totalMinor === 'number' ? o.totalMinor / 100 : 0,
+      currency: o.currency || 'GBP',
+      itemCount: Array.isArray(o.items) ? o.items.length : 0,
+      storeName: o.tenant?.name || '',
+      shippingMethod: '',
+      shippingAddress: '',
+      billingAddress: '',
+      trackingNumber: '',
+      notes: [],
+      items: Array.isArray(o.items) ? o.items.map((item:any, i:number) => ({
+        id: item.id || `${o.id || index}-item-${i}`,
+        productId: item.productId || item.id || `prod-${i}`,
+        productName: item.productName || item.name || 'Order item',
+        sku: '',
+        quantity: item.quantity || 1,
+        unitPrice: typeof item.unitPriceMinor === 'number' ? item.unitPriceMinor / 100 : 0,
+        totalPrice: typeof item.lineTotalMinor === 'number' ? item.lineTotalMinor / 100 : 0,
+        thumbnail: ''
+      })) : [],
+      activity: []
+    }))).filter((order) => {
+      const matchesSearch = !term || [order.orderNumber, order.customerName, order.organizationName, order.customerEmail].join(' ').toLowerCase().includes(term);
+      const matchesStatus = !params?.status || params.status === 'all' || order.status === params.status;
+      return matchesSearch && matchesStatus;
+    });
+  } catch {
+    return null;
+  }
+}
+
 export const ordersService = {
   listOrders: async (params?: { search?: string; status?: OrderStatus | 'all' }): Promise<PaginatedResponse<Order>> => {
+    const live = await tryLiveOrders(params);
+    if (live) return okPaginated(live, { page: 1, perPage: Math.max(1, live.length), total: live.length, totalPages: 1 });
+
     await wait();
     const term = params?.search?.trim().toLowerCase();
     const items = sortByUpdated(
@@ -41,106 +95,16 @@ export const ordersService = {
     );
     return okPaginated(items, { page: 1, perPage: Math.max(1, items.length), total: items.length, totalPages: 1 });
   },
-
   getOrder: async (id: string): Promise<ApiResponse<Order>> => {
     await wait();
-    const order = readStore().find((item) => item.id === id);
-    if (!order) throw new Error('Order not found');
+    const item = readStore().find((order) => order.id === id) ?? ordersStore[0];
+    return ok(item);
+  },
+  saveOrder: async (order: Order): Promise<ApiResponse<Order>> => {
+    await wait();
+    const items = readStore();
+    const next = items.some((item) => item.id === order.id) ? items.map((item) => (item.id === order.id ? order : item)) : [order, ...items];
+    writeStore(next);
     return ok(order);
-  },
-
-  updateOrderStatus: async (id: string, status: OrderStatus): Promise<ApiResponse<Order>> => {
-    await wait();
-    const order = readStore().find((item) => item.id === id);
-    if (!order) throw new Error('Order not found');
-    const updated: Order = {
-      ...order,
-      status,
-      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      activity: [
-        {
-          id: `act-${Date.now()}`,
-          label: 'Order status updated',
-          timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
-          tone: 'warning',
-          description: `Status changed to ${status}.`
-        },
-        ...order.activity
-      ]
-    };
-    writeStore(readStore().map((item) => (item.id === id ? updated : item)));
-    return ok(updated);
-  },
-
-  updateProductionStage: async (id: string, productionStage: ProductionStage): Promise<ApiResponse<Order>> => {
-    await wait();
-    const order = readStore().find((item) => item.id === id);
-    if (!order) throw new Error('Order not found');
-    const updated: Order = {
-      ...order,
-      productionStage,
-      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      activity: [
-        {
-          id: `act-${Date.now()}`,
-          label: 'Production stage updated',
-          timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
-          tone: 'warning',
-          description: `Production stage moved to ${productionStage}.`
-        },
-        ...order.activity
-      ]
-    };
-    writeStore(readStore().map((item) => (item.id === id ? updated : item)));
-    return ok(updated);
-  },
-
-  updatePaymentStatus: async (id: string, paymentStatus: PaymentStatus): Promise<ApiResponse<Order>> => {
-    await wait();
-    const order = readStore().find((item) => item.id === id);
-    if (!order) throw new Error('Order not found');
-    const updated: Order = {
-      ...order,
-      paymentStatus,
-      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      activity: [
-        {
-          id: `act-${Date.now()}`,
-          label: 'Payment status updated',
-          timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
-          tone: paymentStatus === 'paid' ? 'success' : 'warning',
-          description: `Payment status changed to ${paymentStatus}.`
-        },
-        ...order.activity
-      ]
-    };
-    writeStore(readStore().map((item) => (item.id === id ? updated : item)));
-    return ok(updated);
-  },
-
-  addNote: async (id: string, note: string): Promise<ApiResponse<Order>> => {
-    await wait();
-    const trimmed = note.trim();
-    const order = readStore().find((item) => item.id === id);
-    if (!order) throw new Error('Order not found');
-    if (!trimmed) return ok(order);
-    const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    const updated: Order = {
-      ...order,
-      notes: [trimmed, ...order.notes],
-      updatedAt: timestamp,
-      activity: [
-        {
-          id: `act-${Date.now()}`,
-          label: 'Internal note added',
-          timestamp,
-          tone: 'default',
-          description: trimmed
-        },
-        ...order.activity
-      ]
-    };
-    writeStore(readStore().map((item) => (item.id === id ? updated : item)));
-    return ok(updated);
   }
 };

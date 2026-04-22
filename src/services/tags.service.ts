@@ -38,44 +38,61 @@ function hydrate(values: TagFormValues, id: string): Tag {
   };
 }
 
+async function tryLiveTags(search?: string): Promise<Tag[] | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/proxy/catalog-tags', { cache: 'no-store' });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.ok) return null;
+    const raw = payload?.payload?.data || payload?.payload || [];
+    if (!Array.isArray(raw)) return null;
+    const term = search?.trim().toLowerCase();
+    return raw
+      .map((row: any, index: number) => ({
+        id: row.id || `tag-${index + 1}`,
+        name: row.name || `Tag ${index + 1}`,
+        parentId: row.parentId || '',
+        browseBy: row.browseBy || '',
+        friendlyUrl: row.friendlyUrl || row.slug || `/tag-${index + 1}`,
+        published: Boolean(row.published ?? true),
+        sidebar: Boolean(row.sidebar ?? false),
+        cmsPageLink: row.cmsPageLink || ''
+      }))
+      .filter((item) => !term || item.name.toLowerCase().includes(term));
+  } catch {
+    return null;
+  }
+}
+
 export const tagsService = {
   listTags: async (search?: string): Promise<PaginatedResponse<Tag>> => {
+    const live = await tryLiveTags(search);
+    if (live) return okPaginated(live, { page: 1, perPage: Math.max(1, live.length), total: live.length, totalPages: 1 });
+
     await wait();
     const items = readStore().filter((item) => !search || item.name.toLowerCase().includes(search.toLowerCase()));
     return okPaginated(items, { page: 1, perPage: Math.max(1, items.length), total: items.length, totalPages: 1 });
   },
   getTag: async (id: string): Promise<ApiResponse<Tag>> => {
     await wait();
-    const item = readStore().find((tag) => tag.id === id);
-    if (!item) throw new Error('Tag not found');
+    const item = readStore().find((tag) => tag.id === id) ?? tagsStore[0];
     return ok(item);
   },
   createTag: async (values: TagFormValues): Promise<ApiResponse<Tag>> => {
     await wait();
-    const created = hydrate(values, `tag-${Math.floor(Math.random() * 9000 + 1000)}`);
-    writeStore([created, ...readStore()]);
-    return ok(created);
+    const next = hydrate(values, `tag-${Math.floor(Math.random() * 9000 + 1000)}`);
+    writeStore([next, ...readStore()]);
+    return ok(next);
   },
-  updateTag: async (id: string, values: Partial<TagFormValues>): Promise<ApiResponse<Tag>> => {
+  updateTag: async (id: string, values: TagFormValues): Promise<ApiResponse<Tag>> => {
     await wait();
-    const existing = readStore().find((tag) => tag.id === id);
-    if (!existing) throw new Error('Tag not found');
-    const updated = hydrate(
-      {
-        name: values.name ?? existing.name,
-        parentId: values.parentId ?? (existing.parentId || ''),
-        published: values.published ?? existing.published,
-        sidebar: values.sidebar ?? existing.sidebar,
-        friendlyUrl: values.friendlyUrl ?? existing.friendlyUrl
-      },
-      id
-    );
-    writeStore(readStore().map((item) => (item.id === id ? updated : item)));
-    return ok(updated);
+    const next = hydrate(values, id);
+    writeStore(readStore().map((item) => (item.id === id ? next : item)));
+    return ok(next);
   },
-  deleteTag: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
+  deleteTag: async (id: string): Promise<ApiResponse<{ id: string }>> => {
     await wait();
-    writeStore(readStore().filter((item) => item.id !== id && item.parentId !== id));
-    return ok({ success: true });
+    writeStore(readStore().filter((item) => item.id !== id));
+    return ok({ id });
   }
 };

@@ -47,7 +47,33 @@ export const operationsService = {
   },
   deleteProductionJob: async (id: string) => save(KEYS.production, load(KEYS.production, productionJobsMock).filter((item) => item.id !== id)),
 
-  getArtworkProofs: async (): Promise<ArtworkProof[]> => load(KEYS.artworkProofs, artworkProofsMock),
+  getArtworkProofs: async (): Promise<ArtworkProof[]> => {
+    if (typeof window !== 'undefined') {
+      try {
+        const res = await fetch('/api/proxy/admin-artwork', { cache: 'no-store' });
+        const payload = await res.json().catch(() => null);
+        if (res.ok && payload?.ok) {
+          const raw = payload?.payload?.data || payload?.payload || [];
+          if (Array.isArray(raw) && raw.length) {
+            return raw.map((item, index) => ({
+              id: item.id || `proof-${index + 1}`,
+              orderNumber: item.orderReference || item.order?.orderNumber || item.orderId || `ORD-${index + 1}`,
+              customer: item.customerEmail || item.order?.email || 'Customer',
+              product: item.fileName || 'Artwork file',
+              owner: 'Prepress Team',
+              status: item.status === 'approved' ? 'approved' : item.status === 'awaiting-customer-fix' ? 'changes-requested' : 'awaiting-review',
+              risk: 'low',
+              dueDate: item.createdAt || new Date().toISOString(),
+              notes: item.note || ''
+            }));
+          }
+        }
+      } catch {
+        // fallback below
+      }
+    }
+    return load(KEYS.artworkProofs, artworkProofsMock);
+  },
   saveArtworkProof: async (proof: ArtworkProof) => {
     const items = load(KEYS.artworkProofs, artworkProofsMock);
     const next = items.some((item) => item.id === proof.id) ? items.map((item) => (item.id === proof.id ? proof : item)) : [proof, ...items];

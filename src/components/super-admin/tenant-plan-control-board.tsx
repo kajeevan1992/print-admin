@@ -58,6 +58,7 @@ export function TenantPlanControlBoard() {
   const [message, setMessage] = useState('Connecting to live tenants API...');
   const [actionMessage, setActionMessage] = useState('');
   const [source, setSource] = useState<'live' | 'seed'>('seed');
+  const [pendingTenantId, setPendingTenantId] = useState<string | null>(null);
 
   const loadTenants = useCallback(async () => {
     try {
@@ -93,9 +94,11 @@ export function TenantPlanControlBoard() {
   }, [loadTenants]);
 
   async function handlePlanChange(tenantId: string, currentPlan: string) {
+    if (pendingTenantId) return;
     const planName = nextPlan(currentPlan);
     const previousRows = rows;
     setRows((current) => current.map((row) => (row.tenantId === tenantId ? { ...row, planName } : row)));
+    setPendingTenantId(tenantId);
     setActionMessage(`Attempting to change ${tenantId} plan to ${planName}...`);
     try {
       const res = await fetch('/api/proxy/superadmin-tenants/plan', {
@@ -114,13 +117,17 @@ export function TenantPlanControlBoard() {
     } catch {
       setRows(previousRows);
       setActionMessage('Could not reach the plan endpoint. Reverted optimistic change.');
+    } finally {
+      setPendingTenantId(null);
     }
   }
 
   async function handleStatusChange(tenantId: string, currentStatus: string) {
+    if (pendingTenantId) return;
     const status = nextStatus(currentStatus);
     const previousRows = rows;
     setRows((current) => current.map((row) => (row.tenantId === tenantId ? { ...row, status } : row)));
+    setPendingTenantId(tenantId);
     setActionMessage(`Attempting to change ${tenantId} status to ${status}...`);
     try {
       const res = await fetch('/api/proxy/superadmin-tenants/status', {
@@ -139,6 +146,8 @@ export function TenantPlanControlBoard() {
     } catch {
       setRows(previousRows);
       setActionMessage('Could not reach the tenant status endpoint. Reverted optimistic change.');
+    } finally {
+      setPendingTenantId(null);
     }
   }
 
@@ -173,6 +182,7 @@ export function TenantPlanControlBoard() {
             style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
             onClick={() => {
               setLoading(true);
+              setActionMessage('');
               loadTenants();
             }}
           >
@@ -248,6 +258,7 @@ export function TenantPlanControlBoard() {
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+                disabled={pendingTenantId === row.tenantId}
                 onClick={() => handlePlanChange(row.tenantId, row.planName)}
               >
                 Change plan
@@ -256,6 +267,7 @@ export function TenantPlanControlBoard() {
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
+                disabled={pendingTenantId === row.tenantId}
                 onClick={() => handleStatusChange(row.tenantId, row.status)}
               >
                 {row.status === 'pending-activation'

@@ -1,0 +1,8 @@
+v164 stabilization and bug-fix pass
+
+- Added app-level route error boundary
+- Added duplicate-click protection for admin order, superadmin tenant, and artwork actions
+- Added clearer refreshing/updating button states
+- Clears stale action messages on manual refresh
+- Improved order detail lookup state handling
+- Focused on hardening existing live wiring without changing styling

@@ -56,6 +56,7 @@ export function AdminArtworkQueueBoard() {
   const [source, setSource] = useState<'live' | 'fallback'>('fallback');
   const [filter, setFilter] = useState('all');
   const [actionMessage, setActionMessage] = useState('');
+  const [pendingArtworkId, setPendingArtworkId] = useState<string | null>(null);
 
   const loadQueue = useCallback(async () => {
     try {
@@ -91,9 +92,11 @@ export function AdminArtworkQueueBoard() {
   }, [loadQueue]);
 
   async function handleAdvanceArtwork(artworkId: string, currentStatus: string) {
+    if (pendingArtworkId) return;
     const target = nextArtworkStatus(currentStatus);
     const previousRows = rows;
     setRows((current) => current.map((row) => row.id === artworkId ? { ...row, status: target } : row));
+    setPendingArtworkId(artworkId);
     setActionMessage(`Attempting to change artwork ${artworkId} to ${target}...`);
 
     try {
@@ -115,6 +118,8 @@ export function AdminArtworkQueueBoard() {
     } catch {
       setRows(previousRows);
       setActionMessage('Could not reach the artwork status endpoint. Reverted optimistic change.');
+    } finally {
+      setPendingArtworkId(null);
     }
   }
 
@@ -149,6 +154,7 @@ export function AdminArtworkQueueBoard() {
             style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
             onClick={() => {
               setLoading(true);
+              setActionMessage('');
               loadQueue();
             }}
           >
@@ -235,9 +241,10 @@ export function AdminArtworkQueueBoard() {
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+                disabled={pendingArtworkId === row.id}
                 onClick={() => handleAdvanceArtwork(row.id, row.status)}
               >
-                {row.status === 'approved' ? 'Keep approved' : 'Advance artwork'}
+                {pendingArtworkId === row.id ? 'Updating...' : row.status === 'approved' ? 'Keep approved' : 'Advance artwork'}
               </button>
             </div>
           </div>

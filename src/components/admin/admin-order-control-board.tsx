@@ -96,6 +96,7 @@ export function AdminOrderControlBoard() {
   const [message, setMessage] = useState('Connecting to live orders API...');
   const [actionMessage, setActionMessage] = useState('');
   const [source, setSource] = useState<'live' | 'seed'>('seed');
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -131,11 +132,13 @@ export function AdminOrderControlBoard() {
   }, [loadOrders]);
 
   async function handleAdvance(orderId: string, currentStatus: string) {
+    if (pendingOrderId) return;
     const target = nextStatus(currentStatus);
     const previousRows = rows;
     setRows((current) =>
       current.map((row) => (row.id === orderId ? { ...row, status: target } : row))
     );
+    setPendingOrderId(orderId);
     setActionMessage(`Attempting to change ${orderId} to ${target}...`);
 
     try {
@@ -157,6 +160,8 @@ export function AdminOrderControlBoard() {
     } catch {
       setRows(previousRows);
       setActionMessage('Could not reach the status endpoint. Reverted optimistic change.');
+    } finally {
+      setPendingOrderId(null);
     }
   }
 
@@ -191,6 +196,7 @@ export function AdminOrderControlBoard() {
             style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
             onClick={() => {
               setLoading(true);
+              setActionMessage('');
               loadOrders();
             }}
           >
@@ -297,6 +303,7 @@ export function AdminOrderControlBoard() {
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
+                disabled={pendingOrderId === row.id}
                 onClick={() => handleAdvance(row.id, row.status)}
               >
                 Advance status

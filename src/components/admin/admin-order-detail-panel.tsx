@@ -12,6 +12,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
   const [detail, setDetail] = useState<any>(null);
   const [source, setSource] = useState<'live' | 'fallback'>('fallback');
   const [lookupId, setLookupId] = useState(orderId || 'ORD-1001');
+  const [lastLoadedId, setLastLoadedId] = useState(orderId || 'ORD-1001');
 
   async function loadDetail(targetId: string) {
     if (!targetId) {
@@ -43,6 +44,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
 
       const raw = payload?.payload?.data || payload?.payload || null;
       setDetail(raw);
+      setLastLoadedId(targetId);
       setSource('live');
       setMessage('Connected to live order detail.');
     } catch {
@@ -101,7 +103,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
           style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
           onClick={() => loadDetail(lookupId)}
         >
-          Load
+          {loading ? 'Loading...' : 'Load'}
         </button>
       </div>
 
@@ -119,7 +121,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
               <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--theme-text-muted)' }}>
                 Order reference
               </p>
-              <p className="mt-2 text-sm font-medium">{detail.orderNumber || detail.id || lookupId}</p>
+              <p className="mt-2 text-sm font-medium">{detail.orderNumber || detail.id || lastLoadedId}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--theme-text-muted)' }}>

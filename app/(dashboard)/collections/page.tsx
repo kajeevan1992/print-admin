@@ -1,2 +1,0 @@
-import { AdminLiveTableBoard } from '@/components/admin-live/admin-live-table-board';
-export default function CollectionsPage(){ return <AdminLiveTableBoard title="Collections" description="Live-first collections route replacement." endpoint="/api/proxy/catalog-collections" fallbackRows={[{id:'col-1',name:'Best Sellers',friendlyUrl:'/best-sellers',description:'Top performing products'}]} columns={[{key:'id',label:'ID'},{key:'name',label:'Name'},{key:'friendlyUrl',label:'Friendly URL'},{key:'description',label:'Description'}]} /> }

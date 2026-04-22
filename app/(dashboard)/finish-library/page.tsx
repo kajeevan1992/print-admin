@@ -1,2 +1,0 @@
-import { AdminLiveTableBoard } from '@/components/admin-live/admin-live-table-board';
-export default function FinishLibraryPage(){ return <AdminLiveTableBoard title="Finish Library" description="Live-first finishes route replacement." endpoint="/api/proxy/catalog-finishes" fallbackRows={[{id:'fin-1',name:'Matt Lamination',description:'Protective matt laminate'}]} columns={[{key:'id',label:'ID'},{key:'name',label:'Name'},{key:'description',label:'Description'}]} /> }

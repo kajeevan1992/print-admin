@@ -1,2 +1,0 @@
-import { AdminLiveTableBoard } from '@/components/admin-live/admin-live-table-board';
-export default function MaterialsLibraryPage(){ return <AdminLiveTableBoard title="Materials Library" description="Live-first materials route replacement." endpoint="/api/proxy/catalog-materials" fallbackRows={[{id:'mat-1',name:'350gsm Silk',gsm:'350gsm',description:'Smooth coated card stock'}]} columns={[{key:'id',label:'ID'},{key:'name',label:'Name'},{key:'gsm',label:'GSM'},{key:'description',label:'Description'}]} /> }

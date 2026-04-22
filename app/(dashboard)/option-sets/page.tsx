@@ -1,2 +1,0 @@
-import { AdminLiveTableBoard } from '@/components/admin-live/admin-live-table-board';
-export default function OptionSetsPage(){ return <AdminLiveTableBoard title="Option Sets" description="Live-first option sets route replacement." endpoint="/api/proxy/catalog-option-sets" fallbackRows={[{id:'os-1',name:'Business Card Options',slug:'business-card-options',description:'Size, stock, finish, and quantity'}]} columns={[{key:'id',label:'ID'},{key:'name',label:'Name'},{key:'slug',label:'Slug'},{key:'description',label:'Description'}]} /> }

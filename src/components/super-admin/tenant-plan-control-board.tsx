@@ -1,16 +1,93 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { superadminPlanLimitSeed } from '@/data/superadmin-plan-limits';
 import { TenantPlanStatusBadge } from './tenant-plan-status-badge';
 import { LimitUsageBar } from './limit-usage-bar';
 
+type LivePlanRow = {
+  tenantId: string;
+  tenantName: string;
+  status: string;
+  planName: string;
+  storefrontsUsed: number;
+  storefrontsLimit: number;
+  adminUsersUsed: number;
+  adminUsersLimit: number;
+  storageUsedGb: number;
+  storageLimitGb: number;
+  nextBillingDate: string;
+};
+
+function normalizePlanRows(payload: any): LivePlanRow[] {
+  const raw = payload?.payload?.data || payload?.payload || [];
+  if (!Array.isArray(raw)) return [];
+
+  return raw.map((tenant: any, index: number) => ({
+    tenantId: tenant.id || `tenant-${index + 1}`,
+    tenantName: tenant.name || tenant.slug || `Tenant ${index + 1}`,
+    status: tenant.status || 'active',
+    planName: tenant.planName || tenant.plan?.name || 'Starter',
+    storefrontsUsed: typeof tenant.storefrontsUsed === 'number' ? tenant.storefrontsUsed : 1,
+    storefrontsLimit: typeof tenant.storefrontsLimit === 'number' ? tenant.storefrontsLimit : 1,
+    adminUsersUsed: typeof tenant.adminUsersUsed === 'number' ? tenant.adminUsersUsed : 1,
+    adminUsersLimit: typeof tenant.adminUsersLimit === 'number' ? tenant.adminUsersLimit : 3,
+    storageUsedGb: typeof tenant.storageUsedGb === 'number' ? tenant.storageUsedGb : 0,
+    storageLimitGb: typeof tenant.storageLimitGb === 'number' ? tenant.storageLimitGb : 10,
+    nextBillingDate: tenant.nextBillingDate || tenant.billingDate || 'Not set',
+  }));
+}
+
 export function TenantPlanControlBoard() {
   const [filter, setFilter] = useState('all');
+  const [rows, setRows] = useState<LivePlanRow[]>(superadminPlanLimitSeed);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('Connecting to live tenants API...');
 
-  const rows = useMemo(
-    () => superadminPlanLimitSeed.filter((row) => filter === 'all' || row.status === filter),
-    [filter]
+  useEffect(() => {
+    let active = true;
+
+    async function loadTenants() {
+      try {
+        const res = await fetch('/api/proxy/superadmin-tenants', { cache: 'no-store' });
+        const payload = await res.json().catch(() => null);
+
+        if (!res.ok || !payload?.ok) {
+          if (active) {
+            setRows(superadminPlanLimitSeed);
+            setMessage('Live tenants API is not available yet. Showing seeded plan rows.');
+          }
+          return;
+        }
+
+        const normalized = normalizePlanRows(payload);
+        if (active) {
+          setRows(normalized.length ? normalized : superadminPlanLimitSeed);
+          setMessage(
+            normalized.length
+              ? 'Connected to live plan and tenant data.'
+              : 'Tenants API connected but returned no rows. Showing seeded plan rows.'
+          );
+        }
+      } catch {
+        if (active) {
+          setRows(superadminPlanLimitSeed);
+          setMessage('Could not reach the tenants API. Showing seeded plan rows.');
+        }
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadTenants();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filteredRows = useMemo(
+    () => rows.filter((row) => filter === 'all' || row.status === filter),
+    [rows, filter]
   );
 
   return (
@@ -40,8 +117,15 @@ export function TenantPlanControlBoard() {
         </select>
       </div>
 
+      <div
+        className="mt-4 rounded-2xl border px-4 py-3 text-sm"
+        style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
+      >
+        {loading ? 'Loading plans...' : message}
+      </div>
+
       <div className="mt-4 space-y-3">
-        {rows.map((row) => (
+        {filteredRows.map((row) => (
           <div
             key={row.tenantId}
             className="rounded-2xl border p-4"
@@ -89,7 +173,7 @@ export function TenantPlanControlBoard() {
           </div>
         ))}
 
-        {!rows.length ? (
+        {!filteredRows.length ? (
           <div
             className="rounded-2xl border p-4 text-sm"
             style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}

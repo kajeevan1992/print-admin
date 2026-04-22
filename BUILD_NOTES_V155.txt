@@ -1,0 +1,6 @@
+v155 superadmin live API wiring
+
+- Added /api/proxy/superadmin-tenants route
+- Rewired superadmin tenant domains board to use live tenant/domain API data with safe fallback
+- Rewired superadmin plan limits board to use live tenant/plan API data with safe fallback
+- No admin/storefront/superadmin style changes

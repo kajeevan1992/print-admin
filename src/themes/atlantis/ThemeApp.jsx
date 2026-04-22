@@ -2394,22 +2394,23 @@ function AccountPage({ navigate }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const lastOrder = readLastOrder();
 
   useEffect(() => {
     async function loadOrders() {
       try {
         const res = await fetch(getProxyUrl("/orders-list"));
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
 
-        if (!data?.ok) {
-          setError("Could not load orders from API.");
+        if (!res.ok || !data?.ok) {
+          setError("Live orders API is not available yet. Showing the latest locally stored order instead.");
           return;
         }
 
         const list = data.payload?.data || data.payload || [];
         setOrders(Array.isArray(list) ? list : []);
       } catch {
-        setError("Failed to connect to orders API.");
+        setError("Live orders API is not reachable yet. Showing the latest locally stored order instead.");
       } finally {
         setLoading(false);
       }
@@ -2418,36 +2419,71 @@ function AccountPage({ navigate }) {
     loadOrders();
   }, []);
 
+  const fallbackOrders = lastOrder
+    ? [
+        {
+          id: lastOrder.upstream?.id || "latest-local-order",
+          orderNumber: lastOrder.upstream?.orderNumber || "Latest submitted order",
+          status: lastOrder.upstream?.status || "Submitted",
+          totalMinor: lastOrder.totalMinor || null,
+          submittedAt: lastOrder.submittedAt || null,
+          customerName: lastOrder.customerName || null,
+          email: lastOrder.email || null,
+        },
+      ]
+    : [];
+
+  const displayOrders = orders.length ? orders : fallbackOrders;
+
   return (
     <PageShell
       eyebrow="Account"
       title="Your orders"
-      subtitle="Live order history from your API connection."
+      subtitle="Account history is ready for live API orders, with a safe fallback to the latest submitted order."
     >
       <section className="space-y-4">
         {loading ? (
           <p className="text-sm text-slate-500">Loading orders...</p>
-        ) : error ? (
-          <p className="text-sm text-red-500">{error}</p>
-        ) : orders.length === 0 ? (
+        ) : null}
+
+        {!loading && error ? (
+          <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            {error}
+          </div>
+        ) : null}
+
+        {!loading && displayOrders.length === 0 ? (
           <p className="text-sm text-slate-500">No orders found yet.</p>
-        ) : (
+        ) : null}
+
+        {!loading && displayOrders.length > 0 ? (
           <div className="grid gap-4">
-            {orders.map((order, i) => (
-              <div key={order.id || i} className="rounded-xl border p-4 bg-white">
-                <p className="font-medium text-slate-900">
-                  Order #{order.orderNumber || order.id || i}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Status: {order.status || "Pending"}
-                </p>
-                <p className="text-sm text-slate-500">
-                  Total: {order.totalMinor ? formatMinorPrice(order.totalMinor, "GBP") : "—"}
-                </p>
+            {displayOrders.map((order, i) => (
+              <div key={order.id || i} className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      Order #{order.orderNumber || order.id || i}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Status: {order.status || "Pending"}
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-slate-900">
+                    {order.totalMinor != null ? formatMinorPrice(order.totalMinor, "GBP") : "—"}
+                  </p>
+                </div>
+
+                <div className="mt-4 grid gap-2 text-sm text-slate-500 md:grid-cols-2">
+                  <p>Customer: {order.customerName || "Not available"}</p>
+                  <p>Email: {order.email || "Not available"}</p>
+                  <p>Submitted: {order.submittedAt ? new Date(order.submittedAt).toLocaleString() : "Not available"}</p>
+                  <p>Source: {orders.length ? "Live API" : "Local storefront fallback"}</p>
+                </div>
               </div>
             ))}
           </div>
-        )}
+        ) : null}
 
         <div className="mt-6">
           <Button onClick={() => navigate("/")}>

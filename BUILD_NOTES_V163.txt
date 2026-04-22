@@ -1,0 +1,7 @@
+v163 app bulk live wiring cleanup
+
+- Added admin artwork detail/status proxy routes
+- Wired admin artwork queue to live status updates with reload/revert behavior
+- Improved admin order detail panel with manual order lookup and live artwork display
+- Tightened storefront account wording to prioritize live order API
+- Keeps fallback behavior only when live endpoints are unavailable

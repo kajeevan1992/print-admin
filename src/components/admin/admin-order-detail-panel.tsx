@@ -11,67 +11,60 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
   const [message, setMessage] = useState('Select an order to inspect detail.');
   const [detail, setDetail] = useState<any>(null);
   const [source, setSource] = useState<'live' | 'fallback'>('fallback');
+  const [lookupId, setLookupId] = useState(orderId || 'ORD-1001');
 
-  useEffect(() => {
-    let active = true;
+  async function loadDetail(targetId: string) {
+    if (!targetId) {
+      setDetail(null);
+      setSource('fallback');
+      setMessage('Select an order to inspect detail.');
+      return;
+    }
 
-    async function loadDetail() {
-      if (!orderId) {
-        setDetail(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/proxy/admin-orders/${encodeURIComponent(targetId)}`, { cache: 'no-store' });
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.ok) {
+        setDetail({
+          id: targetId,
+          orderNumber: targetId,
+          customerName: 'Not available from API yet',
+          status: 'Unknown',
+          items: [],
+          artworks: [],
+          notes: 'Order detail endpoint is not available yet.',
+        });
         setSource('fallback');
-        setMessage('Select an order to inspect detail.');
+        setMessage('Showing fallback order detail because the live detail endpoint is not available yet.');
         return;
       }
 
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/proxy/admin-orders/${encodeURIComponent(orderId)}`, { cache: 'no-store' });
-        const payload = await res.json().catch(() => null);
-
-        if (!res.ok || !payload?.ok) {
-          if (active) {
-            setDetail({
-              id: orderId,
-              orderNumber: orderId,
-              customerName: 'Not available from API yet',
-              status: 'Unknown',
-              items: [],
-              notes: 'Order detail endpoint is not available yet.',
-            });
-            setSource('fallback');
-            setMessage('Showing fallback order detail because the live detail endpoint is not available yet.');
-          }
-          return;
-        }
-
-        const raw = payload?.payload?.data || payload?.payload || null;
-        if (active) {
-          setDetail(raw);
-          setSource('live');
-          setMessage('Connected to live order detail.');
-        }
-      } catch {
-        if (active) {
-          setDetail({
-            id: orderId,
-            orderNumber: orderId,
-            customerName: 'Not available from API yet',
-            status: 'Unknown',
-            items: [],
-            notes: 'Order detail endpoint could not be reached.',
-          });
-          setSource('fallback');
-          setMessage('Showing fallback order detail because the live detail endpoint could not be reached.');
-        }
-      } finally {
-        if (active) setLoading(false);
-      }
+      const raw = payload?.payload?.data || payload?.payload || null;
+      setDetail(raw);
+      setSource('live');
+      setMessage('Connected to live order detail.');
+    } catch {
+      setDetail({
+        id: targetId,
+        orderNumber: targetId,
+        customerName: 'Not available from API yet',
+        status: 'Unknown',
+        items: [],
+        artworks: [],
+        notes: 'Order detail endpoint could not be reached.',
+      });
+      setSource('fallback');
+      setMessage('Showing fallback order detail because the live detail endpoint could not be reached.');
+    } finally {
+      setLoading(false);
     }
+  }
 
-    loadDetail();
-    return () => {
-      active = false;
-    };
+  useEffect(() => {
+    setLookupId(orderId || 'ORD-1001');
+    loadDetail(orderId || 'ORD-1001');
   }, [orderId]);
 
   return (
@@ -94,6 +87,24 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
         </span>
       </div>
 
+      <div className="mt-4 flex items-center gap-2">
+        <input
+          value={lookupId}
+          onChange={(e) => setLookupId(e.target.value)}
+          className="h-10 flex-1 rounded-2xl border px-4 text-sm outline-none"
+          style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text)' }}
+          placeholder="Enter order reference"
+        />
+        <button
+          type="button"
+          className="rounded-full border px-3 py-2 text-xs"
+          style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+          onClick={() => loadDetail(lookupId)}
+        >
+          Load
+        </button>
+      </div>
+
       <div
         className="mt-4 rounded-2xl border px-4 py-3 text-sm"
         style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
@@ -108,7 +119,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
               <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--theme-text-muted)' }}>
                 Order reference
               </p>
-              <p className="mt-2 text-sm font-medium">{detail.orderNumber || detail.id || orderId}</p>
+              <p className="mt-2 text-sm font-medium">{detail.orderNumber || detail.id || lookupId}</p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--theme-text-muted)' }}>
@@ -141,7 +152,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
                   className="rounded-2xl border px-4 py-3 text-sm"
                   style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)' }}
                 >
-                  <p className="font-medium">{item.name || item.titleSnapshot || 'Order item'}</p>
+                  <p className="font-medium">{item.name || item.productName || item.titleSnapshot || 'Order item'}</p>
                   <p className="mt-1" style={{ color: 'var(--theme-text-muted)' }}>
                     Qty {item.quantity || item.qty || 1}
                   </p>
@@ -152,6 +163,33 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
                   style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
                 >
                   No line items returned yet.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em]" style={{ color: 'var(--theme-text-muted)' }}>
+              Artwork
+            </p>
+            <div className="mt-2 space-y-2">
+              {Array.isArray(detail.artworks) && detail.artworks.length ? detail.artworks.map((artwork: any, index: number) => (
+                <div
+                  key={artwork.id || index}
+                  className="rounded-2xl border px-4 py-3 text-sm"
+                  style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)' }}
+                >
+                  <p className="font-medium">{artwork.fileName || 'Artwork file'}</p>
+                  <p className="mt-1" style={{ color: 'var(--theme-text-muted)' }}>
+                    {artwork.status || 'Unknown'} · {artwork.fileType || 'Unknown'}
+                  </p>
+                </div>
+              )) : (
+                <div
+                  className="rounded-2xl border px-4 py-3 text-sm"
+                  style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
+                >
+                  No artwork records returned yet.
                 </div>
               )}
             </div>

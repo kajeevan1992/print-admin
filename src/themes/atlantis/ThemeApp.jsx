@@ -2403,14 +2403,14 @@ function AccountPage({ navigate }) {
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data?.ok) {
-          setError("Live orders API is not available yet. Showing the latest locally stored order instead.");
+          setError("Live orders API is not available yet. Showing the latest locally stored order instead."); setOrders([]);
           return;
         }
 
         const list = data.payload?.data || data.payload || [];
         setOrders(Array.isArray(list) ? list : []);
       } catch {
-        setError("Live orders API is not reachable yet. Showing the latest locally stored order instead.");
+        setError("Live orders API is not reachable yet. Showing the latest locally stored order instead."); setOrders([]);
       } finally {
         setLoading(false);
       }
@@ -2439,7 +2439,7 @@ function AccountPage({ navigate }) {
     <PageShell
       eyebrow="Account"
       title="Your orders"
-      subtitle="Account history is ready for live API orders, with a safe fallback to the latest submitted order."
+      subtitle="Account history now prioritizes live API orders and only falls back to the latest submitted order when the orders endpoint is unavailable."
     >
       <section className="space-y-4">
         {loading ? (

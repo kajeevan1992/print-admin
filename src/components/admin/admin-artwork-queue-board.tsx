@@ -35,12 +35,18 @@ function normalizeRows(payload: any): ArtworkQueueRow[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((entry: any, index: number) => ({
     id: entry.id || `artwork-${index + 1}`,
-    orderReference: entry.orderReference || entry.orderId || 'Not linked',
-    customerEmail: entry.customerEmail || entry.email || 'Not available',
+    orderReference: entry.orderReference || entry.order?.orderNumber || entry.orderId || 'Not linked',
+    customerEmail: entry.customerEmail || entry.email || entry.order?.email || 'Not available',
     fileName: entry.fileName || 'Artwork file',
     fileType: entry.fileType || 'Unknown',
     status: entry.status || 'pending-review',
   }));
+}
+
+function nextArtworkStatus(status: string) {
+  if (status === 'pending-review') return 'approved';
+  if (status === 'awaiting-customer-fix') return 'pending-review';
+  return 'approved';
 }
 
 export function AdminArtworkQueueBoard() {
@@ -49,6 +55,7 @@ export function AdminArtworkQueueBoard() {
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<'live' | 'fallback'>('fallback');
   const [filter, setFilter] = useState('all');
+  const [actionMessage, setActionMessage] = useState('');
 
   const loadQueue = useCallback(async () => {
     try {
@@ -82,6 +89,34 @@ export function AdminArtworkQueueBoard() {
   useEffect(() => {
     loadQueue();
   }, [loadQueue]);
+
+  async function handleAdvanceArtwork(artworkId: string, currentStatus: string) {
+    const target = nextArtworkStatus(currentStatus);
+    const previousRows = rows;
+    setRows((current) => current.map((row) => row.id === artworkId ? { ...row, status: target } : row));
+    setActionMessage(`Attempting to change artwork ${artworkId} to ${target}...`);
+
+    try {
+      const res = await fetch('/api/proxy/admin-artwork/status', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ artworkId, status: target }),
+      });
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok || !payload?.ok) {
+        setRows(previousRows);
+        setActionMessage('Artwork status endpoint failed. Reverted optimistic change.');
+        return;
+      }
+
+      await loadQueue();
+      setActionMessage(`Artwork ${artworkId} updated to ${target} and reloaded from API.`);
+    } catch {
+      setRows(previousRows);
+      setActionMessage('Could not reach the artwork status endpoint. Reverted optimistic change.');
+    }
+  }
 
   const filtered = useMemo(
     () => rows.filter((row) => filter === 'all' || row.status === filter),
@@ -140,6 +175,15 @@ export function AdminArtworkQueueBoard() {
         {loading ? 'Loading artwork queue...' : message}
       </div>
 
+      {actionMessage ? (
+        <div
+          className="mt-3 rounded-2xl border px-4 py-3 text-sm"
+          style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
+        >
+          {actionMessage}
+        </div>
+      ) : null}
+
       <div className="mt-4 space-y-3">
         {filtered.map((row) => (
           <div
@@ -191,8 +235,9 @@ export function AdminArtworkQueueBoard() {
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+                onClick={() => handleAdvanceArtwork(row.id, row.status)}
               >
-                Approve artwork
+                {row.status === 'approved' ? 'Keep approved' : 'Advance artwork'}
               </button>
             </div>
           </div>

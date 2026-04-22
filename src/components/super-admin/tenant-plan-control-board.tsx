@@ -38,15 +38,28 @@ function normalizePlanRows(payload: any): LivePlanRow[] {
   }));
 }
 
+function nextPlan(planName: string) {
+  if (planName.toLowerCase().includes('starter')) return 'Growth';
+  if (planName.toLowerCase().includes('growth')) return 'Scale';
+  return 'Growth';
+}
+
+function nextStatus(status: string) {
+  if (status === 'pending-activation') return 'active';
+  if (status === 'suspended') return 'active';
+  if (status === 'trial') return 'active';
+  return 'suspended';
+}
+
 export function TenantPlanControlBoard() {
   const [filter, setFilter] = useState('all');
   const [rows, setRows] = useState<LivePlanRow[]>(superadminPlanLimitSeed);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('Connecting to live tenants API...');
+  const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
     let active = true;
-
     async function loadTenants() {
       try {
         const res = await fetch('/api/proxy/superadmin-tenants', { cache: 'no-store' });
@@ -63,11 +76,7 @@ export function TenantPlanControlBoard() {
         const normalized = normalizePlanRows(payload);
         if (active) {
           setRows(normalized.length ? normalized : superadminPlanLimitSeed);
-          setMessage(
-            normalized.length
-              ? 'Connected to live plan and tenant data.'
-              : 'Tenants API connected but returned no rows. Showing seeded plan rows.'
-          );
+          setMessage(normalized.length ? 'Connected to live plan and tenant data.' : 'Tenants API connected but returned no rows. Showing seeded plan rows.');
         }
       } catch {
         if (active) {
@@ -78,23 +87,56 @@ export function TenantPlanControlBoard() {
         if (active) setLoading(false);
       }
     }
-
     loadTenants();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
-  const filteredRows = useMemo(
-    () => rows.filter((row) => filter === 'all' || row.status === filter),
-    [rows, filter]
-  );
+  async function handlePlanChange(tenantId: string, currentPlan: string) {
+    const planName = nextPlan(currentPlan);
+    setRows((current) => current.map((row) => row.tenantId === tenantId ? { ...row, planName } : row));
+    setActionMessage(`Attempting to change ${tenantId} plan to ${planName}...`);
+    try {
+      const res = await fetch('/api/proxy/superadmin-tenants/plan', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tenantId, planName }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.ok) {
+        setActionMessage('Plan endpoint is not available yet. UI changed optimistically only.');
+        return;
+      }
+      setActionMessage(`Tenant ${tenantId} plan changed to ${planName}.`);
+    } catch {
+      setActionMessage('Could not reach the plan endpoint. UI changed optimistically only.');
+    }
+  }
+
+  async function handleStatusChange(tenantId: string, currentStatus: string) {
+    const status = nextStatus(currentStatus);
+    setRows((current) => current.map((row) => row.tenantId === tenantId ? { ...row, status } : row));
+    setActionMessage(`Attempting to change ${tenantId} status to ${status}...`);
+    try {
+      const res = await fetch('/api/proxy/superadmin-tenants/status', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ tenantId, status }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.ok) {
+        setActionMessage('Tenant status endpoint is not available yet. UI changed optimistically only.');
+        return;
+      }
+      setActionMessage(`Tenant ${tenantId} status changed to ${status}.`);
+    } catch {
+      setActionMessage('Could not reach the tenant status endpoint. UI changed optimistically only.');
+    }
+  }
+
+  const filteredRows = useMemo(() => rows.filter((row) => filter === 'all' || row.status === filter), [rows, filter]);
 
   return (
-    <div
-      className="rounded-3xl border p-5"
-      style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)' }}
-    >
+    <div className="rounded-3xl border p-5" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)' }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold">Tenant activation & plan limits</p>
@@ -117,20 +159,19 @@ export function TenantPlanControlBoard() {
         </select>
       </div>
 
-      <div
-        className="mt-4 rounded-2xl border px-4 py-3 text-sm"
-        style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
-      >
+      <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}>
         {loading ? 'Loading plans...' : message}
       </div>
 
+      {actionMessage ? (
+        <div className="mt-3 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}>
+          {actionMessage}
+        </div>
+      ) : null}
+
       <div className="mt-4 space-y-3">
         {filteredRows.map((row) => (
-          <div
-            key={row.tenantId}
-            className="rounded-2xl border p-4"
-            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)' }}
-          >
+          <div key={row.tenantId} className="rounded-2xl border p-4" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)' }}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium">{row.tenantName}</p>
@@ -148,17 +189,14 @@ export function TenantPlanControlBoard() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="rounded-full px-3 py-1 text-xs font-medium"
-                style={{ background: 'var(--theme-primary)', color: 'var(--theme-primary-text)' }}
-              >
+              <button type="button" className="rounded-full px-3 py-1 text-xs font-medium" style={{ background: 'var(--theme-primary)', color: 'var(--theme-primary-text)' }}>
                 Open tenant
               </button>
               <button
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}
+                onClick={() => handlePlanChange(row.tenantId, row.planName)}
               >
                 Change plan
               </button>
@@ -166,18 +204,16 @@ export function TenantPlanControlBoard() {
                 type="button"
                 className="rounded-full border px-3 py-1 text-xs"
                 style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text-muted)' }}
+                onClick={() => handleStatusChange(row.tenantId, row.status)}
               >
-                {row.status === 'pending-activation' ? 'Activate tenant' : row.status === 'suspended' ? 'Restore access' : 'Adjust limits'}
+                {row.status === 'pending-activation' ? 'Activate tenant' : row.status === 'suspended' ? 'Restore access' : row.status === 'active' ? 'Suspend tenant' : 'Adjust limits'}
               </button>
             </div>
           </div>
         ))}
 
         {!filteredRows.length ? (
-          <div
-            className="rounded-2xl border p-4 text-sm"
-            style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}
-          >
+          <div className="rounded-2xl border p-4 text-sm" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}>
             No tenants match the selected status filter.
           </div>
         ) : null}

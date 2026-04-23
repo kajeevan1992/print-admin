@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DatabaseManagerRecord } from './database-manager-types';
 
-const STORAGE_KEY = 'print-platform-database-manager-records';
-
 const emptyRecord: DatabaseManagerRecord = {
   id: '',
   tenantId: '',
@@ -19,52 +17,53 @@ const emptyRecord: DatabaseManagerRecord = {
   status: 'untested',
 };
 
-function createId() {
-  return `db_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-}
-
-function loadRecords(): DatabaseManagerRecord[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveRecords(records: DatabaseManagerRecord[]) {
-  if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-}
-
 export function DatabaseManagerPage() {
   const [records, setRecords] = useState<DatabaseManagerRecord[]>([]);
   const [form, setForm] = useState<DatabaseManagerRecord>(emptyRecord);
-  const [message, setMessage] = useState('Platform DB stays in environment variables. Tenant/site DBs can be managed here.');
-
-  useEffect(() => {
-    setRecords(loadRecords());
-  }, []);
+  const [message, setMessage] = useState('Platform DB stays in environment variables. Tenant/site DBs are managed here.');
+  const [loading, setLoading] = useState(true);
 
   const canSubmit = useMemo(
     () => form.tenantId && form.label && form.host && form.port && form.database && form.username,
     [form]
   );
 
+  async function loadRecords() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/internal/database-connections', { cache: 'no-store' });
+      const payload = await res.json().catch(() => null);
+      setRecords(Array.isArray(payload?.data) ? payload.data : []);
+      setMessage(payload?.ok ? 'Loaded database connections from internal core storage.' : 'Could not load database connections.');
+    } catch {
+      setMessage('Database connection storage route failed.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadRecords();
+  }, []);
+
   function update<K extends keyof DatabaseManagerRecord>(key: K, value: DatabaseManagerRecord[K]) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function saveRecord(next: DatabaseManagerRecord) {
-    const saved = next.id ? next : { ...next, id: createId(), status: 'untested' as const };
-    const updated = records.some((record) => record.id === saved.id)
-      ? records.map((record) => (record.id === saved.id ? saved : record))
-      : [saved, ...records];
-    setRecords(updated);
-    saveRecords(updated);
-    setForm(emptyRecord);
-    setMessage('Connection saved locally. Encrypted server storage is next.');
+  async function saveRecord(next: DatabaseManagerRecord) {
+    try {
+      const res = await fetch('/api/internal/database-connections', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(next),
+      });
+      const payload = await res.json().catch(() => null);
+      setMessage(payload?.message || (payload?.ok ? 'Connection saved.' : 'Connection save failed.'));
+      setForm(emptyRecord);
+      await loadRecords();
+    } catch {
+      setMessage('Connection save route failed.');
+    }
   }
 
   async function testConnection(record: DatabaseManagerRecord) {
@@ -73,18 +72,44 @@ export function DatabaseManagerPage() {
       const res = await fetch('/api/internal/database-connections/test', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(record),
+        body: JSON.stringify({ id: record.id }),
       });
       const payload = await res.json().catch(() => null);
-      const status = payload?.ok ? 'connected' : 'failed';
-      const updated = records.map((item) =>
-        item.id === record.id ? { ...item, status, lastTestedAt: new Date().toISOString() } : item
-      );
-      setRecords(updated);
-      saveRecords(updated);
       setMessage(payload?.message || (payload?.ok ? 'Connection successful.' : 'Connection failed.'));
+      await loadRecords();
     } catch {
       setMessage('Connection test route failed.');
+    }
+  }
+
+  async function setupDatabase(record: DatabaseManagerRecord) {
+    setMessage(`Running setup checks for ${record.label}...`);
+    try {
+      const res = await fetch('/api/internal/database-connections/setup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: record.id }),
+      });
+      const payload = await res.json().catch(() => null);
+      const steps = Array.isArray(payload?.steps) ? payload.steps.map((s: any) => `${s.name}: ${s.message}`).join(' | ') : '';
+      setMessage(`${payload?.message || 'Setup completed.'}${steps ? ` — ${steps}` : ''}`);
+    } catch {
+      setMessage('Database setup route failed.');
+    }
+  }
+
+  async function backupDatabase(record: DatabaseManagerRecord) {
+    setMessage(`Starting backup hook for ${record.label}...`);
+    try {
+      const res = await fetch('/api/internal/database-connections/backup', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: record.id }),
+      });
+      const payload = await res.json().catch(() => null);
+      setMessage(payload?.message || (payload?.ok ? 'Backup hook completed.' : 'Backup hook failed.'));
+    } catch {
+      setMessage('Backup route failed.');
     }
   }
 
@@ -93,7 +118,7 @@ export function DatabaseManagerPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Database Manager</h1>
         <p className="mt-2 max-w-4xl text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-          Super Admin foundation for tenant/site database connections, setup, future backups and database isolation.
+          Super Admin module for tenant/site database connections, connection testing, setup checks and backup hooks.
         </p>
       </div>
 
@@ -120,10 +145,13 @@ export function DatabaseManagerPage() {
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" disabled={!canSubmit} onClick={() => saveRecord(form)} className="rounded-full px-4 py-2 text-sm font-medium disabled:opacity-50" style={{ background: 'var(--theme-primary)', color: 'var(--theme-primary-text)' }}>
-            Save connection
+            Save encrypted connection
           </button>
           <button type="button" onClick={() => setForm(emptyRecord)} className="rounded-full border px-4 py-2 text-sm" style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}>
             Clear
+          </button>
+          <button type="button" onClick={loadRecords} className="rounded-full border px-4 py-2 text-sm" style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }}>
+            {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
         <div className="mt-4 rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface-alt)', color: 'var(--theme-text-muted)' }}>
@@ -150,6 +178,12 @@ export function DatabaseManagerPage() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }} onClick={() => testConnection(record)}>
                   Test connection
+                </button>
+                <button type="button" className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }} onClick={() => setupDatabase(record)}>
+                  Run setup checks
+                </button>
+                <button type="button" className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }} onClick={() => backupDatabase(record)}>
+                  Run backup hook
                 </button>
                 <button type="button" className="rounded-full border px-3 py-1 text-xs" style={{ borderColor: 'var(--theme-border)', color: 'var(--theme-text)' }} onClick={() => setForm(record)}>
                   Edit

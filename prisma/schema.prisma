@@ -271,3 +271,26 @@ model ArtworkVersion {
   @@unique([artworkId, versionNumber])
   @@index([artworkId])
 }
+
+model TenantDatabaseConnection {
+  id                String   @id @default(cuid())
+  tenantId          String
+  siteId            String?
+  scope             String   @default("tenant")
+  label             String
+  provider          String   @default("postgres")
+  host              String
+  port              Int      @default(5432)
+  database          String
+  username          String
+  encryptedPassword String?
+  sslMode           String   @default("prefer")
+  status            String   @default("untested")
+  lastTestedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([siteId])
+  @@index([status])
+}

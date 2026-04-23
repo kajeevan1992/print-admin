@@ -44,7 +44,7 @@ async function tryLiveCollections(search?: string): Promise<Collection[] | null>
     const res = await fetch('/api/proxy/catalog-collections', { cache: 'no-store' });
     const payload = await res.json().catch(() => null);
     if (!res.ok || !payload?.ok) return null;
-    const raw = payload?.payload?.data || payload?.payload || [];
+    const raw = payload?.payload?.data?.items || payload?.payload?.data || payload?.payload || [];
     if (!Array.isArray(raw)) return null;
     const term = search?.trim().toLowerCase();
     return raw

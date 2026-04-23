@@ -1,0 +1,5 @@
+PASS 1 catalog engine app fix
+
+- Updated categories, collections, and tags services to parse paginated API payloads ({ items, pagination })
+- Keeps existing UI pages and routes
+- Pairs with API fix v10 pass1 catalog engine

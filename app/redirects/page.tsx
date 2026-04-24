@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-redirects"
       title="Redirects"
       subtitle="Manage URL redirects for changed category, product, and CMS routes."
       actionLabel="Add Redirect"

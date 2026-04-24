@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-site-bindings"
       title="Site Bindings"
       subtitle="Maintain custom domain bindings and host mappings for each storefront."
       actionLabel="Add Binding"

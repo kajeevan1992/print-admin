@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-country-list"
       title="Country List"
       subtitle="Manage enabled storefront countries and region availability."
       actionLabel="Add Country"

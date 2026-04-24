@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-changelog"
       title="Changelog"
       subtitle="Track administrative releases, storefront improvements, and deployment notes."
       actionLabel="Add Release Note"

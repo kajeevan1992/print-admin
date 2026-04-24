@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-promotion-codes"
       title="Promotion Codes"
       subtitle="Create promotional offers, discount windows, and campaign targeting."
       actionLabel="Add Promotion Code"

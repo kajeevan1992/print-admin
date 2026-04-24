@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-clean-up-manager"
       title="Clean Up Manager"
       subtitle="Review stale assets, abandoned records, and scheduled cleanup routines."
       actionLabel="Run Cleanup"

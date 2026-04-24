@@ -1,0 +1,48 @@
+# v191 simple admin lists DB/API sync
+
+Scope: continue controlled internal DB/API wiring without redesigning modules or starting pricing/order/storefront work.
+
+Changed files:
+- src/components/configuration/simple-list-page.tsx
+- app/api/internal/config/[key]/route.ts
+- app/changelog/page.tsx
+- app/clean-up-manager/page.tsx
+- app/country-list/page.tsx
+- app/pricing-rules/page.tsx
+- app/promotion-codes/page.tsx
+- app/redirects/page.tsx
+- app/site-bindings/page.tsx
+- app/store-clone/page.tsx
+- MODULE_DB_API_AUDIT_V191.md
+
+What changed:
+- SimpleListPage now supports internal DB/API sync through /api/internal/config/:key.
+- Simple list screens now show DB/API status messages.
+- Simple list records can be created, edited, duplicated, deleted and reset.
+- Records persist to tenant DB using the existing internal config route/resource.
+- Browser localStorage remains only as a visible fallback if DB/API fails.
+- Internal config route now stores list `items` as well as normal config `values`.
+
+Pages now connected through this shared foundation:
+- /changelog
+- /clean-up-manager
+- /country-list
+- /pricing-rules
+- /promotion-codes
+- /redirects
+- /site-bindings
+- /store-clone
+
+Test routes/pages:
+1. Deploy normally in Coolify.
+2. Open /promotion-codes.
+3. Confirm DB/API status says database connected.
+4. Add a record, edit its title/subtitle/meta, refresh, confirm it persists.
+5. Open /api/internal/config/config-promotion-codes and confirm metadataJson.items exists.
+6. Repeat quick smoke test on /redirects and /site-bindings.
+
+Not included:
+- No pricing engine logic.
+- No orders workflow changes.
+- No storefront redesign.
+- No public /api/v1 expansion yet.

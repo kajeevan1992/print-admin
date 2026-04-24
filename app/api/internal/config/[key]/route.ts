@@ -43,6 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: { key: st
   try {
     const body = await request.json().catch(() => ({}));
     const values = body?.values && typeof body.values === 'object' ? body.values : {};
+    const items = Array.isArray(body?.items) ? body.items : undefined;
     const title = typeof body?.title === 'string' && body.title.trim() ? body.title.trim() : key;
     const savedAt = new Date().toISOString();
 
@@ -53,10 +54,11 @@ export async function POST(request: NextRequest, { params }: { params: { key: st
       description: typeof body?.description === 'string' ? body.description : 'Admin configuration workspace values',
       metadataJson: {
         values,
+        ...(items ? { items } : {}),
         savedAt,
         storageKey: key,
         title,
-        source: 'ConfigWorkspacePage',
+        source: items ? 'SimpleListPage' : 'ConfigWorkspacePage',
       },
     } as any);
 

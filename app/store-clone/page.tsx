@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-store-clone"
       title="Store Clone"
       subtitle="Clone settings, themes, and catalog structure from one store to another."
       actionLabel="New Clone Job"

@@ -5,6 +5,7 @@ import { SimpleListPage } from '@/components/configuration/simple-list-page';
 export default function Page() {
   return (
     <SimpleListPage
+      storageKey="config-pricing-rules"
       title="Pricing Rules"
       subtitle="Configure conditional surcharges, quantity breaks, and channel-specific pricing rules."
       actionLabel="Add Rule"

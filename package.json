@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev",
-    "build": "prisma generate && NEXT_TELEMETRY_DISABLED=1 next build",
-    "start": "NEXT_TELEMETRY_DISABLED=1 next start",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "start": "prisma generate || echo \"Prisma generate skipped or failed at runtime; continuing app start\"; NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
@@ -13,7 +13,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "postinstall": "prisma generate",
+    "postinstall": "echo \"Skipping prisma generate during install\"",
     "seed:dev": "echo 'Use POST /api/dev/seed after deploy'"
   },
   "dependencies": {

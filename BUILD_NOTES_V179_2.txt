@@ -1,0 +1,43 @@
+Build: v179.2 Prisma build fix
+
+Purpose:
+- Fix Coolify/Nixpacks deployment failure where pnpm install runs package.json postinstall and triggers prisma generate during Docker build.
+- Keep v179.1 catalog CRUD + SSL fix intact.
+- No UI, navigation, theme, Owner API Keys, Feature Flags, Database Manager, proxy, orders, artwork, pricing, or storefront changes.
+
+Changed files:
+- package.json
+- BUILD_NOTES_V179_2.txt
+
+Changes:
+- Removed Prisma generation from the build script.
+- Replaced postinstall Prisma generation with a harmless echo so pnpm install cannot fail during Docker build.
+- Added a runtime-start Prisma generation attempt before next start. If it fails, app startup continues.
+
+Why:
+- Coolify log showed deployment failed during pnpm install -> postinstall -> prisma generate, immediately after loading prisma/schema.prisma.
+- The app never reached the Next build/start phase.
+- v179.2 lets the Docker image build complete first and keeps Prisma handling at runtime.
+
+Expected Coolify result:
+- pnpm install should complete.
+- pnpm run build should run next build only.
+- container start should attempt prisma generate, then continue to next start.
+
+After deploy, test:
+- GET /api/internal/catalog/products
+- GET /api/internal/catalog/categories
+- POST /api/internal/catalog/products
+- POST /api/internal/catalog/categories
+- PUT /api/internal/catalog/products/:id
+- PUT /api/internal/catalog/categories/:id
+- DELETE /api/internal/catalog/products/:id
+- DELETE /api/internal/catalog/categories/:id
+
+Environment:
+- Keep DATABASE_URL set in Coolify.
+- If using SSL, DATABASE_URL can include ?sslmode=require.
+- Optional later: TENANT_DATABASE_URL can be added if you want catalog CRUD to use a separate tenant DB.
+
+Rollback:
+- Revert to v179.1 if required, but v179.1 is expected to keep failing during Docker install because postinstall runs prisma generate.

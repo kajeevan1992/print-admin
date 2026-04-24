@@ -1,0 +1,6 @@
+v178.2 internal catalog status fix
+
+- Fixed /internal-catalog-status so it calls the internal catalog service directly.
+- Removed self-fetch dependency on NEXT_PUBLIC_APP_URL / deployment URL.
+- No changes to working internal catalog API routes.
+- No database manager/sidebar changes.

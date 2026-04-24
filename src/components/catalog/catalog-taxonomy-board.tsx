@@ -18,7 +18,7 @@ async function readCount(url: string) {
   const res = await fetch(url, { cache: 'no-store' });
   const payload = await res.json().catch(() => null);
   if (!res.ok || !payload?.ok) return null;
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   return Array.isArray(raw) ? raw.length : 0;
 }
 
@@ -31,9 +31,9 @@ export function CatalogTaxonomyBoard() {
   const loadCounts = useCallback(async () => {
     try {
       const [categories, collections, tags] = await Promise.all([
-        readCount('/api/proxy/catalog-categories'),
-        readCount('/api/proxy/catalog-collections'),
-        readCount('/api/proxy/catalog-tags'),
+        readCount('/api/internal/catalog/categories'),
+        readCount('/api/internal/catalog/collections'),
+        readCount('/api/internal/catalog/tags'),
       ]);
 
       if (categories == null || collections == null || tags == null) {

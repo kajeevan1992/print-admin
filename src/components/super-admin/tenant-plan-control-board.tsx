@@ -20,7 +20,7 @@ type LivePlanRow = {
 };
 
 function normalizePlanRows(payload: any): LivePlanRow[] {
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   if (!Array.isArray(raw)) return [];
 
   return raw.map((tenant: any, index: number) => ({

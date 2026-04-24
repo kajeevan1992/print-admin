@@ -23,7 +23,7 @@ function formatMoney(value?: number | null, currency = 'GBP') {
 }
 
 function normalize(payload: any): ProductRow[] {
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   if (!Array.isArray(raw)) return [];
   return raw.map((product: any, index: number) => ({
     id: product.id || `product-${index + 1}`,
@@ -48,7 +48,7 @@ export function CatalogProductsBoard() {
 
   const loadProducts = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy/catalog-products', { cache: 'no-store' });
+      const res = await fetch('/api/internal/catalog/products', { cache: 'no-store' });
       const payload = await res.json().catch(() => null);
 
       if (!res.ok || !payload?.ok) {

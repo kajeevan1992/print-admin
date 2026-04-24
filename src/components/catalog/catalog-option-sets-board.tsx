@@ -18,7 +18,7 @@ export function CatalogOptionSetsBoard() {
 
   const loadSummary = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy/catalog-option-sets', { cache: 'no-store' });
+      const res = await fetch('/api/internal/catalog/option-sets', { cache: 'no-store' });
       const payload = await res.json().catch(() => null);
 
       if (!res.ok || !payload?.ok) {
@@ -28,7 +28,7 @@ export function CatalogOptionSetsBoard() {
         return;
       }
 
-      const raw = payload?.payload?.data || payload?.payload || [];
+      const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
       const count = Array.isArray(raw) ? raw.length : 0;
       setSummary({ optionSets: count || fallbackSummary.optionSets });
       setSource(count ? 'live' : 'fallback');

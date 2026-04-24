@@ -53,7 +53,7 @@ export const operationsService = {
         const res = await fetch('/api/proxy/admin-artwork', { cache: 'no-store' });
         const payload = await res.json().catch(() => null);
         if (res.ok && payload?.ok) {
-          const raw = payload?.payload?.data || payload?.payload || [];
+          const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
           if (Array.isArray(raw) && raw.length) {
             return raw.map((item, index) => ({
               id: item.id || `proof-${index + 1}`,

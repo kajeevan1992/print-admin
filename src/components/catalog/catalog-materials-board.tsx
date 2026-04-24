@@ -16,7 +16,7 @@ async function readCount(url: string) {
   const res = await fetch(url, { cache: 'no-store' });
   const payload = await res.json().catch(() => null);
   if (!res.ok || !payload?.ok) return null;
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   return Array.isArray(raw) ? raw.length : 0;
 }
 
@@ -29,8 +29,8 @@ export function CatalogMaterialsBoard() {
   const loadSummary = useCallback(async () => {
     try {
       const [materials, finishes] = await Promise.all([
-        readCount('/api/proxy/catalog-materials'),
-        readCount('/api/proxy/catalog-finishes'),
+        readCount('/api/internal/catalog/materials'),
+        readCount('/api/internal/catalog/finishes'),
       ]);
 
       if (materials == null || finishes == null) {

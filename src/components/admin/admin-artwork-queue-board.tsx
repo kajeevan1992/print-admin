@@ -31,7 +31,7 @@ const fallbackRows: ArtworkQueueRow[] = [
 ];
 
 function normalizeRows(payload: any): ArtworkQueueRow[] {
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   if (!Array.isArray(raw)) return [];
   return raw.map((entry: any, index: number) => ({
     id: entry.id || `artwork-${index + 1}`,

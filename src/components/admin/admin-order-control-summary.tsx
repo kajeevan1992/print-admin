@@ -26,7 +26,7 @@ function mapStatus(input?: string) {
 }
 
 function normalizeStatuses(payload: any): string[] {
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   if (!Array.isArray(raw)) return adminOrderControlSeed.map((row) => row.status);
   const mapped = raw.map((order: any) => mapStatus(order.status));
   return mapped.length ? mapped : adminOrderControlSeed.map((row) => row.status);

@@ -96,7 +96,7 @@ export function LocalRecordsPage({
         const res = await fetch(liveEndpoint, { cache: 'no-store' });
         const payload = await res.json().catch(() => null);
         if (!res.ok || !payload?.ok) return;
-        const raw = payload?.payload?.data || payload?.payload || [];
+        const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
         if (!Array.isArray(raw) || !raw.length) return;
 
         const mapped = raw.map((row, index) =>

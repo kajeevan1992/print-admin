@@ -34,7 +34,7 @@ async function tryLiveOrders(params?: { search?: string; status?: OrderStatus | 
     const res = await fetch('/api/proxy/admin-orders', { cache: 'no-store' });
     const payload = await res.json().catch(() => null);
     if (!res.ok || !payload?.ok) return null;
-    const raw = payload?.payload?.data || payload?.payload || [];
+    const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
     if (!Array.isArray(raw)) return null;
     const term = params?.search?.trim().toLowerCase();
     return sortByUpdated(raw.map((o: any, index: number) => ({

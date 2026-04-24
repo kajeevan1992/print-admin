@@ -56,7 +56,7 @@ function nextStatus(status: string) {
 }
 
 function normalizeRows(payload: any): LiveAdminOrderRow[] {
-  const raw = payload?.payload?.data || payload?.payload || [];
+  const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
   if (!Array.isArray(raw)) return [];
 
   return raw.map((order: any, index: number) => ({

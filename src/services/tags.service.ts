@@ -41,10 +41,10 @@ function hydrate(values: TagFormValues, id: string): Tag {
 async function tryLiveTags(search?: string): Promise<Tag[] | null> {
   if (typeof window === 'undefined') return null;
   try {
-    const res = await fetch('/api/proxy/catalog-tags', { cache: 'no-store' });
+    const res = await fetch('/api/internal/catalog/tags', { cache: 'no-store' });
     const payload = await res.json().catch(() => null);
     if (!res.ok || !payload?.ok) return null;
-    const raw = payload?.payload?.data?.items || payload?.payload?.data || payload?.payload || [];
+    const raw = payload?.data?.items || payload?.data || payload?.payload?.data?.items || payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
     if (!Array.isArray(raw)) return null;
     const term = search?.trim().toLowerCase();
     return raw

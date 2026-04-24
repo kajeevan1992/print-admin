@@ -1,0 +1,6 @@
+v56 cumulative build
+
+- Added Printer Management workflow at /printer-management
+- Added local-storage-backed printer fleet data and service
+- Added press status, risk, queue, utilisation, and maintenance controls
+- Kept stable deploy setup unchanged

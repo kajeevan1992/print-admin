@@ -1,0 +1,4 @@
+v43 cumulative build
+- Based on working v42
+- Preserves Node 20 + pnpm deploy flow
+- Adds .dockerignore for leaner build context

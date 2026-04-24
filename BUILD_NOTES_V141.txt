@@ -1,0 +1,6 @@
+v141 prisma runtime fix
+
+- Added postinstall hook for prisma generate
+- Updated build script to run prisma generate before next build
+- No API contract changes
+- No frontend route changes

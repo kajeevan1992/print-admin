@@ -1,0 +1,5 @@
+v122 targeted hard fix
+
+- Replaced src/components/account/account-orders-panel.tsx with a clean version
+- Fixes remaining JSX/parser corruption in the customer account orders panel
+- No feature additions

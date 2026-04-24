@@ -1,0 +1,11 @@
+
+v88 globe import hotfix
+
+- Fixed missing Globe import in src/components/layout/sidebar.tsx
+- Preserved Globe2 import for Owner Domains
+- No deploy/auth config changes
+
+Why:
+- v87 deployment failed during prerender with:
+  ReferenceError: Globe is not defined
+- The sidebar still referenced Globe on older nav items while Globe2 had been added for Owner Domains.

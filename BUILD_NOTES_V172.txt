@@ -1,0 +1,11 @@
+v172 platform DB connection model
+
+- Adds TenantDatabaseConnection Prisma model when prisma/schema.prisma exists.
+- Adds platform Prisma helper.
+- Database connection store now prefers Platform DB persistence and falls back to /tmp JSON.
+- Keeps encrypted password storage.
+- Adds internal platform status route at /api/internal/platform/status.
+- Keeps Database Manager UI from v171.
+
+Next pass:
+- Move catalog pages from external/proxy API to internal core catalog services.

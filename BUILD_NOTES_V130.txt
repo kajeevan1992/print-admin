@@ -1,0 +1,7 @@
+v130 connect editor output to storefront rendering build
+
+- Added shared storage helpers for storefront editor config
+- Added schema-driven storefront page renderer
+- Added /storefront-preview route
+- Saved editor output can now drive storefront rendering preview
+- No backend/auth changes

@@ -1,0 +1,5 @@
+v54 cumulative build
+
+- Replaced Inventory placeholder with a real Inventory Control workflow
+- Added local persistence, search, filters, stock status, replenishment actions
+- Kept stable deploy setup unchanged

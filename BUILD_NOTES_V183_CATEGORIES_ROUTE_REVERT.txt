@@ -1,0 +1,19 @@
+V183 - Internal catalog categories route revert
+
+Scope:
+- Backend/internal route cleanup only.
+- No UI changes.
+- No public API changes.
+
+Changes:
+- Removed the temporary uppercase compatibility route:
+  app/api/internal/catalog/Categories/route.ts
+- Kept the correct existing lowercase internal route:
+  app/api/internal/catalog/categories/route.ts
+
+Correct internal endpoint:
+- /api/internal/catalog/categories
+
+Notes:
+- /api/internal/catalog/Categories is intentionally not supported because route casing should stay lowercase.
+- The lowercase categories route still uses the internal-core DB catalog handler for GET/POST/PUT/PATCH/DELETE.

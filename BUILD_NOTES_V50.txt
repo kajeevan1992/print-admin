@@ -1,0 +1,4 @@
+V50 changes
+- Replaced Dispatch Center placeholder with a working front-end dispatch workflow
+- Added lane-based dispatch batches, carrier filters, risk handling, edit/duplicate/advance actions
+- Kept stable deploy configuration from v40+

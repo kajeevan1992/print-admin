@@ -1,0 +1,25 @@
+[variables]
+NODE_ENV = "production"
+NPM_CONFIG_PRODUCTION = "false"
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm", "curl", "wget"]
+
+[phases.install]
+cmds = [
+  "pnpm --version",
+  "pnpm config set store-dir /root/.pnpm-store",
+  "pnpm install --no-frozen-lockfile --prefer-offline --shamefully-hoist"
+]
+cacheDirectories = ["/root/.pnpm-store"]
+paths = ["/app/node_modules/.bin"]
+
+[phases.build]
+cmds = [
+  "test -x /app/node_modules/.bin/next",
+  "NEXT_TELEMETRY_DISABLED=1 pnpm run build"
+]
+cacheDirectories = [".next/cache", "node_modules/.cache"]
+
+[start]
+cmd = "NEXT_TELEMETRY_DISABLED=1 pnpm run start"

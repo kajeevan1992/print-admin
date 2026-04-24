@@ -1,0 +1,12 @@
+v114 public storefront shell build
+
+- Added reusable PublicStorefrontLayout with announcement bar, header, nav, and footer
+- Added storefront section and product card components
+- Added public storefront homepage at /storefront
+- Added starter shell routes:
+  - /storefront/products
+  - /storefront/templates
+  - /storefront/upload-artwork
+  - /storefront/cart
+- Added optional sidebar entry for Public Storefront when shared sidebar marker exists
+- No backend/auth changes

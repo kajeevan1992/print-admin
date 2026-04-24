@@ -1,0 +1,6 @@
+v147 proxy import hotfix
+
+- Fixed external API proxy import aliases
+- Updated imports to use @/lib/external-api/*
+- Performed quick sweep for the same alias issue across TS/JS files
+- No UI/theme changes

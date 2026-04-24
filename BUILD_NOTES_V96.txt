@@ -1,0 +1,7 @@
+
+v96 owner data retention build
+
+- Added Owner Data Retention workflow at /owner-data-retention
+- Added local storage backed owner data retention service + seed data
+- Added Owner Data Retention to super-admin sidebar
+- No deploy/auth config changes

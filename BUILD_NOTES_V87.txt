@@ -1,0 +1,7 @@
+
+v87 owner domains build
+
+- Added Owner Domains workflow at /owner-domains
+- Added local storage backed owner domains service + seed data
+- Added Owner Domains to super-admin sidebar
+- No deploy/auth config changes

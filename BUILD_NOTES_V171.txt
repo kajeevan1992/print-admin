@@ -1,0 +1,13 @@
+v171 unified core DB storage + setup runner
+
+- Adds internal database connection store abstraction.
+- Saves tenant/site DB connection records through internal API routes.
+- Encrypts stored database passwords.
+- Adds connection status updates.
+- Adds tenant database setup hook endpoint.
+- Adds backup hook endpoint.
+- Upgrades /super-admin/database-manager to use server-side internal storage instead of local-only records.
+
+Important:
+- Current storage uses /tmp JSON fallback for this deployment phase.
+- Next hardening pass should move records into the Platform DB with a Prisma model.

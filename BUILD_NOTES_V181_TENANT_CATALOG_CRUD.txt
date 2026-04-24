@@ -1,0 +1,25 @@
+V181 - tenant catalog real CRUD layer
+
+Scope kept to backend/core + existing internal catalog endpoints only.
+No UI changes. No new public APIs. No duplicate pages.
+
+Changes:
+- Reworked src/core/catalog/internal-catalog.service.ts into a real tenant DB CRUD layer for catalog.
+- Products now use direct PostgreSQL INSERT, UPDATE, DELETE, and SELECT queries against the tenant Product table.
+- Categories now use direct PostgreSQL INSERT, UPDATE, DELETE, and SELECT queries against the tenant Category table.
+- Existing internal routes keep the same paths:
+  - /api/internal/catalog/products
+  - /api/internal/catalog/categories
+- POST is create/insert.
+- PUT/PATCH is update by id or slug.
+- DELETE deletes by id or slug.
+- Product categoryId can be provided as either category id or category slug.
+- Product reads include categoryName/categorySlug from tenant DB joins.
+- Category reads include real productCount from tenant DB joins.
+- Products/categories no longer fall back to demo records. Without a tenant DB they return an empty paginated set for reads; writes still fail clearly until DB is configured.
+- Demo fallback is retained only for generic CoreCatalogRecord resources (collections/tags/materials/finishes/option-sets) to avoid breaking those screens before their schemas are promoted.
+
+Important behaviour:
+- Create will not silently overwrite existing products/categories with the same tenant+slug; the database unique index protects this.
+- Update will not create a missing product/category; it returns a not-found error. This prevents accidental duplicate rows.
+- Upsert export remains for backward compatibility but internal HTTP now maps method to create/update.

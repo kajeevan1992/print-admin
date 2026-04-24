@@ -1,0 +1,10 @@
+v117 cart and checkout frontend build
+
+- Added reusable cart item card
+- Added checkout steps component
+- Added address form shell
+- Added shipping/payment selection shell
+- Added reusable order summary panel
+- Rebuilt /storefront/cart into a real cart page
+- Added /storefront/checkout frontend shell
+- No backend/auth changes

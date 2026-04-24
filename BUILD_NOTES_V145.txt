@@ -1,0 +1,6 @@
+v145 admin restore + external API theme fix
+
+- Restored pre-theme global styling from v143
+- Scoped Atlantis storefront styles to /theme/atlantis only
+- Switched Atlantis storefront data source to external API base URL
+- Removed misleading internal preview-mode dependency

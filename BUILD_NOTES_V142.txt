@@ -1,0 +1,7 @@
+v142 build-safe API hotfix
+
+- Added DATABASE_URL env guard helper
+- Marked DB-backed API routes as force-dynamic
+- Added safe 503 API responses when DATABASE_URL is missing
+- Prevents build/export from crashing on DB-backed routes
+- No frontend changes

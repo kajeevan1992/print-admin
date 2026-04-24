@@ -1,0 +1,8 @@
+v167 proper integration (no duplicate pages)
+
+- Removed duplicate dashboard route pages created by earlier builds
+- Kept existing root routes and existing UI pages
+- Patched existing services to be live-first for collections, tags, orders, artwork, and categories
+- Extended LocalRecordsPage so materials/finishes/option sets can use live endpoints without replacing the UI
+- Patched materials-library, finish-library, and option-sets pages to load from live endpoints while keeping existing editor UI
+- Added API endpoint planning document for bulk endpoint completion

@@ -1,0 +1,33 @@
+# v179 clean catalog CRUD
+
+Scope:
+- Products CRUD
+- Categories CRUD
+- Internal core services/routes only
+- Existing admin products/categories UI safely wired to internal routes
+
+Changed:
+- Catalog DB resolution now prefers Database Manager tenant DB connection records, but can fall back to TENANT_DATABASE_URL or DATABASE_URL for initial Coolify deployments.
+- Added item-level internal routes for products and categories.
+- Kept collection-level routes working for backwards compatibility.
+- Category delete now resolves slug/id first before clearing product category links.
+- Existing admin UI update/delete calls now use item-level internal routes.
+
+Test routes:
+GET    /api/internal/catalog/products
+POST   /api/internal/catalog/products
+PATCH  /api/internal/catalog/products/:id
+PUT    /api/internal/catalog/products/:id
+DELETE /api/internal/catalog/products/:id
+
+GET    /api/internal/catalog/categories
+POST   /api/internal/catalog/categories
+PATCH  /api/internal/catalog/categories/:id
+PUT    /api/internal/catalog/categories/:id
+DELETE /api/internal/catalog/categories/:id
+
+Notes:
+- No pages were redesigned.
+- No sidebar/nav files were changed.
+- /api/proxy remains untouched/disabled.
+- No Owner API Keys, Feature Flags, Database Manager rebuild.

@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  TRIAL
+  SUSPENDED
+  PENDING_ACTIVATION
+}
+
+enum DomainType {
+  PLATFORM_SUBDOMAIN
+  CUSTOM_DOMAIN
+}
+
+enum DomainVerificationStatus {
+  VERIFIED
+  PENDING
+  NOT_ADDED
+}
+
+enum SSLStatus {
+  ISSUED
+  PENDING
+  NOT_STARTED
+}
+
+enum UserRole {
+  SUPERADMIN
+  TENANT_OWNER
+  TENANT_ADMIN
+  TENANT_STAFF
+  CUSTOMER
+}
+
+enum ProductType {
+  STANDARD
+  QUOTE_LED
+  TEMPLATE_LED
+  UPLOAD_LED
+}
+
+enum OrderStatus {
+  DRAFT
+  AWAITING_PAYMENT
+  ARTWORK_CHECK
+  AWAITING_APPROVAL
+  APPROVED
+  IN_PRODUCTION
+  QUALITY_CHECK
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+enum ArtworkStatus {
+  UPLOADED
+  CHECKING
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+model Tenant {
+  id               String       @id @default(cuid())
+  name             String
+  slug             String       @unique
+  status           TenantStatus @default(PENDING_ACTIVATION)
+  defaultSubdomain String       @unique
+  primaryDomain    String?
+  planName         String       @default("Starter")
+  storefrontsLimit Int          @default(1)
+  adminUsersLimit  Int          @default(3)
+  storageLimitGb   Int          @default(10)
+  themeKey         String       @default("base")
+  supportEmail     String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  domains          Domain[]
+  users            User[]
+  products         Product[]
+  categories       Category[]
+  orders           Order[]
+  artworks         Artwork[]
+}
+
+model Domain {
+  id                 String                   @id @default(cuid())
+  tenantId           String
+  hostname           String                   @unique
+  type               DomainType
+  isPrimary          Boolean                  @default(false)
+  verificationStatus DomainVerificationStatus @default(NOT_ADDED)
+  sslStatus          SSLStatus                @default(NOT_STARTED)
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String?
+  email        String    @unique
+  name         String
+  passwordHash String?
+  role         UserRole
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant       Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  orders       Order[]   @relation("CustomerOrders")
+
+  @@index([tenantId, role])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  tenantId    String
+  slug        String
+  name        String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products    Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model Product {
+  id             String      @id @default(cuid())
+  tenantId       String
+  categoryId     String?
+  slug           String
+  title          String
+  subtitle       String?
+  productType    ProductType @default(STANDARD)
+  isActive       Boolean     @default(true)
+  priceFromMinor Int?
+  currency       String      @default("GBP")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category       Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  variants       ProductVariant[]
+  orderItems     OrderItem[]
+  artworks       Artwork[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, categoryId])
+}
+
+model ProductVariant {
+  id           String   @id @default(cuid())
+  productId    String
+  sku          String?
+  name         String
+  priceMinor   Int?
+  currency     String   @default("GBP")
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  tenantId      String
+  customerId    String?
+  orderNumber   String      @unique
+  status        OrderStatus @default(DRAFT)
+  currency      String      @default("GBP")
+  subtotalMinor Int         @default(0)
+  shippingMinor Int         @default(0)
+  taxMinor      Int         @default(0)
+  totalMinor    Int         @default(0)
+  notes         String?
+  placedAt      DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer      User?       @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  artworks      Artwork[]
+
+  @@index([tenantId, status])
+  @@index([customerId])
+}
+
+model OrderItem {
+  id               String   @id @default(cuid())
+  orderId          String
+  productId        String?
+  titleSnapshot    String
+  quantity         Int
+  unitPriceMinor   Int      @default(0)
+  totalPriceMinor  Int      @default(0)
+  metadataJson     Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  order            Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product          Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id        String      @id @default(cuid())
+  orderId   String
+  status    OrderStatus
+  note      String?
+  createdAt DateTime    @default(now())
+
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+}
+
+model Artwork {
+  id            String        @id @default(cuid())
+  tenantId      String
+  orderId       String?
+  productId     String?
+  fileName      String
+  fileType      String
+  fileSizeBytes Int?
+  storageKey    String?
+  status        ArtworkStatus @default(UPLOADED)
+  note          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  order         Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  product       Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  versions      ArtworkVersion[]
+
+  @@index([tenantId, status])
+  @@index([orderId])
+}
+
+model ArtworkVersion {
+  id            String   @id @default(cuid())
+  artworkId     String
+  versionNumber Int
+  storageKey    String?
+  note          String?
+  createdAt     DateTime @default(now())
+
+  artwork       Artwork  @relation(fields: [artworkId], references: [id], onDelete: Cascade)
+
+  @@unique([artworkId, versionNumber])
+  @@index([artworkId])
+}
+
+model TenantDatabaseConnection {
+  id                String   @id @default(cuid())
+  tenantId          String
+  siteId            String?
+  scope             String   @default("tenant")
+  label             String
+  provider          String   @default("postgres")
+  host              String
+  port              Int      @default(5432)
+  database          String
+  username          String
+  encryptedPassword String?
+  sslMode           String   @default("prefer")
+  status            String   @default("untested")
+  lastTestedAt      DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([siteId])
+  @@index([status])
+}
+
+model CoreCatalogRecord {
+  id           String   @id @default(cuid())
+  tenantId     String
+  resource     String
+  slug         String
+  name         String
+  description  String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, resource, slug])
+  @@index([tenantId, resource])
+}

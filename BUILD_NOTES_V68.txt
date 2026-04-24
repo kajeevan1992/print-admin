@@ -1,0 +1,5 @@
+v68 owner-ops deepening
+
+- Upgraded Store Activations owner workflow with filters, activation health, spotlight panel, and owner quick actions.
+- Upgraded Billing Ops owner workflow with filters, billing risk, spotlight panel, and payment-risk actions.
+- Kept stable deploy/auth setup unchanged.

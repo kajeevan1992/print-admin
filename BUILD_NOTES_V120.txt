@@ -1,0 +1,6 @@
+v120 stability hotfix
+
+- Fixed corrupted import token in src/components/account/account-orders-panel.tsx
+- Ran targeted sweep for obvious packaging token corruption patterns in code files
+- No new features added
+- Purpose: restore deployment safety after v119 build failure

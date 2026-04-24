@@ -1,0 +1,8 @@
+v133 order lifecycle frontend build
+
+- Added /order-lifecycle route
+- Added lifecycle order board
+- Added lifecycle timeline panel
+- Added lifecycle summary panel
+- Extended the customer/storefront flow to reflect order progress from artwork to delivery
+- No backend/auth changes

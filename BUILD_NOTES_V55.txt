@@ -1,0 +1,1 @@
+V55 adds a working Trade Vendors hub with supplier health, onboarding, risk tracking, CRUD, duplication, export, and local-storage-backed front-end service.

@@ -1,0 +1,5 @@
+v72 full build
+- Added tenantId to auth session
+- Added tenant switcher to topbar for tenant users
+- Added permissions foundation helpers
+- Normal users remain routed to /workspace

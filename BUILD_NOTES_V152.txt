@@ -1,0 +1,6 @@
+v152 account orders API
+
+- Added /account page in Atlantis theme
+- Fetches live orders from external API via proxy
+- Displays order number, status, and total
+- No admin changes

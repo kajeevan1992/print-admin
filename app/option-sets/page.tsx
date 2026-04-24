@@ -21,6 +21,7 @@ export default function Page() {
       subtitleFields={['subtitle']}
       cardMetaFields={['scope', 'values']}
       searchKeys={['title', 'scope', 'state', 'meta']}
+      liveEndpoint="/api/internal/catalog/option-sets"
     />
   );
 }

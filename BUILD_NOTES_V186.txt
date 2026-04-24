@@ -1,0 +1,39 @@
+# Build Notes V186 — Module DB/API Audit + Connection Foundation
+
+## Scope
+Focused DB/API connection step. No redesign, no pricing engine, no orders/artwork workflow.
+
+## Changed files
+- `src/components/configuration/local-records-page.tsx`
+- `app/materials-library/page.tsx`
+- `app/finish-library/page.tsx`
+- `app/option-sets/page.tsx`
+- `app/api/internal/platform/module-audit/route.ts`
+- `MODULE_DB_API_AUDIT_V186.md`
+
+## What changed
+- LocalRecordsPage can now use an internal API endpoint for load/create/edit/delete.
+- Materials Library is wired to `/api/internal/catalog/materials`.
+- Finish Library is wired to `/api/internal/catalog/finishes`.
+- Option Sets is wired to `/api/internal/catalog/option-sets`.
+- Each live-enabled page shows DB/API status at the top of the workspace.
+- Added module audit endpoint for checking connected vs local modules.
+
+## Test pages
+- `/materials-library`
+- `/finish-library`
+- `/option-sets`
+
+## Test APIs
+- `GET /api/internal/catalog/materials`
+- `POST /api/internal/catalog/materials`
+- `GET /api/internal/catalog/finishes`
+- `POST /api/internal/catalog/finishes`
+- `GET /api/internal/catalog/option-sets`
+- `POST /api/internal/catalog/option-sets`
+- `GET /api/internal/platform/module-audit`
+
+## Notes
+- These modules save into `CoreCatalogRecord`, not separate final pricing tables yet.
+- This is intentional: it makes the admin libraries usable in DB without locking the final pricing-engine schema too early.
+- Public API expansion is still not changed in this build.

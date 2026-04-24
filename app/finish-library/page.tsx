@@ -22,6 +22,7 @@ export default function Page() {
       subtitleFields={['subtitle', 'complexity']}
       cardMetaFields={['surcharge', 'setupFee']}
       searchKeys={['title', 'subtitle', 'complexity']}
+      liveEndpoint="/api/internal/catalog/finishes"
     />
   );
 }

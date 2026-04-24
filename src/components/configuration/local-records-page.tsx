@@ -34,6 +34,8 @@ type QuickTemplate = {
   values: Record<string, string | boolean>;
 };
 
+type LiveSyncState = 'local' | 'loading' | 'live' | 'saving' | 'error';
+
 const sortOptions = [
   { value: 'recent', label: 'Newest first' },
   { value: 'title', label: 'Title A–Z' },
@@ -85,6 +87,9 @@ export function LocalRecordsPage({
   const [activeFilter, setActiveFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [attentionOnly, setAttentionOnly] = useState(false);
+  const [liveSync, setLiveSync] = useState<LiveSyncState>(liveEndpoint ? 'loading' : 'local');
+  const [liveMessage, setLiveMessage] = useState(liveEndpoint ? 'Connecting to internal API...' : 'Local-only workspace.');
+  const saveTimerRef = useRef<number | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -95,28 +100,45 @@ export function LocalRecordsPage({
       try {
         const res = await fetch(liveEndpoint, { cache: 'no-store' });
         const payload = await res.json().catch(() => null);
-        if (!res.ok || !payload?.ok) return;
+        if (!res.ok || !payload?.ok) {
+          setLiveSync('error');
+          setLiveMessage(payload?.error || 'Internal API did not return a successful response.');
+          return;
+        }
         const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
-        if (!Array.isArray(raw) || !raw.length) return;
+        if (!Array.isArray(raw)) {
+          setLiveSync('error');
+          setLiveMessage('Internal API returned an unexpected data shape.');
+          return;
+        }
+        if (!raw.length) {
+          setLiveSync('live');
+          setLiveMessage('Internal API connected. No database records found yet.');
+          return;
+        }
 
         const mapped = raw.map((row, index) =>
           mapLiveItem
             ? mapLiveItem(row as Record<string, unknown>, index)
             : ({
-                id: String((row as Record<string, unknown>).id ?? `row-${index + 1}`),
-                title: String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).title ?? `Record ${index + 1}`),
-                subtitle: String((row as Record<string, unknown>).description ?? ''),
-                meta: '',
-                createdAt: new Date().toISOString()
+                id: String((row as Record<string, unknown>).id ?? (row as Record<string, unknown>).slug ?? `row-${index + 1}`),
+                title: String((row as Record<string, unknown>).name ?? (row as Record<string, unknown>).title ?? (row as Record<string, unknown>).slug ?? `Record ${index + 1}`),
+                subtitle: String((row as Record<string, unknown>).description ?? ((row as Record<string, unknown>).metadataJson as Record<string, unknown> | undefined)?.subtitle ?? ''),
+                meta: String(((row as Record<string, unknown>).metadataJson as Record<string, unknown> | undefined)?.meta ?? ''),
+                ...(((row as Record<string, unknown>).metadataJson as Record<string, string | boolean> | undefined) ?? {}),
+                createdAt: String((row as Record<string, unknown>).createdAt ?? new Date().toISOString())
               })
         );
 
         if (active && mapped.length) {
           setItems(mapped.map((item) => ({ pinned: false, starred: false, ...item, createdAt: item.createdAt ?? new Date().toISOString() })));
           setSelectedId(mapped[0]?.id ?? '');
+          setLiveSync('live');
+          setLiveMessage('Connected to internal API and loaded database records.');
         }
-      } catch {
-        // keep local state fallback
+      } catch (error) {
+        setLiveSync('error');
+        setLiveMessage(error instanceof Error ? error.message : 'Could not reach internal API. Using local fallback.');
       }
     };
 
@@ -127,6 +149,7 @@ export function LocalRecordsPage({
   }, [liveEndpoint, mapLiveItem]);
 
   useEffect(() => {
+    if (liveEndpoint) return;
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return;
     try {
@@ -138,11 +161,12 @@ export function LocalRecordsPage({
     } catch {
       // ignore malformed cache
     }
-  }, [storageKey]);
+  }, [storageKey, liveEndpoint]);
 
   useEffect(() => {
+    if (liveEndpoint) return;
     window.localStorage.setItem(storageKey, JSON.stringify(items));
-  }, [items, storageKey]);
+  }, [items, storageKey, liveEndpoint]);
 
   const filterField = fields.find((field) => field.key === primaryFilterKey);
   const filterOptions = useMemo(() => {
@@ -209,9 +233,56 @@ export function LocalRecordsPage({
     };
   }, [filtered.length, items]);
 
+  const livePayloadForItem = (item: RecordItem) => {
+    const metadataJson: Record<string, string | boolean> = {};
+    fields.forEach((field) => {
+      const value = item[field.key];
+      if (value !== undefined) metadataJson[field.key] = value;
+    });
+    if (item.subtitle !== undefined) metadataJson.subtitle = item.subtitle;
+    if (item.meta !== undefined) metadataJson.meta = item.meta;
+    return {
+      id: item.id,
+      slug:
+        String(item.slug || item.title || item.id)
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || item.id,
+      name: item.title,
+      title: item.title,
+      description: String(item.subtitle || item.meta || ''),
+      metadataJson,
+    };
+  };
+
+  const syncLiveItem = async (item: RecordItem, method: 'POST' | 'PATCH' | 'DELETE' = 'PATCH') => {
+    if (!liveEndpoint) return;
+    try {
+      setLiveSync('saving');
+      setLiveMessage(method === 'DELETE' ? 'Deleting from internal API...' : 'Saving to internal API...');
+      const endpoint = method === 'DELETE' ? `${liveEndpoint}?id=${encodeURIComponent(item.id)}` : liveEndpoint;
+      const res = await fetch(endpoint, {
+        method,
+        headers: method === 'DELETE' ? undefined : { 'Content-Type': 'application/json' },
+        body: method === 'DELETE' ? undefined : JSON.stringify(livePayloadForItem(item)),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.ok) throw new Error(payload?.error || `Internal API ${method} failed.`);
+      setLiveSync('live');
+      setLiveMessage(method === 'DELETE' ? 'Deleted from internal API.' : 'Saved to internal API.');
+    } catch (error) {
+      setLiveSync('error');
+      setLiveMessage(error instanceof Error ? error.message : 'Internal API sync failed.');
+    }
+  };
+
   const updateSelected = (changes: Record<string, string | boolean>) => {
     if (!selected) return;
-    setItems((prev) => prev.map((item) => (item.id === selected.id ? { ...item, ...changes } : item)));
+    const nextSelected = { ...selected, ...changes };
+    setItems((prev) => prev.map((item) => (item.id === selected.id ? nextSelected : item)));
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => void syncLiveItem(nextSelected, 'PATCH'), 650);
   };
 
   const createItem = (template?: QuickTemplate) => {
@@ -241,6 +312,7 @@ export function LocalRecordsPage({
 
     setItems((prev) => [item, ...prev]);
     setSelectedId(id);
+    void syncLiveItem(item, 'POST');
   };
 
   const duplicateSelected = () => {
@@ -254,6 +326,7 @@ export function LocalRecordsPage({
     };
     setItems((prev) => [clone, ...prev]);
     setSelectedId(id);
+    void syncLiveItem(clone, 'POST');
   };
 
   const deleteSelected = () => {
@@ -261,6 +334,7 @@ export function LocalRecordsPage({
     const next = items.filter((item) => item.id !== selected.id);
     setItems(next);
     setSelectedId(next[0]?.id ?? '');
+    void syncLiveItem(selected, 'DELETE');
   };
 
   const markSelectedDone = () => {
@@ -341,7 +415,8 @@ export function LocalRecordsPage({
                 subtitle={subtitle}
                 actions={<PrimaryButton onClick={() => createItem()}>{createLabel}</PrimaryButton>}
               />
-              <p className="max-w-2xl text-[13px] leading-6 text-textMuted">Use this product-grade front-end workflow to shape how teams will actually manage records before APIs and database wiring are introduced.</p>
+              <p className="max-w-2xl text-[13px] leading-6 text-textMuted">Use this workspace to manage records. When an internal API endpoint is configured, create/edit/delete actions sync to the tenant database.</p>
+              <div className={`mt-4 rounded-2xl border px-4 py-3 text-[12px] ${liveSync === 'error' ? 'border-red-400/30 bg-red-500/10 text-red-100' : liveSync === 'saving' ? 'border-amber-400/30 bg-amber-500/10 text-amber-100' : liveSync === 'live' ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100' : 'border-white/8 bg-white/[0.03] text-textMuted'}`}>DB/API status: {liveMessage}</div>
               {quickTemplates.length ? (
                 <div className="mt-4 flex flex-wrap gap-2">
                   {quickTemplates.map((template) => (
@@ -441,7 +516,7 @@ export function LocalRecordsPage({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="text-lg font-semibold tracking-[-0.03em] text-white">Edit {selected.title}</h3>
-                    <p className="text-sm text-textMuted">Update the selected record and changes are saved locally.</p>
+                    <p className="text-sm text-textMuted">Update the selected record. Live-enabled pages save to the internal API with a short debounce.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={toggleSelectedPin}>{selected.pinned ? <><Pin size={13} className="mr-1" /> Unpin</> : <><Pin size={13} className="mr-1" /> Pin</>}</Button>

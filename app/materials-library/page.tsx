@@ -23,6 +23,7 @@ export default function Page() {
       subtitleFields={['subtitle', 'state']}
       cardMetaFields={['gsm', 'printerFamily']}
       searchKeys={['title', 'subtitle', 'printerFamily', 'state']}
+      liveEndpoint="/api/internal/catalog/materials"
     />
   );
 }

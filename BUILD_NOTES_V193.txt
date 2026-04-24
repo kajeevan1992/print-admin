@@ -1,0 +1,22 @@
+# v193 - Module audit syntax build fix
+
+Purpose:
+- Fix Coolify/Next.js build failure caused by invalid TypeScript syntax in app/api/internal/platform/module-audit/route.ts.
+
+Changed files:
+- app/api/internal/platform/module-audit/route.ts
+- BUILD_NOTES_V193.txt
+
+Fix:
+- Corrected the Production routing rules audit entry.
+- Split the internal API array into two valid string values.
+- Converted the multiline notes value to a template literal.
+
+No feature changes:
+- No UI redesign.
+- No route architecture changes.
+- No pricing/order/storefront changes.
+- No database schema changes.
+
+Deploy:
+- Deploy this ZIP instead of v191/v192 if deployment failed with "Unterminated string constant" in module-audit/route.ts.

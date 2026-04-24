@@ -77,9 +77,9 @@ const modules = [
     module: 'Production routing rules',
     status: 'connected-v190',
     storage: 'tenant-db/CoreCatalogRecord metadata',
-    internalApi: ['/api/internal/catalog/production-routing-rules, admin-config'],
-    notes: 'Production Routing Lab
-- Generic admin configuration workspaces rules now sync to internal API. Full planner board remains pending.',
+    internalApi: ["/api/internal/catalog/production-routing-rules", "admin-config"],
+    notes: `Production Routing Lab
+- Generic admin configuration workspaces rules now sync to internal API. Full planner board remains pending.`,
   },
   {
     module: 'Orders',

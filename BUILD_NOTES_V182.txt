@@ -1,0 +1,32 @@
+v182 product edit + preview polish
+
+Scope kept focused on product UI stabilisation only.
+
+Changed files:
+- src/modules/products/pages/product-detail-page.tsx
+- src/modules/products/pages/products-list-page.tsx
+- src/modules/products/components/product-form.tsx
+- src/modules/products/pages/product-customer-preview-page.tsx
+- app/products/[id]/preview/page.tsx
+- PRODUCT_CONFIGURATION_MODEL_V182.md
+
+Fixes:
+- Product edit autosave is debounced so typing no longer triggers a save on every single key press.
+- Product edit save message uses reserved space, so the screen should not jump up/down while typing.
+- Product edit fields update optimistically, which should stop typing/spacebar disruption caused by stale controlled values.
+- Preview now opens /products/:id/preview instead of the admin edit page.
+- Preview page is customer-facing style, not admin edit mode.
+- Blank-product wizard fields now show visible labels above Pages, Units, Width, Height, and Bleed even when the value is 0.
+- Added a product configuration model note explaining why real sellable options need product option groups next.
+
+Test:
+1. Open /products.
+2. Click View/Edit on a product.
+3. Type words with spaces in name/description/hot folder fields.
+4. Confirm the field accepts spaces and the screen does not jump.
+5. Wait briefly and confirm save status changes from Saving changes… to Saved.
+6. Click Preview from /products and confirm it opens a customer-facing preview page, not the edit page.
+7. Add Product > Generate blank product and confirm width/height/bleed labels are visible even when values are 0.
+
+Recommended next build:
+- v183 product option groups foundation: sizes, sides, materials, finishes, quantities, turnaround choices, and pricing modifiers.

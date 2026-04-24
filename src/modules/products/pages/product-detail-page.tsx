@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/buttons';
 import { Input } from '@/components/forms/input';
 import { ProductHeader } from '@/modules/products/components/product-header';
@@ -25,6 +25,9 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingChangesRef = useRef<Partial<Product>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [relatedInput, setRelatedInput] = useState('');
@@ -47,17 +50,36 @@ export function ProductDetailPage({ productId }: { productId: string }) {
       .finally(() => setLoading(false));
   }, [productId]);
 
-  const persistProduct = async (changes: Partial<Product>) => {
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  const persistProduct = (changes: Partial<Product>) => {
     if (!product) return;
+    const productIdToSave = product.id;
+    pendingChangesRef.current = { ...pendingChangesRef.current, ...changes };
+    setProduct((current) => current ? { ...current, ...changes } : current);
     setError(null);
     setNotice(null);
-    try {
-      const response = await productsService.updateProduct(product.id, changes);
-      setProduct(response.data);
-      setNotice('Product saved.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save product');
-    }
+    setSaveState('saving');
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const payload = pendingChangesRef.current;
+      pendingChangesRef.current = {};
+      try {
+        const response = await productsService.updateProduct(productIdToSave, payload);
+        setProduct(response.data);
+        setSaveState('saved');
+        setNotice('Saved');
+      } catch (err) {
+        pendingChangesRef.current = { ...payload, ...pendingChangesRef.current };
+        setSaveState('error');
+        setError(err instanceof Error ? err.message : 'Failed to save product');
+      }
+    }, 650);
   };
 
   const relatedCandidates = useMemo(
@@ -66,14 +88,17 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   );
 
   if (loading) return <ProductSectionCard title="Loading">Loading product data...</ProductSectionCard>;
-  if (error) return <ProductSectionCard title="Error"><p className="text-red-300">{error}</p></ProductSectionCard>;
+  if (error && !product) return <ProductSectionCard title="Error"><p className="text-red-300">{error}</p></ProductSectionCard>;
   if (!product) return <EmptyModuleState title="Product not found" description="This product may have been removed." />;
 
   return (
     <div>
       <ProductHeader product={product} onSave={() => persistProduct({})} onCancel={() => setActive(defaultTab)} />
-      {notice ? <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</div> : null}
-      {error ? <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</div> : null}
+      <div className="mb-4 min-h-[44px]">
+        <div className={`rounded-xl border p-3 text-sm transition ${saveState === 'error' || error ? 'border-red-500/40 bg-red-500/10 text-red-200' : saveState === 'saving' ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : saveState === 'saved' || notice ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200' : 'border-transparent bg-transparent text-textMuted'}`}>
+          {error || (saveState === 'saving' ? 'Saving changes…' : saveState === 'saved' || notice ? 'Saved' : 'Edit fields below. Changes autosave after you pause typing.')}
+        </div>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <div>

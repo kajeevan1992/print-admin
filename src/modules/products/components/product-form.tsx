@@ -160,12 +160,12 @@ export function ProductForm({ values, categoryOptions, onChange, onCancel, onSub
             {values.creationMethod === 'print-editor-template' && <FormSection title="Print Editor template upload"><FilePicker label="Upload .pn template" accept=".pn" value={values.printEditorTemplateName} onPick={(fileName) => onChange('printEditorTemplateName', fileName)} /></FormSection>}
             {values.creationMethod === 'blank' && (
               <FormSection title="Blank product fields"><FormGrid>
-                <Input placeholder="Pages" value={values.pages} onChange={(e) => onChange('pages', e.target.value)} />
-                <Select options={['in', 'cm', 'mm', 'pt']} value={values.units} onChange={(e) => onChange('units', e.target.value)} />
-                <Input placeholder="Width" value={values.width} onChange={(e) => onChange('width', e.target.value)} />
-                <Input placeholder="Height" value={values.height} onChange={(e) => onChange('height', e.target.value)} />
-                <Input placeholder="Bleed" value={values.bleed} onChange={(e) => onChange('bleed', e.target.value)} />
-              </FormGrid></FormSection>
+                <label className="space-y-1 text-sm"><span className="text-textMuted">Pages</span><Input placeholder="Pages" value={values.pages} onChange={(e) => onChange('pages', e.target.value)} /></label>
+                <label className="space-y-1 text-sm"><span className="text-textMuted">Units</span><Select options={['in', 'cm', 'mm', 'pt']} value={values.units} onChange={(e) => onChange('units', e.target.value)} /></label>
+                <label className="space-y-1 text-sm"><span className="text-textMuted">Width</span><Input placeholder="Width" value={values.width} onChange={(e) => onChange('width', e.target.value)} /></label>
+                <label className="space-y-1 text-sm"><span className="text-textMuted">Height</span><Input placeholder="Height" value={values.height} onChange={(e) => onChange('height', e.target.value)} /></label>
+                <label className="space-y-1 text-sm"><span className="text-textMuted">Bleed</span><Input placeholder="Bleed" value={values.bleed} onChange={(e) => onChange('bleed', e.target.value)} /></label>
+              </FormGrid><p className="mt-3 text-xs leading-5 text-textMuted">These fields define the starter canvas only. Sellable sizes, materials, finishes, sides, quantities, turnaround choices, and artwork rules should be managed as product option sets in the next catalog configuration build.</p></FormSection>
             )}
             {values.creationMethod === 'parametric-standard' && (
               <FormSection title="Parametric standard configuration"><FormGrid>

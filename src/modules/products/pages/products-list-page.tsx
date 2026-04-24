@@ -120,7 +120,7 @@ export function ProductsListPage() {
         return;
       }
       if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
-      if (action === 'preview') window.open(products.find((item) => item.id === id)?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
+      if (action === 'preview') window.open(`/products/${id}/preview`, '_blank', 'noopener,noreferrer');
       await loadProducts(params);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Product action failed');

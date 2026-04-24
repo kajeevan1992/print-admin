@@ -1,0 +1,36 @@
+v179.3 - Prisma runtime-safe build fix
+
+Purpose:
+- Fix Coolify/Next.js build failure after v179.2:
+  Cannot find module '.prisma/client/default'
+  Failed to collect page data for /api/admin/orders
+
+Changed files:
+- src/lib/prisma.ts
+- src/core/db/platform-prisma.ts
+- src/core/db/tenant-prisma.ts
+- BUILD_NOTES_V179_3.txt
+
+What changed:
+- Prisma client imports are now lazy/runtime-loaded instead of static top-level imports.
+- This prevents Next.js build-time route collection from loading @prisma/client before the generated client exists.
+- v179 catalog CRUD, SSL handling, and proxy-disabled rules are unchanged.
+- No UI, sidebar, route redesign, Owner API Keys, Feature Flags, or Database Manager changes.
+
+Deploy notes:
+- Deploy this ZIP after v179.2.
+- Keep DATABASE_URL configured in Coolify.
+- If using SSL DB URL, keep sslmode=require in the connection string.
+
+Post-deploy tests:
+- GET /api/internal/catalog/products
+- GET /api/internal/catalog/categories
+- POST /api/internal/catalog/products
+- POST /api/internal/catalog/categories
+- PUT /api/internal/catalog/products/:id
+- PUT /api/internal/catalog/categories/:id
+- DELETE /api/internal/catalog/products/:id
+- DELETE /api/internal/catalog/categories/:id
+
+Rollback:
+- Roll back to v179.2 if this introduces an unexpected runtime issue.

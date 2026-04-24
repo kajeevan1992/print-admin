@@ -1,13 +1,13 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient as PrismaClientType } from '@prisma/client';
 import type { TenantContext, TenantDatabaseConnection } from '../tenant/types';
 import { buildPostgresConnectionString } from './connection-string';
 import { getDatabaseConnection, listDatabaseConnections, toConnectionInput } from './database-connection-store';
 
 const globalForTenantPrisma = globalThis as unknown as {
-  tenantPrismaClients?: Map<string, PrismaClient>;
+  tenantPrismaClients?: Map<string, PrismaClientType>;
 };
 
-const tenantPrismaClients = globalForTenantPrisma.tenantPrismaClients ?? new Map<string, PrismaClient>();
+const tenantPrismaClients = globalForTenantPrisma.tenantPrismaClients ?? new Map<string, PrismaClientType>();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForTenantPrisma.tenantPrismaClients = tenantPrismaClients;
@@ -15,7 +15,7 @@ if (process.env.NODE_ENV !== 'production') {
 
 export type TenantPrismaResolution = {
   ok: boolean;
-  client?: PrismaClient;
+  client?: PrismaClientType;
   connection?: TenantDatabaseConnection;
   message: string;
 };
@@ -30,6 +30,10 @@ function makeTenantClient(record: TenantDatabaseConnection) {
   if (cached) return cached;
 
   const url = buildPostgresConnectionString(toConnectionInput(record));
+  // Lazy require prevents Next.js build-time route collection from loading
+  // @prisma/client before the generated client exists.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { PrismaClient } = require('@prisma/client') as typeof import('@prisma/client');
   const client = new PrismaClient({
     datasources: { db: { url } },
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],

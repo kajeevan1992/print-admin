@@ -1,38 +1,6 @@
 import { ownerOnboardingSeed, type OwnerOnboardingRecord } from '@/data/owner-onboarding';
+import { createOwnerDbBackedService } from '@/services/owner-records-db.service';
 
-const KEY = 'print-admin.owner-onboarding.records';
+const STORAGE_KEY = 'print-admin.owner-onboarding.records';
 
-function read(): OwnerOnboardingRecord[] {
-  if (typeof window === 'undefined') return ownerOnboardingSeed;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return ownerOnboardingSeed;
-    const parsed = JSON.parse(raw) as OwnerOnboardingRecord[];
-    return Array.isArray(parsed) ? parsed : ownerOnboardingSeed;
-  } catch {
-    return ownerOnboardingSeed;
-  }
-}
-
-function write(records: OwnerOnboardingRecord[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(KEY, JSON.stringify(records));
-}
-
-export const ownerOnboardingService = {
-  async list() { return read(); },
-  async save(record: OwnerOnboardingRecord) {
-    const rows = read();
-    const next = rows.some((item) => item.id === record.id)
-      ? rows.map((item) => item.id === record.id ? record : item)
-      : [record, ...rows];
-    write(next);
-    return record;
-  },
-  async remove(id: string) {
-    write(read().filter((item) => item.id !== id));
-  },
-  async reset() {
-    write(ownerOnboardingSeed);
-  }
-};
+export const ownerOnboardingService = createOwnerDbBackedService<OwnerOnboardingRecord>(STORAGE_KEY, ownerOnboardingSeed);

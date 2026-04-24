@@ -1,0 +1,57 @@
+# v197 - Owner platform record modules DB/API
+
+Scope:
+- Continue DB/API wiring only.
+- No UI redesign.
+- No pricing engine, orders, storefront, or artwork workflow expansion.
+
+Changed:
+- Converted remaining simple Owner/Super Admin record services to the internal config item API via `createOwnerDbBackedService`.
+- Browser localStorage remains fallback only when internal API/DB is unavailable.
+- Updated module audit endpoint build label to v197.
+
+Connected services include:
+- Owner Account Plans
+- Owner Audit Log
+- Owner Backups
+- Owner Billing Plans
+- Owner Commercial Approvals
+- Owner Compliance Center
+- Owner Customer Health
+- Owner Customer Journeys
+- Owner Data Retention
+- Owner Escalations
+- Owner Executive Briefings
+- Owner Expansion Pipeline
+- Owner Incidents
+- Owner Notifications
+- Owner Onboarding Pipeline
+- Owner Onboarding
+- Owner Portfolio Risks
+- Owner QBRs
+- Owner Release Approvals
+- Owner Renewals
+- Owner Revenue Forecast
+- Owner Runbooks
+- Owner Stakeholder Map
+- Owner Success Plans
+- Owner Usage Limits
+
+Test pages:
+- /owner-backups
+- /owner-billing-plans
+- /owner-incidents
+- /owner-onboarding
+- /owner-runbooks
+- /owner-success-plans
+- /owner-audit-log
+
+Test API examples:
+- GET /api/internal/config/owner-backups/items
+- GET /api/internal/config/owner-billing-plans/items
+- GET /api/internal/config/owner-incidents/items
+- GET /api/internal/platform/module-audit
+
+Deploy notes:
+- Use this after v196.
+- If a page shows seed data on first load, create/edit/delete one record and refresh to confirm DB persistence.

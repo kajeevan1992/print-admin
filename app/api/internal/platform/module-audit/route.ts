@@ -96,6 +96,13 @@ const modules = [
     notes: 'Existing Owner Feature Flags UI now persists rollout controls through the internal config API with browser fallback only on API failure.',
   },
   {
+    module: 'Owner platform record modules',
+    status: 'connected-v197',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: ['/api/internal/config/:key/items'],
+    notes: 'Remaining Owner/Super Admin record modules now use the internal config item API with browser storage as fallback only. Includes backups, billing/account plans, incidents, runbooks, renewals, success plans, QBRs, audit log, onboarding, compliance, notifications, usage limits, and related owner workspaces.',
+  },
+  {
     module: 'Orders',
     status: 'pending',
     storage: 'mixed/demo',
@@ -108,7 +115,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v194',
+    build: 'v197',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

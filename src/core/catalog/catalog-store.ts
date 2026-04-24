@@ -39,6 +39,7 @@ const demo = {
     { id: 'fin-gloss-lamination', name: 'Gloss Lamination', slug: 'gloss-lamination', description: 'High-shine protective laminate', createdAt: now() },
     { id: 'fin-spot-uv', name: 'Spot UV', slug: 'spot-uv', description: 'Selective gloss UV coating', createdAt: now() },
   ],
+  productOptionGroups: [],
   optionSets: [
     { id: 'opt-business-card-options', name: 'Business Card Options', slug: 'business-card-options', description: 'Size, stock, finish, and quantity', createdAt: now() },
     { id: 'opt-flyer-options', name: 'Flyer Options', slug: 'flyer-options', description: 'Size, paper, sides, and quantity', createdAt: now() },
@@ -52,10 +53,12 @@ export type CatalogResource =
   | 'tags'
   | 'materials'
   | 'finishes'
-  | 'option-sets';
+  | 'option-sets'
+  | 'product-option-groups';
 
 export function listDemoCatalog(resource: CatalogResource) {
   if (resource === 'option-sets') return demo.optionSets;
+  if (resource === 'product-option-groups') return demo.productOptionGroups;
   return demo[resource] ?? [];
 }
 

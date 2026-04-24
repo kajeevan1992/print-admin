@@ -51,6 +51,38 @@ export type ParametricStandardConfig = {
 };
 
 
+export type ProductOptionDisplayType = 'dropdown' | 'radio' | 'image-cards' | 'checkboxes' | 'swatches' | 'quantity-grid' | 'custom-size';
+export type ProductOptionSource = 'size' | 'material' | 'finish' | 'quantity' | 'turnaround' | 'custom';
+
+export type ProductOptionValue = {
+  id: Id;
+  label: string;
+  sourceId?: Id;
+  description?: string;
+  imageUrl?: string;
+  width?: number;
+  height?: number;
+  unit?: string;
+  quantity?: number;
+  extraCostMinor?: number;
+  leadTimeDays?: number;
+};
+
+export type ProductOptionGroup = {
+  id: Id;
+  name: string;
+  key: string;
+  source: ProductOptionSource;
+  displayType: ProductOptionDisplayType;
+  required: boolean;
+  allowMultiple?: boolean;
+  allowCustomSize?: boolean;
+  maxWidth?: number;
+  maxHeight?: number;
+  unit?: string;
+  values: ProductOptionValue[];
+};
+
 export type ProductSystemConfig = {
   templateId: string;
   materialId: string;
@@ -147,6 +179,7 @@ export type Product = {
   alternateViews: AlternateView[];
   updatedAt: string;
   productSystem?: ProductSystemConfig;
+  optionGroups?: ProductOptionGroup[];
 };
 
 export type ProductFormValues = {

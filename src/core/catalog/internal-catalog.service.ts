@@ -29,6 +29,8 @@ export type InternalCatalogWriteInput = {
 
 export type InternalCatalogWriteMode = 'create' | 'update' | 'upsert';
 
+const PRODUCT_OPTION_GROUPS_RESOURCE = 'product-option-groups';
+
 function normalizeSearch(value?: string) {
   return value?.trim().toLowerCase() || '';
 }
@@ -147,6 +149,41 @@ async function readProductByIdOrSlug(client: Client, tenantId: string, idOrSlug:
   return result.rows[0] ?? null;
 }
 
+
+async function readProductOptionConfig(client: Client, tenantId: string, productId: string) {
+  const result = await client.query(
+    `SELECT "metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId" = $1 AND "resource" = $2 AND "slug" = $3 LIMIT 1`,
+    [tenantId, PRODUCT_OPTION_GROUPS_RESOURCE, productId]
+  );
+  const metadata = result.rows[0]?.metadataJson;
+  return metadata && typeof metadata === 'object' ? metadata : {};
+}
+
+async function attachProductOptionConfig(client: Client, tenantId: string, product: Record<string, unknown> | null) {
+  if (!product?.id) return product;
+  const metadata = await readProductOptionConfig(client, tenantId, String(product.id));
+  return {
+    ...product,
+    metadataJson: metadata,
+    optionGroups: Array.isArray((metadata as any).optionGroups) ? (metadata as any).optionGroups : [],
+    productSystem: (metadata as any).productSystem,
+  };
+}
+
+async function saveProductOptionConfig(client: Client, ctx: TenantContext, product: Record<string, unknown> | null, metadataJson?: Record<string, unknown>) {
+  if (!product?.id || metadataJson === undefined) return;
+  const existing = await readProductOptionConfig(client, ctx.tenantId, String(product.id));
+  const cleanMetadata = Object.fromEntries(Object.entries(metadataJson).filter(([, value]) => value !== undefined));
+  const next = { ...existing, ...cleanMetadata };
+  await client.query(
+    `INSERT INTO "CoreCatalogRecord" ("id", "tenantId", "resource", "slug", "name", "description", "metadataJson", "updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_TIMESTAMP)
+     ON CONFLICT ("tenantId", "resource", "slug")
+     DO UPDATE SET "name" = EXCLUDED."name", "metadataJson" = EXCLUDED."metadataJson", "updatedAt" = CURRENT_TIMESTAMP`,
+    [makeId('productoptions'), ctx.tenantId, PRODUCT_OPTION_GROUPS_RESOURCE, String(product.id), String(product.title || product.name || product.slug || product.id), 'Product option groups and storefront display configuration', next]
+  );
+}
+
 async function readCategoryByIdOrSlug(client: Client, tenantId: string, idOrSlug: string) {
   const result = await client.query(
     `SELECT c."id", c."slug", c."name", c."description", c."createdAt", c."updatedAt", count(p."id")::int as "productCount"
@@ -193,7 +230,9 @@ async function readFromTenantDb(ctx: TenantContext, resource: CatalogResource, o
          ORDER BY p."updatedAt" DESC, p."createdAt" DESC`,
         [ctx.tenantId, search, like]
       );
-      return paginate(result.rows, options.page, options.limit);
+      const rows = [];
+      for (const row of result.rows) rows.push(await attachProductOptionConfig(client, ctx.tenantId, row));
+      return paginate(rows, options.page, options.limit);
     }
 
     if (resource === 'categories') {
@@ -253,7 +292,9 @@ async function createProduct(client: Client, ctx: TenantContext, input: Internal
      RETURNING "id"`,
     [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.isGlobal ?? false, input.priceFromMinor ?? null, input.currency || 'GBP', input.productType || 'online']
   );
-  return readProductByIdOrSlug(client, ctx.tenantId, result.rows[0].id);
+  const product = await readProductByIdOrSlug(client, ctx.tenantId, result.rows[0].id);
+  await saveProductOptionConfig(client, ctx, product, input.metadataJson);
+  return attachProductOptionConfig(client, ctx.tenantId, product);
 }
 
 async function updateProduct(client: Client, ctx: TenantContext, input: InternalCatalogWriteInput) {
@@ -293,7 +334,9 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
       input.productType || null,
     ]
   );
-  return readProductByIdOrSlug(client, ctx.tenantId, current.id);
+  const product = await readProductByIdOrSlug(client, ctx.tenantId, current.id);
+  await saveProductOptionConfig(client, ctx, product, input.metadataJson);
+  return attachProductOptionConfig(client, ctx.tenantId, product);
 }
 
 async function createCategory(client: Client, ctx: TenantContext, input: InternalCatalogWriteInput) {
@@ -375,7 +418,7 @@ export async function getInternalCatalogRecord(ctx: TenantContext, resource: Cat
     if (resource === 'products') {
       const product = await readProductByIdOrSlug(client, ctx.tenantId, id);
       if (!product) throw new Error('Product ' + id + ' was not found in tenant database.');
-      return product;
+      return attachProductOptionConfig(client, ctx.tenantId, product);
     }
 
     if (resource === 'categories') {

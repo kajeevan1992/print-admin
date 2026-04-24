@@ -1,0 +1,73 @@
+# v183 Product Option Groups Foundation
+
+Scope kept focused on product configuration only.
+No pricing engine, orders, artwork, storefront redesign, sidebar/nav changes, API key changes, or proxy routes were touched.
+
+## What changed
+
+### Product edit UI
+- Added a new Product Detail tab: `Option Groups`.
+- Added a product option-group builder for print-shop product setup.
+- Admin can add groups for:
+  - Sizes / dimensions
+  - Materials
+  - Finishes
+  - Quantities
+  - Turnaround
+  - Custom options
+- Each group can control storefront display style:
+  - dropdown
+  - radio
+  - image-cards
+  - checkboxes
+  - swatches
+  - quantity-grid
+  - custom-size
+- Size groups support custom-size enablement and max width/height fields.
+- Values can include label, short description, image/icon URL, and size/quantity metadata.
+
+### Library linking
+- Material groups load from `/api/internal/catalog/materials`.
+- Finish groups load from `/api/internal/catalog/finishes`.
+- Option-set/custom groups can load from `/api/internal/catalog/option-sets`.
+- This avoids manually typing material/finish names that pricing cannot recognise later.
+
+### Persistence
+- Product option groups are saved through the existing internal product update route.
+- Option config is stored in `CoreCatalogRecord` using resource `product-option-groups` and slug = product id.
+- Product reads now attach saved `optionGroups` back onto product records.
+- Product system config is also preserved in the same metadata path when changed.
+
+### Preview
+- Product customer preview now shows configured option groups when available.
+- If no option groups are configured, it falls back to the existing simple material/finish/quantity/turnaround preview.
+
+## Changed files
+- `src/modules/products/types.ts`
+- `src/modules/products/components/product-tabs.tsx`
+- `src/modules/products/components/product-option-groups-builder.tsx`
+- `src/modules/products/pages/product-detail-page.tsx`
+- `src/modules/products/pages/product-customer-preview-page.tsx`
+- `src/services/products.service.ts`
+- `src/core/catalog/catalog-store.ts`
+- `src/core/catalog/internal-catalog.service.ts`
+- `BUILD_NOTES_V183.txt`
+
+## Test steps
+1. Deploy v183.
+2. Open Products.
+3. Open View/Edit for a product.
+4. Click `Option Groups` tab.
+5. Add Size, Material, Finish, Quantity and Turnaround groups.
+6. For Material/Finish groups, tick values from the loaded library list.
+7. Change display type, e.g. image-cards or dropdown.
+8. Wait for autosave.
+9. Refresh the product edit page.
+10. Confirm option groups persist.
+11. Open Preview and confirm the customer-facing preview shows the configured options.
+
+## Important notes
+- Pricing is intentionally not connected yet.
+- Printer/material max-width enforcement is not connected yet; the UI now captures the config foundation.
+- Product option values should eventually feed the pricing engine using stable source IDs from materials/finishes/options.
+- Could not run a local build in this environment because package-manager download is blocked here; Coolify should run the normal build.

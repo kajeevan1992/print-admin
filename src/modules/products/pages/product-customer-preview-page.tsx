@@ -56,12 +56,36 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
           <h1 className="mt-2 text-3xl font-semibold text-white">{product.name}</h1>
           <p className="mt-3 text-sm leading-6 text-textMuted">{product.description || 'Product description will appear here for the customer.'}</p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Material</p><p className="mt-1 font-medium text-white">{previewData.material?.name ?? 'Not configured'}</p></div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Finish</p><p className="mt-1 font-medium text-white">{previewData.finish?.name ?? 'Not configured'}</p></div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Quantity</p><p className="mt-1 font-medium text-white">{previewData.system.quantity}</p></div>
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Turnaround</p><p className="mt-1 font-medium text-white">{previewData.system.turnaround}</p></div>
-          </div>
+          {product.optionGroups?.length ? (
+            <div className="mt-5 space-y-4">
+              {product.optionGroups.map((group) => (
+                <div key={group.id}>
+                  <p className="mb-2 text-sm font-medium text-white">{group.name}</p>
+                  <div className={group.displayType === 'dropdown' ? '' : 'grid gap-2 sm:grid-cols-2'}>
+                    {group.displayType === 'dropdown' ? (
+                      <select className="w-full rounded-xl border border-border bg-panelMuted px-3 py-3 text-sm text-white">
+                        {group.values.map((value) => <option key={value.id}>{value.label}</option>)}
+                      </select>
+                    ) : group.values.map((value) => (
+                      <div key={value.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
+                        {value.imageUrl && <img src={value.imageUrl} alt={value.label} className="mb-2 h-20 w-full rounded-xl object-cover" />}
+                        <p className="font-medium text-white">{value.label}</p>
+                        {value.description && <p className="mt-1 text-xs text-textMuted">{value.description}</p>}
+                      </div>
+                    ))}
+                  </div>
+                  {group.allowCustomSize && <p className="mt-2 text-xs text-textMuted">Custom size enabled. Max width {group.maxWidth || 'not set'} {group.unit || 'mm'}.</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Material</p><p className="mt-1 font-medium text-white">{previewData.material?.name ?? 'Not configured'}</p></div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Finish</p><p className="mt-1 font-medium text-white">{previewData.finish?.name ?? 'Not configured'}</p></div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Quantity</p><p className="mt-1 font-medium text-white">{previewData.system.quantity}</p></div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Turnaround</p><p className="mt-1 font-medium text-white">{previewData.system.turnaround}</p></div>
+            </div>
+          )}
 
           <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
             <p className="text-xs uppercase tracking-[0.22em] text-emerald-100/75">Estimated price</p>

@@ -11,6 +11,7 @@ import { EmptyModuleState } from '@/modules/products/components/empty-module-sta
 import { CommentsPanel } from '@/modules/products/components/comments-panel';
 import { PrintEditorForm } from '@/modules/products/components/print-editor-form';
 import { ProductRightSidebar } from '@/modules/products/components/product-right-sidebar';
+import { ProductOptionGroupsBuilder } from '@/modules/products/components/product-option-groups-builder';
 import { productsService } from '@/services/products.service';
 import { categoriesService } from '@/services/categories.service';
 import { calculateProductEstimate, getArtworkProfile, getCompatibleFinishes, getCompatibleMaterials, getCompatiblePrinters, getRuleWarnings } from '@/lib/product-system';
@@ -138,6 +139,8 @@ export function ProductDetailPage({ productId }: { productId: string }) {
               })()}
             </ProductSectionCard>
           </div>)}
+
+          {active === 'Option Groups' && <ProductOptionGroupsBuilder product={product} onUpdate={persistProduct} />}
 
           {active === 'Print Editor' && <PrintEditorForm product={product} onUpdate={persistProduct} />}
 

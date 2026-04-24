@@ -1,0 +1,66 @@
+Build: v184 product templates + option override foundation
+
+Scope completed:
+- Added a Templates & Rules tab inside the existing product edit page.
+- Added reusable setup presets for Business Cards, Booklets, PVC Banners and Boards/Rigid Media.
+- Added product-level merge/override mode:
+  - use template only
+  - merge template + product overrides
+  - product custom setup only
+- Added pricing/production hook fields only, no pricing engine logic:
+  - pricing profile key
+  - production method
+  - source sheet/roll width and length
+  - max printable width and length
+  - internal notes for later pricing rules
+- Added artwork rule fields:
+  - allowed file types
+  - min/max files
+  - required page count
+  - bleed
+  - require PDF
+  - allow design from template
+  - customer instructions
+- Extended option groups with:
+  - info-cards display style
+  - pricing key per group
+  - pricing key per value
+  - customer help text
+- Product preview now reads template/artwork rules when present.
+- Product template rules are persisted in existing product metadata storage.
+
+Important:
+- This build does not add pricing calculations.
+- This build does not redesign admin UI or storefront theme.
+- This build does not copy WordPress plugin code.
+- Plugin ideas were converted into SaaS-native config fields only.
+
+Touched files:
+- src/modules/products/types.ts
+- src/modules/products/components/product-tabs.tsx
+- src/modules/products/components/product-option-groups-builder.tsx
+- src/modules/products/components/product-template-rules-builder.tsx
+- src/modules/products/pages/product-detail-page.tsx
+- src/modules/products/pages/product-customer-preview-page.tsx
+- src/services/products.service.ts
+- src/core/catalog/internal-catalog.service.ts
+- BUILD_NOTES_V184.txt
+
+Test steps:
+1. Deploy.
+2. Open Products.
+3. Open an existing product with View/Edit.
+4. Open Option Groups tab.
+5. Confirm pricing key/help text fields are visible and save.
+6. Open Templates & Rules tab.
+7. Apply Business Cards / Booklets / Banners / Boards preset.
+8. Edit artwork rules and production hook fields.
+9. Refresh product page and confirm saved values remain.
+10. Click Preview and confirm template/artwork rule text appears.
+
+Next recommended build:
+v185 product option dependencies + custom-size constraints
+- show/hide option groups based on selected values
+- custom-size min/max rules
+- validate size against product/template material/printer limits
+- still no pricing engine yet

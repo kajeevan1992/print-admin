@@ -1,0 +1,39 @@
+v185 - product configuration readiness checks
+
+Scope kept strict:
+- Product configuration/admin setup only
+- No pricing engine calculation
+- No orders/artwork workflow changes
+- No storefront redesign
+- No sidebar/nav changes
+
+Changed files:
+- src/modules/products/components/product-option-groups-builder.tsx
+- src/modules/products/pages/product-customer-preview-page.tsx
+- src/modules/products/lib/product-configuration-readiness.ts
+- PRODUCT_CONFIGURATION_MODEL_V185.md
+- BUILD_NOTES_V185.txt
+
+What changed:
+- Added a Product Configuration Readiness checker.
+- Option Groups tab now warns when required pricing hooks are missing.
+- Warns when material/finish values are typed manually instead of linked from libraries.
+- Warns when size values are missing width/height for future sheet-fit pricing.
+- Warns when custom-size products do not have max width/height limits.
+- Preview page now shows readiness status before the customer-facing preview.
+- Added clearer guidance for custom-size products like banners/boards.
+
+Why:
+This prepares the product setup for real print-shop workflows without starting pricing yet.
+Pricing later needs stable keys such as size, material, finish, quantity, turnaround, width, height and sides.
+
+Test:
+1. Deploy.
+2. Open Products.
+3. Open an existing product.
+4. Go to Option Groups.
+5. Check the readiness box at the top.
+6. Add size/material/quantity groups and confirm warnings reduce.
+7. Link materials/finishes from libraries and confirm manual-value warnings disappear.
+8. Enable custom size on a size group and check max width/height warning.
+9. Open Preview and confirm readiness status appears there too.

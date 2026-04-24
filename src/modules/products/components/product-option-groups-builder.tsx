@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/buttons';
 import { Input } from '@/components/forms/input';
 import { ProductSectionCard } from './product-section-card';
 import type { Product, ProductOptionDisplayType, ProductOptionGroup, ProductOptionSource, ProductOptionValue } from '@/modules/products/types';
+import { productConfigurationReadinessLabel, validateProductConfiguration } from '@/modules/products/lib/product-configuration-readiness';
 
 type LibraryItem = { id: string; name?: string; title?: string; slug?: string; description?: string; gsm?: string };
 type LibraryState = { materials: LibraryItem[]; finishes: LibraryItem[]; optionSets: LibraryItem[] };
 
-const displayTypes: ProductOptionDisplayType[] = ['dropdown', 'radio', 'image-cards', 'checkboxes', 'swatches', 'quantity-grid', 'custom-size'];
+const displayTypes: ProductOptionDisplayType[] = ['dropdown', 'radio', 'image-cards', 'checkboxes', 'swatches', 'quantity-grid', 'custom-size', 'info-cards'];
 const sourceLabels: Record<ProductOptionSource, string> = {
   size: 'Sizes / dimensions',
   material: 'Materials library',
@@ -49,14 +50,15 @@ function libraryValue(item: LibraryItem): ProductOptionValue {
 
 function templateGroup(source: ProductOptionSource, library: LibraryState): ProductOptionGroup {
   if (source === 'material') {
-    return { id: makeId('group'), name: 'Material', key: 'material', source, displayType: 'image-cards', required: true, values: library.materials.slice(0, 6).map(libraryValue) };
+    return { id: makeId('group'), name: 'Material', key: 'material', source, displayType: 'image-cards', required: true, values: library.materials.slice(0, 6).map(libraryValue), pricingKey: 'material' };
   }
   if (source === 'finish') {
-    return { id: makeId('group'), name: 'Finish', key: 'finish', source, displayType: 'checkboxes', required: false, allowMultiple: true, values: library.finishes.slice(0, 6).map(libraryValue) };
+    return { id: makeId('group'), name: 'Finish', key: 'finish', source, displayType: 'checkboxes', required: false, allowMultiple: true, values: library.finishes.slice(0, 6).map(libraryValue), pricingKey: 'finish' };
   }
   if (source === 'size') {
     return {
       id: makeId('group'), name: 'Size', key: 'size', source, displayType: 'image-cards', required: true, allowCustomSize: false, unit: 'mm',
+      pricingKey: 'size', helpText: 'Use preset sizes and enable custom size only where this product supports it.',
       values: [
         { id: makeId('size'), label: '85 × 55 mm', width: 85, height: 55, unit: 'mm', description: 'UK standard business card' },
         { id: makeId('size'), label: '55 × 55 mm', width: 55, height: 55, unit: 'mm', description: 'Square format' },
@@ -84,6 +86,8 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
   const [library, setLibrary] = useState<LibraryState>({ materials: [], finishes: [], optionSets: [] });
   const [libraryError, setLibraryError] = useState<string | null>(null);
   const groups = product.optionGroups || [];
+  const readinessIssues = validateProductConfiguration(product);
+  const readinessLabel = productConfigurationReadinessLabel(readinessIssues);
 
   useEffect(() => {
     Promise.all([loadLibrary('materials'), loadLibrary('finishes'), loadLibrary('option-sets')])
@@ -102,6 +106,25 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
           Build the choices a customer sees on the storefront. Materials and finishes must come from their libraries so the pricing engine can use the same IDs later.
         </p>
         {libraryError && <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">{libraryError}</div>}
+        <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Configuration readiness</p>
+              <p className="mt-1 text-sm font-medium text-white">{readinessLabel}</p>
+            </div>
+            <span className="rounded-full border border-border px-3 py-1 text-xs text-textMuted">{readinessIssues.length} check{readinessIssues.length === 1 ? '' : 's'}</span>
+          </div>
+          {readinessIssues.length > 0 ? (
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {readinessIssues.slice(0, 6).map((issue) => (
+                <div key={issue.id} className={`rounded-lg border p-2 text-sm ${issue.level === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-100' : issue.level === 'warning' ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : 'border-sky-500/30 bg-sky-500/10 text-sky-100'}`}>
+                  <p className="font-medium">{issue.title}</p>
+                  <p className="mt-1 text-xs opacity-80">{issue.message}</p>
+                </div>
+              ))}
+            </div>
+          ) : <p className="mt-3 text-sm text-emerald-200">This product has the basic option structure needed before pricing setup.</p>}
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {(['size', 'material', 'finish', 'quantity', 'turnaround', 'custom'] as ProductOptionSource[]).map((source) => (
             <Button key={source} onClick={() => setGroups([...groups, templateGroup(source, library)])}>Add {sourceLabels[source]}</Button>
@@ -123,6 +146,8 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
               <label className="space-y-1 text-sm"><span className="text-textMuted">Group name</span><Input value={group.name} onChange={(e) => setGroups(updateGroup(groups, group.id, { name: e.target.value, key: slugify(e.target.value) }))} /></label>
               <label className="space-y-1 text-sm"><span className="text-textMuted">Display on storefront</span><select value={group.displayType} onChange={(e) => setGroups(updateGroup(groups, group.id, { displayType: e.target.value as ProductOptionDisplayType }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{displayTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
               <label className="space-y-1 text-sm"><span className="text-textMuted">Unit / size unit</span><Input value={group.unit || ''} placeholder="mm" onChange={(e) => setGroups(updateGroup(groups, group.id, { unit: e.target.value }))} /></label>
+              <label className="space-y-1 text-sm"><span className="text-textMuted">Pricing key</span><Input value={group.pricingKey || group.key || ''} placeholder="material" onChange={(e) => setGroups(updateGroup(groups, group.id, { pricingKey: e.target.value }))} /></label>
+              <label className="space-y-1 text-sm md:col-span-3"><span className="text-textMuted">Customer help text</span><Input value={group.helpText || ''} placeholder="Explain this choice on the storefront" onChange={(e) => setGroups(updateGroup(groups, group.id, { helpText: e.target.value }))} /></label>
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-sm text-textMuted">
               <label className="flex items-center gap-2"><input type="checkbox" checked={group.required} onChange={(e) => setGroups(updateGroup(groups, group.id, { required: e.target.checked }))} /> Required</label>
@@ -133,6 +158,7 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 <label className="space-y-1 text-sm"><span className="text-textMuted">Max printable width</span><Input type="number" value={String(group.maxWidth || '')} placeholder="1200" onChange={(e) => setGroups(updateGroup(groups, group.id, { maxWidth: Number(e.target.value) || undefined }))} /></label>
                 <label className="space-y-1 text-sm"><span className="text-textMuted">Max printable height/length</span><Input type="number" value={String(group.maxHeight || '')} placeholder="10000" onChange={(e) => setGroups(updateGroup(groups, group.id, { maxHeight: Number(e.target.value) || undefined }))} /></label>
+                <p className="text-xs leading-5 text-textMuted md:col-span-2">Use these limits for custom-size products such as banners and boards. Later pricing will compare customer width/height against material roll, sheet and printer limits.</p>
               </div>
             )}
 
@@ -160,6 +186,7 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
                   <Input value={value.label} placeholder="Label" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { label: e.target.value })))} />
                   <Input value={value.description || ''} placeholder="Short description" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { description: e.target.value })))} />
                   <Input value={value.imageUrl || ''} placeholder="Image URL / icon URL" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { imageUrl: e.target.value })))} />
+                  <Input value={value.pricingKey || ''} placeholder="Pricing value key" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingKey: e.target.value })))} />
                   <Button className="text-red-300" onClick={() => setGroups(updateGroup(groups, group.id, { values: group.values.filter((item) => item.id !== value.id) }))}>Remove</Button>
                   {group.source === 'size' && <><Input type="number" value={String(value.width || '')} placeholder="Width" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { width: Number(e.target.value) || undefined })))} /><Input type="number" value={String(value.height || '')} placeholder="Height" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { height: Number(e.target.value) || undefined })))} /></>}
                   {group.source === 'quantity' && <Input type="number" value={String(value.quantity || '')} placeholder="Quantity" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { quantity: Number(e.target.value) || undefined, label: e.target.value })))} />}
@@ -167,6 +194,10 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
               ))}
             </div>
 
+            <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Display + dependency notes</p>
+              <p className="mt-2 text-sm text-textMuted">Use the display selector above to decide how this option appears on the customer product page. Dependency rules can be added later using these stable group keys and value IDs, for example: show lamination only when material supports it, or show custom width/height only when custom size is selected.</p>
+            </div>
             <div className="mt-4 flex justify-end"><Button className="text-red-300" onClick={() => setGroups(groups.filter((item) => item.id !== group.id))}>Delete group</Button></div>
           </ProductSectionCard>
         );

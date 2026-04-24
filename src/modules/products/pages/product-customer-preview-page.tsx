@@ -6,6 +6,7 @@ import { ProductSectionCard } from '@/modules/products/components/product-sectio
 import { productsService } from '@/services/products.service';
 import { calculateProductEstimate, getArtworkProfile, getCompatibleFinishes, getCompatibleMaterials, getTemplateById } from '@/lib/product-system';
 import type { Product } from '@/modules/products/types';
+import { productConfigurationReadinessLabel, validateProductConfiguration } from '@/modules/products/lib/product-configuration-readiness';
 
 export function ProductCustomerPreviewPage({ productId }: { productId: string }) {
   const [product, setProduct] = useState<Product | null>(null);
@@ -31,7 +32,9 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
     const finish = finishes.find((item) => item.id === system.finishId) ?? finishes[0];
     const estimate = calculateProductEstimate(system.quantity, material?.id ?? system.materialId, finish?.id ?? system.finishId, system.printerId, system.turnaround, system.fieldValues);
     const artwork = getArtworkProfile(system.templateId);
-    return { system, template, material, finish, estimate, artwork };
+    const templateRules = product.templateRules;
+    const readinessIssues = validateProductConfiguration(product);
+    return { system, template, material, finish, estimate, artwork, templateRules, readinessIssues, readinessLabel: productConfigurationReadinessLabel(readinessIssues) };
   }, [product]);
 
   if (loading) return <ProductSectionCard title="Loading preview">Loading customer-facing product preview...</ProductSectionCard>;
@@ -43,6 +46,25 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
       <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-100">
         Customer preview mode. This is not the editable admin screen. It shows the current product as a buyer would start to see it.
       </div>
+      <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-sm text-textMuted">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em]">Product configuration readiness</p>
+            <p className="mt-1 font-medium text-white">{previewData.readinessLabel}</p>
+          </div>
+          <span className="rounded-full border border-border px-3 py-1 text-xs">{previewData.readinessIssues.length} check{previewData.readinessIssues.length === 1 ? '' : 's'}</span>
+        </div>
+        {previewData.readinessIssues.length > 0 && (
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {previewData.readinessIssues.slice(0, 4).map((issue) => (
+              <div key={issue.id} className="rounded-lg border border-border p-2">
+                <p className="font-medium text-white">{issue.title}</p>
+                <p className="mt-1 text-xs">{issue.message}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-3xl border border-border bg-panel p-5">
@@ -52,7 +74,7 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
         </div>
 
         <div className="rounded-3xl border border-border bg-panel p-5">
-          <p className="text-xs uppercase tracking-[0.22em] text-textMuted">{previewData.template.name}</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-textMuted">{previewData.templateRules?.templateName || previewData.template.name}</p>
           <h1 className="mt-2 text-3xl font-semibold text-white">{product.name}</h1>
           <p className="mt-3 text-sm leading-6 text-textMuted">{product.description || 'Product description will appear here for the customer.'}</p>
 
@@ -74,7 +96,8 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
                       </div>
                     ))}
                   </div>
-                  {group.allowCustomSize && <p className="mt-2 text-xs text-textMuted">Custom size enabled. Max width {group.maxWidth || 'not set'} {group.unit || 'mm'}.</p>}
+                  {group.helpText && <p className="mb-2 text-xs text-textMuted">{group.helpText}</p>}
+                  {group.allowCustomSize && <p className="mt-2 text-xs text-textMuted">Custom size enabled. Max width {group.maxWidth || previewData.templateRules?.maxPrintableWidth || 'not set'} {group.unit || previewData.templateRules?.sourceSheetUnit || 'mm'}.</p>}
                 </div>
               ))}
             </div>
@@ -104,7 +127,12 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
       <div className="rounded-3xl border border-border bg-panel p-5">
         <p className="text-sm font-medium text-white">Artwork checks shown to customer</p>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          {previewData.artwork.checklist.map((item) => <div key={item} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{item}</div>)}
+          {(previewData.templateRules ? [
+            'Allowed files: ' + (previewData.templateRules.artworkRules.allowedFileTypes.join(', ') || 'not set'),
+            'Files required: ' + previewData.templateRules.artworkRules.minFiles + '-' + previewData.templateRules.artworkRules.maxFiles,
+            'Bleed: ' + (previewData.templateRules.artworkRules.bleedMm ?? 'not set') + ' mm',
+            previewData.templateRules.artworkRules.customerInstructions || 'Customer artwork instructions not set'
+          ] : previewData.artwork.checklist).map((item) => <div key={item} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{item}</div>)}
         </div>
       </div>
     </div>

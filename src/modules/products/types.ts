@@ -51,7 +51,7 @@ export type ParametricStandardConfig = {
 };
 
 
-export type ProductOptionDisplayType = 'dropdown' | 'radio' | 'image-cards' | 'checkboxes' | 'swatches' | 'quantity-grid' | 'custom-size';
+export type ProductOptionDisplayType = 'dropdown' | 'radio' | 'image-cards' | 'checkboxes' | 'swatches' | 'quantity-grid' | 'custom-size' | 'info-cards';
 export type ProductOptionSource = 'size' | 'material' | 'finish' | 'quantity' | 'turnaround' | 'custom';
 
 export type ProductOptionValue = {
@@ -66,6 +66,8 @@ export type ProductOptionValue = {
   quantity?: number;
   extraCostMinor?: number;
   leadTimeDays?: number;
+  pricingKey?: string;
+  dependencyKey?: string;
 };
 
 export type ProductOptionGroup = {
@@ -81,6 +83,37 @@ export type ProductOptionGroup = {
   maxHeight?: number;
   unit?: string;
   values: ProductOptionValue[];
+  pricingKey?: string;
+  dependencyRules?: Array<{ id: Id; whenGroupKey: string; whenValueId: string; action: 'show' | 'hide' | 'require'; targetGroupKey?: string }>;
+  helpText?: string;
+};
+
+export type ProductTemplateMergeMode = 'template-only' | 'merge-overrides' | 'product-only';
+
+export type ProductArtworkRuleConfig = {
+  allowedFileTypes: string[];
+  minFiles: number;
+  maxFiles: number;
+  requiredPageCount?: number;
+  bleedMm?: number;
+  requirePdf?: boolean;
+  allowDesignFromTemplate?: boolean;
+  customerInstructions?: string;
+};
+
+export type ProductTemplateRuleConfig = {
+  templateKey: string;
+  templateName: string;
+  mergeMode: ProductTemplateMergeMode;
+  pricingProfileKey?: string;
+  productionMethod?: string;
+  sourceSheetWidth?: number;
+  sourceSheetHeight?: number;
+  sourceSheetUnit?: string;
+  maxPrintableWidth?: number;
+  maxPrintableLength?: number;
+  notes?: string;
+  artworkRules: ProductArtworkRuleConfig;
 };
 
 export type ProductSystemConfig = {
@@ -180,6 +213,7 @@ export type Product = {
   updatedAt: string;
   productSystem?: ProductSystemConfig;
   optionGroups?: ProductOptionGroup[];
+  templateRules?: ProductTemplateRuleConfig;
 };
 
 export type ProductFormValues = {

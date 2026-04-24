@@ -36,9 +36,10 @@ type InternalCatalogProduct = {
   currency?: string;
   createdAt?: string;
   updatedAt?: string;
-  metadataJson?: { optionGroups?: ProductOptionGroup[]; productSystem?: Product['productSystem'] } | null;
+  metadataJson?: { optionGroups?: ProductOptionGroup[]; productSystem?: Product['productSystem']; templateRules?: Product['templateRules'] } | null;
   optionGroups?: ProductOptionGroup[];
   productSystem?: Product['productSystem'];
+  templateRules?: Product['templateRules'];
 };
 
 type InternalCatalogList<T> = { items: T[]; pagination?: { page: number; limit: number; total: number; totalPages: number } };
@@ -135,6 +136,7 @@ function mapInternalProduct(item: InternalCatalogProduct, index = 0): Product {
     alternateViews: [],
     updatedAt: updated.slice(0, 10),
     productSystem: item.productSystem || item.metadataJson?.productSystem,
+    templateRules: item.templateRules || item.metadataJson?.templateRules,
     optionGroups: item.optionGroups || item.metadataJson?.optionGroups || [],
   };
 }
@@ -173,6 +175,7 @@ function productToCatalogPayload(product: Partial<Product>) {
   const metadataJson: Record<string, unknown> = {};
   if (Object.prototype.hasOwnProperty.call(product, 'optionGroups')) metadataJson.optionGroups = product.optionGroups || [];
   if (Object.prototype.hasOwnProperty.call(product, 'productSystem')) metadataJson.productSystem = product.productSystem;
+  if (Object.prototype.hasOwnProperty.call(product, 'templateRules')) metadataJson.templateRules = product.templateRules;
   if (Object.keys(metadataJson).length) payload.metadataJson = metadataJson;
 
   if (Object.prototype.hasOwnProperty.call(product, 'categoryId')) {

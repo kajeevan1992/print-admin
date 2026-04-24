@@ -167,6 +167,7 @@ async function attachProductOptionConfig(client: Client, tenantId: string, produ
     metadataJson: metadata,
     optionGroups: Array.isArray((metadata as any).optionGroups) ? (metadata as any).optionGroups : [],
     productSystem: (metadata as any).productSystem,
+    templateRules: (metadata as any).templateRules,
   };
 }
 

@@ -21,6 +21,7 @@ export default function Page() {
       subtitleFields={['subtitle', 'risk']}
       cardMetaFields={['audience']}
       searchKeys={['title', 'subtitle', 'risk', 'audience', 'meta']}
+      liveEndpoint="/api/internal/catalog/artwork-profiles"
     />
   );
 }

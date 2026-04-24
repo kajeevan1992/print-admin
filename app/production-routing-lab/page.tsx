@@ -23,6 +23,7 @@ export default function Page() {
       subtitleFields={['family', 'state']}
       cardMetaFields={['stock', 'route', 'fallback']}
       searchKeys={['title', 'family', 'stock', 'route', 'fallback']}
+      liveEndpoint="/api/internal/catalog/production-routing-rules"
     />
   );
 }

@@ -42,6 +42,14 @@ const demo = {
   productOptionGroups: [],
   printerProfiles: [],
   shippingMethods: [],
+  artworkProfiles: [
+    { id: 'art-marketing-standard', name: 'Marketing standard', slug: 'marketing-standard', description: 'Bleed, CMYK, fonts and DPI checks', metadataJson: { subtitle: 'soft-proof', meta: 'Bleed • CMYK • fonts • DPI', risk: 'normal', audience: 'studio' }, createdAt: now() },
+    { id: 'art-booklet-production', name: 'Booklet production', slug: 'booklet-production', description: 'Pagination, creep and binding checks', metadataJson: { subtitle: 'hard-proof', meta: 'Pagination • creep • binding', risk: 'high', audience: 'prepress + client' }, createdAt: now() },
+  ],
+  productionRoutingRules: [
+    { id: 'route-business-cards-silk', name: 'Business cards on silk', slug: 'business-cards-on-silk', description: 'cards • standard', metadataJson: { family: 'cards', stock: '350gsm Silk', route: 'HP Indigo 7K', fallback: 'Xerox Iridesse', state: 'active', meta: 'HP Indigo 7K → spot UV on Xerox Iridesse' }, createdAt: now() },
+    { id: 'route-booklets-long-run', name: 'Booklets long run', slug: 'booklets-long-run', description: 'books • priority', metadataJson: { family: 'books', stock: '130gsm Silk', route: 'Komori Lithrone', fallback: 'HP Indigo 7K', state: 'active', meta: 'Komori Lithrone preferred for 1000+' }, createdAt: now() },
+  ],
   optionSets: [
     { id: 'opt-business-card-options', name: 'Business Card Options', slug: 'business-card-options', description: 'Size, stock, finish, and quantity', createdAt: now() },
     { id: 'opt-flyer-options', name: 'Flyer Options', slug: 'flyer-options', description: 'Size, paper, sides, and quantity', createdAt: now() },
@@ -58,13 +66,17 @@ export type CatalogResource =
   | 'option-sets'
   | 'product-option-groups'
   | 'printer-profiles'
-  | 'shipping-methods';
+  | 'shipping-methods'
+  | 'artwork-profiles'
+  | 'production-routing-rules';
 
 export function listDemoCatalog(resource: CatalogResource) {
   if (resource === 'option-sets') return demo.optionSets;
   if (resource === 'product-option-groups') return demo.productOptionGroups;
   if (resource === 'printer-profiles') return demo.printerProfiles;
   if (resource === 'shipping-methods') return demo.shippingMethods;
+  if (resource === 'artwork-profiles') return demo.artworkProfiles;
+  if (resource === 'production-routing-rules') return demo.productionRoutingRules;
   return demo[resource] ?? [];
 }
 

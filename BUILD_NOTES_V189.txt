@@ -1,0 +1,43 @@
+# v189 - Artwork Profiles + Production Routing DB/API
+
+## Changed files
+- src/core/catalog/catalog-store.ts
+- app/api/internal/catalog/artwork-profiles/route.ts
+- app/api/internal/catalog/production-routing-rules/route.ts
+- app/artwork-preflight-studio/page.tsx
+- app/production-routing-lab/page.tsx
+- app/api/internal/platform/module-audit/route.ts
+- MODULE_DB_API_AUDIT_V189.md
+
+## What changed
+- Added internal API routes for artwork profile records.
+- Added internal API routes for production routing rule records.
+- Connected Artwork Preflight Studio to tenant DB via internal API.
+- Connected Production Routing Lab to tenant DB via internal API.
+- Updated module audit endpoint to report v189 progress.
+
+## Test routes
+- GET /api/internal/catalog/artwork-profiles
+- POST /api/internal/catalog/artwork-profiles
+- PATCH /api/internal/catalog/artwork-profiles
+- DELETE /api/internal/catalog/artwork-profiles?id=<id-or-slug>
+- GET /api/internal/catalog/production-routing-rules
+- POST /api/internal/catalog/production-routing-rules
+- PATCH /api/internal/catalog/production-routing-rules
+- DELETE /api/internal/catalog/production-routing-rules?id=<id-or-slug>
+- GET /api/internal/platform/module-audit
+
+## UI test notes
+1. Open /artwork-preflight-studio.
+2. Confirm DB/API status message loads.
+3. Add/edit/delete a profile and refresh.
+4. Open /api/internal/catalog/artwork-profiles and confirm the data persists.
+5. Open /production-routing-lab.
+6. Add/edit/delete a routing rule and refresh.
+7. Open /api/internal/catalog/production-routing-rules and confirm the data persists.
+
+## Not included
+- No pricing engine work.
+- No orders work.
+- No artwork file upload/preflight processing.
+- No storefront redesign.

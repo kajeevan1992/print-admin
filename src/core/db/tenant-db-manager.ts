@@ -1,4 +1,5 @@
 import { buildPostgresConnectionString, maskConnectionString, type PostgresConnectionInput } from './connection-string';
+import { buildPgClientConfig } from './pg-client-config';
 import { ensureTenantSchema } from './tenant-schema';
 
 export type DatabaseTestResult = {
@@ -21,7 +22,7 @@ export async function testTenantDatabaseConnection(input: PostgresConnectionInpu
       };
     }
 
-    const client = new pg.Client({ connectionString });
+    const client = new pg.Client(buildPgClientConfig(input));
     await client.connect();
     await client.query('select 1 as ok');
     await client.end();

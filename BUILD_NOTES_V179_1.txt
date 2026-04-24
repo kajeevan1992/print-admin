@@ -1,0 +1,37 @@
+Build: v179.1 catalog CRUD SSL certificate fix
+
+Reason:
+- Coolify/Postgres SSL can produce: "unable to verify the first certificate".
+- This is a Node pg TLS validation issue, not a Product/Category CRUD logic issue.
+
+Changed files:
+- src/core/db/pg-client-config.ts
+- src/core/db/tenant-schema.ts
+- src/core/db/tenant-db-manager.ts
+
+What changed:
+- Centralised pg Client SSL config.
+- sslMode=disable uses ssl:false.
+- sslMode=require/prefer uses SSL with rejectUnauthorized:false by default so Coolify/self-signed/managed certificates do not block tenant catalog CRUD.
+- If you later install a proper CA chain and want strict verification, set:
+  PGSSL_REJECT_UNAUTHORIZED=true
+
+Keep these environment variables:
+- DATABASE_URL=postgres://...
+- Optional: TENANT_DATABASE_URL=postgres://...
+
+Recommended DATABASE_URL examples:
+- With SSL required:
+  postgres://user:pass@host:5432/db?sslmode=require
+- Without SSL:
+  postgres://user:pass@host:5432/db?sslmode=disable
+
+Test:
+1. Deploy this ZIP.
+2. Visit /api/internal/catalog/products
+3. Create/update/delete product from existing admin UI or POST route.
+4. Visit /api/internal/catalog/categories
+5. Create/update/delete category from existing admin UI or POST route.
+
+Rollback:
+- Revert the three changed files above or deploy v179.

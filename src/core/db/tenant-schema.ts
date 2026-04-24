@@ -1,8 +1,9 @@
 import { Client } from 'pg';
-import { buildPostgresConnectionString, type PostgresConnectionInput } from './connection-string';
+import type { PostgresConnectionInput } from './connection-string';
+import { buildPgClientConfig } from './pg-client-config';
 
 export async function withPgClient<T>(input: PostgresConnectionInput, fn: (client: Client) => Promise<T>) {
-  const client = new Client({ connectionString: buildPostgresConnectionString(input) });
+  const client = new Client(buildPgClientConfig(input));
   await client.connect();
   try {
     return await fn(client);

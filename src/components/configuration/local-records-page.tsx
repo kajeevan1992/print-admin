@@ -81,24 +81,26 @@ export function LocalRecordsPage({
     [initialItems]
   );
 
+  const effectiveLiveEndpoint = liveEndpoint || (storageKey ? `/api/internal/config/${encodeURIComponent(storageKey)}/items` : undefined);
+
   const [items, setItems] = useState<RecordItem[]>(seedItems);
   const [selectedId, setSelectedId] = useState<string>(seedItems[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
   const [attentionOnly, setAttentionOnly] = useState(false);
-  const [liveSync, setLiveSync] = useState<LiveSyncState>(liveEndpoint ? 'loading' : 'local');
-  const [liveMessage, setLiveMessage] = useState(liveEndpoint ? 'Connecting to internal API...' : 'Local-only workspace.');
+  const [liveSync, setLiveSync] = useState<LiveSyncState>(effectiveLiveEndpoint ? 'loading' : 'local');
+  const [liveMessage, setLiveMessage] = useState(effectiveLiveEndpoint ? 'Connecting to internal API...' : 'Local-only workspace.');
   const saveTimerRef = useRef<number | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
-    if (!liveEndpoint || typeof window === 'undefined') return;
+    if (!effectiveLiveEndpoint || typeof window === 'undefined') return;
 
     const loadLive = async () => {
       try {
-        const res = await fetch(liveEndpoint, { cache: 'no-store' });
+        const res = await fetch(effectiveLiveEndpoint, { cache: 'no-store' });
         const payload = await res.json().catch(() => null);
         if (!res.ok || !payload?.ok) {
           setLiveSync('error');
@@ -146,10 +148,10 @@ export function LocalRecordsPage({
     return () => {
       active = false;
     };
-  }, [liveEndpoint, mapLiveItem]);
+  }, [effectiveLiveEndpoint, mapLiveItem]);
 
   useEffect(() => {
-    if (liveEndpoint) return;
+    if (effectiveLiveEndpoint) return;
     const raw = window.localStorage.getItem(storageKey);
     if (!raw) return;
     try {
@@ -161,12 +163,12 @@ export function LocalRecordsPage({
     } catch {
       // ignore malformed cache
     }
-  }, [storageKey, liveEndpoint]);
+  }, [storageKey, effectiveLiveEndpoint]);
 
   useEffect(() => {
-    if (liveEndpoint) return;
+    if (effectiveLiveEndpoint) return;
     window.localStorage.setItem(storageKey, JSON.stringify(items));
-  }, [items, storageKey, liveEndpoint]);
+  }, [items, storageKey, effectiveLiveEndpoint]);
 
   const filterField = fields.find((field) => field.key === primaryFilterKey);
   const filterOptions = useMemo(() => {
@@ -257,11 +259,11 @@ export function LocalRecordsPage({
   };
 
   const syncLiveItem = async (item: RecordItem, method: 'POST' | 'PATCH' | 'DELETE' = 'PATCH') => {
-    if (!liveEndpoint) return;
+    if (!effectiveLiveEndpoint) return;
     try {
       setLiveSync('saving');
       setLiveMessage(method === 'DELETE' ? 'Deleting from internal API...' : 'Saving to internal API...');
-      const endpoint = method === 'DELETE' ? `${liveEndpoint}?id=${encodeURIComponent(item.id)}` : liveEndpoint;
+      const endpoint = method === 'DELETE' ? `${effectiveLiveEndpoint}?id=${encodeURIComponent(item.id)}` : effectiveLiveEndpoint;
       const res = await fetch(endpoint, {
         method,
         headers: method === 'DELETE' ? undefined : { 'Content-Type': 'application/json' },

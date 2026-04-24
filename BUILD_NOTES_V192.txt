@@ -1,0 +1,48 @@
+# v192 local-record modules DB/API sync
+
+## Goal
+Continue the controlled DB/API wiring phase without touching pricing calculations, orders, artwork workflow execution, storefront redesign, or navigation.
+
+## Added
+- New internal item API for LocalRecordsPage-style modules:
+  - GET `/api/internal/config/:key/items`
+  - POST `/api/internal/config/:key/items`
+  - PATCH `/api/internal/config/:key/items`
+  - DELETE `/api/internal/config/:key/items?id=<item-id>`
+- LocalRecordsPage now automatically syncs to the internal DB-backed config item API when a `storageKey` is present.
+- Pages that already passed their own specialised `liveEndpoint` keep using that route.
+- Browser localStorage remains fallback only when the internal API fails.
+
+## Modules now covered by this foundation
+This connects existing LocalRecordsPage screens such as:
+- Attribute Sets
+- Config Templates
+- Email Notifications
+- Error Log
+- FTP Accounts
+- Landing Pages
+- Order Statuses
+- Parametric Libraries
+- Parametric Products
+- Parametric Rules Engine
+- Product Content
+- Product Rules Lab
+- Tag Content
+- Productivity module pages using LocalRecordsPage
+
+## Test routes
+- `/api/internal/config/advanced-attribute-sets/items`
+- `/api/internal/config/ops-email-notifications/items`
+- `/api/internal/config/content-landing-pages/items`
+- `/api/internal/config/module-parametric-products/items`
+
+## UI test pages
+- `/attribute-sets`
+- `/email-notifications`
+- `/landing-pages`
+- `/parametric-products`
+- `/product-content`
+
+## Notes
+- This is storage/sync only. It does not execute parametric pricing, content publishing, email sending, redirect middleware, or workflow jobs yet.
+- Existing specialised catalog modules remain unchanged.

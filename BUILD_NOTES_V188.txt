@@ -1,0 +1,37 @@
+V188 - Printer Management and Shipping Methods DB/API connection
+
+Scope:
+- Continue v186/v187 DB/API connection phase.
+- Connect Printer Management and Shipping Methods admin modules to internal tenant DB APIs.
+- No redesign, no pricing engine, no orders, no artwork workflow, no storefront work.
+
+Changed files:
+- src/core/catalog/catalog-store.ts
+- src/services/printer-management.service.ts
+- src/services/shipping-methods.service.ts
+- app/api/internal/catalog/printer-profiles/route.ts
+- app/api/internal/catalog/shipping-methods/route.ts
+- app/api/internal/platform/module-audit/route.ts
+- MODULE_DB_API_AUDIT_V188.md
+- BUILD_NOTES_V188.txt
+
+What changed:
+- Added internal catalog resource support for printer-profiles and shipping-methods.
+- Printer Management now loads/saves/deletes through /api/internal/catalog/printer-profiles.
+- Printer metadata including plant, status, risk, technology, queue, utilisation, operator, service date and make/model is persisted in metadataJson.
+- Shipping Methods now loads/saves/deletes through /api/internal/catalog/shipping-methods.
+- Shipping metadata including channel, carrier, service, cutoff, transit, surcharge, eligible plants, owner and risk is persisted in metadataJson.
+- Module audit route now reports v188 and marks Printer Management + Shipping Methods as connected.
+
+Test after deploy:
+1. Open /printer-management.
+2. Add a printer, edit it, change status/risk, duplicate it, refresh and confirm changes remain.
+3. Open /api/internal/catalog/printer-profiles and confirm records exist with metadataJson.
+4. Open /shipping-methods.
+5. Add a shipping method, edit surcharge/cutoff/eligible plants, pause/activate it, refresh and confirm changes remain.
+6. Open /api/internal/catalog/shipping-methods and confirm records exist with metadataJson.
+7. Open /api/internal/platform/module-audit and confirm build v188.
+
+Rollback:
+- Revert to v187 ZIP if printer/shipping UI has issues.
+- Products/categories/materials/finishes/option sets/collections/tags are not intentionally changed in this build.

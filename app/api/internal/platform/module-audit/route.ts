@@ -60,7 +60,21 @@ const modules = [
     notes: 'Needs a dedicated build after catalog libraries are stable.',
   },
   {
-    module: 'Printers / machines / production planner',
+    module: 'Printer Management',
+    status: 'connected-v188',
+    storage: 'tenant-db/CoreCatalogRecord metadata',
+    internalApi: ['/api/internal/catalog/printer-profiles'],
+    notes: 'Printer fleet create/edit/delete/status/risk now syncs through internal API. Production planner remains pending.',
+  },
+  {
+    module: 'Shipping Methods',
+    status: 'connected-v188',
+    storage: 'tenant-db/CoreCatalogRecord metadata',
+    internalApi: ['/api/internal/catalog/shipping-methods'],
+    notes: 'Shipping methods create/edit/delete/pause/activate now sync through internal API.',
+  },
+  {
+    module: 'Production planner',
     status: 'pending',
     storage: 'local/demo',
     internalApi: [],
@@ -79,7 +93,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v187',
+    build: 'v188',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

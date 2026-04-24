@@ -1,0 +1,37 @@
+# v200 support knowledge DB/API sync
+
+Scope kept narrow:
+- No pricing engine work
+- No storefront redesign
+- No order/artwork workflow changes
+- No sidebar/nav changes
+
+Changed files:
+- src/services/support.service.ts
+- app/support-tickets/page.tsx
+- app/knowledge-base/page.tsx
+- BUILD_NOTES_V200.txt
+
+What changed:
+- Support tickets now load/save through the internal generic config item API.
+- Knowledge base articles now load/save through the internal generic config item API.
+- Both pages show a visible Database connected / Local fallback status banner.
+- Existing browser/in-memory data remains as fallback only if the internal API fails.
+
+Internal API paths used:
+- GET/POST /api/internal/config/support-tickets/items
+- GET/POST /api/internal/config/knowledge-base-articles/items
+
+Test after deploy:
+1. Open /support-tickets.
+2. Confirm the status banner says Database connected.
+3. Create a support ticket.
+4. Refresh the page and confirm it remains.
+5. Open /api/internal/config/support-tickets/items and confirm data exists.
+6. Open /knowledge-base.
+7. Add an article.
+8. Refresh the page and confirm it remains.
+9. Open /api/internal/config/knowledge-base-articles/items and confirm data exists.
+
+Rollback:
+- Use v199 if this build introduces an issue.

@@ -35,10 +35,12 @@ export default function Page() {
   const [priorityFilter, setPriorityFilter] = useState<'All' | SupportTicket['priority']>('All');
   const [draft, setDraft] = useState(seedDraft);
   const [activeId, setActiveId] = useState<string>('');
+  const [syncStatus, setSyncStatus] = useState<{ mode: 'database' | 'local'; error: string }>({ mode: 'local', error: '' });
 
   const load = async () => {
     const next = await supportService.listTickets();
     setTickets(next);
+    setSyncStatus(supportService.getSyncStatus());
     if (!activeId && next[0]) setActiveId(next[0].id);
   };
 
@@ -124,6 +126,15 @@ export default function Page() {
         subtitle="Run internal helpdesk, escalations, and commercial support from one queue."
         actions={<div className="flex gap-2"><Button onClick={reset}>Reset</Button><PrimaryButton onClick={createTicket}>Create ticket</PrimaryButton></div>}
       />
+
+      <div className="rounded-xl border border-border bg-panel px-4 py-3 text-sm">
+        <span className={syncStatus.mode === 'database' ? 'text-emerald-300' : 'text-amber-300'}>
+          {syncStatus.mode === 'database' ? 'Database connected' : 'Local fallback'}
+        </span>
+        <span className="ml-2 text-textMuted">
+          {syncStatus.mode === 'database' ? 'Support tickets sync through internal API.' : (syncStatus.error ? 'Support ticket API fallback active: ' + syncStatus.error : 'Support ticket API fallback active.')}
+        </span>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((stat) => (

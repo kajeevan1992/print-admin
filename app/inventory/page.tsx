@@ -10,6 +10,7 @@ import { Input } from '@/components/forms/input';
 
 type StockStatus = 'Healthy' | 'Low' | 'Critical' | 'Inbound';
 type LocationType = 'Warehouse' | 'Plant' | 'Materials';
+type DbStatus = 'loading' | 'connected' | 'saving' | 'local' | 'error';
 
 type InventoryItem = {
   id: string;
@@ -27,6 +28,8 @@ type InventoryItem = {
 };
 
 const storageKey = 'inventory-control-v54';
+const inventoryEndpoint = `/api/internal/config/${encodeURIComponent(storageKey)}`;
+const inventoryItemsEndpoint = `${inventoryEndpoint}/items`;
 
 const seedInventory: InventoryItem[] = [
   {
@@ -128,22 +131,95 @@ export default function Page() {
   const [activeId, setActiveId] = useState('');
   const [draft, setDraft] = useState(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [dbStatus, setDbStatus] = useState<DbStatus>('loading');
+  const [dbMessage, setDbMessage] = useState('Loading inventory from internal API...');
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as InventoryItem[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setItems(parsed);
-        setActiveId(parsed[0].id);
+    let cancelled = false;
+    async function loadInventory() {
+      setDbStatus('loading');
+      setDbMessage('Loading inventory from internal API...');
+      try {
+        const response = await fetch(inventoryItemsEndpoint, { cache: 'no-store' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Inventory API failed.');
+        const saved = payload?.data?.items;
+        if (Array.isArray(saved) && saved.length > 0) {
+          const next = saved.map((item) => ({ ...item, status: computeStatus(item) })) as InventoryItem[];
+          if (!cancelled) {
+            setItems(next);
+            setActiveId(next[0]?.id ?? '');
+            setDbStatus('connected');
+            setDbMessage('Connected to database. Inventory records loaded from internal API.');
+          }
+          return;
+        }
+        if (!cancelled) {
+          setItems(seedInventory);
+          setActiveId(seedInventory[0]?.id ?? '');
+          setDbStatus('connected');
+          setDbMessage('Connected to database. Showing starter inventory until you save changes.');
+        }
+      } catch (error) {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as InventoryItem[];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              if (!cancelled) {
+                setItems(parsed);
+                setActiveId(parsed[0]?.id ?? '');
+                setDbStatus('local');
+                setDbMessage(`Internal API unavailable, showing browser fallback: ${error instanceof Error ? error.message : 'unknown error'}`);
+              }
+              return;
+            }
+          } catch {
+            // Continue to error state.
+          }
+        }
+        if (!cancelled) {
+          setItems(seedInventory);
+          setActiveId(seedInventory[0]?.id ?? '');
+          setDbStatus('error');
+          setDbMessage(error instanceof Error ? error.message : 'Inventory could not be loaded.');
+        }
       }
-    } catch {}
+    }
+    void loadInventory();
+    return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(items));
-  }, [items]);
+  async function persistInventory(next: InventoryItem[], message = 'Saving inventory through internal API...') {
+    setDbStatus('saving');
+    setDbMessage(message);
+    try {
+      const response = await fetch(inventoryEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Inventory Control',
+          description: 'Inventory stock pool records',
+          items: next,
+          values: { count: String(next.length) }
+        })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Inventory save failed.');
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+      setDbStatus('connected');
+      setDbMessage('Saved to database through internal API.');
+    } catch (error) {
+      window.localStorage.setItem(storageKey, JSON.stringify(next));
+      setDbStatus('local');
+      setDbMessage(`Database save failed, kept browser fallback copy: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
+  }
+
+  function setItemsAndPersist(next: InventoryItem[], message?: string) {
+    setItems(next);
+    void persistInventory(next, message);
+  }
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -189,15 +265,17 @@ export default function Page() {
     };
     const status = computeStatus(nextBase);
     if (editingId) {
-      setItems((current) => current.map((item) => item.id === editingId ? { ...item, ...nextBase, status } : item));
+      const next = items.map((item) => item.id === editingId ? { ...item, ...nextBase, status } : item);
+      setItemsAndPersist(next, 'Saving inventory item through internal API...');
       setActiveId(editingId);
     } else {
       const created: InventoryItem = {
-        id: `inv-${Math.floor(Math.random() * 9000) + 1000}`,
+        id: `inv-${Date.now()}`,
         ...nextBase,
         status
       };
-      setItems((current) => [created, ...current]);
+      const next = [created, ...items];
+      setItemsAndPersist(next, 'Creating inventory item through internal API...');
       setActiveId(created.id);
     }
     resetDraft();
@@ -220,31 +298,34 @@ export default function Page() {
   }
 
   function patchItem(id: string, patch: Partial<InventoryItem>) {
-    setItems((current) => current.map((item) => {
+    const next = items.map((item) => {
       if (item.id !== id) return item;
       const merged = { ...item, ...patch };
       return { ...merged, status: computeStatus(merged) };
-    }));
+    });
+    setItemsAndPersist(next, 'Saving inventory action through internal API...');
   }
 
   function removeItem(id: string) {
-    setItems((current) => current.filter((item) => item.id !== id));
-    if (activeId === id) setActiveId('');
+    const next = items.filter((item) => item.id !== id);
+    setItemsAndPersist(next, 'Deleting inventory item through internal API...');
+    if (activeId === id) setActiveId(next[0]?.id ?? '');
     if (editingId === id) resetDraft();
   }
 
   function duplicateItem(item: InventoryItem) {
     const copy: InventoryItem = {
       ...item,
-      id: `inv-${Math.floor(Math.random() * 9000) + 1000}`,
+      id: `inv-${Date.now()}`,
       title: `${item.title} Copy`
     };
-    setItems((current) => [copy, ...current]);
+    const next = [copy, ...items];
+    setItemsAndPersist(next, 'Duplicating inventory item through internal API...');
     setActiveId(copy.id);
   }
 
   function resetSeed() {
-    setItems(seedInventory);
+    setItemsAndPersist(seedInventory, 'Resetting inventory records in database...');
     setQuery('');
     setStatusFilter('All');
     setLocationFilter('All');
@@ -275,6 +356,13 @@ export default function Page() {
           </>
         }
       />
+
+      <div className="rounded-xl border border-border bg-panel px-4 py-3 text-sm">
+        <span className={dbStatus === 'connected' ? 'text-emerald-300' : dbStatus === 'error' ? 'text-red-300' : dbStatus === 'saving' ? 'text-amber-300' : dbStatus === 'local' ? 'text-amber-300' : 'text-textMuted'}>
+          {dbStatus === 'connected' ? 'Database connected' : dbStatus === 'error' ? 'Database issue' : dbStatus === 'saving' ? 'Saving to database' : dbStatus === 'local' ? 'Local fallback' : 'Checking database'}
+        </span>
+        <span className="ml-2 text-textMuted">{dbMessage}</span>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         {stats.map((stat) => (

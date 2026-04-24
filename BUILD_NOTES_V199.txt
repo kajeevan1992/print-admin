@@ -1,0 +1,34 @@
+# v199 — Inventory DB/API wiring
+
+Scope:
+- Continue controlled module DB/API connection work after v198.
+- No pricing engine changes.
+- No storefront redesign.
+- No orders/artwork workflow changes.
+
+Changed files:
+- app/inventory/page.tsx
+- BUILD_NOTES_V199.txt
+- MODULE_DB_API_AUDIT_V199.md
+
+What changed:
+- Inventory Control now loads from internal config items API.
+- Inventory create/edit/delete/duplicate/replenishment actions now save through internal API.
+- Browser localStorage is fallback only if DB/API is unavailable.
+- Added visible database status banner to Inventory page.
+
+Internal API used:
+- GET /api/internal/config/inventory-control-v54/items
+- POST /api/internal/config/inventory-control-v54
+
+Test:
+1. Deploy.
+2. Open /inventory.
+3. Confirm database status banner appears.
+4. Add a new inventory item.
+5. Refresh /inventory and confirm it remains.
+6. Open /api/internal/config/inventory-control-v54/items and confirm records are visible.
+7. Test Raise replenishment / Receive inbound / Reserve stock and confirm refresh persists.
+
+Rollback:
+- Revert app/inventory/page.tsx to v198 if needed.

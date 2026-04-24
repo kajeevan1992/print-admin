@@ -38,111 +38,6 @@ function writeStore(next: Product[]) {
 
 const wait = async () => new Promise((resolve) => setTimeout(resolve, 80));
 
-type InternalProductRecord = Record<string, unknown>;
-
-function getPagedItems(payload: any): { items: any[]; total: number } | null {
-  if (!payload?.ok) return null;
-  const data = payload.data ?? payload.payload?.data ?? payload.payload;
-  const items = data?.items ?? data;
-  if (!Array.isArray(items)) return null;
-  const total = data?.pagination?.total ?? data?.meta?.total ?? items.length;
-  return { items, total: Number(total) || items.length };
-}
-
-function toInternalProduct(item: InternalProductRecord, index: number): Product {
-  const id = String(item.id || `prod-${index + 1}`);
-  const name = String(item.name || item.title || `Product ${index + 1}`);
-  const slug = String(item.slug || makeSlug(name));
-  const now = String(item.updatedAt || item.createdAt || new Date().toISOString());
-  const rawStatus = String(item.status || 'draft').toLowerCase();
-  const status: Product['status'] = rawStatus === 'published' || rawStatus === 'active' ? 'active' : rawStatus === 'archived' ? 'archived' : 'draft';
-  const priceFromMinor = typeof item.priceFromMinor === 'number' ? item.priceFromMinor : 0;
-
-  return {
-    id,
-    sortOrder: index + 1,
-    slug,
-    name,
-    description: String(item.description || ''),
-    productType: 'online',
-    creationMethod: 'blank',
-    categoryId: String(item.categoryId || item.categoryName || ''),
-    vendorId: '',
-    hotFolder: '',
-    pages: 1,
-    units: 'mm',
-    width: 0,
-    height: 0,
-    bleed: 0,
-    cmsPageLink: `/products/${slug}`,
-    previewUrl: `/products/${id}`,
-    status,
-    published: status === 'active' || item.published === true,
-    isGlobal: Boolean(item.isGlobal),
-    storefrontIds: [],
-    channelIds: [],
-    thumbnail: `https://placehold.co/96x96/111827/ffffff?text=${encodeURIComponent(name.slice(0, 2).toUpperCase() || 'PR')}`,
-    lastSavedAt: now,
-    productNumbers: {
-      itemNumber: String(item.itemNumber || item.sku || id.toUpperCase()),
-      modelNumber: String(item.modelNumber || id.toUpperCase()),
-      integrationId: String(item.integrationId || '')
-    },
-    templateDefaults: {
-      scaleFactor: 1,
-      zoomState: 'fit',
-      palette: 'Default',
-      colorSpace: 'CMYK',
-      editorMode: 'simple',
-      textModes: ['point'],
-      imageMode: 'contain',
-      previewType: '2D',
-      photoGroup: 'Default',
-      model3d: '',
-      defaultFont: 'Inter',
-      toggles: [],
-      rules: []
-    },
-    templateSetup: { setupProfile: 'default', allowUpload: true, allowLayers: true, smartSnapping: true, bleedLocked: false, showSafeArea: true },
-    templateAssets: { fonts: ['Inter'], layouts: [], themes: [], cliparts: [] },
-    priceMapping: { basePrice: priceFromMinor / 100, sizeLabel: '', dielineMapping: '', currency: 'USD' },
-    tags: [],
-    comments: [],
-    internalNotes: '',
-    inventory: { onHandQuantity: 0, reorderQuantity: 0 },
-    relatedProducts: [],
-    attributes: [],
-    alternateViews: [],
-    updatedAt: now.slice(0, 10)
-  };
-}
-
-async function tryInternalProducts(params: ProductListQuery): Promise<PaginatedResponse<Product> | null> {
-  if (typeof window === 'undefined') return null;
-  try {
-    const query = new URLSearchParams();
-    if (params.search) query.set('search', params.search);
-    query.set('page', String(params.page ?? 1));
-    query.set('limit', String(params.perPage ?? 20));
-    const res = await fetch(`/api/internal/catalog/products?${query.toString()}`, { cache: 'no-store' });
-    const payload = await res.json().catch(() => null);
-    const parsed = getPagedItems(payload);
-    if (!res.ok || !parsed) return null;
-    let items = parsed.items.map(toInternalProduct);
-    if (params.categoryId) items = items.filter((product) => product.categoryId === params.categoryId);
-    if (params.vendorId) items = items.filter((product) => product.vendorId === params.vendorId);
-    if (params.uncategorized) items = items.filter((product) => !product.categoryId);
-    return okPaginated(items, {
-      page: params.page ?? 1,
-      perPage: params.perPage ?? 20,
-      total: parsed.total,
-      totalPages: Math.max(1, Math.ceil(parsed.total / (params.perPage ?? 20)))
-    });
-  } catch {
-    return null;
-  }
-}
-
 function makeSlug(name: string) {
   return name
     .toLowerCase()
@@ -254,9 +149,6 @@ function createProductFromForm(payload: ProductFormValues): Product {
 
 export const productsService = {
   listProducts: async (params: ProductListQuery = {}): Promise<PaginatedResponse<Product>> => {
-    const internal = await tryInternalProducts(params);
-    if (internal) return internal;
-
     await wait();
     let items = [...readStore()];
 

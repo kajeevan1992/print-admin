@@ -24,7 +24,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/orders?tenantId=platform-demo', { cache: 'no-store' });
+      const res = await fetch(`/api/proxy/admin-orders/${encodeURIComponent(targetId)}`, { cache: 'no-store' });
       const payload = await res.json().catch(() => null);
 
       if (!res.ok || !payload?.ok) {
@@ -42,8 +42,7 @@ export function AdminOrderDetailPanel({ orderId }: AdminOrderDetailPanelProps) {
         return;
       }
 
-      const rows = payload?.data || payload?.payload?.data || payload?.payload || [];
-      const raw = Array.isArray(rows) ? rows.find((row: any) => row.id === targetId || row.orderNumber === targetId) || rows[0] || null : rows;
+      const raw = payload?.payload?.data || payload?.payload || null;
       setDetail(raw);
       setLastLoadedId(targetId);
       setSource('live');

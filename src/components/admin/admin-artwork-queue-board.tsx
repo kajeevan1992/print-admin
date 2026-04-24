@@ -60,13 +60,13 @@ export function AdminArtworkQueueBoard() {
 
   const loadQueue = useCallback(async () => {
     try {
-      const res = await fetch('/api/internal/artwork?tenantId=platform-demo', { cache: 'no-store' });
+      const res = await fetch('/api/proxy/admin-artwork', { cache: 'no-store' });
       const payload = await res.json().catch(() => null);
 
       if (!res.ok || !payload?.ok) {
         setRows(fallbackRows);
         setSource('fallback');
-        setMessage('Internal artwork endpoint is not available yet. Showing fallback queue rows.');
+        setMessage('Live artwork endpoint is not available yet. Showing fallback queue rows.');
         return;
       }
 
@@ -81,7 +81,7 @@ export function AdminArtworkQueueBoard() {
     } catch {
       setRows(fallbackRows);
       setSource('fallback');
-      setMessage('Could not reach the internal artwork endpoint. Showing fallback queue rows.');
+      setMessage('Could not reach the artwork endpoint. Showing fallback queue rows.');
     } finally {
       setLoading(false);
     }
@@ -100,7 +100,7 @@ export function AdminArtworkQueueBoard() {
     setActionMessage(`Attempting to change artwork ${artworkId} to ${target}...`);
 
     try {
-      const res = await fetch('/api/internal/artwork/status', {
+      const res = await fetch('/api/proxy/admin-artwork/status', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ artworkId, status: target }),

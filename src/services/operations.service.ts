@@ -50,7 +50,7 @@ export const operationsService = {
   getArtworkProofs: async (): Promise<ArtworkProof[]> => {
     if (typeof window !== 'undefined') {
       try {
-        const res = await fetch('/api/internal/artwork?tenantId=platform-demo', { cache: 'no-store' });
+        const res = await fetch('/api/proxy/admin-artwork', { cache: 'no-store' });
         const payload = await res.json().catch(() => null);
         if (res.ok && payload?.ok) {
           const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];

@@ -100,13 +100,13 @@ export function AdminOrderControlBoard() {
 
   const loadOrders = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/orders?tenantId=platform-demo', { cache: 'no-store' });
+      const res = await fetch('/api/proxy/admin-orders', { cache: 'no-store' });
       const payload = await res.json().catch(() => null);
 
       if (!res.ok || !payload?.ok) {
         setRows(adminOrderControlSeed);
         setSource('seed');
-        setMessage('Internal orders API is not available yet. Showing seeded workflow rows.');
+        setMessage('Live admin orders API is not available yet. Showing seeded workflow rows.');
         return;
       }
 
@@ -121,7 +121,7 @@ export function AdminOrderControlBoard() {
     } catch {
       setRows(adminOrderControlSeed);
       setSource('seed');
-      setMessage('Could not reach the internal orders API. Showing seeded workflow rows.');
+      setMessage('Could not reach the admin orders API. Showing seeded workflow rows.');
     } finally {
       setLoading(false);
     }
@@ -142,7 +142,7 @@ export function AdminOrderControlBoard() {
     setActionMessage(`Attempting to change ${orderId} to ${target}...`);
 
     try {
-      const res = await fetch('/api/internal/orders/status', {
+      const res = await fetch('/api/proxy/admin-orders/status', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ orderId, status: target }),

@@ -1,47 +1,28 @@
+import { prisma } from '@/lib/prisma';
+import { hasDatabaseUrl } from '@/lib/api/db-env';
 import type { TenantContext } from '../tenant/types';
 
-const now = () => new Date().toISOString();
+type ListOptions = { search?: string; page?: number; limit?: number };
 
-export async function listOrders(_ctx: TenantContext) {
-  return {
-    items: [
-      {
-        id: 'ord-32018',
-        orderNumber: 'ORD-32018',
-        customerName: 'Northwind Office',
-        organizationName: 'Northwind Office',
-        email: 'ops@northwindoffice.example',
-        status: 'in-production',
-        totalMinor: 482000,
-        currency: 'GBP',
-        createdAt: now(),
-        updatedAt: now(),
-        tenant: { name: 'Platform Demo' },
-        items: [{ id: 'li-1', productName: 'Premium Catalog A4', quantity: 1, unitPriceMinor: 482000, lineTotalMinor: 482000 }],
-      },
-      {
-        id: 'ord-32024',
-        orderNumber: 'ORD-32024',
-        customerName: 'Acme Office',
-        organizationName: 'Acme Office',
-        email: 'studio@acmeoffice.example',
-        status: 'artwork-review',
-        totalMinor: 96000,
-        currency: 'GBP',
-        createdAt: now(),
-        updatedAt: now(),
-        tenant: { name: 'Platform Demo' },
-        items: [{ id: 'li-2', productName: 'Matte Business Card', quantity: 1, unitPriceMinor: 96000, lineTotalMinor: 96000 }],
-      },
-    ],
-    source: 'internal-core' as const,
-  };
+function containsSearch(search?: string) {
+  const q = search?.trim();
+  if (!q) return {};
+  return { OR: [{ orderNumber: { contains: q, mode: 'insensitive' as const } }, { notes: { contains: q, mode: 'insensitive' as const } }] };
 }
 
-export async function getOrder(_ctx: TenantContext, _orderId: string) {
-  return null;
+export async function listOrders(ctx: TenantContext, options: ListOptions = {}) {
+  const page = Math.max(1, options.page || 1);
+  const limit = Math.min(100, Math.max(1, options.limit || 50));
+  if (!hasDatabaseUrl()) {
+    return { items: [], pagination: { page, limit, total: 0, totalPages: 0 }, source: 'internal-core' as const, databaseConfigured: false };
+  }
+  const where = { tenantId: ctx.tenantId, ...containsSearch(options.search) };
+  const [items, total] = await Promise.all([
+    prisma.order.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * limit, take: limit, include: { items: true, statusHistory: true, artworks: true } }),
+    prisma.order.count({ where }),
+  ]);
+  return { items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, source: 'internal-core' as const, databaseConfigured: true };
 }
 
-export async function updateOrderStatus(_ctx: TenantContext, _orderId: string, _status: string) {
-  return { ok: true };
-}
+export async function getOrder(_ctx: TenantContext, _orderId: string) { return null; }
+export async function updateOrderStatus(_ctx: TenantContext, _orderId: string, _status: string) { return { ok: true }; }

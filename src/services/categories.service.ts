@@ -11,54 +11,6 @@ const STORAGE_KEY = 'print-admin-categories-store';
 const TAGS_KEY = 'print-admin-category-tags-store';
 const wait = async () => new Promise((resolve) => setTimeout(resolve, 60));
 
-type InternalCategoryRecord = Record<string, unknown>;
-
-function getPagedItems(payload: any): any[] | null {
-  if (!payload?.ok) return null;
-  const data = payload.data ?? payload.payload?.data ?? payload.payload;
-  const items = data?.items ?? data;
-  return Array.isArray(items) ? items : null;
-}
-
-function toInternalCategory(item: InternalCategoryRecord, index: number): Category {
-  const id = String(item.id || `cat-${index + 1}`);
-  const name = String(item.name || item.title || `Category ${index + 1}`);
-  return {
-    id,
-    name,
-    description: String(item.description || ''),
-    parentId: item.parentId ? String(item.parentId) : null,
-    pricingId: String(item.pricingId || ''),
-    attributeSetId: String(item.attributeSetId || ''),
-    published: item.published !== false,
-    thumbnail: String(item.thumbnail || `https://placehold.co/96x96/111827/ffffff?text=${encodeURIComponent(name.slice(0, 2).toUpperCase() || 'CT')}`),
-    friendlyUrl: String(item.friendlyUrl || `/${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`),
-    productCount: typeof item.productCount === 'number' ? item.productCount : 0,
-    sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : index + 1,
-    accuZipConfig: String(item.accuZipConfig || ''),
-    useAlternateMaster: Boolean(item.useAlternateMaster),
-    tags: [],
-    canBrowse: true,
-    canUpload: Boolean(item.canUpload),
-    canUploadLater: Boolean(item.canUploadLater),
-    canCreate: true,
-    canCustom: true
-  };
-}
-
-async function tryInternalCategories(): Promise<Category[] | null> {
-  if (typeof window === 'undefined') return null;
-  try {
-    const res = await fetch('/api/internal/catalog/categories', { cache: 'no-store' });
-    const payload = await res.json().catch(() => null);
-    const raw = getPagedItems(payload);
-    if (!res.ok || !raw) return null;
-    return raw.map(toInternalCategory).sort((a, b) => a.sortOrder - b.sortOrder);
-  } catch {
-    return null;
-  }
-}
-
 function readCategories(): Category[] {
   if (typeof window === 'undefined') return categoriesStore;
   try {
@@ -122,9 +74,6 @@ function buildCategory(id: string, values: CategoryFormValues): Category {
 
 export const categoriesService = {
   listCategories: async (): Promise<ApiResponse<{ items: Category[] }>> => {
-    const internal = await tryInternalCategories();
-    if (internal) return ok({ items: internal });
-
     await wait();
     return ok({ items: [...readCategories()].sort((a, b) => a.sortOrder - b.sortOrder) });
   },

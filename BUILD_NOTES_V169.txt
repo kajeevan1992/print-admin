@@ -1,7 +1,0 @@
-Unified PASS 2 orders + artwork foundation app
-
-- Keeps existing routes and UI pages
-- Ensures categories/collections/tags services parse paginated API payloads
-- Strengthens artwork proofing service to consume live artwork queue
-- Marks key root routes as dynamic for live-first data loading
-- Pairs with API fix v11 pass2 orders+artwork and tags migration

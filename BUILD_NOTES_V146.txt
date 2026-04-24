@@ -1,6 +1,0 @@
-v146 external API proxy compatibility fix
-
-- Added local proxy routes for external API health and products
-- Normalized old external API product payloads for Atlantis theme
-- Switched Atlantis theme from direct cross-origin fetches to same-origin proxy fetches
-- Improves compatibility with existing deployed Express API

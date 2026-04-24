@@ -1,7 +1,0 @@
-v156 multi-section UI API wiring
-
-- Added proxy action routes for admin order status updates, tenant plan changes, and tenant status changes
-- Rewired admin order board with optimistic status-advance actions
-- Rewired superadmin plan board with optimistic change-plan and change-status actions
-- Keeps safe fallback messaging until endpoints are implemented
-- No storefront/admin/superadmin style changes

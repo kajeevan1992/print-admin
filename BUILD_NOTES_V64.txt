@@ -1,5 +1,0 @@
-v64
-- Added auto id/name fallback to shared Input and Select components
-- Added topbar search field id/name
-- Split super admin into a dedicated sidebar/navigation surface
-- Redirect standard users to /workspace after login; super admins to /super-admin

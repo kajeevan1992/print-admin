@@ -1,8 +1,0 @@
-v161 order details + artwork admin queue live API wiring
-
-- Added /api/proxy/admin-orders/[id] route for order detail reads
-- Added /api/proxy/admin-artwork route for artwork queue reads
-- Added AdminOrderDetailPanel with live/fallback detail handling
-- Added AdminArtworkQueueBoard with live/fallback queue handling
-- Added admin operations page scaffold at /admin-operations
-- No storefront/admin/superadmin style changes

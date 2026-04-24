@@ -1,6 +1,0 @@
-v44 cumulative build
-- Added Next.js standalone output
-- Disabled poweredByHeader
-- Moved telemetry disable into package scripts
-- Cleaned .dockerignore
-- Kept working pnpm + Node 20 deploy setup

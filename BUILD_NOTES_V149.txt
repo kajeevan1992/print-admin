@@ -1,6 +1,0 @@
-v149 Atlantis checkout order submit build
-
-- Added local proxy route for external order submission
-- Atlantis checkout now submits live order payloads
-- Added success/confirmation page for submitted orders
-- No admin/superadmin style changes

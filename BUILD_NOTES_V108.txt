@@ -1,6 +1,0 @@
-v108 owner commercial approvals build
-
-- Added Owner Commercial Approvals workflow at /owner-commercial-approvals
-- Added local storage backed owner commercial approvals service + seed data
-- Added Owner Commercial Approvals to super-admin sidebar
-- No deploy/auth config changes

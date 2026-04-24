@@ -1,8 +1,0 @@
-v129 save/load page config build
-
-- Added page config toolbar to the visual editor
-- Added localStorage-backed save/load support for page schema
-- Added reset-to-demo and clear-saved actions
-- Added JSON copy/export helper
-- Preserved schema-driven editor structure for future API persistence
-- No backend/auth changes

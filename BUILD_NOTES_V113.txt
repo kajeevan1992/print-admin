@@ -1,9 +1,0 @@
-v113 frontend foundation and theme engine build
-
-- Added theme tokens and theme registry (base, business, minimal, luxury)
-- Added tenant theme config resolver and localStorage-backed ThemeProvider
-- Added shared storefront shell and theme preview panel
-- Added /frontend-foundation preview route
-- Wrapped root layout with ThemeProvider where possible
-- Added Frontend Foundation route to shared sidebar
-- No backend/auth changes

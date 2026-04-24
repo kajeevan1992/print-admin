@@ -1,7 +1,0 @@
-
-v102 owner success plans build
-
-- Added Owner Success Plans workflow at /owner-success-plans
-- Added local storage backed owner success plans service + seed data
-- Added Owner Success Plans to super-admin sidebar
-- No deploy/auth config changes

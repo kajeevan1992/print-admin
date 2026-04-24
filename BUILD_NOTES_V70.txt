@@ -1,5 +1,0 @@
-v70
-
-- Added Owner Reports workflow for super admin users.
-- Reports route now renders owner-facing SaaS metrics for super admins and tenant reports for tenant users.
-- Kept stable deploy/auth setup unchanged.

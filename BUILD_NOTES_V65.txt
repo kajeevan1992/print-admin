@@ -1,4 +1,0 @@
-v65
-- Replaced Tenant Control placeholder with working owner workflow
-- Replaced Licensing Center placeholder with working owner workflow
-- Separated super admin topbar quick links and search placeholder

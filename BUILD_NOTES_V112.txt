@@ -1,5 +1,0 @@
-v112 deploy hotfix build
-
-- Fixed shared sidebar import for MapIcon
-- Resolves Next.js prerender/build failure introduced in v111
-- No feature additions

@@ -1,4 +1,0 @@
-v46
-- Upgraded LocalRecordsPage with sort, attention mode, pin/star, mark-done, richer detail cards, and expanded overview stats.
-- Refined Workspace with Today's agenda panel and better command-strip layout.
-- Keeps stable deploy setup unchanged.

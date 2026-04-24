@@ -1,7 +1,0 @@
-v154 admin orders API wiring
-
-- Added /api/proxy/admin-orders route
-- Rewired admin order control board to fetch live orders from external API
-- Added safe fallback to seeded rows when /orders is unavailable
-- Rewired admin summary panel to use live counts when available
-- No storefront/admin/superadmin style changes

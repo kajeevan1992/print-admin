@@ -1,7 +1,0 @@
-v179 Owner API Keys -> public API auth
-
-- Connected external /api/v1 authentication to Owner API Keys before the legacy single PUBLIC_API credential fallback.
-- Added a server-side owner API key registry that validates x-api-key + x-api-secret, tenant context, key status, and scopes.
-- Active owner keys can now authenticate catalog, orders, and webhook routes using their tenant context.
-- Paused/revoked owner keys are rejected before any external API route runs.
-- Kept changes external-API-only: no UI changes, no internal API changes, no proxy changes.

@@ -1,7 +1,0 @@
-v131 cart + checkout foundation build
-
-- Upgraded the checkout flow with selectable shipping and payment methods
-- Added structured review panel for checkout selections
-- Added checkout data model for future API/database wiring
-- Kept the storefront flow frontend-only but closer to real order creation architecture
-- No backend/auth changes

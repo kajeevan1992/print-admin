@@ -1,8 +1,0 @@
-v60 cumulative build
-
-- Added front-end login system with seeded demo accounts
-- Added auth provider and route gating
-- Added super admin control surface for SaaS ownership workflows
-- Super admin covers customers, licence limits, payments risk, deployments, activations, and demo uploads
-- Added role-aware sidebar and topbar
-- Kept stable deploy setup unchanged

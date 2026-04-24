@@ -1,8 +1,0 @@
-v53 Support Hub build
-
-- Upgraded Support Tickets into a working Support Hub
-- Added search, status filter, priority filter
-- Added ticket spotlight panel and quick actions
-- Added create, update, escalate, resolve, delete, and reset ticket actions
-- Extended support service with update/delete/reset methods
-- Kept deploy setup unchanged

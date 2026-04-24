@@ -1,5 +1,0 @@
-v58 cumulative build
-
-- Replaced Email Notifications config placeholder with a real LocalRecordsPage workflow.
-- Added search, status filter, audience/trigger/channel structure, quick templates, export/import/reset, and richer seeded notification records.
-- Stable deploy setup unchanged.

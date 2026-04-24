@@ -1,2 +1,0 @@
-v52
-- Upgraded Quote Desk with stage board, spotlight panel, quick actions, export, and duplicate workflow.

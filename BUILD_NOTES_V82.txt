@@ -1,7 +1,0 @@
-
-v82 owner webhooks build
-
-- Added Owner Webhooks workflow at /owner-webhooks
-- Added local storage backed owner webhooks service + seed data
-- Added Owner Webhooks to super-admin sidebar
-- No deploy/auth config changes

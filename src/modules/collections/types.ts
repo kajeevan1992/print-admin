@@ -1,2 +1,0 @@
-export type Collection = { id: string; title: string; createdOn: string; productIds: string[]; categoryIds: string[]; products: Array<{ id: string; name: string; thumbnail?: string; productNumbers?: { itemNumber?: string; modelNumber?: string } }>; categories: Array<{ id: string; name: string; thumbnail?: string }>; };
-export type CollectionFormValues = { title: string; productIds: string[]; categoryIds: string[]; };

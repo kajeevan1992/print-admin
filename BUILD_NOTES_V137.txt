@@ -1,8 +1,0 @@
-v137 platform readiness hub build
-
-- Added /platform-readiness route
-- Added readiness view for key data domains
-- Added API readiness module board
-- Added implementation summary panel
-- Purpose: transition project from frontend completion into API and database planning
-- No backend/auth changes

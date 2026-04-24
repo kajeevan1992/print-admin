@@ -1,7 +1,0 @@
-v127 drag & reorder sections build
-
-- Added section reordering controls to the visual editor
-- Added move up/down actions for page-builder style section ordering
-- Preview now reflects section order changes immediately
-- Preserved page schema structure for future drag/drop UI upgrades
-- No backend/auth changes

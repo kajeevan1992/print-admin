@@ -1,8 +1,0 @@
-v136 superadmin plan limits and activation UI build
-
-- Added /superadmin-plan-limits route
-- Added tenant activation and plan-limit control board
-- Added status filtering and usage bars
-- Added superadmin summary side panel
-- Extends the platform-control layer for plan/access management
-- No backend/auth changes

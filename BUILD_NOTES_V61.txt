@@ -1,1 +1,0 @@
-v61 auth hotfix: safe localStorage, defensive pathname guard, hard redirect fallback after login.

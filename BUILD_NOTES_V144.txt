@@ -1,7 +1,0 @@
-v144 Atlantis theme API integration build
-
-- Integrated uploaded Atlantis storefront theme into Next.js app
-- Added tenant-aware theme route at /theme/atlantis
-- Connected theme boot flow to tenant resolve API
-- Connected featured products and key product pages to live product API data
-- Copied theme images and UI components into app

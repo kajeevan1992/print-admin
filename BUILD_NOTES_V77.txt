@@ -1,7 +1,0 @@
-
-v77 owner audit log build
-
-- Added Owner Audit Log workflow at /owner-audit-log
-- Added local storage backed owner audit service + seed data
-- Added Owner Audit Log to super-admin sidebar
-- No deploy/auth config changes

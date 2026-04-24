@@ -1,7 +1,0 @@
-
-v83 owner sso config build
-
-- Added Owner SSO Config workflow at /owner-sso-config
-- Added local storage backed owner SSO config service + seed data
-- Added Owner SSO Config to super-admin sidebar
-- No deploy/auth config changes

@@ -1,8 +1,0 @@
-v135 superadmin tenant/domain config UI build
-
-- Added /superadmin-tenant-domains route
-- Added tenant/domain control board with status filtering
-- Added domain, verification, SSL, and primary-domain display
-- Added superadmin summary side panel
-- Extends the platform-control layer for multi-tenant domain management
-- No backend/auth changes

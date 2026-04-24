@@ -1,8 +1,0 @@
-v139 database schema foundation build
-
-- Added Prisma schema with tenant-aware core models
-- Added Prisma client helper
-- Added API contract types
-- Added backend handoff document for custom frontend integration
-- Added Prisma dependencies and scripts
-- No runtime API routes yet

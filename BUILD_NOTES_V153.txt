@@ -1,6 +1,0 @@
-v153 account hotfix fallback
-
-- Fixed Atlantis account page to handle missing /orders API gracefully
-- Added fallback to latest locally stored submitted order
-- Replaced crash path with safe unavailable-state messaging
-- No admin/superadmin style changes

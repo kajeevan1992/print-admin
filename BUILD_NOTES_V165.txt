@@ -1,7 +1,0 @@
-v165 catalog system bulk API wiring
-
-- Added live-first proxy routes for products, categories, collections, tags, materials, finishes, and option sets
-- Added catalog boards for products, taxonomy, materials/finishes, and option sets
-- Added catalog system page scaffold at /catalog-system
-- Keeps safe fallback states when upstream catalog endpoints are not ready yet
-- No storefront/admin/superadmin styling changes

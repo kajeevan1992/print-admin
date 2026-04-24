@@ -1,1 +1,0 @@
-v59: replaced Shipping Methods placeholder with working shipping operations workflow.

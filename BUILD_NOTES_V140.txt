@@ -1,8 +1,0 @@
-v140 API contract + route foundation build
-
-- Added shared API response helpers
-- Added tenant hostname resolution utility
-- Added product, order, artwork, admin, and superadmin service scaffolds
-- Added initial Next.js API route skeletons
-- Added API handoff document for custom frontend integration
-- No auth/session persistence yet

@@ -1,7 +1,0 @@
-v126 add/remove sections build
-
-- Added section library for hero, text, and CTA blocks
-- Added add-section actions in the visual editor
-- Added remove-section actions in the editor panel
-- Preserved page schema structure for future drag/drop and save/load work
-- No backend/auth changes

@@ -1,4 +1,0 @@
-v45
-- Enhanced local productivity pages with filters, export/import, duplicate, reset, and quick templates
-- Improved workspace dashboard with KPI cards and quick actions
-- No deploy pipeline changes

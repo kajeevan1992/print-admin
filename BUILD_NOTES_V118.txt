@@ -1,9 +1,0 @@
-v118 customer account dashboard build
-
-- Added customer account dashboard route at /account-dashboard
-- Added reusable account KPI cards
-- Added quick actions panel
-- Added recent orders panel
-- Added saved projects panel
-- Added account summary panel
-- No backend/auth changes

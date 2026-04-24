@@ -1,7 +1,0 @@
-Platform tools scope applied:
-- Added missing internal core database connection helpers used by /api/internal/database-connections/*.
-- Restored Database Manager UI against internal endpoints only; no proxy/public API use.
-- Restored Tenant Control UI as a platform-only module.
-- Restored existing Owner API Keys, Owner Feature Flags, and Owner Backups pages without duplicate routes.
-- Extended existing /api/superadmin/tenants with POST tenant creation flow using Prisma Tenant model.
-- Did not touch admin catalog UI.

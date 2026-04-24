@@ -1,4 +1,0 @@
-v63
-- Added id/name/htmlFor/autocomplete to login form fields to prevent browser autofill warning.
-- No deploy configuration changes.
-- feature_collector.js warning is likely external/third-party and not part of the app bundle.

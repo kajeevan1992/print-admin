@@ -1,4 +1,0 @@
-V51 - Customer Hub upgrade
-- Upgraded Customers page into a richer account-management view
-- Added health/risk bands, account spotlight panel, duplicate/export/reset actions
-- Preserved stable deploy setup

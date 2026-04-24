@@ -1,8 +1,0 @@
-v115 product browsing flow build
-
-- Added storefront browsing data model and category definitions
-- Added reusable category cards and storefront filter bar
-- Upgraded storefront product cards with turnaround and feature chips
-- Rebuilt /storefront/products into a real browsing flow
-- Added search, category filter, sort, and empty state handling
-- No backend/auth changes

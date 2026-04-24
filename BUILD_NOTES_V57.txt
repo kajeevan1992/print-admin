@@ -1,6 +1,0 @@
-v57 cumulative build
-
-- Replaced Production Planner placeholder with real front-end planner workflow
-- Added local data + localStorage service
-- Added search, filters, planner spotlight, capacity snapshot
-- Added add/edit/delete/duplicate/release actions

@@ -1,6 +1,0 @@
-v109 owner revenue forecast build
-
-- Added Owner Revenue Forecast workflow at /owner-revenue-forecast
-- Added local storage backed owner revenue forecast service + seed data
-- Added Owner Revenue Forecast to super-admin sidebar
-- No deploy/auth config changes

@@ -1,5 +1,0 @@
-
-Build V48
-- Added full Artwork Proofing workflow page
-- Added local storage proof records and service methods
-- Kept stable deploy config

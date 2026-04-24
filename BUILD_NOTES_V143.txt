@@ -1,7 +1,0 @@
-v143 live tenant/product data path build
-
-- Added DB seed helper for tenant, domain, category, products, and variants
-- Added POST /api/dev/seed
-- Added GET /api/tenant/[slug]
-- Added first live tenant/product data path for DB-backed reads
-- No auth/session changes yet

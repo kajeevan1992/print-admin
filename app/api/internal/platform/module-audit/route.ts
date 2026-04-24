@@ -102,6 +102,14 @@ const modules = [
     internalApi: ['/api/internal/config/:key/items'],
     notes: 'Remaining Owner/Super Admin record modules now use the internal config item API with browser storage as fallback only. Includes backups, billing/account plans, incidents, runbooks, renewals, success plans, QBRs, audit log, onboarding, compliance, notifications, usage limits, and related owner workspaces.',
   },
+
+  {
+    module: 'Content CMS and HTML snippets',
+    status: 'connected-v198',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: ['/api/internal/config/content-records/items', '/api/internal/config/content-html-snippets/items'],
+    notes: 'Blog, page, category CMS, extended content, and HTML snippets now load/save/delete through the internal config item API with visible DB/local/error status.',
+  },
   {
     module: 'Orders',
     status: 'pending',
@@ -115,7 +123,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v197',
+    build: 'v198',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

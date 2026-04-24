@@ -1,0 +1,30 @@
+v198 - Content CMS + HTML snippets DB/API
+
+Scope:
+- Continue controlled module DB/API connection work.
+- Do not touch pricing engine, orders, storefront redesign, or side navigation.
+
+Changed:
+- src/services/content.service.ts
+- src/modules/content/pages/content-records-page.tsx
+- src/modules/content/pages/html-snippets-page.tsx
+- app/api/internal/platform/module-audit/route.ts
+
+What changed:
+- Blog Content, Page Content, Category CMS, and Extended Content now use internal config item API storage.
+- HTML Snippets now use internal config item API storage.
+- Added visible DB/local/error status messages on content and snippet screens.
+- Browser localStorage remains fallback only if the internal API fails.
+- Updated module audit build marker to v198.
+
+Internal API paths used:
+- GET/PATCH/DELETE /api/internal/config/content-records/items
+- GET/PATCH/DELETE /api/internal/config/content-html-snippets/items
+- GET /api/internal/platform/module-audit
+
+Test pages:
+- /blog-content
+- /page-content
+- /category-cms
+- /extended-content
+- /html-snippets

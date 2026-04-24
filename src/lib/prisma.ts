@@ -1,9 +1,10 @@
 import type { PrismaClient as PrismaClientType } from '@prisma/client';
-import { normalizePrismaPostgresUrl } from '@/core/db/connection-string';
+import { allowSelfSignedDbCertificatesForNode, normalizePrismaPostgresUrl } from '@/core/db/connection-string';
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClientType };
 
 function createPrismaClient(): PrismaClientType {
+  allowSelfSignedDbCertificatesForNode();
   // Lazy require keeps Next.js build-time route collection from loading
   // @prisma/client before `prisma generate` has run in Coolify/Nixpacks.
   // eslint-disable-next-line @typescript-eslint/no-var-requires

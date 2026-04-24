@@ -1,0 +1,20 @@
+v179.5 Coolify DB SSL no-verify fix
+
+Changed files:
+- src/core/db/connection-string.ts
+- src/core/db/pg-client-config.ts
+- src/lib/prisma.ts
+- src/core/db/platform-prisma.ts
+- src/core/db/tenant-prisma.ts
+
+Fixes runtime DB error:
+- unable to verify the first certificate
+
+What changed:
+- node-postgres strips ssl query params before connecting and uses explicit SSL rejectUnauthorized=false by default.
+- Prisma URLs add sslaccept=accept_invalid_certs.
+- NODE_TLS_REJECT_UNAUTHORIZED=0 is applied for DB runtime unless PGSSL_REJECT_UNAUTHORIZED=true is explicitly set.
+
+Coolify env:
+DATABASE_URL=postgres://user:pass@host:5432/db?sslmode=require
+Do not set PGSSL_REJECT_UNAUTHORIZED=true unless using a trusted CA.

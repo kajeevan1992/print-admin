@@ -21,6 +21,32 @@ export function maskConnectionString(value: string) {
   return value.replace(/:(.*?)@/, ':********@');
 }
 
+export function shouldTrustSelfSignedDbCertificates() {
+  const value = String(process.env.PGSSL_REJECT_UNAUTHORIZED || '').trim().toLowerCase();
+  return value !== 'true' && value !== '1' && value !== 'yes';
+}
+
+export function allowSelfSignedDbCertificatesForNode() {
+  if (shouldTrustSelfSignedDbCertificates() && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== '0') {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+  }
+}
+
+export function removePostgresSslQueryParams(value: string) {
+  try {
+    const url = new URL(value);
+    if (!['postgres:', 'postgresql:'].includes(url.protocol)) return value;
+    url.searchParams.delete('sslmode');
+    url.searchParams.delete('sslaccept');
+    url.searchParams.delete('sslrootcert');
+    url.searchParams.delete('sslcert');
+    url.searchParams.delete('sslkey');
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
 export function normalizePrismaPostgresUrl(value?: string | null) {
   if (!value) return value || '';
 
@@ -29,11 +55,11 @@ export function normalizePrismaPostgresUrl(value?: string | null) {
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) return value;
 
     const sslMode = url.searchParams.get('sslmode');
-    const wantsSsl = sslMode === 'require' || sslMode === 'prefer';
-    const rejectSetting = String(process.env.PGSSL_REJECT_UNAUTHORIZED || '').trim().toLowerCase();
-    const shouldAcceptInvalidCerts = rejectSetting !== 'true' && rejectSetting !== '1' && rejectSetting !== 'yes';
+    const wantsSsl = sslMode === 'require' || sslMode === 'prefer' || sslMode === 'no-verify';
 
-    if (wantsSsl && shouldAcceptInvalidCerts && !url.searchParams.has('sslaccept')) {
+    if (wantsSsl && shouldTrustSelfSignedDbCertificates()) {
+      allowSelfSignedDbCertificatesForNode();
+      url.searchParams.set('sslmode', 'require');
       url.searchParams.set('sslaccept', 'accept_invalid_certs');
     }
 

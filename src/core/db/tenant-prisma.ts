@@ -1,6 +1,6 @@
 import type { PrismaClient as PrismaClientType } from '@prisma/client';
 import type { TenantContext, TenantDatabaseConnection } from '../tenant/types';
-import { buildPostgresConnectionString, normalizePrismaPostgresUrl } from './connection-string';
+import { allowSelfSignedDbCertificatesForNode, buildPostgresConnectionString, normalizePrismaPostgresUrl } from './connection-string';
 import { getDatabaseConnection, listDatabaseConnections, toConnectionInput } from './database-connection-store';
 
 const globalForTenantPrisma = globalThis as unknown as {
@@ -30,6 +30,7 @@ function makeTenantClient(record: TenantDatabaseConnection) {
   if (cached) return cached;
 
   const url = normalizePrismaPostgresUrl(buildPostgresConnectionString(toConnectionInput(record)));
+  allowSelfSignedDbCertificatesForNode();
   // Lazy require prevents Next.js build-time route collection from loading
   // @prisma/client before the generated client exists.
   // eslint-disable-next-line @typescript-eslint/no-var-requires

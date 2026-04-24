@@ -1,10 +1,11 @@
 import type { ClientConfig } from 'pg';
-import { buildPostgresConnectionString, type PostgresConnectionInput } from './connection-string';
-
-function shouldTrustSelfSignedCertificates() {
-  const value = String(process.env.PGSSL_REJECT_UNAUTHORIZED || '').trim().toLowerCase();
-  return value !== 'true' && value !== '1' && value !== 'yes';
-}
+import {
+  allowSelfSignedDbCertificatesForNode,
+  buildPostgresConnectionString,
+  removePostgresSslQueryParams,
+  shouldTrustSelfSignedDbCertificates,
+  type PostgresConnectionInput,
+} from './connection-string';
 
 export function buildPgClientConfig(input: PostgresConnectionInput): ClientConfig {
   const connectionString = buildPostgresConnectionString(input);
@@ -13,10 +14,16 @@ export function buildPgClientConfig(input: PostgresConnectionInput): ClientConfi
     return { connectionString, ssl: false };
   }
 
+  const trustSelfSigned = shouldTrustSelfSignedDbCertificates();
+  if (trustSelfSigned) allowSelfSignedDbCertificatesForNode();
+
   return {
-    connectionString,
+    // Strip sslmode/sslcert query params so node-postgres cannot override the
+    // explicit ssl object below. Coolify internal Postgres often uses a cert
+    // chain that Node does not trust by default.
+    connectionString: removePostgresSslQueryParams(connectionString),
     ssl: {
-      rejectUnauthorized: !shouldTrustSelfSignedCertificates(),
+      rejectUnauthorized: !trustSelfSigned,
     },
   };
 }

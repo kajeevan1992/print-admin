@@ -1,0 +1,25 @@
+Build: v190 generic configuration DB/API sync
+
+Scope completed:
+- Added generic internal config API route.
+- Updated shared ConfigWorkspacePage to load/save/reset via internal API.
+- Added visible DB/API status banner on config workspace pages.
+- Kept localStorage as fallback only when the internal API/database is unavailable.
+
+New test routes:
+- GET    /api/internal/config/config-checkout-fields
+- POST   /api/internal/config/config-checkout-fields
+- DELETE /api/internal/config/config-checkout-fields
+- GET    /api/internal/config/config-tax-vat
+
+UI tests:
+1. Open /checkout-fields.
+2. Change a field and click Save Changes.
+3. Confirm status says saved to database/internal API.
+4. Refresh page and confirm values persist.
+5. Open /api/internal/config/config-checkout-fields and confirm metadataJson.values contains the saved fields.
+6. Repeat with /tax-vat-settings.
+
+Notes:
+- This does not alter pricing, orders, artwork processing, or storefront design.
+- If the internal API/database is unavailable, the page clearly shows local fallback and keeps a browser copy.

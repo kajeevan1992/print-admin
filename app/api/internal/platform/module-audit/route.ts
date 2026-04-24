@@ -54,7 +54,7 @@ const modules = [
   },
   {
     module: 'Artwork profiles/workflow',
-    status: 'connected-v189',
+    status: 'connected-v190',
     storage: 'tenant-db/CoreCatalogRecord metadata',
     internalApi: ['/api/internal/catalog/artwork-profiles'],
     notes: 'Artwork Preflight Studio profiles now sync to internal API. Full artwork upload/preflight workflow remains pending.',
@@ -75,10 +75,11 @@ const modules = [
   },
   {
     module: 'Production routing rules',
-    status: 'connected-v189',
+    status: 'connected-v190',
     storage: 'tenant-db/CoreCatalogRecord metadata',
-    internalApi: ['/api/internal/catalog/production-routing-rules'],
-    notes: 'Production Routing Lab rules now sync to internal API. Full planner board remains pending.',
+    internalApi: ['/api/internal/catalog/production-routing-rules, admin-config'],
+    notes: 'Production Routing Lab
+- Generic admin configuration workspaces rules now sync to internal API. Full planner board remains pending.',
   },
   {
     module: 'Orders',
@@ -93,7 +94,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v189',
+    build: 'v190',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

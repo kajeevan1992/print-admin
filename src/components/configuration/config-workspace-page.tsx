@@ -78,33 +78,95 @@ export function ConfigWorkspacePage({
 
   const [values, setValues] = useState<Record<string, string | boolean>>(defaultState);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [status, setStatus] = useState<'loading' | 'connected' | 'local' | 'error'>('loading');
+  const [message, setMessage] = useState('Loading configuration from internal API...');
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as { values?: Record<string, string | boolean>; savedAt?: string };
-      setValues({ ...defaultState, ...(parsed.values ?? {}) });
-      setSavedAt(parsed.savedAt ?? null);
-    } catch {
-      setValues(defaultState);
+    let cancelled = false;
+
+    async function loadConfig() {
+      setStatus('loading');
+      setMessage('Loading configuration from internal API...');
+      try {
+        const response = await fetch(`/api/internal/config/${encodeURIComponent(storageKey)}`, { cache: 'no-store' });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Internal config API failed.');
+
+        const metadata = payload?.data?.metadataJson ?? {};
+        if (!cancelled) {
+          setValues({ ...defaultState, ...(metadata.values ?? {}) });
+          setSavedAt(metadata.savedAt ? new Date(metadata.savedAt).toLocaleString() : null);
+          setStatus('connected');
+          setMessage(payload?.data ? 'Connected to database. Changes save through the internal API.' : 'Connected to database. No saved configuration yet.');
+        }
+      } catch (error) {
+        const raw = window.localStorage.getItem(storageKey);
+        if (!cancelled && raw) {
+          try {
+            const parsed = JSON.parse(raw) as { values?: Record<string, string | boolean>; savedAt?: string };
+            setValues({ ...defaultState, ...(parsed.values ?? {}) });
+            setSavedAt(parsed.savedAt ?? null);
+            setStatus('local');
+            setMessage(`Internal API unavailable, showing browser-saved fallback: ${error instanceof Error ? error.message : 'unknown error'}`);
+            return;
+          } catch {
+            // Continue to normal error state below.
+          }
+        }
+        if (!cancelled) {
+          setValues(defaultState);
+          setStatus('error');
+          setMessage(error instanceof Error ? error.message : 'Configuration could not be loaded.');
+        }
+      }
     }
+
+    loadConfig();
+    return () => { cancelled = true; };
   }, [defaultState, storageKey]);
 
   const updateValue = (key: string, value: string | boolean) => {
     setValues((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
-    const nextSavedAt = new Date().toLocaleString();
-    window.localStorage.setItem(storageKey, JSON.stringify({ values, savedAt: nextSavedAt }));
-    setSavedAt(nextSavedAt);
+  const handleSave = async () => {
+    setStatus('loading');
+    setMessage('Saving configuration through internal API...');
+    try {
+      const response = await fetch(`/api/internal/config/${encodeURIComponent(storageKey)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description: subtitle, values }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Internal config API save failed.');
+      const saved = payload?.data?.metadataJson?.savedAt || new Date().toISOString();
+      const displaySavedAt = new Date(saved).toLocaleString();
+      window.localStorage.setItem(storageKey, JSON.stringify({ values, savedAt: displaySavedAt }));
+      setSavedAt(displaySavedAt);
+      setStatus('connected');
+      setMessage('Saved to database through internal API.');
+    } catch (error) {
+      const nextSavedAt = new Date().toLocaleString();
+      window.localStorage.setItem(storageKey, JSON.stringify({ values, savedAt: nextSavedAt }));
+      setSavedAt(nextSavedAt);
+      setStatus('local');
+      setMessage(`Database save failed, kept browser fallback copy: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     setValues(defaultState);
-    window.localStorage.removeItem(storageKey);
     setSavedAt(null);
+    window.localStorage.removeItem(storageKey);
+    try {
+      await fetch(`/api/internal/config/${encodeURIComponent(storageKey)}`, { method: 'DELETE' });
+      setStatus('connected');
+      setMessage('Configuration reset in database.');
+    } catch (error) {
+      setStatus('local');
+      setMessage(`Browser fallback reset. Database reset failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   };
 
   return (
@@ -119,6 +181,13 @@ export function ConfigWorkspacePage({
           </div>
         }
       />
+
+      <div className="mb-4 rounded-xl border border-border bg-panel px-4 py-3 text-sm">
+        <span className={status === 'connected' ? 'text-emerald-300' : status === 'error' ? 'text-red-300' : status === 'local' ? 'text-amber-300' : 'text-textMuted'}>
+          {status === 'connected' ? 'Database connected' : status === 'error' ? 'Database issue' : status === 'local' ? 'Local fallback' : 'Checking database'}
+        </span>
+        <span className="ml-2 text-textMuted">{message}</span>
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-4">
@@ -191,6 +260,7 @@ export function ConfigWorkspacePage({
             <h3 className="mb-3 text-base font-semibold">Configuration Status</h3>
             <div className="space-y-2 text-sm text-textMuted">
               <p>Storage key: <span className="font-mono text-text">{storageKey}</span></p>
+              <p>DB/API status: <span className="text-text">{status}</span></p>
               <p>Last saved: <span className="text-text">{savedAt ?? 'Not saved yet'}</span></p>
               <p>Sections: <span className="text-text">{sections.length}</span></p>
             </div>

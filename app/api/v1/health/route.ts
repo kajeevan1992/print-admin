@@ -5,6 +5,6 @@ export async function GET() {
     ok: true,
     api: 'public',
     version: 'v1',
-    message: 'Public API v1 shell is live. External modules will be exposed here as the platform grows.',
+    message: 'Public API v1 is available. Module endpoints require API credentials.',
   });
 }

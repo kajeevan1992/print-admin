@@ -1,44 +1,35 @@
 import { NextResponse } from 'next/server';
-import { getExternalApiBaseUrl } from '@/lib/external-api/config';
-import { normalizeExternalProducts } from '@/lib/external-api/products';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const limit = searchParams.get('limit') || '12';
-    const page = searchParams.get('page') || '1';
-    const search = searchParams.get('search');
+function disabled() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'LEGACY_PROXY_DISABLED',
+      message:
+        'Legacy /api/proxy routes are disabled in unified-core mode. Internal app modules should use core services; external clients should use versioned /api/v1 routes with API credentials.',
+    },
+    { status: 410 }
+  );
+}
 
-    const upstream = new URL(`${getExternalApiBaseUrl()}/products`);
-    upstream.searchParams.set('limit', limit);
-    upstream.searchParams.set('page', page);
-    if (search) upstream.searchParams.set('search', search);
+export async function GET() {
+  return disabled();
+}
 
-    const res = await fetch(upstream.toString(), { cache: 'no-store' });
-    const payload = await res.json().catch(() => null);
+export async function POST() {
+  return disabled();
+}
 
-    if (!res.ok) {
-      return NextResponse.json(
-        { ok: false, upstreamStatus: res.status, payload },
-        { status: 502 }
-      );
-    }
+export async function PUT() {
+  return disabled();
+}
 
-    const items = normalizeExternalProducts(payload);
-    return NextResponse.json({
-      ok: true,
-      data: {
-        items,
-        raw: payload,
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: 'EXTERNAL_PRODUCTS_UNREACHABLE' },
-      { status: 502 }
-    );
-  }
+export async function PATCH() {
+  return disabled();
+}
+
+export async function DELETE() {
+  return disabled();
 }

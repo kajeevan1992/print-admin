@@ -1,52 +1,35 @@
 import { NextResponse } from 'next/server';
-import { getExternalApiBaseUrl } from '@/lib/external-api/config';
 
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json().catch(() => null);
+function disabled() {
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'LEGACY_PROXY_DISABLED',
+      message:
+        'Legacy /api/proxy routes are disabled in unified-core mode. Internal app modules should use core services; external clients should use versioned /api/v1 routes with API credentials.',
+    },
+    { status: 410 }
+  );
+}
 
-    if (!body) {
-      return NextResponse.json(
-        { ok: false, error: 'INVALID_ORDER_PAYLOAD' },
-        { status: 400 }
-      );
-    }
+export async function GET() {
+  return disabled();
+}
 
-    const res = await fetch(`${getExternalApiBaseUrl()}/orders`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      cache: 'no-store',
-    });
+export async function POST() {
+  return disabled();
+}
 
-    const text = await res.text();
-    let payload = null;
-    try {
-      payload = text ? JSON.parse(text) : null;
-    } catch {
-      payload = { raw: text };
-    }
+export async function PUT() {
+  return disabled();
+}
 
-    return NextResponse.json(
-      {
-        ok: res.ok,
-        upstreamStatus: res.status,
-        payload,
-      },
-      { status: res.ok ? 200 : 502 }
-    );
-  } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'EXTERNAL_ORDER_SUBMIT_UNREACHABLE',
-      },
-      { status: 502 }
-    );
-  }
+export async function PATCH() {
+  return disabled();
+}
+
+export async function DELETE() {
+  return disabled();
 }

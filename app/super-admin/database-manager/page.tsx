@@ -1,7 +1,7 @@
-import { DatabaseManagerPage } from '@/modules/super-admin/database-manager/database-manager-page';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default function SuperAdminDatabaseManagerRoute() {
-  return <DatabaseManagerPage />;
+export default function LegacySuperAdminDatabaseManagerRoute() {
+  redirect('/database-manager');
 }

@@ -175,6 +175,7 @@ const baseNavItems: NavItem[] = [
       { label: 'Admin Users', href: '/admin-users' },
       { label: 'Licensing Center', href: '/licensing-center' },
       { label: 'Tenant Control', href: '/tenant-control' },
+  { label: 'Database Manager', href: '/database-manager' },
       { label: 'Organizations', href: '/organizations' },
       { label: 'Merchant Accounts', href: '/merchant-accounts' },
       { label: 'Shipping Methods', href: '/shipping-methods' },

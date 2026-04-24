@@ -5,7 +5,7 @@ import { Input } from '@/components/forms/input';
 import { Select, type SelectOption } from '@/components/forms/select';
 import { Toggle } from '@/components/forms/toggle';
 import { calculateProductEstimate, printerProfiles, productFinishes, productMaterials, productTemplates } from '@/lib/product-system';
-import { productCategories, productVendors, storefrontOptions } from '@/data/products';
+import { productVendors, storefrontOptions } from '@/data/products';
 import type { Product, ProductSystemConfig } from '@/modules/products/types';
 
 const productTypeOptions: SelectOption[] = [
@@ -14,7 +14,7 @@ const productTypeOptions: SelectOption[] = [
   { value: 'parametric', label: 'Parametric' }
 ];
 
-export function ProductInfoForm({ product, onUpdate }: { product: Product; onUpdate: (changes: Partial<Product>) => void }) {
+export function ProductInfoForm({ product, onUpdate, categoryOptions = [] }: { product: Product; onUpdate: (changes: Partial<Product>) => void; categoryOptions?: SelectOption[] }) {
   return (
     <div className="space-y-4">
       <FormSection title="Basic Information">
@@ -26,7 +26,7 @@ export function ProductInfoForm({ product, onUpdate }: { product: Product; onUpd
           {product.productType === 'static' ? (
             <Input value={product.pdfFileUrl ?? ''} onChange={(e) => onUpdate({ pdfFileUrl: e.target.value })} placeholder="PDF File URL" />
           ) : null}
-          <Select value={product.categoryId} options={productCategories.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ categoryId: e.target.value })} />
+          <Select value={product.categoryId} options={[{ value: '', label: 'Uncategorized' }, ...categoryOptions]} onChange={(e) => onUpdate({ categoryId: e.target.value })} />
           <Select value={product.vendorId} options={productVendors.map((item) => ({ value: item.id, label: item.name }))} onChange={(e) => onUpdate({ vendorId: e.target.value })} />
           <Input value={product.hotFolder} onChange={(e) => onUpdate({ hotFolder: e.target.value })} placeholder="Hot Folder" />
         </FormGrid>

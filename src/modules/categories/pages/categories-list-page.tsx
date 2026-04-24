@@ -11,6 +11,7 @@ import { categoriesService } from '@/services/categories.service';
 import { productCategories } from '@/data/products';
 import { CategoryFormModal } from '@/modules/categories/components/category-form-modal';
 import { CategoryTagsModal } from '@/modules/categories/components/category-tags-modal';
+import { CatalogPageDiagnostics } from '@/components/catalog/catalog-page-diagnostics';
 import type { Category, CategoryFormValues, CategoryTag } from '@/modules/categories/types';
 import type { SelectOption } from '@/components/forms/select';
 
@@ -43,6 +44,8 @@ export function CategoriesListPage() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
@@ -134,6 +137,9 @@ export function CategoriesListPage() {
         }
       />
 
+      <CatalogPageDiagnostics resourceLabel="Categories" loading={loading} error={error} itemCount={categories.length} />
+      {notice ? <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</div> : null}
+
       <div className="mb-4 flex gap-2">
         <Input placeholder="Search categories..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
@@ -151,8 +157,8 @@ export function CategoriesListPage() {
             { key: 'name', header: 'Name', render: (row) => row.name },
             { key: 'url', header: 'Friendly Url', render: (row) => row.friendlyUrl },
             { key: 'count', header: 'Product Count', render: (row) => row.productCount },
-            { key: 'published', header: 'Published', render: (row) => <Toggle checked={row.published} onChange={(published) => categoriesService.togglePublished(row.id, published).then(load)} /> },
-            { key: 'actions', header: 'Action', render: (row) => <div className="flex flex-wrap gap-2"><button onClick={() => openEdit(row)} className="text-accent">Edit</button><button className="text-textMuted">Edit CMS</button><button className="text-textMuted">Preview</button><button onClick={() => categoriesService.deleteCategory(row.id).then(load)} className="text-red-300">Delete</button></div> }
+            { key: 'published', header: 'Published', render: (row) => <Toggle checked={row.published} onChange={async (published) => { setError(null); setNotice(null); try { await categoriesService.togglePublished(row.id, published); setNotice(`Category ${published ? 'published' : 'unpublished'}.`); await load(); } catch (err) { setError(err instanceof Error ? err.message : 'Failed to update category'); } }} /> },
+            { key: 'actions', header: 'Action', render: (row) => <div className="flex flex-wrap gap-2"><button onClick={() => openEdit(row)} className="text-accent">Edit</button><button className="text-textMuted">Edit CMS</button><button className="text-textMuted">Preview</button><button onClick={async () => { if (!window.confirm(`Delete category ${row.name}? Products in this category will become uncategorized.`)) return; setError(null); setNotice(null); try { await categoriesService.deleteCategory(row.id); setNotice(`Deleted category ${row.name}.`); await load(); } catch (err) { setError(err instanceof Error ? err.message : 'Failed to delete category'); } }} className="text-red-300">Delete</button></div> }
           ]}
           rows={filtered}
           rowKey={(row) => row.id}
@@ -176,14 +182,25 @@ export function CategoriesListPage() {
         onRemoveTag={(tagId) => setForm((prev) => ({ ...prev, tagIds: prev.tagIds.filter((item) => item !== tagId) }))}
         onClose={() => setModalOpen(false)}
         onSubmit={async () => {
-          if (!form.name.trim()) return;
-          if (editing) {
-            await categoriesService.updateCategory(editing.id, form);
-          } else {
-            await categoriesService.createCategory(form);
+          if (!form.name.trim() || saving) return;
+          setSaving(true);
+          setError(null);
+          setNotice(null);
+          try {
+            if (editing) {
+              await categoriesService.updateCategory(editing.id, form);
+              setNotice(`Saved category ${form.name}.`);
+            } else {
+              await categoriesService.createCategory(form);
+              setNotice(`Created category ${form.name}.`);
+            }
+            setModalOpen(false);
+            await load();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to save category');
+          } finally {
+            setSaving(false);
           }
-          setModalOpen(false);
-          await load();
         }}
       />
 

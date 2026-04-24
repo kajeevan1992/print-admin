@@ -1,0 +1,36 @@
+# v179.6 Catalog diagnostics + DB health visibility
+
+Purpose:
+- Keep v179.5 SSL/no-verify database fix.
+- Add visible database health indicators so empty catalog screens are no longer silent.
+- Preserve existing UI, colors, routes, and unified-core architecture.
+
+Changed files:
+- src/components/layout/database-health-badge.tsx
+- src/components/layout/topbar.tsx
+- src/components/catalog/catalog-page-diagnostics.tsx
+- src/modules/products/pages/products-list-page.tsx
+- src/modules/categories/pages/categories-list-page.tsx
+- BUILD_NOTES_V179_6.txt
+
+What changed:
+- Top bar now shows database status using /api/internal/platform/status.
+- Products page now shows a diagnostics banner:
+  - Loading state
+  - API error reason
+  - DB connected but zero products message
+  - DB connected with record count message
+- Categories page now shows the same diagnostics banner.
+- Product page option loading errors are now surfaced instead of being swallowed.
+
+Important:
+- If Products/Categories show empty with database connected, that means the current tenant DB has no product/category rows yet.
+- Use Add Category first, then Add Product.
+
+Test after deploy:
+1. Open dashboard and check top bar: should show Database live or a clear issue message.
+2. Open /categories: if empty, it should say DB connected but no categories found.
+3. Add a category.
+4. Open /products and add a product using the category.
+5. GET /api/internal/catalog/categories should show the category.
+6. GET /api/internal/catalog/products should show the product.

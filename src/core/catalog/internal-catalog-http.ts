@@ -46,6 +46,7 @@ function toWriteInput(body: Body) {
       ? typeof body.priceFromMinor === 'number' ? body.priceFromMinor : null
       : undefined,
     currency: getString(body, 'currency'),
+    productType: getString(body, 'productType'),
   };
 }
 
@@ -56,9 +57,16 @@ function inputWithId(body: Body, id?: string) {
   };
 }
 
+function statusForError(message: string, fallback: number) {
+  if (message.toLowerCase().includes('already exists')) return 409;
+  if (message.toLowerCase().includes('requires')) return 400;
+  if (message.toLowerCase().includes('not found')) return 404;
+  return fallback;
+}
+
 function errorResponse(error: unknown, status = 500) {
   const message = error instanceof Error ? error.message : 'Catalog operation failed.';
-  return NextResponse.json({ ok: false, source: 'internal-core', error: message }, { status });
+  return NextResponse.json({ ok: false, source: 'internal-core', error: message }, { status: statusForError(message, status) });
 }
 
 export async function handleCatalogGet(request: Request, resource: CatalogResource) {

@@ -12,8 +12,10 @@ import { CommentsPanel } from '@/modules/products/components/comments-panel';
 import { PrintEditorForm } from '@/modules/products/components/print-editor-form';
 import { ProductRightSidebar } from '@/modules/products/components/product-right-sidebar';
 import { productsService } from '@/services/products.service';
+import { categoriesService } from '@/services/categories.service';
 import { calculateProductEstimate, getArtworkProfile, getCompatibleFinishes, getCompatibleMaterials, getCompatiblePrinters, getRuleWarnings } from '@/lib/product-system';
 import type { Product } from '@/modules/products/types';
+import type { SelectOption } from '@/components/forms/select';
 
 const defaultTab = 'Product Information';
 
@@ -21,6 +23,8 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   const [active, setActive] = useState(defaultTab);
   const [product, setProduct] = useState<Product | null>(null);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [relatedInput, setRelatedInput] = useState('');
@@ -33,10 +37,11 @@ export function ProductDetailPage({ productId }: { productId: string }) {
     setLoading(true);
     setError(null);
 
-    Promise.all([productsService.getProduct(productId), productsService.listProducts({ perPage: 200 })])
-      .then(([productResponse, allProductsResponse]) => {
+    Promise.all([productsService.getProduct(productId), productsService.listProducts({ perPage: 200 }), categoriesService.listCategories()])
+      .then(([productResponse, allProductsResponse, categoriesResponse]) => {
         setProduct(productResponse.data);
         setAllProducts(allProductsResponse.data.items);
+        setCategoryOptions(categoriesResponse.data.items.map((item) => ({ value: item.id, label: item.name })));
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load product'))
       .finally(() => setLoading(false));
@@ -44,8 +49,15 @@ export function ProductDetailPage({ productId }: { productId: string }) {
 
   const persistProduct = async (changes: Partial<Product>) => {
     if (!product) return;
-    const response = await productsService.updateProduct(product.id, changes);
-    setProduct(response.data);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await productsService.updateProduct(product.id, changes);
+      setProduct(response.data);
+      setNotice('Product saved.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save product');
+    }
   };
 
   const relatedCandidates = useMemo(
@@ -60,13 +72,15 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   return (
     <div>
       <ProductHeader product={product} onSave={() => persistProduct({})} onCancel={() => setActive(defaultTab)} />
+      {notice ? <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</div> : null}
+      {error ? <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{error}</div> : null}
 
       <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
         <div>
           <ProductTabs active={active} onChange={setActive} />
 
           {active === 'Product Information' && (<div className="space-y-4">
-            <ProductInfoForm product={product} onUpdate={persistProduct} />
+            <ProductInfoForm product={product} onUpdate={persistProduct} categoryOptions={categoryOptions} />
             <ProductSectionCard title="Product System">
               {(() => {
                 const system = product.productSystem ?? { templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: 250, turnaround: 'standard', fieldValues: {} };

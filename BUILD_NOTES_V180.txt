@@ -1,0 +1,75 @@
+# v180 Catalog CRUD Stabilisation
+
+Scope kept intentionally narrow:
+- Products and Categories only.
+- Internal core/catalog services only.
+- Existing admin UI only.
+- No orders, artwork, pricing, storefront, sidebar, API key, feature flag, or Database Manager changes.
+
+Changed files:
+- src/core/catalog/internal-catalog.service.ts
+- src/core/catalog/internal-catalog-http.ts
+- src/services/products.service.ts
+- src/modules/products/pages/products-list-page.tsx
+- src/modules/products/pages/product-detail-page.tsx
+- src/modules/products/components/product-info-form.tsx
+- src/modules/categories/pages/categories-list-page.tsx
+- BUILD_NOTES_V180.txt
+
+What changed:
+1. Added duplicate slug protection for Products and Categories.
+   - Duplicate Product slugs now return a clear 409 response.
+   - Duplicate Category slugs now return a clear 409 response.
+
+2. Improved internal API error status codes.
+   - Missing required fields -> 400.
+   - Not found -> 404.
+   - Duplicate slug -> 409.
+
+3. Stabilised Product updates.
+   - Product updates no longer accidentally clear categoryId when changing unrelated fields.
+   - Product type is now included in create/update payloads and persisted through internal catalog writes.
+
+4. Added visible admin feedback.
+   - Products page now shows success messages for create/clone/delete/publish updates.
+   - Products page now catches and shows action errors instead of failing silently.
+   - Categories page now shows success messages for create/edit/delete/publish updates.
+   - Categories page now catches and shows action errors instead of failing silently.
+
+5. Improved edit flow.
+   - Product detail page now loads live DB categories for the category dropdown.
+   - Product detail page shows save success/error messages.
+
+Test checklist after deploy:
+1. /categories
+   - Create a category.
+   - Try creating a second category with the same name/friendly URL; expect a visible duplicate-slug error.
+   - Edit the first category name/description.
+   - Toggle published.
+   - Delete a category and confirm it disappears after refresh.
+
+2. /products
+   - Create a product using an existing category.
+   - Try creating a duplicate product with the same name/slug; expect a visible duplicate-slug error.
+   - Toggle published.
+   - Clone a product.
+   - Delete a product and confirm it disappears after refresh.
+
+3. /products/[id]
+   - Open View/Edit.
+   - Change name/description/category/product type.
+   - Confirm the save message appears.
+   - Refresh and confirm persisted values still show where supported by current catalog DB fields.
+
+Internal API checks:
+- GET /api/internal/catalog/categories
+- POST /api/internal/catalog/categories
+- PATCH /api/internal/catalog/categories/:id
+- DELETE /api/internal/catalog/categories/:id
+- GET /api/internal/catalog/products
+- POST /api/internal/catalog/products
+- PATCH /api/internal/catalog/products/:id
+- DELETE /api/internal/catalog/products/:id
+
+Rollback:
+- Re-deploy v179.6 if this build causes regressions.

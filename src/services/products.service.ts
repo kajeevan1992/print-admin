@@ -150,17 +150,23 @@ function createProductFromForm(payload: ProductFormValues): Product {
 }
 
 function productToCatalogPayload(product: Partial<Product>) {
-  return {
+  const payload: Record<string, unknown> = {
     id: product.id,
     slug: product.slug,
     name: product.name,
     title: product.name,
     description: product.description,
-    categoryId: product.categoryId || null,
     isActive: typeof product.published === 'boolean' ? product.published : undefined,
-    priceFromMinor: product.priceMapping?.basePrice ? Math.round(product.priceMapping.basePrice * 100) : undefined,
+    priceFromMinor: product.priceMapping?.basePrice !== undefined ? Math.round(product.priceMapping.basePrice * 100) : undefined,
     currency: 'GBP',
+    productType: product.productType,
   };
+
+  if (Object.prototype.hasOwnProperty.call(product, 'categoryId')) {
+    payload.categoryId = product.categoryId || null;
+  }
+
+  return payload;
 }
 
 export const productsService = {

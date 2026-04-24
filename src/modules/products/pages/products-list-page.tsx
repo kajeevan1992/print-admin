@@ -11,6 +11,7 @@ import { BaseModal } from '@/components/modals/base-modal';
 import { EmptyModuleState } from '@/modules/products/components/empty-module-state';
 import { ProductForm } from '@/modules/products/components/product-form';
 import { ProductTable, type ProductTableAction } from '@/modules/products/components/product-table';
+import { CatalogPageDiagnostics } from '@/components/catalog/catalog-page-diagnostics';
 import { productsService } from '@/services/products.service';
 import { categoriesService } from '@/services/categories.service';
 import { vendorsService } from '@/services/vendors.service';
@@ -52,6 +53,8 @@ export function ProductsListPage() {
   const [createdProductId, setCreatedProductId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [total, setTotal] = useState(0);
 
   const [params, setParams] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc' });
@@ -75,36 +78,71 @@ export function ProductsListPage() {
   }, [loadProducts, params]);
 
   useEffect(() => {
-    Promise.all([categoriesService.listCategories(), vendorsService.listVendors()]).then(([categories, vendors]) => {
-      const catOptions = categories.data.items.map((item) => ({ value: item.id, label: item.name }));
-      const venOptions = vendors.data.items.map((item) => ({ value: item.id, label: item.name }));
-      setCategoryOptions(catOptions);
-      setVendorOptions(venOptions);
-      setForm((prev) => ({ ...prev, categoryId: catOptions[0] ? String(catOptions[0].value) : '' }));
-    });
+    Promise.all([categoriesService.listCategories(), vendorsService.listVendors()])
+      .then(([categories, vendors]) => {
+        const catOptions = categories.data.items.map((item) => ({ value: item.id, label: item.name }));
+        const venOptions = vendors.data.items.map((item) => ({ value: item.id, label: item.name }));
+        setCategoryOptions(catOptions);
+        setVendorOptions(venOptions);
+        setForm((prev) => ({ ...prev, categoryId: catOptions[0] ? String(catOptions[0].value) : '' }));
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to load product page options');
+      });
   }, []);
 
   const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
 
   const handleToggle = async (id: string, key: 'published' | 'isGlobal', value: boolean) => {
-    await productsService.updateProduct(id, { [key]: value });
-    await loadProducts(params);
+    setError(null);
+    setNotice(null);
+    try {
+      await productsService.updateProduct(id, { [key]: value });
+      setNotice(`Product ${key === 'published' ? (value ? 'published' : 'unpublished') : 'global flag updated'}.`);
+      await loadProducts(params);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update product');
+    }
   };
 
   const handleAction = async (id: string, action: ProductTableAction) => {
-    if (action === 'clone') await productsService.cloneProduct(id);
-    if (action === 'delete') await productsService.deleteProduct(id);
-    if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
-    if (action === 'preview') window.open(products.find((item) => item.id === id)?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
-    await loadProducts(params);
+    setError(null);
+    setNotice(null);
+    try {
+      if (action === 'clone') {
+        await productsService.cloneProduct(id);
+        setNotice('Product cloned.');
+      }
+      if (action === 'delete') {
+        const product = products.find((item) => item.id === id);
+        if (!window.confirm(`Delete product ${product?.name || id}?`)) return;
+        await productsService.deleteProduct(id);
+        setNotice(`Deleted product ${product?.name || id}.`);
+      }
+      if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
+      if (action === 'preview') window.open(products.find((item) => item.id === id)?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
+      await loadProducts(params);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Product action failed');
+    }
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.categoryId) return;
-    const created = await productsService.createProduct(form);
-    setCreatedProductId(created.data.id);
-    setCreationSuccess(true);
-    await loadProducts(params);
+    if (!form.name.trim() || !form.categoryId || saving) return;
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const created = await productsService.createProduct(form);
+      setCreatedProductId(created.data.id);
+      setCreationSuccess(true);
+      setNotice(`Created product ${created.data.name}.`);
+      await loadProducts(params);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create product');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const resetCreation = () => {
@@ -120,6 +158,9 @@ export function ProductsListPage() {
         subtitle={subtitle}
         actions={<><Button>Import</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
       />
+
+      <CatalogPageDiagnostics resourceLabel="Products" loading={loading} error={error} itemCount={products.length} />
+      {notice ? <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</div> : null}
 
       <FilterBar>
         <Input placeholder="Search by name / slug / item number" value={params.search ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, search: e.target.value || undefined }))} />

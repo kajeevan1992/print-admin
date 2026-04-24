@@ -23,6 +23,7 @@ export type InternalCatalogWriteInput = {
   isActive?: boolean;
   priceFromMinor?: number | null;
   currency?: string;
+  productType?: string;
 };
 
 export type InternalCatalogWriteMode = 'create' | 'update' | 'upsert';
@@ -158,6 +159,22 @@ async function readCategoryByIdOrSlug(client: Client, tenantId: string, idOrSlug
   return result.rows[0] ?? null;
 }
 
+async function assertUniqueProductSlug(client: Client, tenantId: string, slug: string, exceptId?: string) {
+  const result = await client.query(
+    `SELECT "id" FROM "Product" WHERE "tenantId" = $1 AND "slug" = $2 AND ($3::text IS NULL OR "id" <> $3) LIMIT 1`,
+    [tenantId, slug, exceptId || null]
+  );
+  if (result.rows[0]) throw new Error(`Product slug "${slug}" already exists. Choose a different friendly URL/name.`);
+}
+
+async function assertUniqueCategorySlug(client: Client, tenantId: string, slug: string, exceptId?: string) {
+  const result = await client.query(
+    `SELECT "id" FROM "Category" WHERE "tenantId" = $1 AND "slug" = $2 AND ($3::text IS NULL OR "id" <> $3) LIMIT 1`,
+    [tenantId, slug, exceptId || null]
+  );
+  if (result.rows[0]) throw new Error(`Category slug "${slug}" already exists. Choose a different friendly URL/name.`);
+}
+
 async function readFromTenantDb(ctx: TenantContext, resource: CatalogResource, options: ListOptions) {
   const connectionInput = await getCatalogConnection(ctx);
   if (!connectionInput) return null;
@@ -227,12 +244,13 @@ async function createProduct(client: Client, ctx: TenantContext, input: Internal
   const slug = slugFromInput(input);
   if (!slug) throw new Error('Product create requires a slug.');
   const id = input.id || makeId('product');
+  await assertUniqueProductSlug(client, ctx.tenantId, slug);
   const categoryId = await maybeResolveCategoryId(client, ctx.tenantId, input.categoryId);
   const result = await client.query(
-    `INSERT INTO "Product" ("id", "tenantId", "slug", "title", "subtitle", "categoryId", "isActive", "priceFromMinor", "currency", "updatedAt")
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CURRENT_TIMESTAMP)
+    `INSERT INTO "Product" ("id", "tenantId", "slug", "title", "subtitle", "categoryId", "isActive", "priceFromMinor", "currency", "productType", "updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP)
      RETURNING "id"`,
-    [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.priceFromMinor ?? null, input.currency || 'GBP']
+    [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.priceFromMinor ?? null, input.currency || 'GBP', input.productType || 'online']
   );
   return readProductByIdOrSlug(client, ctx.tenantId, result.rows[0].id);
 }
@@ -244,6 +262,7 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
   if (!current) throw new Error(`Product ${idOrSlug} was not found in tenant database.`);
   const categoryId = await maybeResolveCategoryId(client, ctx.tenantId, input.categoryId);
   const nextSlug = slugFromInput(input) || current.slug;
+  await assertUniqueProductSlug(client, ctx.tenantId, nextSlug, current.id);
   await client.query(
     `UPDATE "Product"
      SET "slug" = $3,
@@ -253,6 +272,7 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
          "isActive" = COALESCE($8, "isActive"),
          "priceFromMinor" = CASE WHEN $9::boolean THEN $10 ELSE "priceFromMinor" END,
          "currency" = COALESCE($11, "currency"),
+         "productType" = COALESCE($12, "productType"),
          "updatedAt" = CURRENT_TIMESTAMP
      WHERE "tenantId" = $1 AND "id" = $2`,
     [
@@ -267,6 +287,7 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
       input.priceFromMinor !== undefined,
       input.priceFromMinor ?? null,
       input.currency || null,
+      input.productType || null,
     ]
   );
   return readProductByIdOrSlug(client, ctx.tenantId, current.id);
@@ -276,6 +297,7 @@ async function createCategory(client: Client, ctx: TenantContext, input: Interna
   const slug = slugFromInput(input);
   if (!slug) throw new Error('Category create requires a slug.');
   const id = input.id || makeId('category');
+  await assertUniqueCategorySlug(client, ctx.tenantId, slug);
   const result = await client.query(
     `INSERT INTO "Category" ("id", "tenantId", "slug", "name", "description", "updatedAt")
      VALUES ($1,$2,$3,$4,$5,CURRENT_TIMESTAMP)
@@ -291,6 +313,7 @@ async function updateCategory(client: Client, ctx: TenantContext, input: Interna
   const current = await readCategoryByIdOrSlug(client, ctx.tenantId, idOrSlug);
   if (!current) throw new Error(`Category ${idOrSlug} was not found in tenant database.`);
   const nextSlug = slugFromInput(input) || current.slug;
+  await assertUniqueCategorySlug(client, ctx.tenantId, nextSlug, current.id);
   await client.query(
     `UPDATE "Category"
      SET "slug" = $3,

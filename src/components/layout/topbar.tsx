@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Bell, ChevronDown, ClipboardCheck, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
 import { updateSession, useAuth } from '@/lib/auth';
+import { DatabaseHealthBadge } from '@/components/layout/database-health-badge';
 
 const RECENT_ROUTES_KEY = 'print-admin.recent-routes';
 const DASHBOARD_STORE_KEY = 'print-admin.dashboard.store';
@@ -154,6 +155,7 @@ export function Topbar() {
         </label>
 
         <div className="flex flex-wrap items-center gap-3">
+          <DatabaseHealthBadge />
           {session?.role === 'super_admin' ? (
             <div className="inline-flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-2.5 text-[12px] font-medium text-white">
               <Shield size={15} className="text-accentAlt" />

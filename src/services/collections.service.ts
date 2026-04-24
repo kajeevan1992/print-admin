@@ -7,7 +7,18 @@ import type { Collection, CollectionFormValues } from '@/modules/collections/typ
 
 let collectionsStore: Collection[] = [...collectionsMock];
 const STORAGE_KEY = 'print-admin-collections-store';
+const LIVE_ENDPOINT = '/api/internal/catalog/collections';
 const wait = async () => new Promise((resolve) => setTimeout(resolve, 60));
+
+function slugify(value: string, fallback: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || fallback
+  );
+}
 
 function readStore(): Collection[] {
   if (typeof window === 'undefined') return collectionsStore;
@@ -27,40 +38,108 @@ function writeStore(next: Collection[]) {
 }
 
 function hydrate(values: CollectionFormValues, id: string, createdOn?: string): Collection {
+  const liveProducts = readLiveProductsCache();
+  const liveCategories = readLiveCategoriesCache();
+  const productSource = liveProducts.length ? liveProducts : productsMock.map((product) => ({ id: product.id, name: product.name, thumbnail: product.thumbnail, productNumbers: product.productNumbers }));
+  const categorySource = liveCategories.length ? liveCategories : categoriesMock.map((category) => ({ id: category.id, name: category.name, thumbnail: category.thumbnail }));
+
   return {
     id,
     title: values.title,
     createdOn: createdOn ?? new Date().toISOString().slice(0, 10),
     productIds: values.productIds,
     categoryIds: values.categoryIds,
-    products: productsMock.filter((product) => values.productIds.includes(product.id)).map((product) => ({ id: product.id, name: product.name, thumbnail: product.thumbnail, productNumbers: product.productNumbers })),
-    categories: categoriesMock.filter((category) => values.categoryIds.includes(category.id)).map((category) => ({ id: category.id, name: category.name, thumbnail: category.thumbnail }))
+    products: productSource.filter((product) => values.productIds.includes(product.id)),
+    categories: categorySource.filter((category) => values.categoryIds.includes(category.id))
   };
+}
+
+function readLiveProductsCache() {
+  if (typeof window === 'undefined') return [] as Collection['products'];
+  try {
+    const raw = window.sessionStorage.getItem('print-admin.live-products-cache');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [] as Collection['products'];
+  }
+}
+
+function readLiveCategoriesCache() {
+  if (typeof window === 'undefined') return [] as Collection['categories'];
+  try {
+    const raw = window.sessionStorage.getItem('print-admin.live-categories-cache');
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [] as Collection['categories'];
+  }
+}
+
+function mapLiveCollection(row: any, index: number): Collection {
+  const metadata = row?.metadataJson && typeof row.metadataJson === 'object' ? row.metadataJson : {};
+  const productIds = Array.isArray(metadata.productIds) ? metadata.productIds.map(String) : Array.isArray(row.productIds) ? row.productIds.map(String) : [];
+  const categoryIds = Array.isArray(metadata.categoryIds) ? metadata.categoryIds.map(String) : Array.isArray(row.categoryIds) ? row.categoryIds.map(String) : [];
+  return hydrate(
+    {
+      title: String(row.name || row.title || `Collection ${index + 1}`),
+      productIds,
+      categoryIds,
+    },
+    String(row.id || row.slug || `collection-${index + 1}`),
+    row.createdAt ? String(row.createdAt).slice(0, 10) : undefined
+  );
+}
+
+async function liveJson<T>(endpoint: string, init?: RequestInit): Promise<T | null> {
+  if (typeof window === 'undefined') return null;
+  const res = await fetch(endpoint, init);
+  const payload = await res.json().catch(() => null);
+  if (!res.ok || !payload?.ok) throw new Error(payload?.error || 'Internal collections API failed.');
+  return payload as T;
 }
 
 async function tryLiveCollections(search?: string): Promise<Collection[] | null> {
   if (typeof window === 'undefined') return null;
   try {
-    const res = await fetch('/api/internal/catalog/collections', { cache: 'no-store' });
-    const payload = await res.json().catch(() => null);
-    if (!res.ok || !payload?.ok) return null;
-    const raw = payload?.data?.items || payload?.data || payload?.payload?.data?.items || payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];
+    const endpoint = search ? `${LIVE_ENDPOINT}?search=${encodeURIComponent(search)}` : LIVE_ENDPOINT;
+    const payload: any = await liveJson(endpoint, { cache: 'no-store' });
+    const raw = payload?.data?.items || payload?.data || payload?.payload?.data?.items || payload?.payload || [];
     if (!Array.isArray(raw)) return null;
-    const term = search?.trim().toLowerCase();
-    return raw
-      .map((row: any, index: number) => ({
-        id: row.id || `col-${index + 1}`,
-        title: row.name || row.title || `Collection ${index + 1}`,
-        createdOn: row.createdAt ? String(row.createdAt).slice(0, 10) : new Date().toISOString().slice(0, 10),
-        productIds: Array.isArray(row.productIds) ? row.productIds : [],
-        categoryIds: Array.isArray(row.categoryIds) ? row.categoryIds : [],
-        products: [],
-        categories: []
-      }))
-      .filter((item) => !term || item.title.toLowerCase().includes(term));
+    return raw.map(mapLiveCollection);
   } catch {
     return null;
   }
+}
+
+function livePayload(values: CollectionFormValues, id?: string) {
+  const slug = slugify(values.title, id || `collection-${Date.now()}`);
+  return {
+    id,
+    slug,
+    name: values.title,
+    title: values.title,
+    description: `${values.productIds.length} products • ${values.categoryIds.length} categories`,
+    metadataJson: {
+      productIds: values.productIds,
+      categoryIds: values.categoryIds,
+      recordType: 'storefront-collection',
+    },
+  };
+}
+
+async function writeLiveCollection(values: CollectionFormValues, id?: string) {
+  const method = id ? 'PATCH' : 'POST';
+  const payload: any = await liveJson(LIVE_ENDPOINT, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(livePayload(values, id)),
+  });
+  return mapLiveCollection(payload?.data || payload?.item || payload?.payload || livePayload(values, id), 0);
+}
+
+async function deleteLiveCollection(id: string) {
+  await liveJson(`${LIVE_ENDPOINT}?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 export const collectionsService = {
@@ -78,22 +157,36 @@ export const collectionsService = {
     return ok(item);
   },
   createCollection: async (values: CollectionFormValues): Promise<ApiResponse<Collection>> => {
-    await wait();
-    const next = hydrate(values, `col-${Math.floor(Math.random() * 9000 + 1000)}`);
-    const items = [next, ...readStore()];
-    writeStore(items);
-    return ok(next);
+    try {
+      const live = await writeLiveCollection(values);
+      return ok(live);
+    } catch {
+      await wait();
+      const next = hydrate(values, `col-${Math.floor(Math.random() * 9000 + 1000)}`);
+      const items = [next, ...readStore()];
+      writeStore(items);
+      return ok(next);
+    }
   },
   updateCollection: async (id: string, values: CollectionFormValues): Promise<ApiResponse<Collection>> => {
-    await wait();
-    const items = readStore();
-    const current = items.find((item) => item.id === id);
-    const next = hydrate(values, id, current?.createdOn);
-    writeStore(items.map((item) => (item.id === id ? next : item)));
-    return ok(next);
+    try {
+      const live = await writeLiveCollection(values, id);
+      return ok(live);
+    } catch {
+      await wait();
+      const items = readStore();
+      const current = items.find((item) => item.id === id);
+      const next = hydrate(values, id, current?.createdOn);
+      writeStore(items.map((item) => (item.id === id ? next : item)));
+      return ok(next);
+    }
   },
   deleteCollection: async (id: string): Promise<ApiResponse<{ id: string }>> => {
-    await wait();
+    try {
+      await deleteLiveCollection(id);
+    } catch {
+      await wait();
+    }
     writeStore(readStore().filter((item) => item.id !== id));
     return ok({ id });
   }

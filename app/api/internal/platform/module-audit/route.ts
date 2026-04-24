@@ -39,6 +39,20 @@ const modules = [
     notes: 'Create/edit/delete now syncs from admin page to internal API.',
   },
   {
+    module: 'Collections',
+    status: 'connected-v187',
+    storage: 'tenant-db/CoreCatalogRecord metadata',
+    internalApi: ['/api/internal/catalog/collections'],
+    notes: 'Create/edit/delete now syncs collections with selected product/category ids.',
+  },
+  {
+    module: 'Tags',
+    status: 'connected-v187',
+    storage: 'tenant-db/CoreCatalogRecord metadata',
+    internalApi: ['/api/internal/catalog/tags'],
+    notes: 'Create/edit/delete plus published/sidebar toggles now sync to internal API.',
+  },
+  {
     module: 'Artwork profiles/workflow',
     status: 'pending',
     storage: 'local/demo or partial',
@@ -65,7 +79,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v186',
+    build: 'v187',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

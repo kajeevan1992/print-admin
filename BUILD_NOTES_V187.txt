@@ -1,0 +1,41 @@
+V187 - Collections and Tags DB/API connection
+
+Scope:
+- Continue v186 DB/API connection phase.
+- Connect Collections and Tags admin modules to existing internal catalog APIs.
+- No redesign, no pricing engine, no orders, no artwork workflow.
+
+Changed files:
+- src/services/collections.service.ts
+- src/services/tags.service.ts
+- src/modules/collections/pages/collections-page.tsx
+- src/modules/tags/pages/tags-page.tsx
+- app/api/internal/platform/module-audit/route.ts
+- MODULE_DB_API_AUDIT_V187.md
+- BUILD_NOTES_V187.txt
+
+What changed:
+- Collections create/update/delete now calls /api/internal/catalog/collections.
+- Collection product/category selections are stored in metadataJson as productIds/categoryIds.
+- Collections page now shows DB/API status and loads product/category choices from DB-backed services.
+- Tags create/update/delete now calls /api/internal/catalog/tags.
+- Tag published/sidebar toggles now persist through the internal API.
+- Tags page now shows DB/API status.
+- Module audit route now reports v187 and includes Collections/Tags as connected.
+
+Test after deploy:
+1. Open /collections.
+2. Confirm DB/API status appears.
+3. Create a collection and select the product/category you created earlier.
+4. Refresh /collections and confirm it remains.
+5. Open /api/internal/catalog/collections and confirm the collection exists with metadataJson.productIds/categoryIds.
+6. Open /tags.
+7. Create a tag with friendly URL, published/sidebar values.
+8. Refresh /tags and confirm it remains.
+9. Toggle published/sidebar and refresh again.
+10. Open /api/internal/catalog/tags and confirm the tag exists with metadataJson.
+11. Open /api/internal/platform/module-audit and confirm build v187.
+
+Rollback:
+- Revert to v186 ZIP if collections/tags UI has issues.
+- Products/categories/materials/finishes/option sets are not intentionally changed in this build.

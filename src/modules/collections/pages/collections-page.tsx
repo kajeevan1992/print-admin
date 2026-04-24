@@ -23,6 +23,7 @@ export function CollectionsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Collection | null>(null);
   const [form, setForm] = useState<CollectionFormValues>(emptyForm);
+  const [status, setStatus] = useState('Connecting collections to internal API...');
 
   const load = async () => {
     const [collectionsResponse, productsResponse, categoriesResponse] = await Promise.all([
@@ -30,9 +31,20 @@ export function CollectionsPage() {
       productsService.listProducts({ perPage: 200 }),
       categoriesService.listCategories()
     ]);
-    setItems(collectionsResponse.data.items);
+    const liveProducts = productsResponse.data.items.map((product) => ({ id: product.id, name: product.name, thumbnail: product.thumbnail, productNumbers: product.productNumbers }));
+    const liveCategories = categoriesResponse.data.items.map((category) => ({ id: category.id, name: category.name, thumbnail: category.thumbnail }));
+    setItems(collectionsResponse.data.items.map((item) => ({
+      ...item,
+      products: liveProducts.filter((product) => item.productIds.includes(product.id)),
+      categories: liveCategories.filter((category) => item.categoryIds.includes(category.id))
+    })));
     setProducts(productsResponse.data.items);
     setCategories(categoriesResponse.data.items);
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('print-admin.live-products-cache', JSON.stringify(liveProducts));
+      window.sessionStorage.setItem('print-admin.live-categories-cache', JSON.stringify(liveCategories));
+    }
+    setStatus(collectionsResponse.data.items.length ? 'Connected to internal API. Collections loaded from tenant database.' : 'Connected to internal API. No collections have been created yet.');
   };
 
   useEffect(() => {
@@ -40,7 +52,7 @@ export function CollectionsPage() {
   }, [search]);
 
   const productChoices = useMemo(
-    () => products.map((product) => ({ id: product.id, label: `${product.name} · ${product.productNumbers.itemNumber || 'No item number'}` })),
+    () => products.map((product) => ({ id: product.id, label: `${product.name} · ${product.productNumbers?.itemNumber || 'No item number'}` })),
     [products]
   );
   const categoryChoices = useMemo(() => categories.map((category) => ({ id: category.id, label: category.name })), [categories]);
@@ -61,8 +73,11 @@ export function CollectionsPage() {
     <div>
       <PageHeader title="Collections" subtitle="Curate groups of products and categories into storefront collections." actions={<PrimaryButton onClick={startCreate}>+ Add Collection</PrimaryButton>} />
 
-      <div className="mb-4 flex gap-2">
-        <Input placeholder="Search collections..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="mb-4 space-y-3">
+        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">DB/API status: {status}</div>
+        <div className="flex gap-2">
+          <Input placeholder="Search collections..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -75,7 +90,7 @@ export function CollectionsPage() {
               </div>
               <div className="flex gap-2">
                 <Button onClick={() => startEdit(item)}>View / Edit</Button>
-                <Button className="text-red-300" onClick={() => collectionsService.deleteCollection(item.id).then(load)}>Delete</Button>
+                <Button className="text-red-300" onClick={() => collectionsService.deleteCollection(item.id).then(() => { setStatus('Collection deleted from internal API.'); return load(); })}>Delete</Button>
               </div>
             </div>
 
@@ -162,8 +177,13 @@ export function CollectionsPage() {
             <Button onClick={() => setOpen(false)}>Cancel</Button>
             <PrimaryButton onClick={async () => {
               if (!form.title.trim()) return;
-              if (editing) await collectionsService.updateCollection(editing.id, form);
-              else await collectionsService.createCollection(form);
+              if (editing) {
+                await collectionsService.updateCollection(editing.id, form);
+                setStatus('Collection saved to internal API.');
+              } else {
+                await collectionsService.createCollection(form);
+                setStatus('Collection created in internal API.');
+              }
               setOpen(false);
               await load();
             }}>{editing ? 'Save Changes' : 'Create Collection'}</PrimaryButton>

@@ -1,0 +1,29 @@
+v194 - Owner controls DB/API connection
+
+Scope:
+- Connect existing Owner API Keys service to internal config API.
+- Connect existing Owner Feature Flags service to internal config API.
+- Keep existing pages, layout, buttons, and flows unchanged.
+- Keep browser localStorage as fallback only if internal API fails.
+- Update module audit route to report v194 owner-control status.
+
+Changed files:
+- src/services/internal-config-records.service.ts
+- src/services/owner-api-keys.service.ts
+- src/services/owner-feature-flags.service.ts
+- app/api/internal/platform/module-audit/route.ts
+- BUILD_NOTES_V194.txt
+
+Test after deploy:
+1. Open /owner-api-keys.
+2. Create or edit a key, refresh the page, confirm it persists.
+3. Open /api/internal/config/owner-api-keys/items and confirm the record is present.
+4. Open /owner-feature-flags.
+5. Create, edit, pause/enable a flag, refresh the page, confirm it persists.
+6. Open /api/internal/config/owner-feature-flags/items and confirm the record is present.
+7. Open /api/internal/platform/module-audit and confirm build is v194.
+
+Notes:
+- This does not recreate Owner API Keys or Owner Feature Flags.
+- This only wires the existing UI to internal API/database persistence.
+- No public API, pricing, orders, artwork workflow, storefront, or redesign changes in this build.

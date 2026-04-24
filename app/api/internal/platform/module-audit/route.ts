@@ -82,6 +82,20 @@ const modules = [
 - Generic admin configuration workspaces rules now sync to internal API. Full planner board remains pending.`,
   },
   {
+    module: 'Owner API Keys',
+    status: 'connected-v194',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: ['/api/internal/config/owner-api-keys', '/api/internal/config/owner-api-keys/items'],
+    notes: 'Existing Owner API Keys UI now lists, saves, deletes, and resets through the internal config API with browser fallback only on API failure.',
+  },
+  {
+    module: 'Owner Feature Flags',
+    status: 'connected-v194',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: ['/api/internal/config/owner-feature-flags', '/api/internal/config/owner-feature-flags/items'],
+    notes: 'Existing Owner Feature Flags UI now persists rollout controls through the internal config API with browser fallback only on API failure.',
+  },
+  {
     module: 'Orders',
     status: 'pending',
     storage: 'mixed/demo',
@@ -94,7 +108,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v190',
+    build: 'v194',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

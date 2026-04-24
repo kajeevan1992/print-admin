@@ -1,0 +1,7 @@
+# v195 Owner platform records DB/API sync
+
+Added shared owner records DB-backed service helper and wired Owner Domains, Webhooks, Environments, Maintenance Windows, and SSO Config to `/api/internal/config/:key/items` with browser fallback.
+
+Test pages: `/owner-domains`, `/owner-webhooks`, `/owner-environments`, `/owner-maintenance-windows`, `/owner-sso-config`.
+
+No pricing, orders, storefront, sidebar, or redesign changes.

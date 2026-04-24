@@ -1,0 +1,38 @@
+# v196 — operations and vendor records DB/API wiring
+
+Scope kept narrow and safe.
+
+Changed files:
+- src/services/operations.service.ts
+- src/services/vendor-ops.service.ts
+- BUILD_NOTES_V196.txt
+
+What changed:
+- Quotes now read/write through /api/internal/config/admin_quotes_store.
+- Customers now read/write through /api/internal/config/admin_customers_store.
+- Production jobs now read/write through /api/internal/config/admin_production_store.
+- Artwork proofing records now read/write through /api/internal/config/admin_artwork_proofs_store.
+- General settings now read/write through /api/internal/config/admin_general_settings_store.
+- Vendors now read/write through /api/internal/config/admin_vendor_records_store.
+- Local browser storage remains as fallback only if internal DB/API fails.
+- Removed the old /api/proxy/admin-artwork read attempt from operations service.
+
+Test pages:
+- /customers
+- /quotes
+- /production
+- /production-board
+- /artwork-proofing
+- /settings
+- /vendors
+
+Test routes:
+- GET /api/internal/config/admin_customers_store
+- GET /api/internal/config/admin_quotes_store
+- GET /api/internal/config/admin_vendor_records_store
+
+Notes:
+- No pricing engine work.
+- No orders workflow work.
+- No storefront redesign.
+- No sidebar/nav changes.

@@ -1,5 +1,4 @@
 import { tenantControlSeed, type TenantControlRecord } from '@/data/tenant-control';
-{ label: 'Database Manager', href: '/database-manager' },
 
 const KEY = 'print-admin.tenant-control.records';
 

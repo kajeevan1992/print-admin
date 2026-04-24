@@ -1,4 +1,4 @@
-import { testTenantDatabaseConnection, type PostgresConnectionInput } from './tenant-db-manager';
+import { initialiseTenantDatabase, testTenantDatabaseConnection, type PostgresConnectionInput } from './tenant-db-manager';
 
 export type TenantDatabaseSetupResult = {
   ok: boolean;
@@ -20,22 +20,27 @@ export async function runTenantDatabaseSetup(input: PostgresConnectionInput): Pr
     };
   }
 
-  // Foundation hook. Future pass will run schema migrations here.
-  steps.push({
-    name: 'migration-runner',
-    ok: true,
-    message: 'Migration runner hook ready. Tenant schema creation will be enabled in the next database hardening pass.',
-  });
+  try {
+    const schema = await initialiseTenantDatabase(input);
+    steps.push({ name: 'tenant-schema', ok: schema.ok, message: schema.message });
+  } catch (error) {
+    steps.push({
+      name: 'tenant-schema',
+      ok: false,
+      message: error instanceof Error ? error.message : 'Tenant schema creation failed.',
+    });
+    return { ok: false, message: 'Database setup stopped because schema creation failed.', steps };
+  }
 
   steps.push({
-    name: 'seed-baseline',
+    name: 'baseline-ready',
     ok: true,
-    message: 'Baseline seed hook ready. Default catalog/order/theme seed will be enabled in the next database hardening pass.',
+    message: 'Schema is ready for real catalog CRUD reads/writes through unified core.',
   });
 
   return {
     ok: true,
-    message: 'Tenant database setup checks completed.',
+    message: 'Tenant database setup completed.',
     steps,
   };
 }

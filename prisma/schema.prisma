@@ -294,3 +294,18 @@ model TenantDatabaseConnection {
   @@index([siteId])
   @@index([status])
 }
+
+model CoreCatalogRecord {
+  id           String   @id @default(cuid())
+  tenantId     String
+  resource     String
+  slug         String
+  name         String
+  description  String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([tenantId, resource, slug])
+  @@index([tenantId, resource])
+}

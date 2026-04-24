@@ -1,19 +1,25 @@
-import { NextResponse } from 'next/server';
-import { listInternalCatalog } from '@/core/catalog/internal-catalog.service';
+import { handleCatalogDelete, handleCatalogGet, handleCatalogWrite } from '@/core/catalog/internal-catalog-http';
 
 export const dynamic = 'force-dynamic';
 
+const resource = 'finishes' as const;
+
 export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const search = url.searchParams.get('search') || undefined;
-  const page = Number(url.searchParams.get('page') || 1);
-  const limit = Number(url.searchParams.get('limit') || 50);
+  return handleCatalogGet(request, resource);
+}
 
-  const data = await listInternalCatalog({ tenantId: 'platform-demo' }, 'finishes', { search, page, limit });
+export async function POST(request: Request) {
+  return handleCatalogWrite(request, resource);
+}
 
-  return NextResponse.json({
-    ok: true,
-    source: 'internal-core',
-    data,
-  });
+export async function PUT(request: Request) {
+  return handleCatalogWrite(request, resource);
+}
+
+export async function PATCH(request: Request) {
+  return handleCatalogWrite(request, resource);
+}
+
+export async function DELETE(request: Request) {
+  return handleCatalogDelete(request, resource);
 }

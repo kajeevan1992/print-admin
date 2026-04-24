@@ -55,6 +55,7 @@ export function ProductsListPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [total, setTotal] = useState(0);
 
   const [params, setParams] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc' });
@@ -115,15 +116,32 @@ export function ProductsListPage() {
       }
       if (action === 'delete') {
         const product = products.find((item) => item.id === id);
-        if (!window.confirm(`Delete product ${product?.name || id}?`)) return;
-        await productsService.deleteProduct(id);
-        setNotice(`Deleted product ${product?.name || id}.`);
+        if (product) setPendingDeleteProduct(product);
+        return;
       }
       if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
       if (action === 'preview') window.open(products.find((item) => item.id === id)?.previewUrl || `/products/${id}`, '_blank', 'noopener,noreferrer');
       await loadProducts(params);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Product action failed');
+    }
+  };
+
+
+  const confirmDeleteProduct = async () => {
+    if (!pendingDeleteProduct) return;
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await productsService.deleteProduct(pendingDeleteProduct.id);
+      setNotice(`Deleted product ${pendingDeleteProduct.name}.`);
+      setPendingDeleteProduct(null);
+      await loadProducts(params);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete product');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -194,6 +212,22 @@ export function ProductsListPage() {
           </div>
         ) : null}
       </BaseModal>
+
+      <BaseModal open={Boolean(pendingDeleteProduct)} onClose={() => setPendingDeleteProduct(null)} title="Delete Product">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+            <p className="font-semibold">Delete {pendingDeleteProduct?.name}?</p>
+            <p className="mt-2 text-red-100/80">This removes the product from the tenant catalog database. This action cannot be undone from the dashboard.</p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setPendingDeleteProduct(null)} disabled={saving}>Cancel</Button>
+            <Button className="border-red-500/40 text-red-200 hover:bg-red-500/10" onClick={confirmDeleteProduct} disabled={saving}>
+              {saving ? 'Deleting...' : 'Delete Product'}
+            </Button>
+          </div>
+        </div>
+      </BaseModal>
+
     </div>
   );
 }

@@ -58,6 +58,7 @@ export async function ensureTenantSchema(input: PostgresConnectionInput) {
           "subtitle" text,
           "productType" text NOT NULL DEFAULT 'STANDARD',
           "isActive" boolean NOT NULL DEFAULT true,
+          "isGlobal" boolean NOT NULL DEFAULT false,
           "priceFromMinor" integer,
           "currency" text NOT NULL DEFAULT 'GBP',
           "createdAt" timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -66,6 +67,7 @@ export async function ensureTenantSchema(input: PostgresConnectionInput) {
           CONSTRAINT "Product_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE CASCADE
         );
       `);
+      await client.query('ALTER TABLE "Product" ADD COLUMN IF NOT EXISTS "isGlobal" boolean NOT NULL DEFAULT false');
       await client.query('CREATE UNIQUE INDEX IF NOT EXISTS "Product_tenantId_slug_key" ON "Product"("tenantId", "slug")');
       await client.query('CREATE INDEX IF NOT EXISTS "Product_tenantId_categoryId_idx" ON "Product"("tenantId", "categoryId")');
       await client.query(`

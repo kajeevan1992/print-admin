@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { deleteInternalCatalogRecord, listInternalCatalog, writeInternalCatalogRecord } from './internal-catalog.service';
+import { deleteInternalCatalogRecord, getInternalCatalogRecord, listInternalCatalog, writeInternalCatalogRecord } from './internal-catalog.service';
 import type { CatalogResource } from './catalog-store';
 import { tenantContextFromRequest } from '../tenant/context';
 
@@ -42,6 +42,7 @@ function toWriteInput(body: Body) {
     metadataJson,
     categoryId: Object.prototype.hasOwnProperty.call(body, 'categoryId') ? getString(body, 'categoryId') || null : undefined,
     isActive: typeof body.isActive === 'boolean' ? body.isActive : undefined,
+    isGlobal: typeof body.isGlobal === 'boolean' ? body.isGlobal : undefined,
     priceFromMinor: Object.prototype.hasOwnProperty.call(body, 'priceFromMinor')
       ? typeof body.priceFromMinor === 'number' ? body.priceFromMinor : null
       : undefined,
@@ -97,6 +98,16 @@ export async function handleCatalogDelete(request: Request, resource: CatalogRes
     const id = url.searchParams.get('id') || getString(body, 'id');
     if (!id) return errorResponse(new Error('Catalog deletes require an id.'), 400);
     const data = await deleteInternalCatalogRecord(tenantContextFromRequest(request), resource, id);
+    return NextResponse.json({ ok: true, source: 'internal-core-db', data });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+
+export async function handleCatalogItemGet(request: Request, resource: CatalogResource, id: string) {
+  try {
+    const data = await getInternalCatalogRecord(tenantContextFromRequest(request), resource, id);
     return NextResponse.json({ ok: true, source: 'internal-core-db', data });
   } catch (error) {
     return errorResponse(error);

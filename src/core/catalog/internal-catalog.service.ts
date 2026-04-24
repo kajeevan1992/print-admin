@@ -21,6 +21,7 @@ export type InternalCatalogWriteInput = {
   metadataJson?: Record<string, unknown>;
   categoryId?: string | null;
   isActive?: boolean;
+  isGlobal?: boolean;
   priceFromMinor?: number | null;
   currency?: string;
   productType?: string;
@@ -130,7 +131,7 @@ async function maybeResolveCategoryId(client: Client, tenantId: string, category
 }
 
 function productSelectSql() {
-  return `SELECT p."id", p."slug", p."title", p."title" as "name", p."subtitle", p."subtitle" as "description", p."productType", p."isActive",
+  return `SELECT p."id", p."slug", p."title", p."title" as "name", p."subtitle", p."subtitle" as "description", p."productType", p."isActive", p."isGlobal",
                  CASE WHEN p."isActive" THEN 'published' ELSE 'draft' END as "status",
                  p."priceFromMinor", p."currency", p."categoryId", p."createdAt", p."updatedAt",
                  c."name" as "categoryName", c."slug" as "categorySlug"
@@ -188,7 +189,7 @@ async function readFromTenantDb(ctx: TenantContext, resource: CatalogResource, o
     if (resource === 'products') {
       const result = await client.query(
         `${productSelectSql()}
-         WHERE p."tenantId" = $1 AND ($2 = '' OR lower(concat_ws(' ', p."title", p."slug", p."subtitle", c."name")) LIKE $3)
+         WHERE p."tenantId" = $1 AND ($2 = '' OR p."id" = $2 OR p."slug" = $2 OR lower(concat_ws(' ', p."title", p."slug", p."subtitle", c."name")) LIKE $3)
          ORDER BY p."updatedAt" DESC, p."createdAt" DESC`,
         [ctx.tenantId, search, like]
       );
@@ -247,10 +248,10 @@ async function createProduct(client: Client, ctx: TenantContext, input: Internal
   await assertUniqueProductSlug(client, ctx.tenantId, slug);
   const categoryId = await maybeResolveCategoryId(client, ctx.tenantId, input.categoryId);
   const result = await client.query(
-    `INSERT INTO "Product" ("id", "tenantId", "slug", "title", "subtitle", "categoryId", "isActive", "priceFromMinor", "currency", "productType", "updatedAt")
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP)
+    `INSERT INTO "Product" ("id", "tenantId", "slug", "title", "subtitle", "categoryId", "isActive", "isGlobal", "priceFromMinor", "currency", "productType", "updatedAt")
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CURRENT_TIMESTAMP)
      RETURNING "id"`,
-    [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.priceFromMinor ?? null, input.currency || 'GBP', input.productType || 'online']
+    [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.isGlobal ?? false, input.priceFromMinor ?? null, input.currency || 'GBP', input.productType || 'online']
   );
   return readProductByIdOrSlug(client, ctx.tenantId, result.rows[0].id);
 }
@@ -270,9 +271,10 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
          "subtitle" = $5,
          "categoryId" = CASE WHEN $6::boolean THEN $7 ELSE "categoryId" END,
          "isActive" = COALESCE($8, "isActive"),
-         "priceFromMinor" = CASE WHEN $9::boolean THEN $10 ELSE "priceFromMinor" END,
-         "currency" = COALESCE($11, "currency"),
-         "productType" = COALESCE($12, "productType"),
+         "isGlobal" = COALESCE($9, "isGlobal"),
+         "priceFromMinor" = CASE WHEN $10::boolean THEN $11 ELSE "priceFromMinor" END,
+         "currency" = COALESCE($12, "currency"),
+         "productType" = COALESCE($13, "productType"),
          "updatedAt" = CURRENT_TIMESTAMP
      WHERE "tenantId" = $1 AND "id" = $2`,
     [
@@ -284,6 +286,7 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
       input.categoryId !== undefined,
       categoryId ?? null,
       input.isActive ?? null,
+      input.isGlobal ?? null,
       input.priceFromMinor !== undefined,
       input.priceFromMinor ?? null,
       input.currency || null,
@@ -360,6 +363,37 @@ async function writeGenericRecord(client: Client, ctx: TenantContext, resource: 
     return created.rows[0];
   }
   throw new Error(`${resource} record ${input.id || slug} was not found in tenant database.`);
+}
+
+
+export async function getInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, id: string) {
+  const connectionInput = await requireCatalogConnection(ctx);
+
+  return withPgClient(connectionInput, async (client) => {
+    await ensureTenantRow(client, ctx.tenantId);
+
+    if (resource === 'products') {
+      const product = await readProductByIdOrSlug(client, ctx.tenantId, id);
+      if (!product) throw new Error('Product ' + id + ' was not found in tenant database.');
+      return product;
+    }
+
+    if (resource === 'categories') {
+      const category = await readCategoryByIdOrSlug(client, ctx.tenantId, id);
+      if (!category) throw new Error('Category ' + id + ' was not found in tenant database.');
+      return category;
+    }
+
+    const result = await client.query(
+      `SELECT "id", "slug", "name", "description", "metadataJson", "createdAt", "updatedAt"
+       FROM "CoreCatalogRecord"
+       WHERE "tenantId" = $1 AND "resource" = $2 AND ("id" = $3 OR "slug" = $3)
+       LIMIT 1`,
+      [ctx.tenantId, resource, id]
+    );
+    if (!result.rows[0]) throw new Error(resource + ' record ' + id + ' was not found in tenant database.');
+    return result.rows[0];
+  });
 }
 
 export async function writeInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, input: InternalCatalogWriteInput, mode: InternalCatalogWriteMode = 'upsert') {

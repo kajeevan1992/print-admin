@@ -29,6 +29,7 @@ type InternalCatalogProduct = {
   productType?: ProductType;
   status?: ProductStatus | string;
   isActive?: boolean;
+  isGlobal?: boolean;
   categoryId?: string | null;
   priceFromMinor?: number | null;
   currency?: string;
@@ -111,7 +112,7 @@ function mapInternalProduct(item: InternalCatalogProduct, index = 0): Product {
     previewUrl: `/products/${item.id}`,
     status: published ? 'published' : 'draft',
     published,
-    isGlobal: false,
+    isGlobal: typeof item.isGlobal === 'boolean' ? item.isGlobal : false,
     storefrontIds: [],
     channelIds: [],
     thumbnail: `https://placehold.co/96x96/111827/ffffff?text=${encodeURIComponent(name.slice(0, 2).toUpperCase() || 'PR')}`,
@@ -157,6 +158,7 @@ function productToCatalogPayload(product: Partial<Product>) {
     title: product.name,
     description: product.description,
     isActive: typeof product.published === 'boolean' ? product.published : undefined,
+    isGlobal: typeof product.isGlobal === 'boolean' ? product.isGlobal : undefined,
     priceFromMinor: product.priceMapping?.basePrice !== undefined ? Math.round(product.priceMapping.basePrice * 100) : undefined,
     currency: 'GBP',
     productType: product.productType,
@@ -199,8 +201,7 @@ export const productsService = {
 
   getProduct: async (id: string): Promise<ApiResponse<Product>> => {
     if (isBrowserRuntime()) {
-      const list = await readInternalCatalog<InternalCatalogList<InternalCatalogProduct>>('products', { search: id, page: 1, limit: 50 });
-      const found = (list.items || []).find((item) => item.id === id || item.slug === id);
+      const found = await readInternalCatalog<InternalCatalogProduct>('products/' + encodeURIComponent(id));
       if (!found) throw new Error('Product not found');
       return ok(mapInternalProduct(found));
     }

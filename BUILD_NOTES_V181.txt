@@ -1,0 +1,30 @@
+v181 product actions repair
+
+Scope:
+- Fix product View/Edit, New Window, Clone, and Preview using direct internal item GET route.
+- Fix Global toggle by persisting isGlobal in tenant Product table.
+- Replace browser confirm() delete warning with in-app delete confirmation modal.
+- Preserve existing product creation flow and UI styling.
+- No orders, artwork, pricing, storefront, sidebar, theme color, or public API changes.
+
+Changed files:
+- app/api/internal/catalog/products/[id]/route.ts
+- app/api/internal/catalog/categories/[id]/route.ts
+- src/core/catalog/internal-catalog-http.ts
+- src/core/catalog/internal-catalog.service.ts
+- src/core/db/tenant-schema.ts
+- src/services/products.service.ts
+- src/modules/products/pages/products-list-page.tsx
+
+Test after deploy:
+1. Products page: View/Edit should open the product detail instead of Product not found.
+2. Products page: New Window should open the same product detail in a new tab.
+3. Products page: Preview should no longer show Product not found.
+4. Products page: Clone should create a copy and refresh the list.
+5. Products page: Global toggle should persist after refresh.
+6. Products page: Delete should show the in-app Delete Product modal, not a browser popup.
+7. Internal API: GET /api/internal/catalog/products/{id} should return the product.
+
+Notes:
+- The tenant schema now auto-adds Product.isGlobal if missing.
+- I could not run a full local build in this environment because pnpm/corepack could not download packages, but this patch is limited to the broken product action paths reported from the deployed v180 test.

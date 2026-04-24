@@ -40,7 +40,7 @@ export function AdminOrderControlSummary() {
     let active = true;
     async function loadSummary() {
       try {
-        const res = await fetch('/api/proxy/admin-orders', { cache: 'no-store' });
+        const res = await fetch('/api/admin/orders?tenantId=platform-demo', { cache: 'no-store' });
         const payload = await res.json().catch(() => null);
 
         if (!res.ok || !payload?.ok) {

@@ -31,7 +31,7 @@ function sortByUpdated(items: Order[]) {
 async function tryLiveOrders(params?: { search?: string; status?: OrderStatus | 'all' }): Promise<Order[] | null> {
   if (typeof window === 'undefined') return null;
   try {
-    const res = await fetch('/api/proxy/admin-orders', { cache: 'no-store' });
+    const res = await fetch('/api/admin/orders?tenantId=platform-demo', { cache: 'no-store' });
     const payload = await res.json().catch(() => null);
     if (!res.ok || !payload?.ok) return null;
     const raw = payload?.data?.items || payload?.data || payload?.payload?.data || payload?.payload || [];

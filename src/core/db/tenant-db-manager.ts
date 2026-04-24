@@ -1,4 +1,5 @@
-import { buildPostgresConnectionString, type PostgresConnectionInput } from './connection-string';
+import { buildPostgresConnectionString, maskConnectionString, type PostgresConnectionInput } from './connection-string';
+import { ensureTenantSchema } from './tenant-schema';
 
 export type DatabaseTestResult = {
   ok: boolean;
@@ -14,9 +15,9 @@ export async function testTenantDatabaseConnection(input: PostgresConnectionInpu
 
     if (!pg?.Client) {
       return {
-        ok: true,
-        message: 'Connection string is valid. Install pg to enable live database ping.',
-        connectionStringMasked: connectionString.replace(/:(.*?)@/, ':********@'),
+        ok: false,
+        message: 'pg is required for live tenant database checks.',
+        connectionStringMasked: maskConnectionString(connectionString),
       };
     }
 
@@ -28,20 +29,17 @@ export async function testTenantDatabaseConnection(input: PostgresConnectionInpu
     return {
       ok: true,
       message: 'Database connection successful.',
-      connectionStringMasked: connectionString.replace(/:(.*?)@/, ':********@'),
+      connectionStringMasked: maskConnectionString(connectionString),
     };
   } catch (error) {
     return {
       ok: false,
       message: error instanceof Error ? error.message : 'Database connection failed.',
-      connectionStringMasked: connectionString.replace(/:(.*?)@/, ':********@'),
+      connectionStringMasked: maskConnectionString(connectionString),
     };
   }
 }
 
-export async function initialiseTenantDatabase(_input: PostgresConnectionInput) {
-  return {
-    ok: true,
-    message: 'Tenant database initialisation hook is ready. Migration runner will be added next.',
-  };
+export async function initialiseTenantDatabase(input: PostgresConnectionInput) {
+  return ensureTenantSchema(input);
 }

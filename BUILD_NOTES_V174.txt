@@ -1,0 +1,9 @@
+v174 database manager nav fix
+
+- Focused build on side navigation only.
+- Added/attempted Database Manager nav item pointing to /database-manager.
+- Patched files:
+- app/tenant-control/page.tsx
+- Added /platform-databases redirect alias to /database-manager.
+
+No core/security/API behavior changed.

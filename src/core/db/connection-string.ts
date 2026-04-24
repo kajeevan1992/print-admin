@@ -20,3 +20,25 @@ export function buildPostgresConnectionString(input: PostgresConnectionInput) {
 export function maskConnectionString(value: string) {
   return value.replace(/:(.*?)@/, ':********@');
 }
+
+export function normalizePrismaPostgresUrl(value?: string | null) {
+  if (!value) return value || '';
+
+  try {
+    const url = new URL(value);
+    if (!['postgres:', 'postgresql:'].includes(url.protocol)) return value;
+
+    const sslMode = url.searchParams.get('sslmode');
+    const wantsSsl = sslMode === 'require' || sslMode === 'prefer';
+    const rejectSetting = String(process.env.PGSSL_REJECT_UNAUTHORIZED || '').trim().toLowerCase();
+    const shouldAcceptInvalidCerts = rejectSetting !== 'true' && rejectSetting !== '1' && rejectSetting !== 'yes';
+
+    if (wantsSsl && shouldAcceptInvalidCerts && !url.searchParams.has('sslaccept')) {
+      url.searchParams.set('sslaccept', 'accept_invalid_certs');
+    }
+
+    return url.toString();
+  } catch {
+    return value;
+  }
+}

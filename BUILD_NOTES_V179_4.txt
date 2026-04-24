@@ -1,0 +1,12 @@
+v179.4 Coolify DB SSL certificate fix
+
+Fixes runtime error: unable to verify the first certificate.
+
+Changed files:
+- src/core/db/connection-string.ts
+- src/lib/prisma.ts
+- src/core/db/platform-prisma.ts
+- src/core/db/tenant-prisma.ts
+
+Keep Coolify DATABASE_URL with sslmode=require.
+Optional trusted-cert override later: PGSSL_REJECT_UNAUTHORIZED=true

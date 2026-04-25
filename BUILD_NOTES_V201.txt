@@ -1,0 +1,36 @@
+v201 — super-admin access records DB/API
+
+Scope:
+- Continue controlled DB/API wiring from v200.
+- No pricing engine, orders workflow, storefront redesign, or broad refactor.
+
+Changed files:
+- src/services/admin-users.service.ts
+- src/services/licensing-center.service.ts
+- src/services/tenant-control.service.ts
+- BUILD_NOTES_V201.txt
+
+What changed:
+- Admin Users now syncs through the internal config item API.
+- Licensing Center now syncs through the internal config item API.
+- Tenant Control now syncs through the internal config item API.
+- Browser localStorage remains fallback only if DB/API is unavailable.
+
+Internal API keys used:
+- /api/internal/config/super-admin-users/items
+- /api/internal/config/owner-licensing-center/items
+- /api/internal/config/owner-tenant-control/items
+
+Test pages:
+- /admin-users
+- /licensing-center
+- /tenant-control
+
+Test steps:
+1. Open /admin-users, edit or invite an admin user, refresh, confirm it persists.
+2. Open /licensing-center, toggle API or add seats, refresh, confirm it persists.
+3. Open /tenant-control, update launch/readiness status, refresh, confirm it persists.
+4. Check one internal API directly, e.g. /api/internal/config/super-admin-users/items.
+
+Rollback:
+- Revert the three service files to localStorage-only services from v200.

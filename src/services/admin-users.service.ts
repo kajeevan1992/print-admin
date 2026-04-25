@@ -1,34 +1,15 @@
 import { adminUsersSeed, type AdminUserRecord } from '@/data/admin-users';
+import { createInternalConfigRecordsService } from '@/services/internal-config-records.service';
 
-const KEY = 'print-admin.admin-users.records';
-
-function read(): AdminUserRecord[] {
-  if (typeof window === 'undefined') return adminUsersSeed;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return adminUsersSeed;
-    const parsed = JSON.parse(raw) as AdminUserRecord[];
-    return Array.isArray(parsed) ? parsed : adminUsersSeed;
-  } catch {
-    return adminUsersSeed;
-  }
-}
-
-function write(records: AdminUserRecord[]) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(KEY, JSON.stringify(records));
-}
+const adminUsersRecords = createInternalConfigRecordsService<AdminUserRecord>({
+  configKey: 'super-admin-users',
+  storageKey: 'print-admin.admin-users.records',
+  seed: adminUsersSeed,
+});
 
 export const adminUsersService = {
-  async list() { return read(); },
-  async save(record: AdminUserRecord) {
-    const rows = read();
-    const next = rows.some((item) => item.id === record.id)
-      ? rows.map((item) => (item.id === record.id ? record : item))
-      : [record, ...rows];
-    write(next);
-    return record;
-  },
-  async remove(id: string) { write(read().filter((item) => item.id !== id)); },
-  async reset() { write(adminUsersSeed); }
+  async list() { return adminUsersRecords.list(); },
+  async save(record: AdminUserRecord) { return adminUsersRecords.save(record); },
+  async remove(id: string) { return adminUsersRecords.delete(id); },
+  async reset() { return adminUsersRecords.reset(); }
 };

@@ -73,6 +73,11 @@ export type ProductOptionValue = {
   isHidden?: boolean;
   sortOrder?: number;
   productionCode?: string;
+  compatibleMaterialIds?: Id[];
+  incompatibleMaterialIds?: Id[];
+  compatibleFinishIds?: Id[];
+  incompatibleFinishIds?: Id[];
+  compatiblePrinterIds?: Id[];
   isCustomSizeTrigger?: boolean;
 };
 
@@ -96,6 +101,8 @@ export type ProductOptionGroup = {
   maxHeight?: number;
   increment?: number;
   sourceLimitMode?: 'manual' | 'material-printer';
+  compatibilityMode?: 'none' | 'material-to-finish' | 'material-to-printer' | 'finish-to-material' | 'size-to-printer';
+  requiredCompatibleGroupKey?: string;
   sheetFitMode?: ProductSheetFitMode;
   sourceSheetWidth?: number;
   sourceSheetHeight?: number;
@@ -112,6 +119,7 @@ export type ProductOptionGroup = {
   hideDescriptions?: boolean;
   dependencyRules?: Array<{ id: Id; whenGroupKey: string; whenValueId: string; action: 'show' | 'hide' | 'require'; targetGroupKey?: string }>;
   helpText?: string;
+  compatibilityNotes?: string;
 };
 
 export type ProductTemplateMergeMode = 'template-only' | 'merge-overrides' | 'product-only';

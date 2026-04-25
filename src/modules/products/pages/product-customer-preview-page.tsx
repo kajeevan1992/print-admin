@@ -98,7 +98,14 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
                 const showRules = rules.filter((rule) => (rule.targetGroupKey || '') === group.key && rule.action === 'show');
                 return !hideRule && (showRules.length === 0 || showRules.some((rule) => selectedOptions[rule.whenGroupKey] === rule.whenValueId));
               }).map((group) => {
-                const values = [...group.values].filter((value) => !value.isHidden).sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+                const baseValues = [...group.values].filter((value) => !value.isHidden).sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+                const selectedMaterialId = selectedOptions.material;
+                const selectedFinishId = selectedOptions.finish;
+                const values = baseValues.filter((value) => {
+                  if (group.source === 'finish' && value.compatibleMaterialIds?.length && selectedMaterialId) return value.compatibleMaterialIds.includes(selectedMaterialId);
+                  if (group.source === 'material' && value.compatibleFinishIds?.length && selectedFinishId) return value.compatibleFinishIds.includes(selectedFinishId);
+                  return true;
+                });
                 const requiredByRule = (product.optionGroups?.flatMap((item) => item.dependencyRules || []) || []).some((rule) => (rule.targetGroupKey || '') === group.key && rule.action === 'require' && selectedOptions[rule.whenGroupKey] === rule.whenValueId);
                 const selected = selectedOptions[group.key] || group.defaultValueId || values.find((value) => value.isDefault)?.id || values[0]?.id;
                 const gridCols = group.displayColumns === 1 ? 'sm:grid-cols-1' : group.displayColumns === 3 ? 'sm:grid-cols-3' : group.displayColumns === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-2';
@@ -109,6 +116,8 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
                     <span className="rounded-full border border-border px-2 py-1 text-[11px] text-textMuted">{group.displayType}</span>
                   </div>
                   {group.helpText && <p className="mb-2 text-xs text-textMuted">{group.helpText}</p>}
+                  {group.compatibilityNotes && <p className="mb-2 rounded-xl border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-xs text-sky-100">Compatibility: {group.compatibilityNotes}</p>}
+                  {baseValues.length > values.length && <p className="mb-2 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">Some choices are hidden because they are not compatible with the selected material/finish.</p>}
                   {group.source === 'size' && (group.sheetFitMode || group.dimensionMode || group.sourceSheetWidth || group.maxWidth) && (
                     <div className="mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-textMuted">
                       <span className="text-white">Print rules:</span> {group.dimensionMode || (group.allowCustomSize ? 'preset-and-custom' : 'preset-only')} · {group.sheetFitMode || 'no sheet-fit'} · max {group.maxWidth || previewData.templateRules?.maxPrintableWidth || 'not set'} × {group.maxHeight || previewData.templateRules?.maxPrintableLength || 'not set'} {group.unit || 'mm'}

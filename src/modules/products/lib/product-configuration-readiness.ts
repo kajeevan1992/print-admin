@@ -110,6 +110,23 @@ export function validateProductConfiguration(product: Pick<Product, 'optionGroup
       }
     }
 
+
+    if (group.compatibilityMode && group.compatibilityMode !== 'none') {
+      const valuesWithCompatibility = (group.values || []).filter((value) =>
+        value.compatibleMaterialIds?.length ||
+        value.incompatibleMaterialIds?.length ||
+        value.compatibleFinishIds?.length ||
+        value.incompatibleFinishIds?.length ||
+        value.compatiblePrinterIds?.length
+      );
+      if (!group.compatibilityNotes) {
+        issues.push({ id: `${group.id}-compatibility-notes`, level: 'warning', title: `${valueLabel(group)} compatibility note missing`, message: 'Add a short note explaining why this material/finish/size is limited so future admins understand the setup.' });
+      }
+      if ((group.values || []).length && valuesWithCompatibility.length === 0) {
+        issues.push({ id: `${group.id}-compatibility-values`, level: 'warning', title: `${valueLabel(group)} compatibility not mapped`, message: 'Compatibility mode is enabled, but no option value has linked compatible materials, finishes or printers yet.' });
+      }
+    }
+
     if (group.source === 'quantity') {
       if (group.quantityMode === 'range-with-step') {
         if (!group.minQuantity || !group.maxQuantity || !group.quantityStep) {

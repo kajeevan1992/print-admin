@@ -73,6 +73,10 @@ function valueId(value: any) {
   return cleanText(value?.id || value?.sourceId || value?.catalogId || value?.pricingKey || value?.label || '');
 }
 
+function arrayLength(value: any) {
+  return Array.isArray(value) ? value.filter(Boolean).length : 0;
+}
+
 function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogValidationIssue[]) {
   const groups = optionGroups(input);
   const keys = new Set<string>();
@@ -165,6 +169,29 @@ function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogV
 
     if ((key.includes('material') || key.includes('finish') || group.source === 'material' || group.source === 'finish') && values.some((value: any) => value && typeof value === 'object' && !value.sourceId && !value.catalogId)) {
       issues.push({ field: `${path}.values`, message: `${label || key} has manually typed values. Link values to the material/finish library so pricing can use them later.`, severity: 'warning' });
+    }
+
+    const compatibilityMode = cleanText(group.compatibilityMode || 'none');
+    if (compatibilityMode !== 'none') {
+      if (!cleanText(group.compatibilityNotes)) {
+        issues.push({ field: `${path}.compatibilityNotes`, message: `${label || key} has compatibility rules enabled. Add a short note so admins know why choices are limited.`, severity: 'warning' });
+      }
+      const valuesWithRules = values.filter((value: any) =>
+        arrayLength(value?.compatibleMaterialIds) ||
+        arrayLength(value?.incompatibleMaterialIds) ||
+        arrayLength(value?.compatibleFinishIds) ||
+        arrayLength(value?.incompatibleFinishIds) ||
+        arrayLength(value?.compatiblePrinterIds)
+      );
+      if (values.length > 0 && valuesWithRules.length === 0) {
+        issues.push({ field: `${path}.compatibilityMode`, message: `${label || key} compatibility mode is enabled but no option values have compatibility selections yet.`, severity: 'warning' });
+      }
+      if ((compatibilityMode === 'finish-to-material' || group.source === 'finish') && values.some((value: any) => arrayLength(value?.compatibleFinishIds))) {
+        issues.push({ field: `${path}.values`, message: `${label || key} is a finish group but some values point to compatible finishes. Use compatible materials instead.`, severity: 'warning' });
+      }
+      if ((compatibilityMode === 'material-to-finish' || group.source === 'material') && values.some((value: any) => arrayLength(value?.compatibleMaterialIds))) {
+        issues.push({ field: `${path}.values`, message: `${label || key} is a material group but some values point to compatible materials. Use compatible finishes instead.`, severity: 'warning' });
+      }
     }
   }
 

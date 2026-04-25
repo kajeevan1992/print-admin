@@ -1,0 +1,46 @@
+Build: v209 material/finish compatibility rules
+
+Scope:
+- Continue product configuration safety work after v208.
+- Add compatibility mapping fields for material, finish and size/printer-style constraints.
+- No pricing engine calculation yet.
+- No storefront redesign.
+- No orders/artwork workflow changes.
+
+Changed files:
+- src/modules/products/types.ts
+- src/modules/products/components/product-option-groups-builder.tsx
+- src/modules/products/pages/product-customer-preview-page.tsx
+- src/modules/products/lib/product-configuration-readiness.ts
+- src/core/catalog/catalog-validation.ts
+- BUILD_NOTES_V209.txt
+- PRODUCT_CONFIGURATION_MODEL_V209.md
+
+What changed:
+- Product option values can now store compatibleMaterialIds, compatibleFinishIds and compatiblePrinterIds.
+- Option groups can now store compatibilityMode and compatibilityNotes.
+- Product edit option groups now show compatibility controls for material and finish groups.
+- Customer preview filters incompatible finish/material values when compatible IDs are configured.
+- Validation warns when compatibility mode is enabled but values are not mapped.
+- Validation warns when compatibility notes are missing.
+
+How to test:
+1. Open Products.
+2. Open a product with option groups.
+3. Go to Option Groups.
+4. Add or open Material and Finish groups.
+5. Link material/finish values from the libraries.
+6. Set Compatibility mode and compatibility notes.
+7. For a finish value, tick compatible materials.
+8. Save the product.
+9. Open Preview.
+10. Select different material values and confirm finish values hide/show where compatibility is configured.
+
+Expected result:
+- Existing product CRUD continues working.
+- Material/finish compatibility config persists after refresh.
+- Preview gives a basic customer-facing compatibility simulation.
+- Validation report warns about incomplete compatibility setup.
+
+Rollback:
+- Revert to v208 if any option-group edit page has a regression.

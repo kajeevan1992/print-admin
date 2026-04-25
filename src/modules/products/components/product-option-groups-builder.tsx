@@ -7,7 +7,7 @@ import { ProductSectionCard } from './product-section-card';
 import type { Product, ProductOptionDisplayType, ProductOptionGroup, ProductOptionSource, ProductOptionValue } from '@/modules/products/types';
 import { productConfigurationReadinessLabel, validateProductConfiguration } from '@/modules/products/lib/product-configuration-readiness';
 
-type LibraryItem = { id: string; name?: string; title?: string; slug?: string; description?: string; gsm?: string };
+type LibraryItem = { id: string; name?: string; title?: string; slug?: string; description?: string; gsm?: string; maxWidth?: number; maxPrintableWidth?: number };
 type LibraryState = { materials: LibraryItem[]; finishes: LibraryItem[]; optionSets: LibraryItem[] };
 
 const displayTypes: ProductOptionDisplayType[] = ['dropdown', 'radio', 'image-cards', 'checkboxes', 'swatches', 'quantity-grid', 'custom-size', 'info-cards'];
@@ -105,6 +105,19 @@ function dependencySourceValues(groups: ProductOptionGroup[], groupKey: string) 
   return groups.find((group) => group.key === groupKey || group.pricingKey === groupKey)?.values || [];
 }
 
+function toggleId(list: string[] | undefined, id: string, checked: boolean) {
+  const current = new Set(list || []);
+  if (checked) current.add(id); else current.delete(id);
+  return Array.from(current);
+}
+
+function selectedCompatibilityIds(value: ProductOptionValue, group: ProductOptionGroup) {
+  if (group.source === 'finish') return value.compatibleMaterialIds || [];
+  if (group.source === 'material') return value.compatibleFinishIds || [];
+  if (group.source === 'size') return value.compatiblePrinterIds || [];
+  return value.compatibleMaterialIds || [];
+}
+
 export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Product; onUpdate: (changes: Partial<Product>) => void }) {
   const [library, setLibrary] = useState<LibraryState>({ materials: [], finishes: [], optionSets: [] });
   const [libraryError, setLibraryError] = useState<string | null>(null);
@@ -119,6 +132,12 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
   }, []);
 
   const libraryBySource = useMemo(() => ({ material: library.materials, finish: library.finishes, custom: library.optionSets }), [library]);
+  const compatibilityTargetLibrary = (group: ProductOptionGroup): LibraryItem[] => {
+    if (group.source === 'finish') return library.materials;
+    if (group.source === 'material') return library.finishes;
+    if (group.source === 'size') return library.optionSets;
+    return [];
+  };
 
   const setGroups = (next: ProductOptionGroup[]) => onUpdate({ optionGroups: next });
 
@@ -211,6 +230,11 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
                     <option value="manual">Manual limits for now</option>
                     <option value="material-printer">Material + printer limits later</option>
                   </select></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Compatibility mode</span><select value={group.compatibilityMode || 'none'} onChange={(e) => setGroups(updateGroup(groups, group.id, { compatibilityMode: e.target.value as NonNullable<ProductOptionGroup['compatibilityMode']> }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                    <option value="none">No compatibility rule yet</option>
+                    <option value="size-to-printer">Size must fit selected printer/profile</option>
+                    <option value="material-to-printer">Material must fit printer/material limits</option>
+                  </select></label>
                   <label className="space-y-1 text-sm"><span className="text-textMuted">Min width</span><Input type="number" value={String(group.minWidth || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { minWidth: Number(e.target.value) || undefined }))} /></label>
                   <label className="space-y-1 text-sm"><span className="text-textMuted">Min height/length</span><Input type="number" value={String(group.minHeight || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { minHeight: Number(e.target.value) || undefined }))} /></label>
                   <label className="space-y-1 text-sm"><span className="text-textMuted">Size increment</span><Input type="number" value={String(group.increment || '')} placeholder="1" onChange={(e) => setGroups(updateGroup(groups, group.id, { increment: Number(e.target.value) || undefined }))} /></label>
@@ -234,6 +258,22 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
                   <label className="space-y-1 text-sm"><span className="text-textMuted">Max qty</span><Input type="number" value={String(group.maxQuantity || '')} placeholder="20000" onChange={(e) => setGroups(updateGroup(groups, group.id, { maxQuantity: Number(e.target.value) || undefined }))} /></label>
                   <label className="space-y-1 text-sm"><span className="text-textMuted">Step</span><Input type="number" value={String(group.quantityStep || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { quantityStep: Number(e.target.value) || undefined }))} /></label>
                 </div>
+              </div>
+            )}
+
+            {(group.source === 'material' || group.source === 'finish') && (
+              <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Compatibility rules</p>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Compatibility mode</span><select value={group.compatibilityMode || (group.source === 'finish' ? 'finish-to-material' : 'material-to-finish')} onChange={(e) => setGroups(updateGroup(groups, group.id, { compatibilityMode: e.target.value as NonNullable<ProductOptionGroup['compatibilityMode']> }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                    <option value="none">No compatibility rule</option>
+                    <option value="finish-to-material">Finish only works with selected materials</option>
+                    <option value="material-to-finish">Material only allows selected finishes</option>
+                    <option value="material-to-printer">Material must fit printer/material limits</option>
+                  </select></label>
+                  <label className="space-y-1 text-sm md:col-span-2"><span className="text-textMuted">Compatibility notes</span><Input value={group.compatibilityNotes || ''} placeholder="Example: soft touch only on silk/coated cards" onChange={(e) => setGroups(updateGroup(groups, group.id, { compatibilityNotes: e.target.value }))} /></label>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-textMuted">Use this to stop impossible customer choices before pricing: for example spot UV only after matte lamination, or a roll material only on a wide-format printer.</p>
               </div>
             )}
 
@@ -270,6 +310,25 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
                   <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textMuted"><input type="checkbox" checked={!!value.isHidden} onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { isHidden: e.target.checked })))} /> Hide</label>
                   {group.source === 'size' && <><Input type="number" value={String(value.width || '')} placeholder="Width" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { width: Number(e.target.value) || undefined })))} /><Input type="number" value={String(value.height || '')} placeholder="Height" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { height: Number(e.target.value) || undefined })))} /></>}
                   {group.source === 'quantity' && <Input type="number" value={String(value.quantity || '')} placeholder="Quantity" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { quantity: Number(e.target.value) || undefined, label: e.target.value })))} />}
+                  {(group.source === 'material' || group.source === 'finish' || group.source === 'size') && compatibilityTargetLibrary(group).length > 0 && (
+                    <div className="md:col-span-6 rounded-lg border border-white/8 bg-white/[0.03] p-2">
+                      <p className="mb-2 text-xs uppercase tracking-[0.18em] text-textMuted">Compatible {group.source === 'finish' ? 'materials' : group.source === 'material' ? 'finishes' : 'printer/profile options'}</p>
+                      <div className="grid gap-2 md:grid-cols-3">
+                        {compatibilityTargetLibrary(group).slice(0, 12).map((item) => {
+                          const ids = selectedCompatibilityIds(value, group);
+                          const checked = ids.includes(item.id);
+                          return <label key={item.id} className="flex items-center gap-2 text-xs text-textMuted"><input type="checkbox" checked={checked} onChange={(e) => {
+                            const patch = group.source === 'finish'
+                              ? { compatibleMaterialIds: toggleId(value.compatibleMaterialIds, item.id, e.target.checked) }
+                              : group.source === 'material'
+                                ? { compatibleFinishIds: toggleId(value.compatibleFinishIds, item.id, e.target.checked) }
+                                : { compatiblePrinterIds: toggleId(value.compatiblePrinterIds, item.id, e.target.checked) };
+                            setGroups(updateGroup(groups, group.id, updateValue(group, value.id, patch)));
+                          }} /> {itemLabel(item)}</label>;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

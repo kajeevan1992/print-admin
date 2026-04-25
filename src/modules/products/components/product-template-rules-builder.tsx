@@ -18,7 +18,7 @@ const templatePresets: Record<string, ProductTemplateRuleConfig> = {
     maxPrintableWidth: 320,
     maxPrintableLength: 450,
     notes: 'Use option groups for size, sides, material, finish, quantity and turnaround. Pricing can later calculate ups per SRA3 sheet.',
-    artworkRules: { allowedFileTypes: ['pdf'], minFiles: 1, maxFiles: 2, bleedMm: 3, requirePdf: true, allowDesignFromTemplate: true, customerInstructions: 'Upload print-ready PDF artwork with bleed, or start from a template when templates are enabled.' },
+    artworkRules: { allowedFileTypes: ['pdf'], minFiles: 1, maxFiles: 2, bleedMm: 3, requirePdf: true, allowUploadArtwork: true, allowDesignFromTemplate: true, uploadChoiceMode: 'upload-or-template', sizeMatchingMode: 'match-selected-size', separateFilesMode: 'front-back-files', minDpi: 300, maxFileSizeMb: 100, allowedArtworkActions: ['upload', 'design-online'], customerInstructions: 'Upload print-ready PDF artwork with bleed, or start from a template when templates are enabled.' },
   },
   booklets: {
     templateKey: 'booklets',
@@ -32,7 +32,7 @@ const templatePresets: Record<string, ProductTemplateRuleConfig> = {
     maxPrintableWidth: 320,
     maxPrintableLength: 450,
     notes: 'Later pricing should calculate inner sheets, optional cover card, page count, imposition and binding/finishing time.',
-    artworkRules: { allowedFileTypes: ['pdf'], minFiles: 1, maxFiles: 2, bleedMm: 3, requirePdf: true, allowDesignFromTemplate: false, customerInstructions: 'Upload one combined booklet PDF, or separate cover and inner PDFs when this product allows cover options.' },
+    artworkRules: { allowedFileTypes: ['pdf'], minFiles: 1, maxFiles: 2, bleedMm: 3, requirePdf: true, allowUploadArtwork: true, allowDesignFromTemplate: false, uploadChoiceMode: 'upload-only', sizeMatchingMode: 'match-selected-size', separateFilesMode: 'cover-inner-files', minDpi: 300, maxFileSizeMb: 250, allowedArtworkActions: ['upload', 'request-design-help'], customerInstructions: 'Upload one combined booklet PDF, or separate cover and inner PDFs when this product allows cover options.' },
   },
   banners: {
     templateKey: 'banners',
@@ -46,7 +46,7 @@ const templatePresets: Record<string, ProductTemplateRuleConfig> = {
     maxPrintableWidth: 1200,
     maxPrintableLength: 50000,
     notes: 'Use preset size values plus custom width/height. Max width should come from the smaller of material roll width and printer width.',
-    artworkRules: { allowedFileTypes: ['pdf', 'jpg', 'png'], minFiles: 1, maxFiles: 1, bleedMm: 0, requirePdf: false, allowDesignFromTemplate: false, customerInstructions: 'Upload artwork at the selected banner size. Large files may be supplied as PDF, JPG or PNG.' },
+    artworkRules: { allowedFileTypes: ['pdf', 'jpg', 'png'], minFiles: 1, maxFiles: 1, bleedMm: 0, requirePdf: false, allowUploadArtwork: true, allowDesignFromTemplate: false, uploadChoiceMode: 'upload-only', sizeMatchingMode: 'match-selected-size', separateFilesMode: 'single-file', minDpi: 150, maxFileSizeMb: 300, allowedArtworkActions: ['upload', 'request-design-help'], customerInstructions: 'Upload artwork at the selected banner size. Large files may be supplied as PDF, JPG or PNG.' },
   },
   boards: {
     templateKey: 'boards',
@@ -60,7 +60,7 @@ const templatePresets: Record<string, ProductTemplateRuleConfig> = {
     maxPrintableWidth: 1220,
     maxPrintableLength: 2440,
     notes: 'Later pricing should calculate how many pieces fit on a board plus cutting/routing time for custom shapes.',
-    artworkRules: { allowedFileTypes: ['pdf'], minFiles: 1, maxFiles: 1, bleedMm: 3, requirePdf: true, allowDesignFromTemplate: false, customerInstructions: 'Upload print-ready artwork. Custom-cut products may need a cutline layer later.' },
+    artworkRules: { allowedFileTypes: ['pdf'], minFiles: 1, maxFiles: 1, bleedMm: 3, requirePdf: true, allowUploadArtwork: true, allowDesignFromTemplate: false, uploadChoiceMode: 'upload-only', sizeMatchingMode: 'match-selected-size', separateFilesMode: 'single-file', minDpi: 150, maxFileSizeMb: 300, requireCutline: true, cutlineLayerName: 'CutContour', allowedArtworkActions: ['upload', 'request-design-help'], customerInstructions: 'Upload print-ready artwork. Custom-cut products may need a cutline layer later.' },
   },
 };
 
@@ -112,9 +112,19 @@ export function ProductTemplateRulesBuilder({ product, onUpdate }: { product: Pr
           <label className="space-y-1 text-sm"><span className="text-textMuted">Required page count</span><Input type="number" value={String(rules.artworkRules.requiredPageCount || '')} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, requiredPageCount: Number(e.target.value) || undefined } })} /></label>
           <label className="space-y-1 text-sm"><span className="text-textMuted">Bleed mm</span><Input type="number" value={String(rules.artworkRules.bleedMm || '')} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, bleedMm: Number(e.target.value) || undefined } })} /></label>
         </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <label className="space-y-1 text-sm"><span className="text-textMuted">Upload choice mode</span><select value={rules.artworkRules.uploadChoiceMode || 'upload-only'} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, uploadChoiceMode: e.target.value as ProductTemplateRuleConfig['artworkRules']['uploadChoiceMode'] } })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"><option value="upload-only">Upload artwork only</option><option value="template-only">Design from template only</option><option value="upload-or-template">Upload or design from template</option></select></label>
+          <label className="space-y-1 text-sm"><span className="text-textMuted">Size matching</span><select value={rules.artworkRules.sizeMatchingMode || 'match-selected-size'} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, sizeMatchingMode: e.target.value as ProductTemplateRuleConfig['artworkRules']['sizeMatchingMode'] } })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"><option value="match-selected-size">Must match selected size</option><option value="any-print-ready-size">Any print-ready size</option><option value="manual-review">Manual review required</option></select></label>
+          <label className="space-y-1 text-sm"><span className="text-textMuted">File structure</span><select value={rules.artworkRules.separateFilesMode || 'single-file'} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, separateFilesMode: e.target.value as ProductTemplateRuleConfig['artworkRules']['separateFilesMode'] } })} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"><option value="single-file">Single file</option><option value="front-back-files">Front/back files</option><option value="cover-inner-files">Cover + inner files</option><option value="multi-page-pdf">Multi-page PDF</option></select></label>
+          <label className="space-y-1 text-sm"><span className="text-textMuted">Minimum DPI</span><Input type="number" value={String(rules.artworkRules.minDpi || '')} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, minDpi: Number(e.target.value) || undefined } })} /></label>
+          <label className="space-y-1 text-sm"><span className="text-textMuted">Max file size MB</span><Input type="number" value={String(rules.artworkRules.maxFileSizeMb || '')} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, maxFileSizeMb: Number(e.target.value) || undefined } })} /></label>
+          <label className="space-y-1 text-sm"><span className="text-textMuted">Cutline layer name</span><Input value={rules.artworkRules.cutlineLayerName || ''} placeholder="CutContour" onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, cutlineLayerName: e.target.value } })} /></label>
+        </div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm text-textMuted">
+          <label className="flex items-center gap-2"><input type="checkbox" checked={rules.artworkRules.allowUploadArtwork !== false} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, allowUploadArtwork: e.target.checked } })} /> Allow artwork upload</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={!!rules.artworkRules.requirePdf} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, requirePdf: e.target.checked } })} /> Require PDF</label>
           <label className="flex items-center gap-2"><input type="checkbox" checked={!!rules.artworkRules.allowDesignFromTemplate} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, allowDesignFromTemplate: e.target.checked } })} /> Allow design from template</label>
+          <label className="flex items-center gap-2"><input type="checkbox" checked={!!rules.artworkRules.requireCutline} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, requireCutline: e.target.checked } })} /> Require cutline</label>
         </div>
         <label className="mt-3 block space-y-1 text-sm"><span className="text-textMuted">Customer artwork instructions</span><textarea value={rules.artworkRules.customerInstructions || ''} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, customerInstructions: e.target.value } })} className="min-h-[92px] w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm" /></label>
       </ProductSectionCard>

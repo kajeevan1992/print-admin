@@ -77,6 +77,21 @@ function arrayLength(value: any) {
   return Array.isArray(value) ? value.filter(Boolean).length : 0;
 }
 
+function validateArtworkRules(input: InternalCatalogWriteInput, issues: CatalogValidationIssue[]) {
+  const metadata = input.metadataJson || {};
+  const rules = (metadata as any).templateRules?.artworkRules;
+  if (!rules || typeof rules !== 'object') return;
+  const fileTypes = Array.isArray(rules.allowedFileTypes) ? rules.allowedFileTypes.filter(Boolean) : [];
+  if (fileTypes.length === 0) issues.push({ field: 'metadataJson.templateRules.artworkRules.allowedFileTypes', message: 'Artwork rules need allowed file types such as pdf, jpg or png.', severity: 'warning' });
+  if (rules.requirePdf && !fileTypes.includes('pdf')) issues.push({ field: 'metadataJson.templateRules.artworkRules.requirePdf', message: 'Require PDF is on, but pdf is not in allowed file types.', severity: 'error' });
+  if (Number(rules.minFiles) > Number(rules.maxFiles)) issues.push({ field: 'metadataJson.templateRules.artworkRules.minFiles', message: 'Artwork minimum files cannot be greater than maximum files.', severity: 'error' });
+  if (rules.uploadChoiceMode === 'template-only' && !rules.allowDesignFromTemplate) issues.push({ field: 'metadataJson.templateRules.artworkRules.uploadChoiceMode', message: 'Template-only artwork mode needs design-from-template enabled.', severity: 'error' });
+  if (rules.uploadChoiceMode === 'upload-only' && rules.allowUploadArtwork === false) issues.push({ field: 'metadataJson.templateRules.artworkRules.allowUploadArtwork', message: 'Upload-only artwork mode cannot disable artwork upload.', severity: 'error' });
+  if (rules.requireCutline && !cleanText(rules.cutlineLayerName)) issues.push({ field: 'metadataJson.templateRules.artworkRules.cutlineLayerName', message: 'Cutline-required products need a cutline layer name such as CutContour.', severity: 'warning' });
+  if (Number(rules.minDpi) && Number(rules.minDpi) < 72) issues.push({ field: 'metadataJson.templateRules.artworkRules.minDpi', message: 'Minimum DPI looks too low for print production.', severity: 'warning' });
+  if (Number(rules.maxFileSizeMb) && Number(rules.maxFileSizeMb) < 1) issues.push({ field: 'metadataJson.templateRules.artworkRules.maxFileSizeMb', message: 'Max file size must be at least 1 MB.', severity: 'error' });
+}
+
 function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogValidationIssue[]) {
   const groups = optionGroups(input);
   const keys = new Set<string>();
@@ -226,6 +241,7 @@ export function validateCatalogWrite(resource: CatalogResource, input: InternalC
     validatePrice(input, issues);
     validateCurrency(input, issues);
     validateOptionGroups(input, issues);
+    validateArtworkRules(input, issues);
   } else if (resource === 'categories') {
     if (mode === 'create' && !hasText(input.name) && !hasText(input.title)) issues.push({ field: 'name', message: 'Category requires a name.', severity: 'error' });
   } else {

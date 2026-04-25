@@ -191,6 +191,11 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
             'Allowed files: ' + (previewData.templateRules.artworkRules.allowedFileTypes.join(', ') || 'not set'),
             'Files required: ' + previewData.templateRules.artworkRules.minFiles + '-' + previewData.templateRules.artworkRules.maxFiles,
             'Bleed: ' + (previewData.templateRules.artworkRules.bleedMm ?? 'not set') + ' mm',
+            'Upload mode: ' + (previewData.templateRules.artworkRules.uploadChoiceMode || 'upload-only'),
+            'Size check: ' + (previewData.templateRules.artworkRules.sizeMatchingMode || 'match-selected-size'),
+            'File structure: ' + (previewData.templateRules.artworkRules.separateFilesMode || 'single-file'),
+            previewData.templateRules.artworkRules.minDpi ? 'Minimum DPI: ' + previewData.templateRules.artworkRules.minDpi : 'Minimum DPI: not set',
+            previewData.templateRules.artworkRules.requireCutline ? 'Cutline layer required: ' + (previewData.templateRules.artworkRules.cutlineLayerName || 'not set') : 'Cutline not required',
             previewData.templateRules.artworkRules.customerInstructions || 'Customer artwork instructions not set'
           ] : previewData.artwork.checklist).map((item) => <div key={item} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{item}</div>)}
         </div>

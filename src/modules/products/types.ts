@@ -132,6 +132,15 @@ export type ProductArtworkRuleConfig = {
   bleedMm?: number;
   requirePdf?: boolean;
   allowDesignFromTemplate?: boolean;
+  allowUploadArtwork?: boolean;
+  uploadChoiceMode?: 'upload-only' | 'template-only' | 'upload-or-template';
+  sizeMatchingMode?: 'match-selected-size' | 'any-print-ready-size' | 'manual-review';
+  separateFilesMode?: 'single-file' | 'front-back-files' | 'cover-inner-files' | 'multi-page-pdf';
+  minDpi?: number;
+  maxFileSizeMb?: number;
+  requireCutline?: boolean;
+  cutlineLayerName?: string;
+  allowedArtworkActions?: Array<'upload' | 'design-online' | 'request-design-help'>;
   customerInstructions?: string;
 };
 

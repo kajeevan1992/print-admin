@@ -161,7 +161,12 @@ export function validateProductConfiguration(product: Pick<Product, 'optionGroup
   const artworkRules = product.templateRules?.artworkRules;
   if (artworkRules) {
     if (!artworkRules.allowedFileTypes?.length) issues.push({ id: 'artwork-file-types', level: 'warning', title: 'Artwork file types missing', message: 'Add allowed file types such as pdf, ai, eps or jpg.' });
+    if (artworkRules.requirePdf && !(artworkRules.allowedFileTypes || []).includes('pdf')) issues.push({ id: 'artwork-require-pdf', level: 'error', title: 'PDF is required but not allowed', message: 'Add pdf to allowed file types or turn off Require PDF.' });
     if (artworkRules.minFiles > artworkRules.maxFiles) issues.push({ id: 'artwork-file-count', level: 'error', title: 'Artwork file count is invalid', message: 'Minimum files cannot be greater than maximum files.' });
+    if (artworkRules.uploadChoiceMode === 'template-only' && !artworkRules.allowDesignFromTemplate) issues.push({ id: 'artwork-template-mode', level: 'error', title: 'Template-only mode is incomplete', message: 'Template-only upload mode needs design-from-template enabled.' });
+    if (artworkRules.uploadChoiceMode === 'upload-only' && artworkRules.allowUploadArtwork === false) issues.push({ id: 'artwork-upload-disabled', level: 'error', title: 'Artwork upload is disabled', message: 'Upload-only mode cannot disable artwork uploads.' });
+    if (artworkRules.requireCutline && !artworkRules.cutlineLayerName) issues.push({ id: 'artwork-cutline-layer', level: 'warning', title: 'Cutline layer name missing', message: 'Cutline-required products need a layer name such as CutContour.' });
+    if (artworkRules.sizeMatchingMode === 'match-selected-size' && !hasGroup(groups, 'size')) issues.push({ id: 'artwork-size-match-no-size', level: 'warning', title: 'Artwork must match selected size', message: 'Add a size option group so the upload checker can compare artwork to the customer selection later.' });
   }
 
   return issues;

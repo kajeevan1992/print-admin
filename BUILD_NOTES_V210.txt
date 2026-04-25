@@ -1,0 +1,24 @@
+v210 artwork upload rules foundation
+
+Scope:
+- Product configuration safety only.
+- No pricing engine.
+- No storefront redesign.
+- No orders/artwork workflow implementation.
+
+Added:
+- Extended product artwork rules with upload choice mode.
+- Added artwork size matching mode.
+- Added artwork file structure mode: single file, front/back files, cover/inner files, multi-page PDF.
+- Added min DPI, max file size, cutline required and cutline layer name fields.
+- Added upload/template/design action controls for later storefront/artwork workflow.
+- Customer preview now shows these artwork requirements.
+- Catalog validation report now checks artwork rule consistency.
+
+Test:
+1. Deploy.
+2. Open a product.
+3. Open Templates & Rules tab.
+4. Change artwork upload settings and save.
+5. Open product preview and confirm artwork checks display.
+6. Open /api/internal/catalog/validation-report and confirm invalid artwork rules appear as warnings/errors.

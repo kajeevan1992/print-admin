@@ -1,0 +1,41 @@
+v205 — validation + data integrity layer
+
+Scope:
+- First safety layer after DB/API wiring phase.
+- No redesign.
+- No pricing engine.
+- No storefront rebuild.
+- No new large module expansion.
+
+Changed files:
+- src/core/catalog/catalog-validation.ts
+- src/core/catalog/internal-catalog.service.ts
+- src/core/catalog/internal-catalog-http.ts
+- app/api/internal/catalog/validation-report/route.ts
+- BUILD_NOTES_V205.txt
+- MODULE_DB_API_AUDIT_V205.md
+
+What changed:
+1. Catalog writes now pass through validation before DB save.
+2. Product/category slugs are normalised into safe friendly URLs.
+3. Product create requires a title/name and slug.
+4. Category create requires a name and slug.
+5. Product category selection now must reference an existing category if provided.
+6. Product starting price must be zero or more.
+7. Currency must be a 3-letter code such as GBP.
+8. Product option group validation checks duplicate keys, missing labels/display types, empty values, and manually typed material/finish values.
+9. API error responses can return structured validation issues for UI use.
+10. Added validation report endpoint:
+   GET /api/internal/catalog/validation-report
+
+Test routes:
+- GET /api/internal/catalog/validation-report
+- POST /api/internal/catalog/products with a blank name/slug should return 400.
+- POST /api/internal/catalog/categories with duplicate slug should still return 409.
+- Product save with a non-existing categoryId should return 400.
+
+Deploy notes:
+- Deploy over v204.
+- Existing valid data should continue to load.
+- This build may now block bad saves that were previously accepted.
+- If any admin page shows a validation error, the data is being protected rather than silently saved broken.

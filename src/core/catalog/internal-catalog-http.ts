@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { deleteInternalCatalogRecord, getInternalCatalogRecord, listInternalCatalog, writeInternalCatalogRecord } from './internal-catalog.service';
+import { CatalogValidationError, normalizeSlugValue } from './catalog-validation';
 import type { CatalogResource } from './catalog-store';
 import { tenantContextFromRequest } from '../tenant/context';
 
@@ -35,7 +36,7 @@ function toWriteInput(body: Body) {
 
   return {
     id: getString(body, 'id'),
-    slug: getString(body, 'slug') || getString(body, 'friendlyUrl')?.replace(/^\/+/, '') || undefined,
+    slug: normalizeSlugValue(getString(body, 'slug') || getString(body, 'friendlyUrl')) || undefined,
     name: getString(body, 'name'),
     title: getString(body, 'title'),
     description: getString(body, 'description') || getString(body, 'subtitle'),
@@ -60,6 +61,7 @@ function inputWithId(body: Body, id?: string) {
 
 function statusForError(message: string, fallback: number) {
   if (message.toLowerCase().includes('already exists')) return 409;
+  if (message.toLowerCase().includes('friendly url') || message.toLowerCase().includes('must be') || message.toLowerCase().includes('choose an existing category')) return 400;
   if (message.toLowerCase().includes('requires')) return 400;
   if (message.toLowerCase().includes('not found')) return 404;
   return fallback;
@@ -67,7 +69,8 @@ function statusForError(message: string, fallback: number) {
 
 function errorResponse(error: unknown, status = 500) {
   const message = error instanceof Error ? error.message : 'Catalog operation failed.';
-  return NextResponse.json({ ok: false, source: 'internal-core', error: message }, { status: statusForError(message, status) });
+  const issues = error instanceof CatalogValidationError ? error.issues : undefined;
+  return NextResponse.json({ ok: false, source: 'internal-core', error: message, issues }, { status: statusForError(message, status) });
 }
 
 export async function handleCatalogGet(request: Request, resource: CatalogResource) {

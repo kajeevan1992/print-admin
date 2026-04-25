@@ -1,4 +1,5 @@
 import type { Client, QueryResult } from 'pg';
+import { normalizeSlugValue, validateCatalogWrite } from './catalog-validation';
 import type { TenantContext } from '../tenant/types';
 import { listDemoCatalog, toPaginated, type CatalogResource } from './catalog-store';
 import { findTenantDatabaseConnection } from '../db/tenant-prisma';
@@ -52,7 +53,7 @@ function makeId(prefix: string) {
 }
 
 function slugFromInput(input: InternalCatalogWriteInput) {
-  return input.slug?.trim().replace(/^\/+/, '') || '';
+  return normalizeSlugValue(input.slug);
 }
 
 function paginate<T>(items: T[], page = 1, limit = 50) {
@@ -129,7 +130,8 @@ async function maybeResolveCategoryId(client: Client, tenantId: string, category
     `SELECT "id" FROM "Category" WHERE "tenantId" = $1 AND ("id" = $2 OR "slug" = $2) LIMIT 1`,
     [tenantId, categoryId]
   );
-  return result.rows[0]?.id ?? categoryId;
+  if (!result.rows[0]?.id) throw new Error(`Category ${categoryId} was not found. Choose an existing category before saving the product.`);
+  return result.rows[0].id;
 }
 
 function productSelectSql() {
@@ -441,6 +443,7 @@ export async function getInternalCatalogRecord(ctx: TenantContext, resource: Cat
 }
 
 export async function writeInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, input: InternalCatalogWriteInput, mode: InternalCatalogWriteMode = 'upsert') {
+  validateCatalogWrite(resource, input, mode);
   const connectionInput = await requireCatalogConnection(ctx);
 
   return withPgClient(connectionInput, async (client) => {

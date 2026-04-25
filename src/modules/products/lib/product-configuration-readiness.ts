@@ -11,17 +11,27 @@ export type ProductConfigurationIssue = {
 
 const REQUIRED_PRICING_KEYS = ['size', 'material', 'quantity'];
 
+function groupKey(group: ProductOptionGroup) {
+  return (group.key || group.pricingKey || group.source || '').trim();
+}
+
 function hasGroup(groups: ProductOptionGroup[], key: string) {
-  return groups.some((group) => group.key === key || group.pricingKey === key || group.source === key);
+  return groups.some((group) => groupKey(group) === key || group.source === key);
 }
 
 function valueLabel(group: ProductOptionGroup) {
   return group.name || group.key || group.source;
 }
 
+function valueStableId(value: any) {
+  return String(value?.id || value?.sourceId || value?.pricingKey || value?.label || '').trim();
+}
+
 export function validateProductConfiguration(product: Pick<Product, 'optionGroups' | 'templateRules'>): ProductConfigurationIssue[] {
   const groups = product.optionGroups || [];
   const issues: ProductConfigurationIssue[] = [];
+  const groupKeys = new Set<string>();
+  const valuesByGroup = new Map<string, Set<string>>();
 
   if (!groups.length) {
     issues.push({
@@ -45,38 +55,64 @@ export function validateProductConfiguration(product: Pick<Product, 'optionGroup
   }
 
   groups.forEach((group) => {
-    if (!group.key?.trim()) {
+    const key = groupKey(group);
+    const valueIds = new Set<string>();
+    if (!key) {
       issues.push({ id: `${group.id}-missing-key`, level: 'error', title: `${valueLabel(group)} has no key`, message: 'Every group needs a stable key so storefront selections and pricing can reference it.' });
+    } else if (groupKeys.has(key)) {
+      issues.push({ id: `${group.id}-duplicate-key`, level: 'error', title: `Duplicate key: ${key}`, message: 'Each option group needs a unique key. Duplicate keys break storefront selections and pricing lookups.' });
+    } else {
+      groupKeys.add(key);
     }
-    if (!group.values?.length && group.displayType !== 'custom-size') {
+
+    if (!group.values?.length && group.displayType !== 'custom-size' && !group.allowCustomSize) {
       issues.push({ id: `${group.id}-no-values`, level: 'warning', title: `${valueLabel(group)} has no values`, message: 'Add values or link values from a library.' });
     }
+
+    group.values?.forEach((value) => {
+      const id = valueStableId(value);
+      if (!id) issues.push({ id: `${group.id}-${value.id}-missing-stable-value`, level: 'warning', title: `${value.label || 'Option value'} needs a stable ID`, message: 'Every option value needs a stable ID/pricing key so selections can be saved and priced later.' });
+      if (id && valueIds.has(id)) issues.push({ id: `${group.id}-${value.id}-duplicate-value`, level: 'error', title: `${value.label || id} is duplicated`, message: `The value key "${id}" is used more than once in ${valueLabel(group)}.` });
+      if (id) valueIds.add(id);
+    });
+    if (key) valuesByGroup.set(key, valueIds);
+
     if ((group.source === 'material' || group.source === 'finish') && group.values.some((value) => !value.sourceId)) {
       issues.push({ id: `${group.id}-manual-library-values`, level: 'warning', title: `${valueLabel(group)} has manual values`, message: 'Material and finish options should be linked from their libraries so pricing can find the correct material/finish later.' });
     }
     if (group.source === 'size') {
       group.values.forEach((value) => {
-        if (!value.width || !value.height) {
-          issues.push({ id: `${group.id}-${value.id}-missing-dimensions`, level: 'warning', title: `${value.label} needs dimensions`, message: 'Preset size values should include width and height for sheet-fit pricing later.' });
-        }
+        if (!value.width || !value.height) issues.push({ id: `${group.id}-${value.id}-missing-dimensions`, level: 'warning', title: `${value.label} needs dimensions`, message: 'Preset size values should include width and height for sheet-fit pricing later.' });
       });
-      if (group.allowCustomSize && (!group.maxWidth || !group.maxHeight)) {
-        issues.push({ id: `${group.id}-custom-size-limits`, level: 'warning', title: 'Custom size needs limits', message: 'Set maximum printable width and length/height so users cannot order sizes beyond material or printer limits.' });
-      }
+      if (group.allowCustomSize && (!group.maxWidth || !group.maxHeight)) issues.push({ id: `${group.id}-custom-size-limits`, level: 'warning', title: 'Custom size needs limits', message: 'Set maximum printable width and length/height so users cannot order sizes beyond material or printer limits.' });
     }
     if (group.required && group.allowMultiple && group.displayType === 'dropdown') {
       issues.push({ id: `${group.id}-dropdown-multiple`, level: 'info', title: `${valueLabel(group)} display mismatch`, message: 'Dropdown is usually single-choice. Use checkboxes if customers can pick multiple values.' });
     }
   });
 
+  groups.forEach((group) => {
+    (group.dependencyRules || []).forEach((rule) => {
+      if (!rule.whenGroupKey || !rule.whenValueId) {
+        issues.push({ id: `${group.id}-${rule.id}-incomplete-rule`, level: 'warning', title: 'Incomplete dependency rule', message: 'Choose both the source group and source value for each show/hide/require rule.' });
+      }
+      if (rule.whenGroupKey && !groupKeys.has(rule.whenGroupKey)) {
+        issues.push({ id: `${group.id}-${rule.id}-missing-source-group`, level: 'error', title: `Unknown source group ${rule.whenGroupKey}`, message: 'The dependency rule points to an option group that does not exist.' });
+      }
+      if (rule.whenGroupKey && rule.whenValueId && valuesByGroup.has(rule.whenGroupKey) && !valuesByGroup.get(rule.whenGroupKey)?.has(rule.whenValueId)) {
+        issues.push({ id: `${group.id}-${rule.id}-missing-source-value`, level: 'warning', title: `Unknown source value ${rule.whenValueId}`, message: 'The dependency rule points to a value that is not available in the selected source group.' });
+      }
+      const target = rule.targetGroupKey || groupKey(group);
+      if (target && !groupKeys.has(target)) {
+        issues.push({ id: `${group.id}-${rule.id}-missing-target-group`, level: 'error', title: `Unknown target group ${target}`, message: 'The dependency rule target group does not exist.' });
+      }
+    });
+  });
+
   const artworkRules = product.templateRules?.artworkRules;
   if (artworkRules) {
-    if (!artworkRules.allowedFileTypes?.length) {
-      issues.push({ id: 'artwork-file-types', level: 'warning', title: 'Artwork file types missing', message: 'Add allowed file types such as pdf, ai, eps or jpg.' });
-    }
-    if (artworkRules.minFiles > artworkRules.maxFiles) {
-      issues.push({ id: 'artwork-file-count', level: 'error', title: 'Artwork file count is invalid', message: 'Minimum files cannot be greater than maximum files.' });
-    }
+    if (!artworkRules.allowedFileTypes?.length) issues.push({ id: 'artwork-file-types', level: 'warning', title: 'Artwork file types missing', message: 'Add allowed file types such as pdf, ai, eps or jpg.' });
+    if (artworkRules.minFiles > artworkRules.maxFiles) issues.push({ id: 'artwork-file-count', level: 'error', title: 'Artwork file count is invalid', message: 'Minimum files cannot be greater than maximum files.' });
   }
 
   return issues;

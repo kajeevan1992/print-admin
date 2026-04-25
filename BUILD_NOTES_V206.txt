@@ -1,0 +1,35 @@
+v206 - Product option dependency + integrity foundation
+
+Scope:
+- No pricing engine yet.
+- No storefront redesign.
+- No orders/artwork workflow changes.
+- Focused on making product option groups safer and more professional.
+
+Changed:
+- Added dependency-rule editing inside Product > Option Groups.
+- Added source group/source value/action/target group fields for dependency rules.
+- Added deeper product option validation:
+  - duplicate option group keys are errors
+  - duplicate option value IDs/pricing keys are errors
+  - missing stable option value IDs are warnings
+  - size values need width/height unless custom size is enabled
+  - custom-size groups need max width and max height/length
+  - material/finish manual values warn unless linked from libraries
+  - dependency rules warn/error when source group/value or target group is missing
+- Extended /api/internal/catalog/validation-report with dependency and value integrity checks.
+
+Test after deploy:
+1. Open Products.
+2. Open a product > Option Groups.
+3. Add size, material, finish, quantity groups.
+4. Add a dependency rule, for example:
+   - When group: material
+   - Has value: one material value
+   - Action: show
+   - Target: finish
+5. Save/refresh product and confirm rule persists.
+6. Open /api/internal/catalog/validation-report and confirm issues are visible if keys/rules are wrong.
+
+Rollback:
+- Revert to v205 if option-group editing has any issue.

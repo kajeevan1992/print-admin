@@ -82,6 +82,15 @@ function updateValue(group: ProductOptionGroup, valueId: string, patch: Partial<
   return { ...group, values: group.values.map((value) => value.id === valueId ? { ...value, ...patch } : value) };
 }
 
+function updateDependencyRule(group: ProductOptionGroup, ruleId: string, patch: Partial<NonNullable<ProductOptionGroup['dependencyRules']>[number]>): ProductOptionGroup {
+  const rules = group.dependencyRules || [];
+  return { ...group, dependencyRules: rules.map((rule) => rule.id === ruleId ? { ...rule, ...patch } : rule) };
+}
+
+function dependencySourceValues(groups: ProductOptionGroup[], groupKey: string) {
+  return groups.find((group) => group.key === groupKey || group.pricingKey === groupKey)?.values || [];
+}
+
 export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Product; onUpdate: (changes: Partial<Product>) => void }) {
   const [library, setLibrary] = useState<LibraryState>({ materials: [], finishes: [], optionSets: [] });
   const [libraryError, setLibraryError] = useState<string | null>(null);
@@ -195,8 +204,41 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
             </div>
 
             <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Display + dependency notes</p>
-              <p className="mt-2 text-sm text-textMuted">Use the display selector above to decide how this option appears on the customer product page. Dependency rules can be added later using these stable group keys and value IDs, for example: show lamination only when material supports it, or show custom width/height only when custom size is selected.</p>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Dependency rules</p>
+                  <p className="mt-2 text-sm text-textMuted">Show, hide or require this option based on another customer choice. Example: only show lamination when a compatible material is selected.</p>
+                </div>
+                <Button onClick={() => setGroups(updateGroup(groups, group.id, { dependencyRules: [...(group.dependencyRules || []), { id: makeId('rule'), whenGroupKey: groups.find((item) => item.id !== group.id)?.key || '', whenValueId: '', action: 'show', targetGroupKey: group.key }] }))}>Add rule</Button>
+              </div>
+              {(group.dependencyRules || []).length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {(group.dependencyRules || []).map((rule) => {
+                    const sourceValues = dependencySourceValues(groups, rule.whenGroupKey);
+                    return (
+                      <div key={rule.id} className="grid gap-2 rounded-lg border border-border p-2 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                        <select value={rule.whenGroupKey} onChange={(e) => setGroups(updateGroup(groups, group.id, updateDependencyRule(group, rule.id, { whenGroupKey: e.target.value, whenValueId: '' })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                          <option value="">When group...</option>
+                          {groups.filter((item) => item.id !== group.id).map((item) => <option key={item.id} value={item.key}>{item.name || item.key}</option>)}
+                        </select>
+                        <select value={rule.whenValueId} onChange={(e) => setGroups(updateGroup(groups, group.id, updateDependencyRule(group, rule.id, { whenValueId: e.target.value })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                          <option value="">Has value...</option>
+                          {sourceValues.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}
+                        </select>
+                        <select value={rule.action} onChange={(e) => setGroups(updateGroup(groups, group.id, updateDependencyRule(group, rule.id, { action: e.target.value as 'show' | 'hide' | 'require' })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                          <option value="show">Show</option>
+                          <option value="hide">Hide</option>
+                          <option value="require">Require</option>
+                        </select>
+                        <select value={rule.targetGroupKey || group.key} onChange={(e) => setGroups(updateGroup(groups, group.id, updateDependencyRule(group, rule.id, { targetGroupKey: e.target.value })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                          {groups.map((item) => <option key={item.id} value={item.key}>{item.name || item.key}</option>)}
+                        </select>
+                        <Button className="text-red-300" onClick={() => setGroups(updateGroup(groups, group.id, { dependencyRules: (group.dependencyRules || []).filter((item) => item.id !== rule.id) }))}>Remove</Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="mt-4 flex justify-end"><Button className="text-red-300" onClick={() => setGroups(groups.filter((item) => item.id !== group.id))}>Delete group</Button></div>
           </ProductSectionCard>

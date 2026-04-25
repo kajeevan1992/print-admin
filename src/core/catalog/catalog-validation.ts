@@ -69,9 +69,14 @@ function optionGroups(input: InternalCatalogWriteInput): any[] {
   return Array.isArray(groups) ? groups : [];
 }
 
+function valueId(value: any) {
+  return cleanText(value?.id || value?.sourceId || value?.catalogId || value?.pricingKey || value?.label || '');
+}
+
 function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogValidationIssue[]) {
   const groups = optionGroups(input);
   const keys = new Set<string>();
+  const valueIdsByKey = new Map<string, Set<string>>();
 
   for (const [index, group] of groups.entries()) {
     const path = `metadataJson.optionGroups.${index}`;
@@ -87,23 +92,58 @@ function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogV
       keys.add(key);
     }
 
-    if (!label) {
-      issues.push({ field: `${path}.label`, message: `Option group ${index + 1} needs a label for the storefront.`, severity: 'warning' });
-    }
+    if (!label) issues.push({ field: `${path}.label`, message: `Option group ${index + 1} needs a label for the storefront.`, severity: 'warning' });
 
     const displayType = cleanText(group.displayType || group.display || '');
-    if (!displayType) {
-      issues.push({ field: `${path}.displayType`, message: `Option group ${label || index + 1} should choose a storefront display type.`, severity: 'warning' });
-    }
+    if (!displayType) issues.push({ field: `${path}.displayType`, message: `Option group ${label || index + 1} should choose a storefront display type.`, severity: 'warning' });
 
     const values = Array.isArray(group.values) ? group.values : Array.isArray(group.options) ? group.options : [];
-    const allowsCustomSize = Boolean(group.allowCustomSize || group.customSizeEnabled || key === 'custom-size');
-    if (values.length === 0 && !allowsCustomSize) {
-      issues.push({ field: `${path}.values`, message: `Option group ${label || index + 1} has no values.`, severity: 'warning' });
+    const seenValues = new Set<string>();
+    const allowsCustomSize = Boolean(group.allowCustomSize || group.customSizeEnabled || key === 'custom-size' || displayType === 'custom-size');
+    if (values.length === 0 && !allowsCustomSize) issues.push({ field: `${path}.values`, message: `Option group ${label || index + 1} has no values.`, severity: 'warning' });
+
+    values.forEach((value: any, valueIndex: number) => {
+      const id = valueId(value);
+      const valuePath = `${path}.values.${valueIndex}`;
+      if (!cleanText(value?.label || value?.name)) issues.push({ field: `${valuePath}.label`, message: `${label || key || 'Option group'} value ${valueIndex + 1} needs a customer label.`, severity: 'warning' });
+      if (!id) {
+        issues.push({ field: `${valuePath}.id`, message: `${label || key || 'Option group'} value ${valueIndex + 1} needs a stable ID or pricing key.`, severity: 'warning' });
+      } else if (seenValues.has(id)) {
+        issues.push({ field: `${valuePath}.id`, message: `${label || key || 'Option group'} has duplicate value ID/key "${id}".`, severity: 'error' });
+      } else {
+        seenValues.add(id);
+      }
+      if ((key === 'size' || group.source === 'size') && !allowsCustomSize && (!Number(value?.width) || !Number(value?.height))) {
+        issues.push({ field: valuePath, message: `${cleanText(value?.label) || 'Size value'} needs width and height for sheet-fit pricing.`, severity: 'warning' });
+      }
+    });
+
+    if (key) valueIdsByKey.set(key, seenValues);
+
+    if (allowsCustomSize && (!Number(group.maxWidth) || !Number(group.maxHeight))) {
+      issues.push({ field: `${path}.customSizeLimits`, message: `${label || key || 'Custom size'} needs maximum width and length/height limits.`, severity: 'warning' });
     }
 
-    if ((key.includes('material') || key.includes('finish')) && values.some((value: any) => value && typeof value === 'object' && !value.sourceId && !value.id && !value.catalogId)) {
+    if ((key.includes('material') || key.includes('finish') || group.source === 'material' || group.source === 'finish') && values.some((value: any) => value && typeof value === 'object' && !value.sourceId && !value.catalogId)) {
       issues.push({ field: `${path}.values`, message: `${label || key} has manually typed values. Link values to the material/finish library so pricing can use them later.`, severity: 'warning' });
+    }
+  }
+
+  for (const [index, group] of groups.entries()) {
+    if (!group || typeof group !== 'object') continue;
+    const rules = Array.isArray(group.dependencyRules) ? group.dependencyRules : [];
+    for (const [ruleIndex, rule] of rules.entries()) {
+      const rulePath = `metadataJson.optionGroups.${index}.dependencyRules.${ruleIndex}`;
+      const whenGroupKey = cleanText(rule?.whenGroupKey);
+      const whenValueId = cleanText(rule?.whenValueId);
+      const targetGroupKey = cleanText(rule?.targetGroupKey || group.key || group.pricingKey);
+      if (!whenGroupKey) issues.push({ field: `${rulePath}.whenGroupKey`, message: 'Dependency rule needs a source group key.', severity: 'warning' });
+      if (!whenValueId) issues.push({ field: `${rulePath}.whenValueId`, message: 'Dependency rule needs a source value ID.', severity: 'warning' });
+      if (whenGroupKey && !keys.has(whenGroupKey)) issues.push({ field: `${rulePath}.whenGroupKey`, message: `Dependency rule references unknown group "${whenGroupKey}".`, severity: 'error' });
+      if (whenGroupKey && whenValueId && valueIdsByKey.has(whenGroupKey) && !valueIdsByKey.get(whenGroupKey)?.has(whenValueId)) {
+        issues.push({ field: `${rulePath}.whenValueId`, message: `Dependency rule references unknown value "${whenValueId}" in group "${whenGroupKey}".`, severity: 'warning' });
+      }
+      if (targetGroupKey && !keys.has(targetGroupKey)) issues.push({ field: `${rulePath}.targetGroupKey`, message: `Dependency rule target group "${targetGroupKey}" does not exist.`, severity: 'error' });
     }
   }
 }
@@ -116,20 +156,14 @@ export function validateCatalogWrite(resource: CatalogResource, input: InternalC
   if (mode === 'create' || slug) validateSlug(slug, label, issues);
 
   if (resource === 'products') {
-    if (mode === 'create' && !hasText(input.title) && !hasText(input.name)) {
-      issues.push({ field: 'title', message: 'Product requires a product name/title.', severity: 'error' });
-    }
+    if (mode === 'create' && !hasText(input.title) && !hasText(input.name)) issues.push({ field: 'title', message: 'Product requires a product name/title.', severity: 'error' });
     validatePrice(input, issues);
     validateCurrency(input, issues);
     validateOptionGroups(input, issues);
   } else if (resource === 'categories') {
-    if (mode === 'create' && !hasText(input.name) && !hasText(input.title)) {
-      issues.push({ field: 'name', message: 'Category requires a name.', severity: 'error' });
-    }
+    if (mode === 'create' && !hasText(input.name) && !hasText(input.title)) issues.push({ field: 'name', message: 'Category requires a name.', severity: 'error' });
   } else {
-    if (mode === 'create' && !hasText(input.name) && !hasText(input.title)) {
-      issues.push({ field: 'name', message: `${label} requires a name.`, severity: 'warning' });
-    }
+    if (mode === 'create' && !hasText(input.name) && !hasText(input.title)) issues.push({ field: 'name', message: `${label} requires a name.`, severity: 'warning' });
   }
 
   const errors = issues.filter((issue) => issue.severity === 'error');

@@ -53,6 +53,8 @@ export type ParametricStandardConfig = {
 
 export type ProductOptionDisplayType = 'dropdown' | 'radio' | 'image-cards' | 'checkboxes' | 'swatches' | 'quantity-grid' | 'custom-size' | 'info-cards';
 export type ProductOptionSource = 'size' | 'material' | 'finish' | 'quantity' | 'turnaround' | 'custom';
+export type PricingInputRole = 'none' | 'size' | 'material' | 'finish' | 'quantity' | 'sides' | 'turnaround' | 'width' | 'height' | 'area' | 'pages' | 'artwork' | 'custom';
+export type PricingBasis = 'none' | 'fixed' | 'per-item' | 'per-sheet' | 'per-side' | 'per-sqm' | 'per-linear-metre' | 'percentage' | 'time-minutes';
 
 export type ProductOptionValue = {
   id: Id;
@@ -73,6 +75,13 @@ export type ProductOptionValue = {
   isHidden?: boolean;
   sortOrder?: number;
   productionCode?: string;
+  pricingInputRole?: PricingInputRole;
+  pricingBasis?: PricingBasis;
+  pricingMultiplier?: number;
+  setupCostMinor?: number;
+  runCostMinor?: number;
+  minChargeMinor?: number;
+  pricingFormulaHint?: string;
   compatibleMaterialIds?: Id[];
   incompatibleMaterialIds?: Id[];
   compatibleFinishIds?: Id[];
@@ -102,6 +111,10 @@ export type ProductOptionGroup = {
   increment?: number;
   sourceLimitMode?: 'manual' | 'material-printer';
   compatibilityMode?: 'none' | 'material-to-finish' | 'material-to-printer' | 'finish-to-material' | 'size-to-printer';
+  pricingInputRole?: PricingInputRole;
+  pricingBasis?: PricingBasis;
+  pricingUnit?: string;
+  pricingFormulaHint?: string;
   requiredCompatibleGroupKey?: string;
   sheetFitMode?: ProductSheetFitMode;
   sourceSheetWidth?: number;

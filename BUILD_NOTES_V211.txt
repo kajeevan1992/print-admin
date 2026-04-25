@@ -1,0 +1,35 @@
+v211 pricing input preparation
+
+Scope:
+- Prepare product option groups to send clean inputs into the future pricing engine.
+- No pricing calculation engine was added in this build.
+- No storefront redesign, order flow, artwork workflow or production workflow changes.
+
+Added:
+- Pricing input role per option group.
+- Pricing basis per option group: fixed, per item, per sheet, per side, per sqm, per linear metre, percentage, time minutes.
+- Pricing unit and pricing formula hint fields.
+- Pricing input role and pricing basis per option value.
+- Setup cost, run cost, minimum charge and multiplier fields per option value.
+- Internal pricing input report endpoint.
+
+New endpoint:
+- GET /api/internal/catalog/pricing-input-report
+
+Use this endpoint to check whether products have the minimum inputs that pricing will need later:
+- size
+- material
+- quantity
+
+Important:
+- This build does NOT calculate product prices.
+- It only stores and reports pricing-ready data so the future pricing engine has clean keys and cost hooks.
+
+Test:
+1. Open a product.
+2. Go to Option Groups.
+3. Check that each group has Pricing input role, Pricing basis, Pricing unit and formula hint fields.
+4. Add setup/run costs to one value.
+5. Save product.
+6. Refresh product and confirm fields persist.
+7. Visit /api/internal/catalog/pricing-input-report.

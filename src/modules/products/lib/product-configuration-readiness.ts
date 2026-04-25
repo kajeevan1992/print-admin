@@ -66,6 +66,8 @@ export function validateProductConfiguration(product: Pick<Product, 'optionGroup
     }
 
     if (!group.values?.length && group.displayType !== 'custom-size' && !group.allowCustomSize) {
+    if (!(group.pricingInputRole || group.pricingKey || group.key || group.source)) issues.push({ id: `${group.id}-pricing-input-role`, level: 'warning', title: `${valueLabel(group)} needs pricing role`, message: 'Choose the pricing input role this group should send to the pricing engine later.' });
+    if (!group.pricingBasis) issues.push({ id: `${group.id}-pricing-basis`, level: 'info', title: `${valueLabel(group)} pricing basis not set`, message: 'Set a pricing basis such as per-item, per-sheet, per-sqm or fixed before pricing rules are built.' });
       issues.push({ id: `${group.id}-no-values`, level: 'warning', title: `${valueLabel(group)} has no values`, message: 'Add values or link values from a library.' });
     }
 

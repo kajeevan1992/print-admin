@@ -46,6 +46,8 @@ function validateProduct(product: any): Issue[] {
     if (key && keys.has(key)) issues.push({ ...base, field: `optionGroups.${index}.key`, severity: 'error', message: `Duplicate option group key "${key}".` });
     if (key) keys.add(key);
     if (!text(group?.displayType || group?.display)) issues.push({ ...base, field: `optionGroups.${index}.displayType`, severity: 'warning', message: `${groupLabel} needs a storefront display type.` });
+    if (!text(group?.pricingInputRole || group?.pricingKey || group?.key || group?.source)) issues.push({ ...base, field: `optionGroups.${index}.pricingInputRole`, severity: 'warning', message: `${groupLabel} needs a pricing input role before pricing engine mapping.` });
+    if (!text(group?.pricingBasis || '')) issues.push({ ...base, field: `optionGroups.${index}.pricingBasis`, severity: 'warning', message: `${groupLabel} needs a pricing basis such as per-item, per-sheet or per-sqm.` });
 
     const values = Array.isArray(group?.values) ? group.values : Array.isArray(group?.options) ? group.options : [];
     const allowsCustomSize = Boolean(group?.allowCustomSize || group?.customSizeEnabled || key === 'custom-size' || group?.displayType === 'custom-size');

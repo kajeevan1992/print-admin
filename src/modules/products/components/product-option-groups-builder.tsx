@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/buttons';
 import { Input } from '@/components/forms/input';
 import { ProductSectionCard } from './product-section-card';
-import type { Product, ProductOptionDisplayType, ProductOptionGroup, ProductOptionSource, ProductOptionValue } from '@/modules/products/types';
+import type { Product, ProductOptionDisplayType, ProductOptionGroup, ProductOptionSource, ProductOptionValue, PricingInputRole, PricingBasis } from '@/modules/products/types';
 import { productConfigurationReadinessLabel, validateProductConfiguration } from '@/modules/products/lib/product-configuration-readiness';
 
 type LibraryItem = { id: string; name?: string; title?: string; slug?: string; description?: string; gsm?: string; maxWidth?: number; maxPrintableWidth?: number };
 type LibraryState = { materials: LibraryItem[]; finishes: LibraryItem[]; optionSets: LibraryItem[] };
 
 const displayTypes: ProductOptionDisplayType[] = ['dropdown', 'radio', 'image-cards', 'checkboxes', 'swatches', 'quantity-grid', 'custom-size', 'info-cards'];
+const pricingRoles: PricingInputRole[] = ['none', 'size', 'material', 'finish', 'quantity', 'sides', 'turnaround', 'width', 'height', 'area', 'pages', 'artwork', 'custom'];
+const pricingBases: PricingBasis[] = ['none', 'fixed', 'per-item', 'per-sheet', 'per-side', 'per-sqm', 'per-linear-metre', 'percentage', 'time-minutes'];
 const sourceLabels: Record<ProductOptionSource, string> = {
   size: 'Sizes / dimensions',
   material: 'Materials library',
@@ -193,6 +195,10 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
               <label className="space-y-1 text-sm"><span className="text-textMuted">Display columns</span><Input type="number" min={1} max={4} value={String(group.displayColumns || '')} placeholder="Auto" onChange={(e) => setGroups(updateGroup(groups, group.id, { displayColumns: Number(e.target.value) || undefined }))} /></label>
               <label className="flex items-end gap-2 pb-2 text-sm text-textMuted"><input type="checkbox" checked={!!group.hideDescriptions} onChange={(e) => setGroups(updateGroup(groups, group.id, { hideDescriptions: e.target.checked }))} /> Hide descriptions</label>
               <label className="space-y-1 text-sm md:col-span-3"><span className="text-textMuted">Customer help text</span><Input value={group.helpText || ''} placeholder="Explain this choice on the storefront" onChange={(e) => setGroups(updateGroup(groups, group.id, { helpText: e.target.value }))} /></label>
+              <label className="space-y-1 text-sm"><span className="text-textMuted">Pricing input role</span><select value={group.pricingInputRole || group.source || 'none'} onChange={(e) => setGroups(updateGroup(groups, group.id, { pricingInputRole: e.target.value as PricingInputRole }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{pricingRoles.map((role) => <option key={role} value={role}>{role}</option>)}</select></label>
+              <label className="space-y-1 text-sm"><span className="text-textMuted">Pricing basis</span><select value={group.pricingBasis || 'none'} onChange={(e) => setGroups(updateGroup(groups, group.id, { pricingBasis: e.target.value as PricingBasis }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{pricingBases.map((basis) => <option key={basis} value={basis}>{basis}</option>)}</select></label>
+              <label className="space-y-1 text-sm"><span className="text-textMuted">Pricing unit</span><Input value={group.pricingUnit || ''} placeholder="sheet / sqm / item" onChange={(e) => setGroups(updateGroup(groups, group.id, { pricingUnit: e.target.value }))} /></label>
+              <label className="space-y-1 text-sm md:col-span-3"><span className="text-textMuted">Pricing formula hint</span><Input value={group.pricingFormulaHint || ''} placeholder="Example: quantity × sheets × material cost + finish setup" onChange={(e) => setGroups(updateGroup(groups, group.id, { pricingFormulaHint: e.target.value }))} /></label>
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-sm text-textMuted">
               <label className="flex items-center gap-2"><input type="checkbox" checked={group.required} onChange={(e) => setGroups(updateGroup(groups, group.id, { required: e.target.checked }))} /> Required</label>
@@ -303,8 +309,13 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
                   <Input value={value.imageUrl || ''} placeholder="Image URL / icon URL" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { imageUrl: e.target.value })))} />
                   <Input value={value.pricingKey || ''} placeholder="Pricing value key" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingKey: e.target.value })))} />
                   <Input value={value.productionCode || ''} placeholder="Production code" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { productionCode: e.target.value })))} />
+                  <select value={value.pricingInputRole || group.pricingInputRole || 'none'} onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingInputRole: e.target.value as PricingInputRole })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{pricingRoles.map((role) => <option key={role} value={role}>{role}</option>)}</select>
+                  <select value={value.pricingBasis || group.pricingBasis || 'none'} onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingBasis: e.target.value as PricingBasis })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{pricingBases.map((basis) => <option key={basis} value={basis}>{basis}</option>)}</select>
                   <Button className="text-red-300" onClick={() => setGroups(updateGroup(groups, group.id, { values: group.values.filter((item) => item.id !== value.id), defaultValueId: group.defaultValueId === value.id ? undefined : group.defaultValueId }))}>Remove</Button>
                   <Input type="number" value={String(value.sortOrder ?? '')} placeholder="Sort order" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { sortOrder: Number(e.target.value) || undefined })))} />
+                  <Input type="number" value={String(value.setupCostMinor ?? '')} placeholder="Setup cost pence" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { setupCostMinor: Number(e.target.value) || undefined })))} />
+                  <Input type="number" value={String(value.runCostMinor ?? '')} placeholder="Run cost pence" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { runCostMinor: Number(e.target.value) || undefined })))} />
+                  <Input type="number" value={String(value.pricingMultiplier ?? '')} placeholder="Multiplier" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingMultiplier: Number(e.target.value) || undefined })))} />
                   <Input value={value.swatchColor || ''} placeholder="Swatch colour e.g. #ffffff" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { swatchColor: e.target.value })))} />
                   <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textMuted"><input type="radio" name={`default-${group.id}`} checked={group.defaultValueId === value.id || !!value.isDefault} onChange={() => setGroups(updateGroup(groups, group.id, setDefaultValue(group, value.id)))} /> Default</label>
                   <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textMuted"><input type="checkbox" checked={!!value.isHidden} onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { isHidden: e.target.checked })))} /> Hide</label>

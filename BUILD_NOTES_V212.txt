@@ -1,0 +1,44 @@
+v212 pricing quote input bridge
+
+Scope:
+- Adds the first bridge between product configuration and the future pricing engine.
+- Does NOT calculate final prices yet.
+- Does NOT change orders, storefront checkout, or pricing engine rules.
+
+Added:
+- src/core/catalog/pricing-quote-input.ts
+- app/api/internal/catalog/pricing-quote-input/route.ts
+
+New internal API:
+- GET  /api/internal/catalog/pricing-quote-input?productId=<id-or-slug>
+- POST /api/internal/catalog/pricing-quote-input
+
+POST body example:
+{
+  "productId": "standard-business-cards",
+  "selections": {
+    "size": "85x55",
+    "material": "350gsm-silk",
+    "finish": "matt-lam",
+    "quantity": 500,
+    "turnaround": "standard"
+  }
+}
+
+Returns:
+- normalized product pricing inputs
+- selected option/value mapping
+- setup/run/minimum charge inputs where configured
+- production codes
+- missing role warnings
+- pricingEngineStatus: input-ready | needs-configuration
+
+Test after deploy:
+1. Open a product in Products.
+2. Confirm option groups have pricing roles for size/material/quantity.
+3. Visit /api/internal/catalog/pricing-input-report and confirm product readiness.
+4. Visit /api/internal/catalog/pricing-quote-input?productId=<created-product-id-or-slug>.
+5. POST sample selections to confirm normalized quote input payload is returned.
+
+Rollback:
+- Remove the new route folder and src/core/catalog/pricing-quote-input.ts.

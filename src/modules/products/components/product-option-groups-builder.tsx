@@ -82,6 +82,20 @@ function updateValue(group: ProductOptionGroup, valueId: string, patch: Partial<
   return { ...group, values: group.values.map((value) => value.id === valueId ? { ...value, ...patch } : value) };
 }
 
+function setDefaultValue(group: ProductOptionGroup, valueId: string): ProductOptionGroup {
+  return {
+    ...group,
+    defaultValueId: valueId,
+    values: group.values.map((value) => ({ ...value, isDefault: value.id === valueId })),
+  };
+}
+
+function orderedValues(group: ProductOptionGroup) {
+  return [...group.values]
+    .filter((value) => !value.isHidden)
+    .sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+}
+
 function updateDependencyRule(group: ProductOptionGroup, ruleId: string, patch: Partial<NonNullable<ProductOptionGroup['dependencyRules']>[number]>): ProductOptionGroup {
   const rules = group.dependencyRules || [];
   return { ...group, dependencyRules: rules.map((rule) => rule.id === ruleId ? { ...rule, ...patch } : rule) };
@@ -156,6 +170,9 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
               <label className="space-y-1 text-sm"><span className="text-textMuted">Display on storefront</span><select value={group.displayType} onChange={(e) => setGroups(updateGroup(groups, group.id, { displayType: e.target.value as ProductOptionDisplayType }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">{displayTypes.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
               <label className="space-y-1 text-sm"><span className="text-textMuted">Unit / size unit</span><Input value={group.unit || ''} placeholder="mm" onChange={(e) => setGroups(updateGroup(groups, group.id, { unit: e.target.value }))} /></label>
               <label className="space-y-1 text-sm"><span className="text-textMuted">Pricing key</span><Input value={group.pricingKey || group.key || ''} placeholder="material" onChange={(e) => setGroups(updateGroup(groups, group.id, { pricingKey: e.target.value }))} /></label>
+              <label className="space-y-1 text-sm"><span className="text-textMuted">Default value</span><select value={group.defaultValueId || ''} onChange={(e) => setGroups(updateGroup(groups, group.id, setDefaultValue(group, e.target.value)))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"><option value="">No default</option>{group.values.map((value) => <option key={value.id} value={value.id}>{value.label || value.id}</option>)}</select></label>
+              <label className="space-y-1 text-sm"><span className="text-textMuted">Display columns</span><Input type="number" min={1} max={4} value={String(group.displayColumns || '')} placeholder="Auto" onChange={(e) => setGroups(updateGroup(groups, group.id, { displayColumns: Number(e.target.value) || undefined }))} /></label>
+              <label className="flex items-end gap-2 pb-2 text-sm text-textMuted"><input type="checkbox" checked={!!group.hideDescriptions} onChange={(e) => setGroups(updateGroup(groups, group.id, { hideDescriptions: e.target.checked }))} /> Hide descriptions</label>
               <label className="space-y-1 text-sm md:col-span-3"><span className="text-textMuted">Customer help text</span><Input value={group.helpText || ''} placeholder="Explain this choice on the storefront" onChange={(e) => setGroups(updateGroup(groups, group.id, { helpText: e.target.value }))} /></label>
             </div>
             <div className="mt-3 flex flex-wrap gap-3 text-sm text-textMuted">
@@ -190,13 +207,17 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
 
             <div className="mt-4 space-y-2">
               <div className="flex items-center justify-between"><p className="text-sm font-medium text-white">Values shown to customer</p><Button onClick={() => setGroups(updateGroup(groups, group.id, { values: [...group.values, { id: makeId('value'), label: 'New value' }] }))}>Add value</Button></div>
-              {group.values.map((value) => (
-                <div key={value.id} className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+              {orderedValues(group).map((value) => (
+                <div key={value.id} className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                   <Input value={value.label} placeholder="Label" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { label: e.target.value })))} />
                   <Input value={value.description || ''} placeholder="Short description" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { description: e.target.value })))} />
                   <Input value={value.imageUrl || ''} placeholder="Image URL / icon URL" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { imageUrl: e.target.value })))} />
                   <Input value={value.pricingKey || ''} placeholder="Pricing value key" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingKey: e.target.value })))} />
-                  <Button className="text-red-300" onClick={() => setGroups(updateGroup(groups, group.id, { values: group.values.filter((item) => item.id !== value.id) }))}>Remove</Button>
+                  <Button className="text-red-300" onClick={() => setGroups(updateGroup(groups, group.id, { values: group.values.filter((item) => item.id !== value.id), defaultValueId: group.defaultValueId === value.id ? undefined : group.defaultValueId }))}>Remove</Button>
+                  <Input type="number" value={String(value.sortOrder ?? '')} placeholder="Sort order" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { sortOrder: Number(e.target.value) || undefined })))} />
+                  <Input value={value.swatchColor || ''} placeholder="Swatch colour e.g. #ffffff" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { swatchColor: e.target.value })))} />
+                  <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textMuted"><input type="radio" name={`default-${group.id}`} checked={group.defaultValueId === value.id || !!value.isDefault} onChange={() => setGroups(updateGroup(groups, group.id, setDefaultValue(group, value.id)))} /> Default</label>
+                  <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-textMuted"><input type="checkbox" checked={!!value.isHidden} onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { isHidden: e.target.checked })))} /> Hide</label>
                   {group.source === 'size' && <><Input type="number" value={String(value.width || '')} placeholder="Width" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { width: Number(e.target.value) || undefined })))} /><Input type="number" value={String(value.height || '')} placeholder="Height" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { height: Number(e.target.value) || undefined })))} /></>}
                   {group.source === 'quantity' && <Input type="number" value={String(value.quantity || '')} placeholder="Quantity" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { quantity: Number(e.target.value) || undefined, label: e.target.value })))} />}
                 </div>

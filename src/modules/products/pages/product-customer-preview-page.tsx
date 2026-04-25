@@ -10,6 +10,7 @@ import { productConfigurationReadinessLabel, validateProductConfiguration } from
 
 export function ProductCustomerPreviewPage({ productId }: { productId: string }) {
   const [product, setProduct] = useState<Product | null>(null);
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,6 +22,17 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load product preview'))
       .finally(() => setLoading(false));
   }, [productId]);
+
+  useEffect(() => {
+    if (!product?.optionGroups?.length) return;
+    const defaults: Record<string, string> = {};
+    product.optionGroups.forEach((group) => {
+      const visibleValues = group.values.filter((value) => !value.isHidden);
+      const defaultValue = visibleValues.find((value) => value.id === group.defaultValueId || value.isDefault) || visibleValues[0];
+      if (defaultValue) defaults[group.key] = defaultValue.id;
+    });
+    setSelectedOptions(defaults);
+  }, [product?.id]);
 
   const previewData = useMemo(() => {
     if (!product) return null;
@@ -80,26 +92,55 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
 
           {product.optionGroups?.length ? (
             <div className="mt-5 space-y-4">
-              {product.optionGroups.map((group) => (
+              {product.optionGroups.filter((group) => {
+                const rules = product.optionGroups?.flatMap((item) => item.dependencyRules || []) || [];
+                const hideRule = rules.find((rule) => (rule.targetGroupKey || '') === group.key && rule.action === 'hide' && selectedOptions[rule.whenGroupKey] === rule.whenValueId);
+                const showRules = rules.filter((rule) => (rule.targetGroupKey || '') === group.key && rule.action === 'show');
+                return !hideRule && (showRules.length === 0 || showRules.some((rule) => selectedOptions[rule.whenGroupKey] === rule.whenValueId));
+              }).map((group) => {
+                const values = [...group.values].filter((value) => !value.isHidden).sort((a, b) => (a.sortOrder ?? 9999) - (b.sortOrder ?? 9999));
+                const requiredByRule = (product.optionGroups?.flatMap((item) => item.dependencyRules || []) || []).some((rule) => (rule.targetGroupKey || '') === group.key && rule.action === 'require' && selectedOptions[rule.whenGroupKey] === rule.whenValueId);
+                const selected = selectedOptions[group.key] || group.defaultValueId || values.find((value) => value.isDefault)?.id || values[0]?.id;
+                const gridCols = group.displayColumns === 1 ? 'sm:grid-cols-1' : group.displayColumns === 3 ? 'sm:grid-cols-3' : group.displayColumns === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-2';
+                return (
                 <div key={group.id}>
-                  <p className="mb-2 text-sm font-medium text-white">{group.name}</p>
-                  <div className={group.displayType === 'dropdown' ? '' : 'grid gap-2 sm:grid-cols-2'}>
-                    {group.displayType === 'dropdown' ? (
-                      <select className="w-full rounded-xl border border-border bg-panelMuted px-3 py-3 text-sm text-white">
-                        {group.values.map((value) => <option key={value.id}>{value.label}</option>)}
-                      </select>
-                    ) : group.values.map((value) => (
-                      <div key={value.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                        {value.imageUrl && <img src={value.imageUrl} alt={value.label} className="mb-2 h-20 w-full rounded-xl object-cover" />}
-                        <p className="font-medium text-white">{value.label}</p>
-                        {value.description && <p className="mt-1 text-xs text-textMuted">{value.description}</p>}
-                      </div>
-                    ))}
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium text-white">{group.name} {(group.required || requiredByRule) && <span className="text-red-300">*</span>}</p>
+                    <span className="rounded-full border border-border px-2 py-1 text-[11px] text-textMuted">{group.displayType}</span>
                   </div>
                   {group.helpText && <p className="mb-2 text-xs text-textMuted">{group.helpText}</p>}
-                  {group.allowCustomSize && <p className="mt-2 text-xs text-textMuted">Custom size enabled. Max width {group.maxWidth || previewData.templateRules?.maxPrintableWidth || 'not set'} {group.unit || previewData.templateRules?.sourceSheetUnit || 'mm'}.</p>}
+                  <div className={group.displayType === 'dropdown' ? '' : `grid gap-2 ${gridCols}`}>
+                    {group.displayType === 'dropdown' ? (
+                      <select value={selected || ''} onChange={(event) => setSelectedOptions((current) => ({ ...current, [group.key]: event.target.value }))} className="w-full rounded-xl border border-border bg-panelMuted px-3 py-3 text-sm text-white">
+                        {values.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}
+                      </select>
+                    ) : group.displayType === 'custom-size' || group.allowCustomSize ? (
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <input className="rounded-xl border border-border bg-panelMuted px-3 py-3 text-sm text-white" placeholder={`Width max ${group.maxWidth || previewData.templateRules?.maxPrintableWidth || 'not set'} ${group.unit || 'mm'}`} />
+                        <input className="rounded-xl border border-border bg-panelMuted px-3 py-3 text-sm text-white" placeholder={`Height/length max ${group.maxHeight || previewData.templateRules?.maxPrintableLength || 'not set'} ${group.unit || 'mm'}`} />
+                      </div>
+                    ) : values.map((value) => {
+                      const active = selected === value.id;
+                      const isCheckbox = group.displayType === 'checkboxes' || group.allowMultiple;
+                      return (
+                      <button type="button" key={value.id} onClick={() => setSelectedOptions((current) => ({ ...current, [group.key]: value.id }))} className={`rounded-2xl border p-3 text-left transition ${active ? 'border-emerald-400 bg-emerald-500/10' : 'border-white/8 bg-white/[0.03]'}`}>
+                        {value.imageUrl && <img src={value.imageUrl} alt={value.label} className="mb-2 h-20 w-full rounded-xl object-cover" />}
+                        {group.displayType === 'swatches' && <span className="mb-2 block h-8 w-8 rounded-full border border-white/20" style={{ background: value.swatchColor || value.label }} />}
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-1 h-3 w-3 shrink-0 border border-white/30 ${isCheckbox ? 'rounded' : 'rounded-full'} ${active ? 'bg-emerald-300' : ''}`} />
+                          <div>
+                            <p className="font-medium text-white">{value.label}</p>
+                            {!group.hideDescriptions && value.description && <p className="mt-1 text-xs text-textMuted">{value.description}</p>}
+                            {(value.width && value.height) && <p className="mt-1 text-[11px] text-textMuted">{value.width} × {value.height} {value.unit || group.unit || 'mm'}</p>}
+                            {value.leadTimeDays && <p className="mt-1 text-[11px] text-textMuted">{value.leadTimeDays} day lead time</p>}
+                          </div>
+                        </div>
+                      </button>
+                    )})}
+                  </div>
+                  {group.allowCustomSize && group.displayType !== 'custom-size' && <p className="mt-2 text-xs text-textMuted">Custom size enabled. Max width {group.maxWidth || previewData.templateRules?.maxPrintableWidth || 'not set'} {group.unit || previewData.templateRules?.sourceSheetUnit || 'mm'}.</p>}
                 </div>
-              ))}
+              )})}
             </div>
           ) : (
             <div className="mt-5 grid gap-3 sm:grid-cols-2">

@@ -1,0 +1,31 @@
+# v207 - Storefront option display controls
+
+Scope:
+- Product configuration polish only.
+- No pricing engine changes.
+- No orders/artwork workflow/storefront redesign.
+
+Added:
+- Per option group default value selection.
+- Per option group display column control.
+- Per option group hide-description toggle.
+- Per option value sort order.
+- Per option value swatch colour field.
+- Per option value hide flag.
+- Customer preview now simulates selections instead of showing static cards only.
+- Customer preview applies show/hide/require dependency rules.
+- Validation report now checks hidden/default/display-column/swatch issues.
+
+Test:
+1. Open a product.
+2. Go to Option Groups.
+3. Add/edit size/material/finish/quantity groups.
+4. Set default values, sort order, display columns and swatch colours.
+5. Save product.
+6. Open Preview.
+7. Confirm display style and dependency rules are reflected.
+8. Open /api/internal/catalog/validation-report and confirm new warnings/errors appear where expected.
+
+Notes:
+- This still does not calculate real pricing.
+- Pricing engine integration should use pricingKey/sourceId/value IDs later.

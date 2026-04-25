@@ -99,8 +99,19 @@ function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogV
 
     const values = Array.isArray(group.values) ? group.values : Array.isArray(group.options) ? group.options : [];
     const seenValues = new Set<string>();
+    const visibleValues = values.filter((value: any) => !value?.isHidden);
     const allowsCustomSize = Boolean(group.allowCustomSize || group.customSizeEnabled || key === 'custom-size' || displayType === 'custom-size');
     if (values.length === 0 && !allowsCustomSize) issues.push({ field: `${path}.values`, message: `Option group ${label || index + 1} has no values.`, severity: 'warning' });
+    if (values.length > 0 && visibleValues.length === 0) issues.push({ field: `${path}.values`, message: `Option group ${label || index + 1} has all values hidden, so customers cannot choose anything.`, severity: 'error' });
+    if (group.defaultValueId && !values.some((value: any) => valueId(value) === group.defaultValueId || value?.id === group.defaultValueId)) {
+      issues.push({ field: `${path}.defaultValueId`, message: `Option group ${label || key} default value does not exist.`, severity: 'error' });
+    }
+    if (group.defaultValueId && values.some((value: any) => (valueId(value) === group.defaultValueId || value?.id === group.defaultValueId) && value?.isHidden)) {
+      issues.push({ field: `${path}.defaultValueId`, message: `Option group ${label || key} default value is hidden. Choose a visible default.`, severity: 'warning' });
+    }
+    if (group.displayColumns !== undefined && (!Number.isFinite(Number(group.displayColumns)) || Number(group.displayColumns) < 1 || Number(group.displayColumns) > 4)) {
+      issues.push({ field: `${path}.displayColumns`, message: `Option group ${label || key} display columns should be between 1 and 4.`, severity: 'warning' });
+    }
 
     values.forEach((value: any, valueIndex: number) => {
       const id = valueId(value);
@@ -115,6 +126,12 @@ function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogV
       }
       if ((key === 'size' || group.source === 'size') && !allowsCustomSize && (!Number(value?.width) || !Number(value?.height))) {
         issues.push({ field: valuePath, message: `${cleanText(value?.label) || 'Size value'} needs width and height for sheet-fit pricing.`, severity: 'warning' });
+      }
+      if (group.displayType === 'swatches' && !cleanText(value?.swatchColor) && !cleanText(value?.imageUrl)) {
+        issues.push({ field: `${valuePath}.swatchColor`, message: `${cleanText(value?.label) || 'Swatch value'} should have a colour or image for swatch display.`, severity: 'warning' });
+      }
+      if (value?.isHidden && value?.isDefault) {
+        issues.push({ field: `${valuePath}.isDefault`, message: `${cleanText(value?.label) || 'Option value'} is both hidden and default.`, severity: 'warning' });
       }
     });
 

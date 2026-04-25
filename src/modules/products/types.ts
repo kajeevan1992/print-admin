@@ -68,6 +68,10 @@ export type ProductOptionValue = {
   leadTimeDays?: number;
   pricingKey?: string;
   dependencyKey?: string;
+  swatchColor?: string;
+  isDefault?: boolean;
+  isHidden?: boolean;
+  sortOrder?: number;
 };
 
 export type ProductOptionGroup = {
@@ -84,6 +88,9 @@ export type ProductOptionGroup = {
   unit?: string;
   values: ProductOptionValue[];
   pricingKey?: string;
+  defaultValueId?: Id;
+  displayColumns?: number;
+  hideDescriptions?: boolean;
   dependencyRules?: Array<{ id: Id; whenGroupKey: string; whenValueId: string; action: 'show' | 'hide' | 'require'; targetGroupKey?: string }>;
   helpText?: string;
 };

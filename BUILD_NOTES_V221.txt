@@ -1,0 +1,36 @@
+# v221 — Pricing Scenario Library
+
+## Scope
+Focused pricing-engine lab improvement only.
+
+## Added
+- Saved pricing scenarios inside `/pricing-engine-lab`.
+- Scenarios persist through the existing internal config item API:
+  - `GET /api/internal/config/pricing-engine-lab-scenarios/items`
+  - `POST /api/internal/config/pricing-engine-lab-scenarios/items`
+  - `DELETE /api/internal/config/pricing-engine-lab-scenarios/items?id=...`
+- Each scenario stores:
+  - product id/slug
+  - product name
+  - quantity
+  - customer option selections JSON
+  - created/updated timestamps
+- Load scenario button restores product, quantity, and selected options JSON.
+- Delete scenario button removes saved scenarios from DB.
+
+## Not included
+- No storefront changes.
+- No order flow changes.
+- No new pricing formulas.
+- No external/public API changes.
+
+## Test
+1. Deploy build.
+2. Open `/pricing-engine-lab`.
+3. Select a product.
+4. Choose options and quantity.
+5. Save a scenario.
+6. Refresh page.
+7. Confirm scenario remains available.
+8. Load scenario and run diagnostics.
+9. Delete scenario and refresh again.

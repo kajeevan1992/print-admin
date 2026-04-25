@@ -73,6 +73,18 @@ type PricingDiagnostics = {
   pricing?: any;
 };
 
+type SavedPricingScenario = {
+  id: string;
+  title: string;
+  name?: string;
+  productId: string;
+  productName?: string;
+  quantity: number;
+  selections: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 function money(minor?: number, currency = 'GBP') {
   const value = Number(minor || 0) / 100;
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: currency || 'GBP' }).format(value);
@@ -126,6 +138,10 @@ export default function Page() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
   const [diagnostics, setDiagnostics] = useState<PricingDiagnostics | null>(null);
+  const [scenarios, setScenarios] = useState<SavedPricingScenario[]>([]);
+  const [scenarioName, setScenarioName] = useState('');
+  const [scenarioStatus, setScenarioStatus] = useState('');
+  const [loadingScenarios, setLoadingScenarios] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,6 +178,10 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    loadScenarios();
   }, []);
 
   const selectedProduct = useMemo(() => products.find((item) => item.id === productId || item.slug === productId), [products, productId]);
@@ -230,6 +250,91 @@ export default function Page() {
     } finally {
       setRunning(false);
     }
+  }
+
+  async function loadScenarios() {
+    setLoadingScenarios(true);
+    setScenarioStatus('');
+    try {
+      const response = await fetch('/api/internal/config/pricing-engine-lab-scenarios/items', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Unable to load saved scenarios.');
+      const items = Array.isArray(payload?.data?.items) ? payload.data.items : [];
+      setScenarios(items.map((item: any) => ({
+        id: String(item.id || item.title || `scenario-${Date.now()}`),
+        title: String(item.title || item.name || 'Untitled scenario'),
+        name: item.name,
+        productId: String(item.productId || ''),
+        productName: item.productName,
+        quantity: Number(item.quantity || 1),
+        selections: item.selections && typeof item.selections === 'object' ? item.selections : {},
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+      } as SavedPricingScenario)));
+    } catch (err) {
+      setScenarioStatus(err instanceof Error ? err.message : 'Unable to load saved scenarios.');
+    } finally {
+      setLoadingScenarios(false);
+    }
+  }
+
+  async function saveScenario() {
+    setScenarioStatus('');
+    try {
+      let selections: Record<string, unknown> = {};
+      try {
+        selections = selectionJson.trim() ? JSON.parse(selectionJson) : {};
+      } catch {
+        throw new Error('Fix the customer selections JSON before saving the scenario.');
+      }
+      const selectedTitle = selectedProduct?.title || selectedProduct?.name || productId;
+      const title = scenarioName.trim() || `${selectedTitle || 'Product'} · qty ${Number(quantity) || 1}`;
+      const now = new Date().toISOString();
+      const item: SavedPricingScenario = {
+        id: `${String(productId || 'product').replace(/[^a-zA-Z0-9._:-]/g, '-')}-${Date.now()}`,
+        title,
+        name: title,
+        productId,
+        productName: selectedTitle,
+        quantity: Number(quantity) || 1,
+        selections,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const response = await fetch('/api/internal/config/pricing-engine-lab-scenarios/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(item),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Unable to save scenario.');
+      setScenarioName('');
+      setScenarioStatus('Scenario saved to database.');
+      await loadScenarios();
+    } catch (err) {
+      setScenarioStatus(err instanceof Error ? err.message : 'Unable to save scenario.');
+    }
+  }
+
+  async function deleteScenario(id: string) {
+    setScenarioStatus('');
+    try {
+      const response = await fetch(`/api/internal/config/pricing-engine-lab-scenarios/items?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Unable to delete scenario.');
+      setScenarioStatus('Scenario deleted.');
+      await loadScenarios();
+    } catch (err) {
+      setScenarioStatus(err instanceof Error ? err.message : 'Unable to delete scenario.');
+    }
+  }
+
+  function applyScenario(scenario: SavedPricingScenario) {
+    setProductId(scenario.productId);
+    setQuantity(String(scenario.quantity || 1));
+    setSelectionJson(JSON.stringify(scenario.selections || {}, null, 2));
+    setDiagnostics(null);
+    setScenarioStatus(`Loaded scenario: ${scenario.title}`);
   }
 
   const checks = diagnostics?.checks || [];
@@ -328,6 +433,35 @@ export default function Page() {
         <div className="flex flex-wrap gap-2">
           <PrimaryButton onClick={() => runDiagnostics(false)} disabled={!productId || running || loadingProducts}>{running ? 'Running…' : 'Run JSON diagnostics'}</PrimaryButton>
           <Button type="button" onClick={() => { setSelectionJson('{}'); setDiagnostics(null); }}>Reset selections</Button>
+        </div>
+
+        <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Saved pricing scenarios</p>
+              <p className="mt-1 text-xs text-textMuted">Save repeatable test cases for products, quantities, and option selections. These are stored through the internal config API.</p>
+            </div>
+            <Button type="button" onClick={loadScenarios} disabled={loadingScenarios}>{loadingScenarios ? 'Loading…' : 'Refresh scenarios'}</Button>
+          </div>
+          {scenarioStatus ? <div className={`mt-3 rounded-2xl border p-3 text-xs ${scenarioStatus.toLowerCase().includes('unable') || scenarioStatus.toLowerCase().includes('fix') ? statusClass('warning') : statusClass('ready')}`}>{scenarioStatus}</div> : null}
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+            <Input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="Scenario name, e.g. Business card 350gsm matt lamination qty 500" />
+            <PrimaryButton type="button" onClick={saveScenario} disabled={!productId}>Save current scenario</PrimaryButton>
+          </div>
+          <div className="mt-4 space-y-2">
+            {scenarios.length ? scenarios.slice(0, 12).map((scenario) => (
+              <div key={scenario.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-panelMuted/50 p-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{scenario.title}</p>
+                  <p className="mt-1 text-xs text-textMuted">{scenario.productName || scenario.productId} · qty {scenario.quantity} · {Object.keys(scenario.selections || {}).length} selected option(s)</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => applyScenario(scenario)}>Load</Button>
+                  <Button type="button" onClick={() => deleteScenario(scenario.id)}>Delete</Button>
+                </div>
+              </div>
+            )) : <p className="rounded-2xl border border-white/8 bg-panelMuted/40 p-3 text-xs text-textMuted">No saved pricing scenarios yet.</p>}
+          </div>
         </div>
       </Card>
 

@@ -1,0 +1,54 @@
+v213 - pricing engine foundation scaffold
+
+Scope:
+- Adds a safe internal pricing calculation preview endpoint.
+- Does not add the final print pricing engine yet.
+- Does not change storefront, orders, checkout, artwork workflow, or admin design.
+
+Changed / added files:
+- src/core/catalog/pricing-engine.ts
+- app/api/internal/catalog/pricing-calculate/route.ts
+- BUILD_NOTES_V213.txt
+- PRODUCT_CONFIGURATION_MODEL_V213.md
+
+New test route:
+GET /api/internal/catalog/pricing-calculate?productId=<product-id-or-slug>&quantity=100
+
+POST /api/internal/catalog/pricing-calculate
+Body:
+{
+  "productId": "your-product-slug-or-id",
+  "quantity": 100,
+  "selections": {
+    "size": "85x55",
+    "material": "300gsm-silk",
+    "quantity": "100"
+  }
+}
+
+Expected result:
+- ok: true
+- source: internal-pricing-foundation
+- data.totalMinor
+- data.lines[]
+- data.warnings[] if product pricing setup is incomplete
+
+Important:
+This is a scaffold calculator only. It reads:
+- product priceFromMinor
+- setupCostMinor
+- runCostMinor
+- minChargeMinor
+- pricingMultiplier
+- selected option values
+
+Not included yet:
+- SRA sheet imposition
+- ups-per-sheet calculations
+- roll/board yield calculations
+- machine runtime
+- labour
+- VAT
+- delivery
+- margin/markup
+- discount rules

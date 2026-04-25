@@ -1,0 +1,22 @@
+# v219 - Pricing test bench admin visibility
+
+## Scope
+Focused pricing visibility build. No storefront/order/pricing formula rewrite.
+
+## Added
+- Reworked `/pricing-engine-lab` into a real internal pricing test bench.
+- Loads live products from `/api/internal/catalog/products`.
+- Runs `/api/internal/catalog/pricing-diagnostics` using selected product, quantity, and optional selections JSON.
+- Shows final price, unit price, cost, errors/warnings, production estimate, applied pricing rules, and cost breakdown lines.
+
+## Test
+1. Deploy.
+2. Open `/pricing-engine-lab`.
+3. Select a product.
+4. Enter quantity, e.g. `100`.
+5. Leave selections as `{}` first.
+6. Click `Run pricing diagnostics`.
+7. Confirm diagnostics explain missing roles/costs if product is not fully configured.
+
+## Notes
+This is an admin diagnostic screen only. It does not change storefront, checkout, orders, or public API.

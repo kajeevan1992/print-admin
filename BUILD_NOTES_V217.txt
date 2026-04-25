@@ -1,0 +1,56 @@
+# v217 — Pricing final rules layer
+
+Base used: v215 pricing cost breakdown foundation (v216 link was not available in the workspace).
+
+## Added
+
+- `src/core/catalog/pricing-final.ts`
+- `app/api/internal/catalog/pricing-final/route.ts`
+
+## What it does
+
+Adds a final pricing layer on top of quote input + production estimate + cost breakdown.
+
+It supports:
+
+- markup percentage
+- gross margin percentage
+- quantity break placeholders
+- turnaround multiplier
+- minimum charge enforcement
+- rounding increment
+- final sell price and unit price output
+
+## Endpoint
+
+```txt
+GET /api/internal/catalog/pricing-final?productId=<slug-or-id>&quantity=100
+POST /api/internal/catalog/pricing-final
+```
+
+POST body example:
+
+```json
+{
+  "productId": "standard-business-cards",
+  "quantity": 250,
+  "selections": {
+    "size": "85x55",
+    "material": "350gsm-silk",
+    "finish": "matt-lamination",
+    "turnaround": "standard"
+  }
+}
+```
+
+## Notes
+
+This is still internal-first pricing. It does not add VAT, delivery, customer contract pricing, payment, checkout, or storefront order flow yet.
+
+## Test routes
+
+```txt
+/api/internal/catalog/pricing-final?productId=<existing-product-slug>&quantity=100
+/api/internal/catalog/pricing-cost-breakdown?productId=<existing-product-slug>&quantity=100
+/api/internal/catalog/pricing-production-estimate?productId=<existing-product-slug>&quantity=100
+```

@@ -1,0 +1,38 @@
+# v215 — pricing cost breakdown foundation
+
+Scope: internal pricing engine only. No storefront redesign, no orders workflow, no public API expansion.
+
+Added:
+- First real pricing cost breakdown layer.
+- New helper: `src/core/catalog/pricing-cost-breakdown.ts`.
+- Pricing calculation now includes `costBreakdown` alongside `quoteInput` and `productionEstimate`.
+- New internal endpoint:
+  - `GET /api/internal/catalog/pricing-cost-breakdown?productId=<slug-or-id>&quantity=100`
+  - `POST /api/internal/catalog/pricing-cost-breakdown`
+
+What it calculates:
+- base product price
+- setup costs
+- run/unit costs
+- material/finish/print/turnaround-style line classification
+- sheet/board/roll production quantity basis
+- source units required
+- impressions
+- minimum charges
+- optional product margin percent if configured
+
+Still not final commercial pricing:
+- VAT is not added yet.
+- Delivery is not added yet.
+- Discounts/promotions are not added yet.
+- Customer/trade price bands are not added yet.
+- Full machine speed/labour scheduling is not added yet.
+
+Test:
+1. Deploy.
+2. Open an existing product with option groups and pricing fields.
+3. Test `/api/internal/catalog/pricing-cost-breakdown?productId=<product-slug>&quantity=100`.
+4. Compare with `/api/internal/catalog/pricing-calculate?productId=<product-slug>&quantity=100`.
+
+Rollback:
+- Revert to v214 if this endpoint or pricing-calculate causes build/runtime issues.

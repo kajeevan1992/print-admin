@@ -138,6 +138,15 @@ const modules = [
     notes: 'Notifications, Saved Views, and Command Center now use stable internal DB/API config item keys with browser storage as fallback only.',
   },
 
+
+  {
+    module: 'System health and diagnostics',
+    status: 'connected-v204',
+    storage: 'runtime/env/internal-api',
+    internalApi: ['/api/internal/platform/system-health'],
+    notes: 'Central diagnostics endpoint reports runtime, database environment, and internal API health without touching pricing, orders, or storefront logic.',
+  },
+
   {
     module: 'Orders',
     status: 'pending',
@@ -151,7 +160,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v203',
+    build: 'v204',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

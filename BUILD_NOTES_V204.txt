@@ -1,0 +1,25 @@
+# v204 system health + diagnostics DB/API
+
+Purpose:
+- Add a small central internal diagnostics endpoint for the current DB/API wiring phase.
+- Keep the build safe: no pricing engine, no storefront redesign, no orders changes.
+
+Changed files:
+- app/api/internal/platform/system-health/route.ts
+- app/api/internal/platform/module-audit/route.ts
+- BUILD_NOTES_V204.txt
+
+New test route:
+- GET /api/internal/platform/system-health
+
+Expected response:
+- ok: true
+- source: internal-platform
+- build: v204
+- status: ok or warning
+- checks for DATABASE_URL, TENANT_DATABASE_URL, PLATFORM_SECRET_KEY, runtime, and internal API shell
+
+Notes:
+- A warning for TENANT_DATABASE_URL is acceptable if DATABASE_URL is being used as the fallback tenant DB.
+- A warning for PLATFORM_SECRET_KEY means the secret should be added before production security hardening.
+- This build does not change product/catalog/pricing/order/storefront behaviour.

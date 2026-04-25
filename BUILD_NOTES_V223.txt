@@ -1,0 +1,20 @@
+v223 — Print maths foundation
+
+Added:
+- src/core/pricing/print-maths.ts
+- app/api/internal/catalog/print-maths/route.ts
+- app/print-maths-lab/page.tsx
+
+Purpose:
+- First real print maths foundation for sheet-fed products.
+- Calculates ups per sheet, orientation, sheets needed, waste sheets, total sheets, impressions, and area utilisation.
+
+Test UI:
+- /print-maths-lab
+
+Test API:
+- /api/internal/catalog/print-maths?quantity=1000&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&wastePercent=5
+
+Notes:
+- This does not replace pricing engine logic yet.
+- This is the reusable maths block pricing can call later for SRA3/SRA2/board/roll calculations.

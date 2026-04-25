@@ -1,4 +1,5 @@
 import { buildPricingQuoteInputPayload, type PricingQuoteInputPayload } from './pricing-quote-input';
+import { estimatePrintProduction, type PrintProductionEstimate } from './print-production-estimator';
 
 export type PricingCalculationRequest = {
   product: any;
@@ -41,6 +42,7 @@ export type PricingCalculationResult = {
   warnings: string[];
   notes: string[];
   quoteInput: PricingQuoteInputPayload;
+  productionEstimate: PrintProductionEstimate;
 };
 
 function money(value: unknown) {
@@ -95,7 +97,8 @@ export function calculatePricingPreview({ product, selections = {}, quantity }: 
   const subtotalMinor = Math.round((basePriceMinor + setupTotalMinor + runTotalMinor) * totalMultiplier);
   const totalMinor = Math.max(minChargeMinor, subtotalMinor);
 
-  const warnings = [...quoteInput.warnings];
+  const productionEstimate = estimatePrintProduction(quoteInput, qty);
+  const warnings = [...quoteInput.warnings, ...productionEstimate.warnings.map((message) => `Production estimate: ${message}`)];
   if (!basePriceMinor && !setupTotalMinor && !runTotalMinor) warnings.push('No base price or pricing costs are configured yet. This is a pricing scaffold result only.');
   if (!quoteInput.ready) warnings.push('Product pricing input is not ready. Complete missing pricing roles before using this commercially.');
 
@@ -117,10 +120,11 @@ export function calculatePricingPreview({ product, selections = {}, quantity }: 
     lines,
     warnings,
     notes: [
-      'This is the v213 pricing engine foundation only.',
+      'This is the v214 pricing/production estimate foundation only.',
       'It calculates from product pricing input fields, but does not yet include SRA sheet imposition, machine speed, labour, VAT, delivery, or margin rules.',
       'Use this endpoint to verify that product options are producing a clean pricing payload before the full print pricing engine is added.',
     ],
     quoteInput,
+    productionEstimate,
   };
 }

@@ -1,0 +1,44 @@
+# v214 — Production estimate bridge for pricing engine
+
+## Scope
+Focused pricing-engine foundation step. No storefront redesign, no external API expansion, no order/artwork workflow changes.
+
+## Added
+- Sheet/board/roll production estimate helper.
+- Pricing calculation now includes a `productionEstimate` block.
+- New internal endpoint:
+  - `GET /api/internal/catalog/pricing-production-estimate?productId=<slug>&quantity=100`
+  - `POST /api/internal/catalog/pricing-production-estimate`
+- Quote input lines now carry production-related fields when configured:
+  - sourceWidth/sourceHeight
+  - bleed
+  - pages
+  - sides
+
+## What it estimates
+- selected product size
+- source sheet/board/roll size
+- ups per source sheet/board
+- required source units
+- impressions
+- basic waste percentage
+
+## What it does NOT do yet
+- final commercial pricing
+- SRA imposition optimisation beyond simple orientation fit
+- machine hourly rates
+- labour time
+- click costs
+- material cost lookup
+- VAT/delivery/margins
+
+## Test
+1. Deploy.
+2. Test existing pricing scaffold:
+   `/api/internal/catalog/pricing-calculate?productId=<your-product-slug>&quantity=100`
+3. Test new production estimate:
+   `/api/internal/catalog/pricing-production-estimate?productId=<your-product-slug>&quantity=100`
+4. Check returned warnings. Missing sheet/roll/board dimensions are expected until product options are fully configured.
+
+## Rollback
+Revert to v213 if pricing endpoints fail.

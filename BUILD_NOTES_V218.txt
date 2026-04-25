@@ -1,0 +1,44 @@
+v218 — Pricing diagnostics checkpoint
+
+Purpose
+- Stop adding deeper pricing formulas until the current pricing chain can be inspected clearly.
+- Add a diagnostic endpoint that explains whether a product is ready for commercial pricing and why not.
+
+Added
+- src/core/catalog/pricing-diagnostics.ts
+- app/api/internal/catalog/pricing-diagnostics/route.ts
+
+New endpoint
+- GET  /api/internal/catalog/pricing-diagnostics?productId=<id-or-slug>&quantity=100
+- POST /api/internal/catalog/pricing-diagnostics
+
+POST body example
+{
+  "productId": "standard-business-cards",
+  "quantity": 100,
+  "selections": {
+    "size": "85x55",
+    "material": "300gsm-silk",
+    "finish": "matt-lamination"
+  }
+}
+
+What it checks
+- Required pricing roles such as quantity.
+- Whether commercial roles exist: size/material/finish/turnaround/etc.
+- Whether customer selections resolved cleanly or used fallbacks.
+- Whether sheet/roll/board production estimate can calculate source units.
+- Whether chargeable cost lines exist.
+- Whether pricing rules/adjustments are being applied.
+- Whether final sell price is greater than zero.
+
+Deploy/test notes
+1. Deploy as normal.
+2. Test an existing product:
+   /api/internal/catalog/pricing-diagnostics?productId=<your-product-slug>&quantity=100
+3. Expect status:
+   - ready: product has enough pricing data
+   - warnings: usable but still needs configuration
+   - blocked: missing required commercial pricing data
+
+No UI redesign. No storefront changes. No order flow changes.

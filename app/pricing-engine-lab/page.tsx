@@ -17,6 +17,43 @@ type ProductOption = {
   categoryName?: string;
 };
 
+type PricingGroupValue = {
+  id: string;
+  label: string;
+  pricingKey?: string;
+  role?: string;
+  basis?: string;
+  quantity?: number;
+  width?: number;
+  height?: number;
+  setupCostMinor?: number;
+  runCostMinor?: number;
+  minChargeMinor?: number;
+  pricingMultiplier?: number;
+  productionCode?: string;
+};
+
+type PricingGroupSummary = {
+  key: string;
+  name: string;
+  source?: string;
+  role: string;
+  basis: string;
+  unit?: string;
+  formulaHint?: string;
+  valueCount: number;
+  values: PricingGroupValue[];
+};
+
+type PricingInputSummary = {
+  productId: string;
+  productSlug: string;
+  productName: string;
+  ready: boolean;
+  missingRoles: string[];
+  groups: PricingGroupSummary[];
+};
+
 type DiagnosticCheck = {
   key: string;
   label: string;
@@ -57,11 +94,34 @@ function statusClass(status?: string) {
   return 'border-amber-400/25 bg-amber-400/10 text-amber-100';
 }
 
+function displayGroupName(group: PricingGroupSummary) {
+  return group.name || group.key || group.role || 'Option group';
+}
+
+function valueDisplay(value: PricingGroupValue) {
+  const extras = [
+    value.width && value.height ? `${value.width}×${value.height}` : '',
+    value.quantity ? `qty ${value.quantity}` : '',
+    value.productionCode ? `code ${value.productionCode}` : '',
+  ].filter(Boolean);
+  return `${value.label || value.id}${extras.length ? ` · ${extras.join(' · ')}` : ''}`;
+}
+
+function groupSelectionKey(group: PricingGroupSummary) {
+  return group.key || group.role || group.name;
+}
+
+function defaultValueForGroup(group: PricingGroupSummary) {
+  return group.values[0]?.id || group.values[0]?.pricingKey || group.values[0]?.label || '';
+}
+
 export default function Page() {
   const [products, setProducts] = useState<ProductOption[]>([]);
+  const [pricingSummaries, setPricingSummaries] = useState<PricingInputSummary[]>([]);
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('100');
   const [selectionJson, setSelectionJson] = useState('{}');
+  const [visualSelections, setVisualSelections] = useState<Record<string, string>>({});
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState('');
@@ -73,12 +133,23 @@ export default function Page() {
       setLoadingProducts(true);
       setError('');
       try {
-        const response = await fetch('/api/internal/catalog/products?limit=200', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Unable to load products.');
-        const items = Array.isArray(payload?.data?.items) ? payload.data.items.map(normaliseProduct).filter((item: ProductOption) => item.id) : [];
+        const [productsResponse, reportResponse] = await Promise.all([
+          fetch('/api/internal/catalog/products?limit=200', { cache: 'no-store' }),
+          fetch('/api/internal/catalog/pricing-input-report', { cache: 'no-store' }).catch(() => null),
+        ]);
+        const productsPayload = await productsResponse.json().catch(() => ({}));
+        if (!productsResponse.ok || productsPayload.ok === false) throw new Error(productsPayload.error || 'Unable to load products.');
+        const items = Array.isArray(productsPayload?.data?.items) ? productsPayload.data.items.map(normaliseProduct).filter((item: ProductOption) => item.id) : [];
+
+        let summaries: PricingInputSummary[] = [];
+        if (reportResponse) {
+          const reportPayload = await reportResponse.json().catch(() => ({}));
+          if (reportResponse.ok && reportPayload.ok !== false && Array.isArray(reportPayload?.data?.items)) summaries = reportPayload.data.items;
+        }
+
         if (!cancelled) {
           setProducts(items);
+          setPricingSummaries(summaries);
           setProductId((current) => current || items[0]?.slug || items[0]?.id || '');
         }
       } catch (err) {
@@ -94,17 +165,56 @@ export default function Page() {
   }, []);
 
   const selectedProduct = useMemo(() => products.find((item) => item.id === productId || item.slug === productId), [products, productId]);
+  const selectedSummary = useMemo(() => {
+    return pricingSummaries.find((item) => [item.productId, item.productSlug].filter(Boolean).includes(productId));
+  }, [pricingSummaries, productId]);
+  const selectableGroups = useMemo(() => (selectedSummary?.groups || []).filter((group) => group.values.length > 0), [selectedSummary]);
 
-  async function runDiagnostics() {
+  useEffect(() => {
+    const next: Record<string, string> = {};
+    for (const group of selectableGroups) {
+      const key = groupSelectionKey(group);
+      if (key) next[key] = defaultValueForGroup(group);
+    }
+    setVisualSelections(next);
+    setDiagnostics(null);
+  }, [productId, selectableGroups]);
+
+  function visualSelectionsToJson(nextSelections = visualSelections) {
+    const output: Record<string, string> = {};
+    for (const group of selectableGroups) {
+      const key = groupSelectionKey(group);
+      const value = nextSelections[key];
+      if (key && value) output[key] = value;
+    }
+    return output;
+  }
+
+  function syncJsonFromVisual(nextSelections = visualSelections) {
+    setSelectionJson(JSON.stringify(visualSelectionsToJson(nextSelections), null, 2));
+  }
+
+  function updateVisualSelection(key: string, value: string) {
+    const next = { ...visualSelections, [key]: value };
+    setVisualSelections(next);
+    setSelectionJson(JSON.stringify(visualSelectionsToJson(next), null, 2));
+  }
+
+  async function runDiagnostics(useVisual = false) {
     setRunning(true);
     setError('');
     setDiagnostics(null);
     try {
       let selections: Record<string, unknown> = {};
-      try {
-        selections = selectionJson.trim() ? JSON.parse(selectionJson) : {};
-      } catch {
-        throw new Error('Customer selections must be valid JSON, for example {"material":"silk-350"}.');
+      if (useVisual) {
+        selections = visualSelectionsToJson();
+        setSelectionJson(JSON.stringify(selections, null, 2));
+      } else {
+        try {
+          selections = selectionJson.trim() ? JSON.parse(selectionJson) : {};
+        } catch {
+          throw new Error('Customer selections must be valid JSON, for example {"material":"silk-350"}.');
+        }
       }
 
       const response = await fetch('/api/internal/catalog/pricing-diagnostics', {
@@ -126,6 +236,7 @@ export default function Page() {
   const costLines = Array.isArray(diagnostics?.pricing?.calculation?.costBreakdown?.lines) ? diagnostics?.pricing?.calculation?.costBreakdown?.lines : [];
   const adjustments = Array.isArray(diagnostics?.pricing?.adjustments) ? diagnostics?.pricing?.adjustments : [];
   const estimate = diagnostics?.pricing?.calculation?.productionEstimate;
+  const quoteLines = Array.isArray(diagnostics?.pricing?.calculation?.quoteInput?.lines) ? diagnostics?.pricing?.calculation?.quoteInput?.lines : [];
 
   return (
     <div className="space-y-6">
@@ -135,7 +246,7 @@ export default function Page() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-white">Pricing test bench</p>
-            <p className="mt-1 text-xs text-textMuted">Uses live products and the internal pricing diagnostics API. No storefront or order flow changes.</p>
+            <p className="mt-1 text-xs text-textMuted">Uses live products, product option groups, and the internal pricing diagnostics API. No storefront or order flow changes.</p>
           </div>
           <span className={`rounded-full border px-3 py-1 text-xs ${statusClass(diagnostics?.status)}`}>
             {diagnostics ? diagnostics.status.toUpperCase() : loadingProducts ? 'LOADING PRODUCTS' : 'READY TO TEST'}
@@ -160,6 +271,48 @@ export default function Page() {
           </label>
         </div>
 
+        {selectedSummary ? (
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-white">Product option selector</p>
+                <p className="mt-1 text-xs text-textMuted">Select customer-facing options here; the lab converts them into the same JSON payload the storefront will send later.</p>
+              </div>
+              <span className={`rounded-full border px-3 py-1 text-xs ${selectedSummary.ready ? statusClass('ready') : statusClass('warning')}`}>
+                {selectedSummary.ready ? 'PRICING INPUT READY' : `MISSING: ${selectedSummary.missingRoles.join(', ') || 'CONFIG'}`}
+              </span>
+            </div>
+
+            {selectableGroups.length ? (
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                {selectableGroups.map((group) => {
+                  const key = groupSelectionKey(group);
+                  return (
+                    <label key={key || displayGroupName(group)} className="space-y-2">
+                      <span className="text-sm font-medium text-text">{displayGroupName(group)}</span>
+                      <Select
+                        value={visualSelections[key] || ''}
+                        onChange={(event) => updateVisualSelection(key, event.target.value)}
+                        options={group.values.map((value) => ({ value: value.id || value.pricingKey || value.label, label: valueDisplay(value) }))}
+                      />
+                      <p className="text-[11px] text-textMuted">Role: {group.role || 'not set'} · Basis: {group.basis || 'not set'}{group.unit ? ` · Unit: ${group.unit}` : ''}</p>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">This product has no selectable option values yet. Add option groups/values in Product Builder before testing realistic customer pricing.</p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button type="button" onClick={() => syncJsonFromVisual()}>Copy selected options to JSON</Button>
+              <PrimaryButton onClick={() => runDiagnostics(true)} disabled={!productId || running || loadingProducts}>{running ? 'Running…' : 'Run with selected options'}</PrimaryButton>
+            </div>
+          </div>
+        ) : selectedProduct ? (
+          <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-3 text-xs text-amber-100">No pricing input summary was returned for this product yet. You can still test manually with JSON below.</div>
+        ) : null}
+
         <label className="space-y-2 block">
           <span className="text-sm font-medium text-text">Customer selections JSON</span>
           <textarea
@@ -169,12 +322,12 @@ export default function Page() {
             className="w-full rounded-xl border border-white/8 bg-panelMuted/90 px-3.5 py-3 text-[13px] text-text outline-none transition placeholder:text-textMuted/70 focus:border-accent/70 focus:bg-panelMuted"
             placeholder='{"size":"85x55", "material":"350gsm-silk", "finish":"matt-laminate", "turnaround":"standard"}'
           />
-          <p className="text-xs text-textMuted">Leave as {`{}`} to test product defaults. Later this will be generated from the customer product page.</p>
+          <p className="text-xs text-textMuted">Leave as {`{}`} to test product defaults, or use the selector above to generate a realistic customer selection payload.</p>
         </label>
 
         <div className="flex flex-wrap gap-2">
-          <PrimaryButton onClick={runDiagnostics} disabled={!productId || running || loadingProducts}>{running ? 'Running…' : 'Run pricing diagnostics'}</PrimaryButton>
-          <Button type="button" onClick={() => setSelectionJson('{}')}>Reset selections</Button>
+          <PrimaryButton onClick={() => runDiagnostics(false)} disabled={!productId || running || loadingProducts}>{running ? 'Running…' : 'Run JSON diagnostics'}</PrimaryButton>
+          <Button type="button" onClick={() => { setSelectionJson('{}'); setDiagnostics(null); }}>Reset selections</Button>
         </div>
       </Card>
 
@@ -241,6 +394,32 @@ export default function Page() {
           </div>
 
           <Card className="space-y-3">
+            <h2 className="text-sm font-semibold text-white">Resolved pricing inputs</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-[0.16em] text-textMuted">
+                  <tr><th className="py-2 pr-4">Group</th><th className="py-2 pr-4">Role</th><th className="py-2 pr-4">Selected</th><th className="py-2 pr-4">Basis</th><th className="py-2 pr-4">Setup</th><th className="py-2 pr-4">Run</th><th className="py-2 pr-4">Multiplier</th></tr>
+                </thead>
+                <tbody className="divide-y divide-white/8">
+                  {quoteLines.length ? quoteLines.map((line: any, index: number) => (
+                    <tr key={`${line.groupKey || line.groupName}-${index}`} className="text-textMuted">
+                      <td className="py-2 pr-4 text-white">{line.groupName || line.groupKey}</td>
+                      <td className="py-2 pr-4">{line.role || '—'}</td>
+                      <td className="py-2 pr-4">{line.selectedLabel || line.selectedId || String(line.selectedValue || '—')}</td>
+                      <td className="py-2 pr-4">{line.basis || '—'}</td>
+                      <td className="py-2 pr-4">{money(line.setupCostMinor, diagnostics.currency)}</td>
+                      <td className="py-2 pr-4">{money(line.runCostMinor, diagnostics.currency)}</td>
+                      <td className="py-2 pr-4">{line.pricingMultiplier ?? '—'}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={7} className="py-4 text-textMuted">No pricing input lines returned.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card className="space-y-3">
             <h2 className="text-sm font-semibold text-white">Cost breakdown lines</h2>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
@@ -266,7 +445,7 @@ export default function Page() {
         </>
       ) : (
         <Card>
-          <p className="text-sm text-textMuted">Select a product and run diagnostics to see final price, cost lines, production estimate, warnings, and blocked pricing reasons.</p>
+          <p className="text-sm text-textMuted">Select a product and run diagnostics to see final price, resolved option inputs, cost lines, production estimate, warnings, and blocked pricing reasons.</p>
         </Card>
       )}
     </div>

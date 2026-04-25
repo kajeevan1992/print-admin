@@ -1,0 +1,33 @@
+# v220 — Pricing option selector test bench
+
+## What changed
+
+- Improved `/pricing-engine-lab` so it can test product pricing using real product option groups, not only raw JSON.
+- Loads live pricing input summaries from `/api/internal/catalog/pricing-input-report`.
+- Shows a customer-style option selector for each product option group with values.
+- Converts selected options into the same JSON payload expected by `/api/internal/catalog/pricing-diagnostics`.
+- Added a resolved pricing inputs table so you can see exactly which option group/value became which pricing role, basis, cost, multiplier, and selected value.
+
+## Why
+
+This is the bridge between Product Builder and the pricing engine. Before storefront pricing, we need an admin test bench where you can choose product options like a customer and confirm the pricing chain receives clean input.
+
+## Test
+
+1. Deploy v220.
+2. Open `/pricing-engine-lab`.
+3. Select a product.
+4. Choose option values in Product option selector.
+5. Click `Run with selected options`.
+6. Confirm:
+   - final price appears
+   - resolved pricing inputs show the selected values
+   - diagnostics show missing setup clearly
+   - cost breakdown lines still render
+
+## Scope not touched
+
+- No storefront redesign.
+- No order flow changes.
+- No external API expansion.
+- No pricing formula rewrite.

@@ -72,7 +72,13 @@ export type ProductOptionValue = {
   isDefault?: boolean;
   isHidden?: boolean;
   sortOrder?: number;
+  productionCode?: string;
+  isCustomSizeTrigger?: boolean;
 };
+
+export type ProductDimensionMode = 'preset-only' | 'preset-and-custom' | 'custom-only';
+export type ProductQuantityMode = 'fixed-list' | 'range-with-step';
+export type ProductSheetFitMode = 'none' | 'sra3' | 'custom-sheet' | 'roll' | 'board';
 
 export type ProductOptionGroup = {
   id: Id;
@@ -83,9 +89,22 @@ export type ProductOptionGroup = {
   required: boolean;
   allowMultiple?: boolean;
   allowCustomSize?: boolean;
+  dimensionMode?: ProductDimensionMode;
+  minWidth?: number;
+  minHeight?: number;
   maxWidth?: number;
   maxHeight?: number;
+  increment?: number;
+  sourceLimitMode?: 'manual' | 'material-printer';
+  sheetFitMode?: ProductSheetFitMode;
+  sourceSheetWidth?: number;
+  sourceSheetHeight?: number;
+  maxUpsPerSheet?: number;
   unit?: string;
+  quantityMode?: ProductQuantityMode;
+  minQuantity?: number;
+  maxQuantity?: number;
+  quantityStep?: number;
   values: ProductOptionValue[];
   pricingKey?: string;
   defaultValueId?: Id;

@@ -89,6 +89,38 @@ export function validateProductConfiguration(product: Pick<Product, 'optionGroup
     if (group.required && group.allowMultiple && group.displayType === 'dropdown') {
       issues.push({ id: `${group.id}-dropdown-multiple`, level: 'info', title: `${valueLabel(group)} display mismatch`, message: 'Dropdown is usually single-choice. Use checkboxes if customers can pick multiple values.' });
     }
+    if (group.source === 'size') {
+      if ((group.dimensionMode === 'custom-only' || group.dimensionMode === 'preset-and-custom' || group.allowCustomSize) && (!group.maxWidth || !group.maxHeight)) {
+        issues.push({ id: `${group.id}-custom-print-limits`, level: 'warning', title: 'Custom size limits missing', message: 'Custom-size products need maximum width and length/height limits before they can be safely shown to customers.' });
+      }
+      if ((group.sheetFitMode === 'sra3' || group.sheetFitMode === 'custom-sheet' || group.sheetFitMode === 'board') && (!group.sourceSheetWidth || !group.sourceSheetHeight)) {
+        issues.push({ id: `${group.id}-sheet-source-size`, level: 'warning', title: 'Source sheet size missing', message: 'Sheet-fit products should store source sheet/board width and height, for example SRA3 or 1220 × 2440 board.' });
+      }
+      if (group.sheetFitMode === 'roll' && (!group.sourceSheetWidth || !group.maxWidth)) {
+        issues.push({ id: `${group.id}-roll-width-limit`, level: 'warning', title: 'Roll width limit missing', message: 'Roll products such as banners need a material/printer width limit so customers cannot order too wide.' });
+      }
+      if (group.minWidth && group.maxWidth && group.minWidth > group.maxWidth) {
+        issues.push({ id: `${group.id}-width-range`, level: 'error', title: 'Width limits are invalid', message: 'Minimum width cannot be greater than maximum width.' });
+      }
+      if (group.minHeight && group.maxHeight && group.minHeight > group.maxHeight) {
+        issues.push({ id: `${group.id}-height-range`, level: 'error', title: 'Height/length limits are invalid', message: 'Minimum height/length cannot be greater than maximum height/length.' });
+      }
+      if (group.increment !== undefined && group.increment <= 0) {
+        issues.push({ id: `${group.id}-size-increment`, level: 'warning', title: 'Size increment is invalid', message: 'Use a positive custom-size increment such as 1 mm, 5 mm or 10 mm.' });
+      }
+    }
+
+    if (group.source === 'quantity') {
+      if (group.quantityMode === 'range-with-step') {
+        if (!group.minQuantity || !group.maxQuantity || !group.quantityStep) {
+          issues.push({ id: `${group.id}-quantity-range`, level: 'warning', title: 'Quantity range incomplete', message: 'Range quantity mode needs minimum quantity, maximum quantity and step.' });
+        }
+        if (group.minQuantity && group.maxQuantity && group.minQuantity > group.maxQuantity) {
+          issues.push({ id: `${group.id}-quantity-range-invalid`, level: 'error', title: 'Quantity range is invalid', message: 'Minimum quantity cannot be greater than maximum quantity.' });
+        }
+      }
+    }
+
   });
 
   groups.forEach((group) => {

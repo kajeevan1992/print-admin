@@ -137,8 +137,30 @@ function validateOptionGroups(input: InternalCatalogWriteInput, issues: CatalogV
 
     if (key) valueIdsByKey.set(key, seenValues);
 
-    if (allowsCustomSize && (!Number(group.maxWidth) || !Number(group.maxHeight))) {
+    const dimensionMode = cleanText(group.dimensionMode || '');
+    const sheetFitMode = cleanText(group.sheetFitMode || '');
+    if ((dimensionMode === 'custom-only' || dimensionMode === 'preset-and-custom' || allowsCustomSize) && (!Number(group.maxWidth) || !Number(group.maxHeight))) {
       issues.push({ field: `${path}.customSizeLimits`, message: `${label || key || 'Custom size'} needs maximum width and length/height limits.`, severity: 'warning' });
+    }
+    if ((sheetFitMode === 'sra3' || sheetFitMode === 'custom-sheet' || sheetFitMode === 'board') && (!Number(group.sourceSheetWidth) || !Number(group.sourceSheetHeight))) {
+      issues.push({ field: `${path}.sourceSheet`, message: `${label || key || 'Sheet fit'} needs source sheet/board width and height.`, severity: 'warning' });
+    }
+    if (sheetFitMode === 'roll' && (!Number(group.sourceSheetWidth) || !Number(group.maxWidth))) {
+      issues.push({ field: `${path}.rollLimits`, message: `${label || key || 'Roll product'} needs roll/printer width limits.`, severity: 'warning' });
+    }
+    if (Number(group.minWidth) && Number(group.maxWidth) && Number(group.minWidth) > Number(group.maxWidth)) {
+      issues.push({ field: `${path}.minWidth`, message: `${label || key} minimum width cannot be greater than maximum width.`, severity: 'error' });
+    }
+    if (Number(group.minHeight) && Number(group.maxHeight) && Number(group.minHeight) > Number(group.maxHeight)) {
+      issues.push({ field: `${path}.minHeight`, message: `${label || key} minimum height/length cannot be greater than maximum height/length.`, severity: 'error' });
+    }
+    if (group.quantityMode === 'range-with-step') {
+      if (!Number(group.minQuantity) || !Number(group.maxQuantity) || !Number(group.quantityStep)) {
+        issues.push({ field: `${path}.quantityRange`, message: `${label || key || 'Quantity'} range mode needs min, max and step.`, severity: 'warning' });
+      }
+      if (Number(group.minQuantity) && Number(group.maxQuantity) && Number(group.minQuantity) > Number(group.maxQuantity)) {
+        issues.push({ field: `${path}.quantityRange`, message: `${label || key || 'Quantity'} minimum cannot be greater than maximum.`, severity: 'error' });
+      }
     }
 
     if ((key.includes('material') || key.includes('finish') || group.source === 'material' || group.source === 'finish') && values.some((value: any) => value && typeof value === 'object' && !value.sourceId && !value.catalogId)) {

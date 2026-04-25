@@ -1,0 +1,44 @@
+v208 — print product setup constraints
+
+Scope:
+- Continue product configuration phase after v207.
+- No pricing engine calculation yet.
+- No storefront redesign.
+- No orders/artwork workflow changes.
+
+Added:
+- Size option groups now support dimension mode:
+  - preset sizes only
+  - preset + custom size
+  - custom size only
+- Size groups now store print-production constraints:
+  - min/max width
+  - min/max height/length
+  - size increment
+  - sheet/roll/board fit mode
+  - source sheet or roll dimensions
+  - max ups per sheet placeholder
+  - manual vs material/printer limit source
+- Quantity groups now support:
+  - fixed quantity list
+  - range with min/max/step
+- Option values now have a production code field.
+- Customer preview shows basic print rules and quantity range notes.
+- Validation now warns for:
+  - custom size without limits
+  - sheet-fit mode without source sheet/board size
+  - roll products without width limits
+  - invalid min/max dimensions
+  - incomplete quantity ranges
+
+Why:
+This lets products like business cards, banners and boards store the correct real-world print-shop setup before the pricing engine is connected.
+
+Test:
+1. Open a product.
+2. Go to Option Groups.
+3. Add or edit a Size group.
+4. Set dimension mode and sheet/roll/board mode.
+5. Save.
+6. Open Preview and confirm print rules appear.
+7. Open /api/internal/catalog/validation-report and confirm warnings are useful.

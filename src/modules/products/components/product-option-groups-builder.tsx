@@ -57,8 +57,8 @@ function templateGroup(source: ProductOptionSource, library: LibraryState): Prod
   }
   if (source === 'size') {
     return {
-      id: makeId('group'), name: 'Size', key: 'size', source, displayType: 'image-cards', required: true, allowCustomSize: false, unit: 'mm',
-      pricingKey: 'size', helpText: 'Use preset sizes and enable custom size only where this product supports it.',
+      id: makeId('group'), name: 'Size', key: 'size', source, displayType: 'image-cards', required: true, allowCustomSize: false, dimensionMode: 'preset-only', unit: 'mm',
+      pricingKey: 'size', sheetFitMode: 'sra3', sourceSheetWidth: 320, sourceSheetHeight: 450, helpText: 'Use preset sizes and enable custom size only where this product supports it.',
       values: [
         { id: makeId('size'), label: '85 × 55 mm', width: 85, height: 55, unit: 'mm', description: 'UK standard business card' },
         { id: makeId('size'), label: '55 × 55 mm', width: 55, height: 55, unit: 'mm', description: 'Square format' },
@@ -66,7 +66,7 @@ function templateGroup(source: ProductOptionSource, library: LibraryState): Prod
     };
   }
   if (source === 'quantity') {
-    return { id: makeId('group'), name: 'Quantity', key: 'quantity', source, displayType: 'quantity-grid', required: true, values: [25, 50, 100, 250, 500, 1000].map((qty) => ({ id: `qty-${qty}`, label: String(qty), quantity: qty })) };
+    return { id: makeId('group'), name: 'Quantity', key: 'quantity', source, displayType: 'quantity-grid', required: true, quantityMode: 'fixed-list', values: [25, 50, 100, 250, 500, 1000].map((qty) => ({ id: `qty-${qty}`, label: String(qty), quantity: qty, productionCode: `qty-${qty}` })) };
   }
   if (source === 'turnaround') {
     return { id: makeId('group'), name: 'Turnaround', key: 'turnaround', source, displayType: 'radio', required: true, values: [{ id: 'standard', label: 'Standard', leadTimeDays: 5 }, { id: 'priority', label: 'Priority', leadTimeDays: 3 }, { id: 'rush', label: 'Rush', leadTimeDays: 1 }] };
@@ -188,6 +188,55 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
               </div>
             )}
 
+            {group.source === 'size' && (
+              <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Print size / sheet-fit rules</p>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Dimension mode</span><select value={group.dimensionMode || (group.allowCustomSize ? 'preset-and-custom' : 'preset-only')} onChange={(e) => {
+                    const mode = e.target.value as NonNullable<ProductOptionGroup['dimensionMode']>;
+                    setGroups(updateGroup(groups, group.id, { dimensionMode: mode, allowCustomSize: mode !== 'preset-only', displayType: mode === 'custom-only' ? 'custom-size' : group.displayType }));
+                  }} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                    <option value="preset-only">Preset sizes only</option>
+                    <option value="preset-and-custom">Preset + custom size</option>
+                    <option value="custom-only">Custom size only</option>
+                  </select></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Sheet / roll mode</span><select value={group.sheetFitMode || 'none'} onChange={(e) => setGroups(updateGroup(groups, group.id, { sheetFitMode: e.target.value as NonNullable<ProductOptionGroup['sheetFitMode']> }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                    <option value="none">No sheet-fit rule yet</option>
+                    <option value="sra3">SRA3 sheet fit</option>
+                    <option value="custom-sheet">Custom sheet size</option>
+                    <option value="roll">Roll material</option>
+                    <option value="board">Rigid board</option>
+                  </select></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Limit source</span><select value={group.sourceLimitMode || 'manual'} onChange={(e) => setGroups(updateGroup(groups, group.id, { sourceLimitMode: e.target.value as 'manual' | 'material-printer' }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                    <option value="manual">Manual limits for now</option>
+                    <option value="material-printer">Material + printer limits later</option>
+                  </select></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Min width</span><Input type="number" value={String(group.minWidth || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { minWidth: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Min height/length</span><Input type="number" value={String(group.minHeight || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { minHeight: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Size increment</span><Input type="number" value={String(group.increment || '')} placeholder="1" onChange={(e) => setGroups(updateGroup(groups, group.id, { increment: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Source sheet/roll width</span><Input type="number" value={String(group.sourceSheetWidth || '')} placeholder="320 / 1220 / 1300" onChange={(e) => setGroups(updateGroup(groups, group.id, { sourceSheetWidth: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Source sheet/roll height</span><Input type="number" value={String(group.sourceSheetHeight || '')} placeholder="450 / 2440 / 50000" onChange={(e) => setGroups(updateGroup(groups, group.id, { sourceSheetHeight: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Max ups per sheet</span><Input type="number" value={String(group.maxUpsPerSheet || '')} placeholder="auto later" onChange={(e) => setGroups(updateGroup(groups, group.id, { maxUpsPerSheet: Number(e.target.value) || undefined }))} /></label>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-textMuted">These fields do not calculate price yet. They store the print-shop constraints the pricing engine will need later: SRA3 sheet fit, roll width, board size and custom-size limits.</p>
+              </div>
+            )}
+
+            {group.source === 'quantity' && (
+              <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Quantity rules</p>
+                <div className="mt-3 grid gap-3 md:grid-cols-4">
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Quantity mode</span><select value={group.quantityMode || 'fixed-list'} onChange={(e) => setGroups(updateGroup(groups, group.id, { quantityMode: e.target.value as NonNullable<ProductOptionGroup['quantityMode']> }))} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
+                    <option value="fixed-list">Fixed list</option>
+                    <option value="range-with-step">Range with step</option>
+                  </select></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Min qty</span><Input type="number" value={String(group.minQuantity || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { minQuantity: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Max qty</span><Input type="number" value={String(group.maxQuantity || '')} placeholder="20000" onChange={(e) => setGroups(updateGroup(groups, group.id, { maxQuantity: Number(e.target.value) || undefined }))} /></label>
+                  <label className="space-y-1 text-sm"><span className="text-textMuted">Step</span><Input type="number" value={String(group.quantityStep || '')} placeholder="25" onChange={(e) => setGroups(updateGroup(groups, group.id, { quantityStep: Number(e.target.value) || undefined }))} /></label>
+                </div>
+              </div>
+            )}
+
             {linkedLibrary.length > 0 && (
               <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-3">
                 <p className="mb-2 text-xs uppercase tracking-[0.2em] text-textMuted">Link values from library</p>
@@ -208,11 +257,12 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
             <div className="mt-4 space-y-2">
               <div className="flex items-center justify-between"><p className="text-sm font-medium text-white">Values shown to customer</p><Button onClick={() => setGroups(updateGroup(groups, group.id, { values: [...group.values, { id: makeId('value'), label: 'New value' }] }))}>Add value</Button></div>
               {orderedValues(group).map((value) => (
-                <div key={value.id} className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                <div key={value.id} className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
                   <Input value={value.label} placeholder="Label" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { label: e.target.value })))} />
                   <Input value={value.description || ''} placeholder="Short description" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { description: e.target.value })))} />
                   <Input value={value.imageUrl || ''} placeholder="Image URL / icon URL" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { imageUrl: e.target.value })))} />
                   <Input value={value.pricingKey || ''} placeholder="Pricing value key" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { pricingKey: e.target.value })))} />
+                  <Input value={value.productionCode || ''} placeholder="Production code" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { productionCode: e.target.value })))} />
                   <Button className="text-red-300" onClick={() => setGroups(updateGroup(groups, group.id, { values: group.values.filter((item) => item.id !== value.id), defaultValueId: group.defaultValueId === value.id ? undefined : group.defaultValueId }))}>Remove</Button>
                   <Input type="number" value={String(value.sortOrder ?? '')} placeholder="Sort order" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { sortOrder: Number(e.target.value) || undefined })))} />
                   <Input value={value.swatchColor || ''} placeholder="Swatch colour e.g. #ffffff" onChange={(e) => setGroups(updateGroup(groups, group.id, updateValue(group, value.id, { swatchColor: e.target.value })))} />
@@ -237,7 +287,7 @@ export function ProductOptionGroupsBuilder({ product, onUpdate }: { product: Pro
                   {(group.dependencyRules || []).map((rule) => {
                     const sourceValues = dependencySourceValues(groups, rule.whenGroupKey);
                     return (
-                      <div key={rule.id} className="grid gap-2 rounded-lg border border-border p-2 md:grid-cols-[1fr_1fr_1fr_1fr_auto]">
+                      <div key={rule.id} className="grid gap-2 rounded-lg border border-border p-2 md:grid-cols-[1fr_1fr_1fr_1fr_1fr_auto]">
                         <select value={rule.whenGroupKey} onChange={(e) => setGroups(updateGroup(groups, group.id, updateDependencyRule(group, rule.id, { whenGroupKey: e.target.value, whenValueId: '' })))} className="rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
                           <option value="">When group...</option>
                           {groups.filter((item) => item.id !== group.id).map((item) => <option key={item.id} value={item.key}>{item.name || item.key}</option>)}

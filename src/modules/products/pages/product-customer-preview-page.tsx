@@ -109,6 +109,16 @@ export function ProductCustomerPreviewPage({ productId }: { productId: string })
                     <span className="rounded-full border border-border px-2 py-1 text-[11px] text-textMuted">{group.displayType}</span>
                   </div>
                   {group.helpText && <p className="mb-2 text-xs text-textMuted">{group.helpText}</p>}
+                  {group.source === 'size' && (group.sheetFitMode || group.dimensionMode || group.sourceSheetWidth || group.maxWidth) && (
+                    <div className="mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-textMuted">
+                      <span className="text-white">Print rules:</span> {group.dimensionMode || (group.allowCustomSize ? 'preset-and-custom' : 'preset-only')} · {group.sheetFitMode || 'no sheet-fit'} · max {group.maxWidth || previewData.templateRules?.maxPrintableWidth || 'not set'} × {group.maxHeight || previewData.templateRules?.maxPrintableLength || 'not set'} {group.unit || 'mm'}
+                    </div>
+                  )}
+                  {group.source === 'quantity' && group.quantityMode === 'range-with-step' && (
+                    <div className="mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs text-textMuted">
+                      Quantity range: {group.minQuantity || 'min not set'} to {group.maxQuantity || 'max not set'} in steps of {group.quantityStep || 'not set'}.
+                    </div>
+                  )}
                   <div className={group.displayType === 'dropdown' ? '' : `grid gap-2 ${gridCols}`}>
                     {group.displayType === 'dropdown' ? (
                       <select value={selected || ''} onChange={(event) => setSelectedOptions((current) => ({ ...current, [group.key]: event.target.value }))} className="w-full rounded-xl border border-border bg-panelMuted px-3 py-3 text-sm text-white">

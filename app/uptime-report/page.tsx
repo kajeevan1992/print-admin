@@ -1,30 +1,32 @@
 export const dynamic = 'force-dynamic';
 
-import { PageHeader } from '@/components/ui/page-header';
-import { Card } from '@/components/ui/card';
-
-const services = [
-  { name: 'Storefront API', uptime: '99.96%', status: 'Operational', latency: '182ms' },
-  { name: 'Proof Renderer', uptime: '99.82%', status: 'Degraded once', latency: '441ms' },
-  { name: 'Admin Dashboard', uptime: '99.91%', status: 'Operational', latency: '129ms' },
-  { name: 'Webhook Queue', uptime: '99.87%', status: 'Operational', latency: '215ms' }
-];
+import { LocalRecordsPage } from '@/components/configuration/local-records-page';
 
 export default function Page() {
   return (
-    <div className="space-y-4">
-      <PageHeader title="Uptime Report" subtitle="Track storefront uptime, latency, and service health over time." />
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card><p className="text-xs text-textMuted">30 Day Uptime</p><p className="mt-2 text-2xl font-semibold">99.92%</p></Card>
-        <Card><p className="text-xs text-textMuted">Incidents</p><p className="mt-2 text-2xl font-semibold">3</p></Card>
-        <Card><p className="text-xs text-textMuted">Avg Latency</p><p className="mt-2 text-2xl font-semibold">242ms</p></Card>
-        <Card><p className="text-xs text-textMuted">Status</p><p className="mt-2 text-2xl font-semibold">Healthy</p></Card>
-      </div>
-      <Card>
-        <div className="space-y-3">
-          {services.map((service) => <div key={service.name} className="rounded-xl border border-border p-4"><div className="flex items-center justify-between gap-3"><div><p className="font-semibold">{service.name}</p><p className="text-sm text-textMuted">Latency {service.latency}</p></div><div className="text-right"><p>{service.uptime}</p><p className="text-sm text-textMuted">{service.status}</p></div></div></div>)}
-        </div>
-      </Card>
-    </div>
+    <LocalRecordsPage
+      storageKey="platform-uptime-services"
+      title="Uptime Report"
+      subtitle="Track storefront uptime, latency, service health, and incident notes through the internal DB/API configuration store."
+      createLabel="Add Service"
+      initialItems={[
+        { id: 'uptime-1', title: 'Storefront API', subtitle: '99.96% uptime', meta: 'Operational • 182ms', service: 'Storefront API', status: 'Operational', uptime: '99.96%', latency: '182ms', owner: 'Platform Ops', notes: 'Primary storefront API health check.' },
+        { id: 'uptime-2', title: 'Proof Renderer', subtitle: '99.82% uptime', meta: 'Degraded once • 441ms', service: 'Proof Renderer', status: 'Degraded once', uptime: '99.82%', latency: '441ms', owner: 'Artwork Ops', notes: 'Proof rendering and preview generation service.' },
+        { id: 'uptime-3', title: 'Admin Dashboard', subtitle: '99.91% uptime', meta: 'Operational • 129ms', service: 'Admin Dashboard', status: 'Operational', uptime: '99.91%', latency: '129ms', owner: 'SaaS Ops', notes: 'Internal admin interface availability.' },
+        { id: 'uptime-4', title: 'Webhook Queue', subtitle: '99.87% uptime', meta: 'Operational • 215ms', service: 'Webhook Queue', status: 'Operational', uptime: '99.87%', latency: '215ms', owner: 'Integrations', notes: 'Webhook processing and retry queue.' }
+      ]}
+      fields={[
+        { key: 'service', label: 'Service' },
+        { key: 'status', label: 'Status', options: ['Operational', 'Degraded', 'Degraded once', 'Incident', 'Maintenance'] },
+        { key: 'uptime', label: 'Uptime' },
+        { key: 'latency', label: 'Latency' },
+        { key: 'owner', label: 'Owner' },
+        { key: 'notes', label: 'Notes', type: 'textarea', placeholder: 'Incident notes, maintenance windows, external status page links.' }
+      ]}
+      subtitleFields={['uptime', 'status']}
+      cardMetaFields={['owner', 'latency']}
+      searchKeys={['title', 'service', 'status', 'uptime', 'latency', 'owner', 'notes']}
+      primaryFilterKey="status"
+    />
   );
 }

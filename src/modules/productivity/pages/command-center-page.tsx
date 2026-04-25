@@ -5,7 +5,7 @@ import { LocalRecordsPage } from '@/components/configuration/local-records-page'
 export function CommandCenterPage() {
   return (
     <LocalRecordsPage
-      storageKey="print-admin.command-center"
+      storageKey="productivity-command-center"
       title="Command Center"
       subtitle="Coordinate recurring admin tasks, handoffs, and launch checklists across catalog, content, storefront, and production."
       createLabel="Add Task"

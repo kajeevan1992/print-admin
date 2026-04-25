@@ -5,7 +5,7 @@ import { LocalRecordsPage } from '@/components/configuration/local-records-page'
 export function NotificationsPage() {
   return (
     <LocalRecordsPage
-      storageKey="print-admin.notifications"
+      storageKey="productivity-notifications"
       title="Notifications"
       subtitle="Track operational alerts, merchant warnings, deployment notices, and approval reminders from one admin inbox."
       createLabel="Add Notification"

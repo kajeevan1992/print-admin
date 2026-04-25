@@ -110,6 +110,34 @@ const modules = [
     internalApi: ['/api/internal/config/content-records/items', '/api/internal/config/content-html-snippets/items'],
     notes: 'Blog, page, category CMS, extended content, and HTML snippets now load/save/delete through the internal config item API with visible DB/local/error status.',
   },
+
+  {
+    module: 'Platform activity log',
+    status: 'connected-v202',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: ['/api/internal/config/platform-activity-log/items'],
+    notes: 'Activity Log now attempts to load activity records from the internal config item API and falls back to bundled seed records if the database has no rows yet.',
+  },
+  {
+    module: 'Uptime report',
+    status: 'connected-v202',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: ['/api/internal/config/platform-uptime-services/items'],
+    notes: 'Uptime Report is now an editable LocalRecordsPage workspace with create/edit/delete syncing through the internal DB/API configuration store.',
+  },
+
+  {
+    module: 'Productivity workspaces',
+    status: 'connected-v203',
+    storage: 'tenant-db/CoreCatalogRecord admin-config metadata',
+    internalApi: [
+      '/api/internal/config/productivity-notifications/items',
+      '/api/internal/config/productivity-saved-views/items',
+      '/api/internal/config/productivity-command-center/items'
+    ],
+    notes: 'Notifications, Saved Views, and Command Center now use stable internal DB/API config item keys with browser storage as fallback only.',
+  },
+
   {
     module: 'Orders',
     status: 'pending',
@@ -123,7 +151,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     source: 'internal-platform',
-    build: 'v198',
+    build: 'v203',
     summary: {
       connected: modules.filter((item) => item.status.startsWith('connected')).length,
       pending: modules.filter((item) => item.status === 'pending').length,

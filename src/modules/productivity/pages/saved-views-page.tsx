@@ -5,7 +5,7 @@ import { LocalRecordsPage } from '@/components/configuration/local-records-page'
 export function SavedViewsPage() {
   return (
     <LocalRecordsPage
-      storageKey="print-admin.saved-views"
+      storageKey="productivity-saved-views"
       title="Saved Views"
       subtitle="Store reusable search, filter, and dashboard presets for the teams that work in the admin every day."
       createLabel="Save View"

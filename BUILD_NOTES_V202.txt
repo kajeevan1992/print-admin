@@ -1,0 +1,48 @@
+# v202 — Monitoring records DB/API
+
+Scope kept narrow: monitoring/visibility records only. No pricing engine, orders workflow, artwork workflow, or storefront redesign.
+
+## Changed files
+
+- `src/services/reports.service.ts`
+- `app/uptime-report/page.tsx`
+- `app/api/internal/platform/module-audit/route.ts`
+- `BUILD_NOTES_V202.txt`
+
+## What changed
+
+### Activity Log
+
+- Activity Log now first tries to load from:
+  - `GET /api/internal/config/platform-activity-log/items`
+- If the database/API has no rows yet, it falls back to the existing bundled seed records.
+- This keeps the existing Activity Log UI stable while preparing it for real DB-backed audit/event records later.
+
+### Uptime Report
+
+- Replaced the static Uptime Report cards with the existing `LocalRecordsPage` pattern.
+- Uptime services now support create/edit/delete and persist through:
+  - `GET /api/internal/config/platform-uptime-services/items`
+  - `POST /api/internal/config/platform-uptime-services/items`
+  - `PATCH /api/internal/config/platform-uptime-services/items`
+  - `DELETE /api/internal/config/platform-uptime-services/items?id=...`
+- Browser local storage is fallback only if DB/API fails.
+
+### Module Audit
+
+- Updated internal module audit with v202 monitoring records status.
+
+## Test routes/pages
+
+- `/activity-log`
+- `/uptime-report`
+- `/api/internal/config/platform-activity-log/items`
+- `/api/internal/config/platform-uptime-services/items`
+- `/api/internal/platform/module-audit`
+
+## Expected result
+
+- `/uptime-report` shows database/API status banner.
+- Creating/editing/deleting uptime services persists after refresh.
+- `/activity-log` still loads even if no DB records exist yet.
+- Deploy should build cleanly.

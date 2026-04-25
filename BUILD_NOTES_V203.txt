@@ -1,0 +1,34 @@
+v203 productivity workspaces DB/API
+
+Scope:
+- Continue DB/API wiring in a small safe step.
+- No pricing engine, order workflow, storefront redesign, sidebar/nav, or broad UX changes.
+
+Changed:
+- src/modules/productivity/pages/notifications-page.tsx
+- src/modules/productivity/pages/saved-views-page.tsx
+- src/modules/productivity/pages/command-center-page.tsx
+- app/api/internal/platform/module-audit/route.ts
+- MODULE_DB_API_AUDIT_V203.md
+
+What changed:
+- Notifications now uses stable internal config item key: productivity-notifications.
+- Saved Views now uses stable internal config item key: productivity-saved-views.
+- Command Center now uses stable internal config item key: productivity-command-center.
+- These pages already use LocalRecordsPage, so create/edit/delete syncs through /api/internal/config/:key/items.
+- Browser localStorage remains fallback only if internal API/DB fails.
+- Module audit now reports v203 and includes Productivity workspaces.
+
+Test routes/pages:
+- /notifications
+- /saved-views
+- /command-center
+- /api/internal/config/productivity-notifications/items
+- /api/internal/config/productivity-saved-views/items
+- /api/internal/config/productivity-command-center/items
+- /api/internal/platform/module-audit
+
+Deploy notes:
+- Deploy normally through Coolify.
+- Create one record in each page, refresh, and confirm it remains.
+- Confirm the API route returns the saved item.

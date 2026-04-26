@@ -1,0 +1,34 @@
+v236 — Navigation registry audit + grouping
+
+Purpose
+- Stop new pages/tools from being invisible in the sidebar.
+- Make the admin navigation registry easier to audit and safer for future builds.
+
+Changed files
+- src/config/admin-navigation.ts
+- src/components/layout/sidebar.tsx
+- src/components/layout/topbar.tsx
+- app/api/internal/platform/navigation-registry/route.ts
+- app/navigation-registry/page.tsx
+- BUILD_NOTES_V236.txt
+
+What changed
+- Added grouping/order/surface metadata to the central navigation registry.
+- Added Print Maths Lab and Pricing Engine Lab as registered pricing tools.
+- Added Navigation Registry page under Advanced.
+- Sidebar now reads visible registry items by role and surface.
+- Navigation Registry API now reports missing pages and registry warnings.
+- Added /navigation-registry page to inspect menu/page visibility from the UI.
+
+Test after deploy
+1. Open /navigation-registry
+2. Confirm missing pages count is 0 or clearly explains any missing page.
+3. Confirm Print Maths Lab appears in sidebar.
+4. Confirm Pricing Engine Lab remains visible.
+5. Open /api/internal/platform/navigation-registry?role=admin
+6. Open /api/internal/platform/navigation-registry?role=super_admin
+
+Rules going forward
+- Any new admin page/tool must be registered in src/config/admin-navigation.ts.
+- Do not patch random service files with navigation items.
+- Keep sidebar changes routed through the registry.

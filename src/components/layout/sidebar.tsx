@@ -88,7 +88,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { getVisibleAdminNavigationRegistry } from '@/config/admin-navigation';
+import { getVisibleAdminNavigationRegistry, type AdminNavigationRegistryItem } from '@/config/admin-navigation';
 
 type NavItem = {
   label: string;
@@ -320,24 +320,41 @@ const iconMap: Record<string, LucideIcon> = {
   'Knowledge Base': BookOpen,
   Calculator,
   'Print Maths Lab': Calculator,
+  'Pricing Engine Lab': Calculator,
+  'Navigation Registry': MapIcon,
   Logout: LogOut
 };
 
+
+function registryChild(item: AdminNavigationRegistryItem) {
+  return { label: item.label, href: item.href };
+}
+
+function sortChildrenByRegistryOrder(children: NonNullable<NavItem['children']>, registryItems: AdminNavigationRegistryItem[]) {
+  const orderMap = new Map(registryItems.map((item) => [item.href, item.order ?? 999]));
+  return [...children].sort((a, b) => {
+    const orderA = orderMap.get(a.href) ?? 0;
+    const orderB = orderMap.get(b.href) ?? 0;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.label.localeCompare(b.label);
+  });
+}
 
 function withRegisteredAdminNav(items: NavItem[], role?: string | null): NavItem[] {
   const next: NavItem[] = items.map((item) => ({
     ...item,
     children: item.children ? [...item.children] : undefined
   }));
+  const registryItems = getVisibleAdminNavigationRegistry(role, [], 'sidebar');
 
-  for (const registryItem of getVisibleAdminNavigationRegistry(role)) {
+  for (const registryItem of registryItems) {
     const exists = next.some((item) => item.href === registryItem.href || item.children?.some((child) => child.href === registryItem.href));
     if (exists) continue;
 
     if (registryItem.parentLabel) {
       const parent = next.find((item) => item.label === registryItem.parentLabel);
       if (parent) {
-        parent.children = [...(parent.children ?? []), { label: registryItem.label, href: registryItem.href }];
+        parent.children = sortChildrenByRegistryOrder([...(parent.children ?? []), registryChild(registryItem)], registryItems);
         continue;
       }
     }

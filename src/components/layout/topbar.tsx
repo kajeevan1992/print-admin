@@ -48,6 +48,7 @@ const routeLabelMap: Record<string, string> = {
   '/printer-profiles': 'Printer Profiles',
   '/pricing-engine-lab': 'Pricing Engine',
   '/print-maths-lab': 'Print Maths Lab',
+  '/navigation-registry': 'Navigation Registry',
   '/product-system-console': 'Product System Console',
   '/product-rules-lab': 'Product Rules Lab',
   '/production-routing-lab': 'Production Routing',
@@ -80,7 +81,8 @@ const tenantQuickLinks = [
   { href: '/production-routing-lab', label: 'Production Routing', icon: Store },
   { href: '/artwork-preflight-studio', label: 'Artwork Preflight', icon: Bell },
   { href: '/pricing-engine-lab', label: 'Pricing Engine', icon: Zap },
-  { href: '/print-maths-lab', label: 'Print Maths Lab', icon: Calculator }
+  { href: '/print-maths-lab', label: 'Print Maths Lab', icon: Calculator },
+  { href: '/navigation-registry', label: 'Navigation Registry', icon: Command }
 ];
 
 const ownerQuickLinks = [

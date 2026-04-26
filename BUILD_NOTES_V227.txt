@@ -1,0 +1,22 @@
+v227 turnaround + delivery pricing foundation
+
+Base: v226 quantity tiers + sell price.
+
+Added:
+- Turnaround mode: standard / priority / rush / custom.
+- Turnaround multiplier percent and flat fee.
+- Production days and delivery days estimate.
+- Include/exclude weekends toggle.
+- Turnaround lines now appear in print maths cost breakdown.
+- /print-maths-lab now shows ready date and delivery date.
+
+Files changed:
+- src/core/pricing/print-maths.ts
+- app/api/internal/catalog/print-maths/route.ts
+- app/print-maths-lab/page.tsx
+
+Test:
+/print-maths-lab
+
+API example:
+/api/internal/catalog/print-maths?quantity=500&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&sheetCostMinor=45&clickCostMinor=4&setupCostMinor=500&marginPercent=35&turnaroundMode=rush&productionDays=1&deliveryDays=1

@@ -22,6 +22,15 @@ export type FinishingStackInput = {
   packingMode?: 'none' | 'per_unit' | 'flat';
 };
 
+export type TurnaroundPricingInput = {
+  turnaroundMode?: 'standard' | 'priority' | 'rush' | 'custom';
+  turnaroundMultiplierPercent?: number;
+  turnaroundFlatFeeMinor?: number;
+  productionDays?: number;
+  deliveryDays?: number;
+  includeWeekends?: boolean;
+};
+
 export type QuantityPriceTier = {
   minQuantity: number;
   markupPercent?: number;
@@ -29,7 +38,7 @@ export type QuantityPriceTier = {
   fixedSellPriceMinor?: number;
 };
 
-export type PrintCostInput = PrintMathsInput & FinishingStackInput & {
+export type PrintCostInput = PrintMathsInput & FinishingStackInput & TurnaroundPricingInput & {
   sheetCostMinor?: number;
   clickCostMinor?: number;
   setupCostMinor?: number;
@@ -67,6 +76,15 @@ export type PrintCostLine = {
   totalMinor: number;
 };
 
+export type DeliveryEstimate = {
+  productionDays: number;
+  deliveryDays: number;
+  totalDays: number;
+  estimatedReadyDate: string;
+  estimatedDeliveryDate: string;
+  includeWeekends: boolean;
+};
+
 export type PrintCostEstimate = SheetPlanResult & {
   currency: string;
   costLines: PrintCostLine[];
@@ -86,6 +104,10 @@ export type PrintCostEstimate = SheetPlanResult & {
   unitSellPriceMinor: number;
   profitMinor: number;
   achievedMarginPercent: number;
+  turnaroundMode: string;
+  turnaroundMultiplierPercent: number;
+  turnaroundFlatFeeMinor: number;
+  deliveryEstimate: DeliveryEstimate;
 };
 
 function positiveNumber(value: unknown, fallback: number): number {
@@ -127,6 +149,36 @@ function finishingQuantity(mode: string, quantity: number, totalSheets: number, 
 function roundUpTo(value: number, roundingMinor: number): number {
   const rounding = Math.max(1, Math.round(nonNegativeNumber(roundingMinor, 1)));
   return Math.ceil(value / rounding) * rounding;
+}
+
+function addDays(start: Date, days: number, includeWeekends: boolean): Date {
+  const result = new Date(start);
+  let remaining = Math.max(0, Math.round(nonNegativeNumber(days, 0)));
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    if (includeWeekends || (result.getDay() !== 0 && result.getDay() !== 6)) remaining -= 1;
+  }
+  return result;
+}
+
+function dateOnly(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function calculateDeliveryEstimate(input: PrintCostInput): DeliveryEstimate {
+  const productionDays = Math.max(0, Math.round(nonNegativeNumber(input.productionDays, 3)));
+  const deliveryDays = Math.max(0, Math.round(nonNegativeNumber(input.deliveryDays, 1)));
+  const includeWeekends = Boolean(input.includeWeekends);
+  const readyDate = addDays(new Date(), productionDays, includeWeekends);
+  const deliveryDate = addDays(readyDate, deliveryDays, includeWeekends);
+  return {
+    productionDays,
+    deliveryDays,
+    totalDays: productionDays + deliveryDays,
+    estimatedReadyDate: dateOnly(readyDate),
+    estimatedDeliveryDate: dateOnly(deliveryDate),
+    includeWeekends,
+  };
 }
 
 function normaliseTiers(tiers?: QuantityPriceTier[]): QuantityPriceTier[] {
@@ -211,14 +263,14 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const currency = input.currency || 'GBP';
   const quantity = positiveNumber(input.quantity, 1);
   const makeReadySheets = Math.floor(nonNegativeNumber(input.makeReadySheets, 0));
+  const deliveryEstimate = calculateDeliveryEstimate(input);
 
   if (!plan.ok) {
-    return { ...plan, makeReadySheets, totalSheets: 0, impressions: 0, currency, costLines: [], finishingLines: [], totalCostMinor: 0, materialCostMinor: 0, printCostMinor: 0, setupCostTotalMinor: 0, finishingCostTotalMinor: 0, unitCostMinor: 0, appliedPricingTier: null, markupPercent: 0, marginPercent: 0, minimumSellPriceMinor: 0, roundingMinor: 1, sellPriceMinor: 0, unitSellPriceMinor: 0, profitMinor: 0, achievedMarginPercent: 0 };
+    return { ...plan, makeReadySheets, totalSheets: 0, impressions: 0, currency, costLines: [], finishingLines: [], totalCostMinor: 0, materialCostMinor: 0, printCostMinor: 0, setupCostTotalMinor: 0, finishingCostTotalMinor: 0, unitCostMinor: 0, appliedPricingTier: null, markupPercent: 0, marginPercent: 0, minimumSellPriceMinor: 0, roundingMinor: 1, sellPriceMinor: 0, unitSellPriceMinor: 0, profitMinor: 0, achievedMarginPercent: 0, turnaroundMode: input.turnaroundMode || 'standard', turnaroundMultiplierPercent: 0, turnaroundFlatFeeMinor: 0, deliveryEstimate };
   }
 
   const totalSheets = plan.totalSheets + makeReadySheets;
   const impressions = totalSheets * (input.sides === 2 ? 2 : 1);
-  const quantityForCosts = quantity;
   const sheetCostMinor = moneyMinor(input.sheetCostMinor);
   const clickCostMinor = moneyMinor(input.clickCostMinor);
   const setupCostMinor = moneyMinor(input.setupCostMinor);
@@ -229,7 +281,7 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   addCostLine(costLines, 'material_sheets', 'Material / sheets', totalSheets, sheetCostMinor);
   addCostLine(costLines, 'print_clicks', 'Print clicks / impressions', impressions, clickCostMinor);
   addCostLine(costLines, 'setup', 'Setup / make-ready charge', 1, setupCostMinor);
-  if (legacyFinishingCostMinor > 0) addCostLine(finishingLines, 'finishing_legacy', 'General finishing charge', quantityForCosts, legacyFinishingCostMinor);
+  if (legacyFinishingCostMinor > 0) addCostLine(finishingLines, 'finishing_legacy', 'General finishing charge', quantity, legacyFinishingCostMinor);
 
   const laminationMode = modeOr(input.laminationMode, ['none', 'per_unit', 'per_sheet', 'per_side_impression'] as const, 'none');
   const foldingMode = modeOr(input.foldingMode, ['none', 'per_unit', 'per_sheet'] as const, 'none');
@@ -238,11 +290,19 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const packingMode = modeOr(input.packingMode, ['none', 'per_unit', 'flat'] as const, 'none');
   const cutCount = Math.max(1, Math.round(nonNegativeNumber(input.cutCount, 1)));
 
-  addCostLine(finishingLines, 'lamination', `Lamination (${laminationMode})`, finishingQuantity(laminationMode, quantityForCosts, totalSheets, impressions), input.laminationCostMinor || 0);
-  addCostLine(finishingLines, 'folding', `Folding (${foldingMode})`, finishingQuantity(foldingMode, quantityForCosts, totalSheets, impressions), input.foldingCostMinor || 0);
-  addCostLine(finishingLines, 'cutting', `Cutting (${cuttingMode})`, finishingQuantity(cuttingMode, quantityForCosts, totalSheets, impressions, cutCount), input.cuttingCostMinor || 0);
-  addCostLine(finishingLines, 'spot_uv', `Spot UV (${spotUvMode})`, finishingQuantity(spotUvMode, quantityForCosts, totalSheets, impressions), input.spotUvCostMinor || 0);
-  addCostLine(finishingLines, 'packing', `Packing (${packingMode})`, finishingQuantity(packingMode, quantityForCosts, totalSheets, impressions), input.packingCostMinor || 0);
+  addCostLine(finishingLines, 'lamination', `Lamination (${laminationMode})`, finishingQuantity(laminationMode, quantity, totalSheets, impressions), input.laminationCostMinor || 0);
+  addCostLine(finishingLines, 'folding', `Folding (${foldingMode})`, finishingQuantity(foldingMode, quantity, totalSheets, impressions), input.foldingCostMinor || 0);
+  addCostLine(finishingLines, 'cutting', `Cutting (${cuttingMode})`, finishingQuantity(cuttingMode, quantity, totalSheets, impressions, cutCount), input.cuttingCostMinor || 0);
+  addCostLine(finishingLines, 'spot_uv', `Spot UV (${spotUvMode})`, finishingQuantity(spotUvMode, quantity, totalSheets, impressions), input.spotUvCostMinor || 0);
+  addCostLine(finishingLines, 'packing', `Packing (${packingMode})`, finishingQuantity(packingMode, quantity, totalSheets, impressions), input.packingCostMinor || 0);
+
+  const subtotalBeforeTurnaround = [...costLines, ...finishingLines].reduce((sum, line) => sum + line.totalMinor, 0);
+  const turnaroundMode = modeOr(input.turnaroundMode, ['standard', 'priority', 'rush', 'custom'] as const, 'standard');
+  const defaultTurnaroundMultiplier = turnaroundMode === 'priority' ? 15 : turnaroundMode === 'rush' ? 35 : 0;
+  const turnaroundMultiplierPercent = nonNegativeNumber(input.turnaroundMultiplierPercent, defaultTurnaroundMultiplier);
+  const turnaroundFlatFeeMinor = moneyMinor(input.turnaroundFlatFeeMinor);
+  if (turnaroundMultiplierPercent > 0) addCostLine(costLines, `turnaround_${turnaroundMode}_multiplier`, `Turnaround ${turnaroundMode} multiplier`, 1, Math.ceil(subtotalBeforeTurnaround * (turnaroundMultiplierPercent / 100)));
+  if (turnaroundFlatFeeMinor > 0) addCostLine(costLines, `turnaround_${turnaroundMode}_flat`, `Turnaround ${turnaroundMode} flat fee`, 1, turnaroundFlatFeeMinor);
 
   const materialCostMinor = costLines.filter((line) => line.code === 'material_sheets').reduce((sum, line) => sum + line.totalMinor, 0);
   const printCostMinor = costLines.filter((line) => line.code === 'print_clicks').reduce((sum, line) => sum + line.totalMinor, 0);
@@ -253,5 +313,5 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const unitCostMinor = Math.ceil(totalCostMinor / quantity);
   const pricing = calculateSellPriceFromCost(totalCostMinor, quantity, input);
 
-  return { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing };
+  return { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing, turnaroundMode, turnaroundMultiplierPercent, turnaroundFlatFeeMinor, deliveryEstimate };
 }

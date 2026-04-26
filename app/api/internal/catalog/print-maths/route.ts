@@ -54,6 +54,12 @@ export async function GET(req: NextRequest) {
     marginPercent: numberParam(searchParams, 'marginPercent', 0),
     minimumSellPriceMinor: numberParam(searchParams, 'minimumSellPriceMinor', 0),
     roundingMinor: numberParam(searchParams, 'roundingMinor', 1),
+    turnaroundMode: textParam(searchParams, 'turnaroundMode', 'standard') as any,
+    turnaroundMultiplierPercent: numberParam(searchParams, 'turnaroundMultiplierPercent', Number.NaN),
+    turnaroundFlatFeeMinor: numberParam(searchParams, 'turnaroundFlatFeeMinor', 0),
+    productionDays: numberParam(searchParams, 'productionDays', 3),
+    deliveryDays: numberParam(searchParams, 'deliveryDays', 1),
+    includeWeekends: searchParams.get('includeWeekends') === 'true' || searchParams.get('includeWeekends') === '1',
     quantityTiers: parseQuantityTiers(searchParams.get('quantityTiers')),
   });
 

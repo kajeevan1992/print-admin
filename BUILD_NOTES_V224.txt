@@ -1,0 +1,37 @@
+v224 - print maths material/click cost foundation
+
+Scope:
+- Extends the print maths lab from v223.
+- Adds basic cost estimate fields on top of sheet fit calculations.
+- Keeps this internal/test-only. No storefront or order flow changes.
+
+Changed files:
+- src/core/pricing/print-maths.ts
+- app/api/internal/catalog/print-maths/route.ts
+- app/print-maths-lab/page.tsx
+- BUILD_NOTES_V224.txt
+
+What changed:
+- Added material/sheet cost calculation.
+- Added print click/impression cost calculation.
+- Added setup charge.
+- Added finishing per-unit charge placeholder.
+- Added make-ready sheet support.
+- Print Maths Lab now shows summary cards and cost line table.
+
+Test UI:
+- /print-maths-lab
+
+Test API:
+/api/internal/catalog/print-maths?quantity=1000&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&wastePercent=5&makeReadySheets=2&sheetCostMinor=45&clickCostMinor=4&setupCostMinor=500
+
+Expected:
+- upsPerSheet
+- totalSheets
+- impressions
+- costLines
+- totalCostMinor
+- unitCostMinor
+
+Next suggested build:
+- v225: finishing stacking and quantity tier costing.

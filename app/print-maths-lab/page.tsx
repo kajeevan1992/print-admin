@@ -10,6 +10,11 @@ type PrintMathsForm = {
   sheetHeightMm: number;
   sides: number;
   wastePercent: number;
+  makeReadySheets: number;
+  sheetCostMinor: number;
+  clickCostMinor: number;
+  setupCostMinor: number;
+  finishingCostMinor: number;
 };
 
 const initialForm: PrintMathsForm = {
@@ -20,7 +25,16 @@ const initialForm: PrintMathsForm = {
   sheetHeightMm: 320,
   sides: 2,
   wastePercent: 5,
+  makeReadySheets: 2,
+  sheetCostMinor: 45,
+  clickCostMinor: 4,
+  setupCostMinor: 500,
+  finishingCostMinor: 0,
 };
+
+function formatMoney(minor: number, currency = 'GBP') {
+  return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((minor || 0) / 100);
+}
 
 export default function PrintMathsLab() {
   const [form, setForm] = useState<PrintMathsForm>(initialForm);
@@ -57,10 +71,10 @@ export default function PrintMathsLab() {
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 980 }}>
+    <main style={{ padding: 24, maxWidth: 1100 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>Print Maths Lab</h1>
       <p style={{ color: '#555', marginTop: 6 }}>
-        Test sheet fit, ups per sheet, sheets needed, waste sheets and impressions.
+        Test sheet fit, ups per sheet, sheets needed, waste, make-ready sheets and basic production cost.
       </p>
 
       <section
@@ -105,11 +119,63 @@ export default function PrintMathsLab() {
       ) : null}
 
       {result ? (
-        <section style={{ marginTop: 20 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Result</h2>
-          <pre style={{ marginTop: 8, padding: 16, background: '#f6f6f6', borderRadius: 8, overflow: 'auto' }}>
-            {JSON.stringify(result, null, 2)}
-          </pre>
+        <section style={{ marginTop: 20, display: 'grid', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Ups per sheet</strong>
+              <div>{result.upsPerSheet}</div>
+            </div>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Total sheets</strong>
+              <div>{result.totalSheets}</div>
+            </div>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Impressions</strong>
+              <div>{result.impressions}</div>
+            </div>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Total cost</strong>
+              <div>{formatMoney(result.totalCostMinor, result.currency)}</div>
+            </div>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Unit cost</strong>
+              <div>{formatMoney(result.unitCostMinor, result.currency)}</div>
+            </div>
+          </div>
+
+          {Array.isArray(result.costLines) && result.costLines.length ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Cost line</th>
+                  <th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Qty</th>
+                  <th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Unit</th>
+                  <th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {result.costLines.map((line: any) => (
+                  <tr key={line.code}>
+                    <td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{line.label}</td>
+                    <td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{line.quantity}</td>
+                    <td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                      {formatMoney(line.unitCostMinor, result.currency)}
+                    </td>
+                    <td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>
+                      {formatMoney(line.totalMinor, result.currency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+
+          <details>
+            <summary>Raw result</summary>
+            <pre style={{ marginTop: 8, padding: 16, background: '#f6f6f6', borderRadius: 8, overflow: 'auto' }}>
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </details>
         </section>
       ) : null}
     </main>

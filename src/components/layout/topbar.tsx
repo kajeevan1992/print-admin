@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Bell, ChevronDown, ClipboardCheck, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
+import { Bell, Calculator, ChevronDown, ClipboardCheck, Clock3, Command, Search, Shield, Sparkles, Store, Zap } from 'lucide-react';
 import { updateSession, useAuth } from '@/lib/auth';
 import { DatabaseHealthBadge } from '@/components/layout/database-health-badge';
 
@@ -47,6 +47,7 @@ const routeLabelMap: Record<string, string> = {
   '/finish-library': 'Finish Library',
   '/printer-profiles': 'Printer Profiles',
   '/pricing-engine-lab': 'Pricing Engine',
+  '/print-maths-lab': 'Print Maths Lab',
   '/product-system-console': 'Product System Console',
   '/product-rules-lab': 'Product Rules Lab',
   '/production-routing-lab': 'Production Routing',
@@ -78,7 +79,8 @@ const tenantQuickLinks = [
   { href: '/product-rules-lab', label: 'Product Rules Lab', icon: Sparkles },
   { href: '/production-routing-lab', label: 'Production Routing', icon: Store },
   { href: '/artwork-preflight-studio', label: 'Artwork Preflight', icon: Bell },
-  { href: '/pricing-engine-lab', label: 'Pricing Engine', icon: Zap }
+  { href: '/pricing-engine-lab', label: 'Pricing Engine', icon: Zap },
+  { href: '/print-maths-lab', label: 'Print Maths Lab', icon: Calculator }
 ];
 
 const ownerQuickLinks = [

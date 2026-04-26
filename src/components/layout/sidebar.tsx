@@ -82,11 +82,13 @@ import {
   Rocket,
   Target,
   Map as MapIcon,
+  Calculator,
   LogOut,
   type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { ADMIN_NAVIGATION_REGISTRY } from '@/config/admin-navigation';
 
 type NavItem = {
   label: string;
@@ -316,9 +318,42 @@ const iconMap: Record<string, LucideIcon> = {
   'Support Tickets': LifeBuoy,
   Support: LifeBuoy,
   'Knowledge Base': BookOpen,
+  Calculator,
+  'Print Maths Lab': Calculator,
   Logout: LogOut
 };
 
+
+function withRegisteredAdminNav(items: NavItem[]): NavItem[] {
+  const next: NavItem[] = items.map((item) => ({
+    ...item,
+    children: item.children ? [...item.children] : undefined
+  }));
+
+  for (const registryItem of ADMIN_NAVIGATION_REGISTRY) {
+    const exists = next.some((item) => item.href === registryItem.href || item.children?.some((child) => child.href === registryItem.href));
+    if (exists) continue;
+
+    if (registryItem.parentLabel) {
+      const parent = next.find((item) => item.label === registryItem.parentLabel);
+      if (parent) {
+        parent.children = [...(parent.children ?? []), { label: registryItem.label, href: registryItem.href }];
+        continue;
+      }
+    }
+
+    const icon = iconMap[registryItem.label] ?? Calculator;
+    const navItem: NavItem = { label: registryItem.label, href: registryItem.href, icon };
+    const insertAfterIndex = next.findIndex((item) => item.label === registryItem.insertAfterLabel);
+    if (insertAfterIndex >= 0) {
+      next.splice(insertAfterIndex + 1, 0, navItem);
+    } else {
+      next.push(navItem);
+    }
+  }
+
+  return next;
+}
 
 const superAdminNavItems: NavItem[] = [
   { label: 'Super Admin', href: '/super-admin', icon: Shield },
@@ -374,7 +409,7 @@ export function Sidebar() {
       return superAdminNavItems;
     }
 
-    return baseNavItems.filter((item) => item.href !== '/super-admin');
+    return withRegisteredAdminNav(baseNavItems.filter((item) => item.href !== '/super-admin'));
   }, [session?.role]);
 
 

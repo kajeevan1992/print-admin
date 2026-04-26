@@ -1,0 +1,21 @@
+# v234 - Admin navigation registry
+
+Purpose:
+- Fix issue where newly-added pages/tools existed but were not visible in the side menu.
+
+Changed:
+- Added `src/config/admin-navigation.ts`
+- Updated sidebar to merge registered new admin pages into the existing menu.
+- Added Print Maths Lab to sidebar after Pricing Engine.
+- Added Print Maths Lab to topbar route labels and quick links.
+
+Rules going forward:
+- Any new admin page/tool/lab must be added to `src/config/admin-navigation.ts` or directly to the sidebar config.
+- Do not patch service files with nav links.
+- Do not create duplicate sidebar systems.
+
+Test after deploy:
+- Open admin sidebar.
+- Confirm `Print Maths Lab` appears near `Pricing Engine`.
+- Open `/print-maths-lab` from the sidebar.
+- Confirm `/pricing-engine-lab` still works.

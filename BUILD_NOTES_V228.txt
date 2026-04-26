@@ -1,0 +1,34 @@
+# v228 VAT + Discount Pricing Layer
+
+Base: v227 turnaround + delivery pricing.
+
+Added:
+- Discount handling in print maths:
+  - none
+  - percent
+  - fixed amount
+- VAT handling:
+  - VAT rate percent
+  - VAT exclusive totals
+  - VAT inclusive mode
+- Output fields:
+  - discountMinor
+  - netSellPriceMinor
+  - vatMinor
+  - grossSellPriceMinor
+  - vatInclusive
+- Updated /print-maths-lab UI with VAT/discount inputs and summary cards.
+- Updated /api/internal/catalog/print-maths to accept VAT/discount query params.
+
+Test UI:
+/print-maths-lab
+
+Test API:
+/api/internal/catalog/print-maths?quantity=1000&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&wastePercent=5&sheetCostMinor=45&clickCostMinor=4&setupCostMinor=500&marginPercent=35&vatRatePercent=20&discountMode=percent&discountPercent=10
+
+Expected response includes:
+- sellPriceMinor
+- discountMinor
+- netSellPriceMinor
+- vatMinor
+- grossSellPriceMinor

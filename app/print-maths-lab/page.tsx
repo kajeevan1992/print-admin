@@ -9,6 +9,7 @@ type PrintMathsForm = {
   spotUvCostMinor: number; spotUvMode: string; packingCostMinor: number; packingMode: string;
   markupPercent: number; marginPercent: number; minimumSellPriceMinor: number; roundingMinor: number;
   turnaroundMode: string; turnaroundMultiplierPercent: number; turnaroundFlatFeeMinor: number; productionDays: number; deliveryDays: number; includeWeekends: string;
+  discountMode: string; discountPercent: number; discountFixedMinor: number; vatRatePercent: number; vatInclusive: string;
 };
 
 const initialForm: PrintMathsForm = {
@@ -18,6 +19,7 @@ const initialForm: PrintMathsForm = {
   spotUvCostMinor: 0, spotUvMode: 'none', packingCostMinor: 0, packingMode: 'none',
   markupPercent: 0, marginPercent: 35, minimumSellPriceMinor: 1500, roundingMinor: 5,
   turnaroundMode: 'standard', turnaroundMultiplierPercent: 0, turnaroundFlatFeeMinor: 0, productionDays: 3, deliveryDays: 1, includeWeekends: 'false',
+  discountMode: 'none', discountPercent: 0, discountFixedMinor: 0, vatRatePercent: 20, vatInclusive: 'false',
 };
 
 const numericFields: Array<keyof PrintMathsForm> = [
@@ -25,6 +27,7 @@ const numericFields: Array<keyof PrintMathsForm> = [
   'sheetCostMinor', 'clickCostMinor', 'setupCostMinor', 'finishingCostMinor', 'laminationCostMinor', 'foldingCostMinor', 'cuttingCostMinor', 'cutCount',
   'spotUvCostMinor', 'packingCostMinor', 'markupPercent', 'marginPercent', 'minimumSellPriceMinor', 'roundingMinor',
   'turnaroundMultiplierPercent', 'turnaroundFlatFeeMinor', 'productionDays', 'deliveryDays',
+  'discountPercent', 'discountFixedMinor', 'vatRatePercent',
 ];
 
 const modeFields: Array<{ key: keyof PrintMathsForm; options: string[] }> = [
@@ -35,6 +38,8 @@ const modeFields: Array<{ key: keyof PrintMathsForm; options: string[] }> = [
   { key: 'packingMode', options: ['none', 'per_unit', 'flat'] },
   { key: 'turnaroundMode', options: ['standard', 'priority', 'rush', 'custom'] },
   { key: 'includeWeekends', options: ['false', 'true'] },
+  { key: 'discountMode', options: ['none', 'percent', 'fixed'] },
+  { key: 'vatInclusive', options: ['false', 'true'] },
 ];
 
 const defaultTiers = JSON.stringify([
@@ -75,7 +80,7 @@ export default function PrintMathsLab() {
   return (
     <main style={{ padding: 24, maxWidth: 1200 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>Print Maths Lab</h1>
-      <p style={{ color: '#555', marginTop: 6 }}>Test sheet fit, costs, finishing, turnaround, delivery estimate, margin and sell price.</p>
+      <p style={{ color: '#555', marginTop: 6 }}>Test sheet fit, costs, finishing, turnaround, delivery estimate, discounts, VAT, margin and sell price.</p>
 
       <section style={{ marginTop: 20 }}><h2 style={{ fontSize: 20, fontWeight: 700 }}>Inputs</h2>
         <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
@@ -97,7 +102,7 @@ export default function PrintMathsLab() {
       {result ? <section style={{ marginTop: 20, display: 'grid', gap: 16 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           {[
-            ['Ups per sheet', result.upsPerSheet], ['Total sheets', result.totalSheets], ['Impressions', result.impressions], ['Total cost', formatMoney(result.totalCostMinor, result.currency)], ['Sell price', formatMoney(result.sellPriceMinor, result.currency)], ['Profit', formatMoney(result.profitMinor, result.currency)], ['Margin', `${result.achievedMarginPercent || 0}%`], ['Turnaround', `${result.turnaroundMode} (+${result.turnaroundMultiplierPercent || 0}%)`], ['Ready date', result.deliveryEstimate?.estimatedReadyDate || '-'], ['Delivery date', result.deliveryEstimate?.estimatedDeliveryDate || '-'],
+            ['Ups per sheet', result.upsPerSheet], ['Total sheets', result.totalSheets], ['Impressions', result.impressions], ['Total cost', formatMoney(result.totalCostMinor, result.currency)], ['Sell price', formatMoney(result.sellPriceMinor, result.currency)], ['Discount', formatMoney(result.discountMinor, result.currency)], ['Net ex VAT', formatMoney(result.netSellPriceMinor, result.currency)], ['VAT', formatMoney(result.vatMinor, result.currency)], ['Gross total', formatMoney(result.grossSellPriceMinor, result.currency)], ['Profit', formatMoney(result.profitMinor, result.currency)], ['Margin', `${result.achievedMarginPercent || 0}%`], ['Turnaround', `${result.turnaroundMode} (+${result.turnaroundMultiplierPercent || 0}%)`], ['Ready date', result.deliveryEstimate?.estimatedReadyDate || '-'], ['Delivery date', result.deliveryEstimate?.estimatedDeliveryDate || '-'],
           ].map(([label, value]) => <div key={label} style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}><strong>{label}</strong><div>{value as any}</div></div>)}
         </div>
         {Array.isArray(result.costLines) && result.costLines.length ? <table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Cost line</th><th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Qty</th><th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Unit</th><th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Total</th></tr></thead><tbody>{result.costLines.map((line: any) => <tr key={line.code}><td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{line.label}</td><td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{line.quantity}</td><td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{formatMoney(line.unitCostMinor, result.currency)}</td><td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{formatMoney(line.totalMinor, result.currency)}</td></tr>)}</tbody></table> : null}

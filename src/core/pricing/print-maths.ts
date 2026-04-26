@@ -39,6 +39,11 @@ export type QuantityPriceTier = {
 };
 
 export type PrintCostInput = PrintMathsInput & FinishingStackInput & TurnaroundPricingInput & {
+  discountMode?: 'none' | 'percent' | 'fixed';
+  discountPercent?: number;
+  discountFixedMinor?: number;
+  vatRatePercent?: number;
+  vatInclusive?: boolean;
   sheetCostMinor?: number;
   clickCostMinor?: number;
   setupCostMinor?: number;
@@ -86,6 +91,15 @@ export type DeliveryEstimate = {
 };
 
 export type PrintCostEstimate = SheetPlanResult & {
+  discountMode: string;
+  discountPercent: number;
+  discountFixedMinor: number;
+  discountMinor: number;
+  netSellPriceMinor: number;
+  vatRatePercent: number;
+  vatMinor: number;
+  grossSellPriceMinor: number;
+  vatInclusive: boolean;
   currency: string;
   costLines: PrintCostLine[];
   finishingLines: PrintCostLine[];
@@ -163,6 +177,31 @@ function addDays(start: Date, days: number, includeWeekends: boolean): Date {
 
 function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function calculateTaxAndDiscount(sellPriceMinor: number, input: PrintCostInput) {
+  const discountMode = modeOr(input.discountMode, ['none', 'percent', 'fixed'] as const, 'none');
+  const discountPercent = Math.min(100, nonNegativeNumber(input.discountPercent, 0));
+  const discountFixedMinor = moneyMinor(input.discountFixedMinor);
+  const vatRatePercent = Math.min(100, nonNegativeNumber(input.vatRatePercent, 20));
+  const vatInclusive = Boolean(input.vatInclusive);
+
+  let discountMinor = 0;
+  if (discountMode === 'percent') discountMinor = Math.round(sellPriceMinor * (discountPercent / 100));
+  if (discountMode === 'fixed') discountMinor = Math.min(sellPriceMinor, discountFixedMinor);
+
+  const afterDiscountMinor = Math.max(0, sellPriceMinor - discountMinor);
+  let netSellPriceMinor = afterDiscountMinor;
+  let vatMinor = Math.round(netSellPriceMinor * (vatRatePercent / 100));
+  let grossSellPriceMinor = netSellPriceMinor + vatMinor;
+
+  if (vatInclusive && vatRatePercent > 0) {
+    grossSellPriceMinor = afterDiscountMinor;
+    netSellPriceMinor = Math.round(grossSellPriceMinor / (1 + vatRatePercent / 100));
+    vatMinor = Math.max(0, grossSellPriceMinor - netSellPriceMinor);
+  }
+
+  return { discountMode, discountPercent, discountFixedMinor, discountMinor, netSellPriceMinor, vatRatePercent, vatMinor, grossSellPriceMinor, vatInclusive };
 }
 
 function calculateDeliveryEstimate(input: PrintCostInput): DeliveryEstimate {
@@ -266,7 +305,7 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const deliveryEstimate = calculateDeliveryEstimate(input);
 
   if (!plan.ok) {
-    return { ...plan, makeReadySheets, totalSheets: 0, impressions: 0, currency, costLines: [], finishingLines: [], totalCostMinor: 0, materialCostMinor: 0, printCostMinor: 0, setupCostTotalMinor: 0, finishingCostTotalMinor: 0, unitCostMinor: 0, appliedPricingTier: null, markupPercent: 0, marginPercent: 0, minimumSellPriceMinor: 0, roundingMinor: 1, sellPriceMinor: 0, unitSellPriceMinor: 0, profitMinor: 0, achievedMarginPercent: 0, turnaroundMode: input.turnaroundMode || 'standard', turnaroundMultiplierPercent: 0, turnaroundFlatFeeMinor: 0, deliveryEstimate };
+    return { ...plan, makeReadySheets, totalSheets: 0, impressions: 0, currency, discountMode: 'none', discountPercent: 0, discountFixedMinor: 0, discountMinor: 0, netSellPriceMinor: 0, vatRatePercent: nonNegativeNumber(input.vatRatePercent, 20), vatMinor: 0, grossSellPriceMinor: 0, vatInclusive: Boolean(input.vatInclusive), costLines: [], finishingLines: [], totalCostMinor: 0, materialCostMinor: 0, printCostMinor: 0, setupCostTotalMinor: 0, finishingCostTotalMinor: 0, unitCostMinor: 0, appliedPricingTier: null, markupPercent: 0, marginPercent: 0, minimumSellPriceMinor: 0, roundingMinor: 1, sellPriceMinor: 0, unitSellPriceMinor: 0, profitMinor: 0, achievedMarginPercent: 0, turnaroundMode: input.turnaroundMode || 'standard', turnaroundMultiplierPercent: 0, turnaroundFlatFeeMinor: 0, deliveryEstimate };
   }
 
   const totalSheets = plan.totalSheets + makeReadySheets;
@@ -312,6 +351,7 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const totalCostMinor = allLines.reduce((sum, line) => sum + line.totalMinor, 0);
   const unitCostMinor = Math.ceil(totalCostMinor / quantity);
   const pricing = calculateSellPriceFromCost(totalCostMinor, quantity, input);
+  const taxAndDiscount = calculateTaxAndDiscount(pricing.sellPriceMinor, input);
 
-  return { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing, turnaroundMode, turnaroundMultiplierPercent, turnaroundFlatFeeMinor, deliveryEstimate };
+  return { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing, ...taxAndDiscount, turnaroundMode, turnaroundMultiplierPercent, turnaroundFlatFeeMinor, deliveryEstimate };
 }

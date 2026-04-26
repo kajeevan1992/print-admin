@@ -12,6 +12,16 @@ function textParam(searchParams: URLSearchParams, key: string, fallback: string)
   return searchParams.get(key) || fallback;
 }
 
+function parseQuantityTiers(raw: string | null) {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
@@ -40,11 +50,12 @@ export async function GET(req: NextRequest) {
     packingCostMinor: numberParam(searchParams, 'packingCostMinor', 0),
     packingMode: textParam(searchParams, 'packingMode', 'none') as any,
     currency: searchParams.get('currency') || 'GBP',
+    markupPercent: numberParam(searchParams, 'markupPercent', 0),
+    marginPercent: numberParam(searchParams, 'marginPercent', 0),
+    minimumSellPriceMinor: numberParam(searchParams, 'minimumSellPriceMinor', 0),
+    roundingMinor: numberParam(searchParams, 'roundingMinor', 1),
+    quantityTiers: parseQuantityTiers(searchParams.get('quantityTiers')),
   });
 
-  return NextResponse.json({
-    ok: true,
-    source: 'internal-core',
-    data: result,
-  });
+  return NextResponse.json({ ok: true, source: 'internal-core', data: result });
 }

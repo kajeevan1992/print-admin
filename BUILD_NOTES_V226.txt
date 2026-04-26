@@ -1,0 +1,27 @@
+# v226 - Quantity tiers + sell price controls
+
+Base: v225 finishing stack pricing
+
+Added:
+- Quantity price tiers in Print Maths Lab
+- Margin/markup controls
+- Minimum sell price enforcement
+- Rounding control
+- Final sell price, unit sell price, profit, and achieved margin outputs
+- API support for `quantityTiers` JSON query parameter
+
+Changed files:
+- src/core/pricing/print-maths.ts
+- app/api/internal/catalog/print-maths/route.ts
+- app/print-maths-lab/page.tsx
+
+Test page:
+- /print-maths-lab
+
+API example:
+/api/internal/catalog/print-maths?quantity=1000&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&wastePercent=5&sheetCostMinor=45&clickCostMinor=4&setupCostMinor=500&marginPercent=35&minimumSellPriceMinor=1500&roundingMinor=5
+
+Quantity tiers example query value:
+quantityTiers=[{"minQuantity":1,"marginPercent":40},{"minQuantity":250,"marginPercent":35},{"minQuantity":1000,"marginPercent":30}]
+
+No storefront/order changes.

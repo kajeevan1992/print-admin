@@ -8,7 +8,21 @@ export type PrintMathsInput = {
   wastePercent?: number;
 };
 
-export type PrintCostInput = PrintMathsInput & {
+export type FinishingStackInput = {
+  laminationCostMinor?: number;
+  laminationMode?: 'none' | 'per_unit' | 'per_sheet' | 'per_side_impression';
+  foldingCostMinor?: number;
+  foldingMode?: 'none' | 'per_unit' | 'per_sheet';
+  cuttingCostMinor?: number;
+  cuttingMode?: 'none' | 'per_unit' | 'per_sheet' | 'per_cut';
+  cutCount?: number;
+  spotUvCostMinor?: number;
+  spotUvMode?: 'none' | 'per_unit' | 'per_sheet' | 'per_side_impression';
+  packingCostMinor?: number;
+  packingMode?: 'none' | 'per_unit' | 'flat';
+};
+
+export type PrintCostInput = PrintMathsInput & FinishingStackInput & {
   sheetCostMinor?: number;
   clickCostMinor?: number;
   setupCostMinor?: number;
@@ -44,7 +58,12 @@ export type PrintCostLine = {
 export type PrintCostEstimate = SheetPlanResult & {
   currency: string;
   costLines: PrintCostLine[];
+  finishingLines: PrintCostLine[];
   totalCostMinor: number;
+  materialCostMinor: number;
+  printCostMinor: number;
+  setupCostTotalMinor: number;
+  finishingCostTotalMinor: number;
   unitCostMinor: number;
 };
 
@@ -60,6 +79,46 @@ function nonNegativeNumber(value: unknown, fallback = 0): number {
 
 function moneyMinor(value: unknown): number {
   return Math.round(nonNegativeNumber(value, 0));
+}
+
+function modeOr<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(value as T) ? (value as T) : fallback;
+}
+
+function addCostLine(lines: PrintCostLine[], code: string, label: string, quantity: number, unitCostMinor: number) {
+  const safeQuantity = Math.max(0, Math.round(nonNegativeNumber(quantity, 0)));
+  const safeUnitCost = moneyMinor(unitCostMinor);
+  if (safeQuantity <= 0 || safeUnitCost <= 0) return;
+  lines.push({
+    code,
+    label,
+    quantity: safeQuantity,
+    unitCostMinor: safeUnitCost,
+    totalMinor: safeQuantity * safeUnitCost,
+  });
+}
+
+function finishingQuantity(
+  mode: string,
+  quantity: number,
+  totalSheets: number,
+  impressions: number,
+  cutCount = 1,
+): number {
+  switch (mode) {
+    case 'per_unit':
+      return quantity;
+    case 'per_sheet':
+      return totalSheets;
+    case 'per_side_impression':
+      return impressions;
+    case 'per_cut':
+      return totalSheets * Math.max(1, Math.round(cutCount));
+    case 'flat':
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 export function calculateSheetPlan(input: PrintMathsInput): SheetPlanResult {
@@ -135,7 +194,12 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
       impressions: 0,
       currency,
       costLines: [],
+      finishingLines: [],
       totalCostMinor: 0,
+      materialCostMinor: 0,
+      printCostMinor: 0,
+      setupCostTotalMinor: 0,
+      finishingCostTotalMinor: 0,
       unitCostMinor: 0,
     };
   }
@@ -145,51 +209,75 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const sheetCostMinor = moneyMinor(input.sheetCostMinor);
   const clickCostMinor = moneyMinor(input.clickCostMinor);
   const setupCostMinor = moneyMinor(input.setupCostMinor);
-  const finishingCostMinor = moneyMinor(input.finishingCostMinor);
+  const legacyFinishingCostMinor = moneyMinor(input.finishingCostMinor);
 
   const costLines: PrintCostLine[] = [];
+  const finishingLines: PrintCostLine[] = [];
 
-  if (sheetCostMinor > 0) {
-    costLines.push({
-      code: 'material_sheets',
-      label: 'Material / sheets',
-      quantity: totalSheets,
-      unitCostMinor: sheetCostMinor,
-      totalMinor: totalSheets * sheetCostMinor,
-    });
+  addCostLine(costLines, 'material_sheets', 'Material / sheets', totalSheets, sheetCostMinor);
+  addCostLine(costLines, 'print_clicks', 'Print clicks / impressions', impressions, clickCostMinor);
+  addCostLine(costLines, 'setup', 'Setup / make-ready charge', 1, setupCostMinor);
+
+  if (legacyFinishingCostMinor > 0) {
+    addCostLine(finishingLines, 'finishing_legacy', 'General finishing charge', quantity, legacyFinishingCostMinor);
   }
 
-  if (clickCostMinor > 0) {
-    costLines.push({
-      code: 'print_clicks',
-      label: 'Print clicks / impressions',
-      quantity: impressions,
-      unitCostMinor: clickCostMinor,
-      totalMinor: impressions * clickCostMinor,
-    });
-  }
+  const laminationMode = modeOr(input.laminationMode, ['none', 'per_unit', 'per_sheet', 'per_side_impression'] as const, 'none');
+  const foldingMode = modeOr(input.foldingMode, ['none', 'per_unit', 'per_sheet'] as const, 'none');
+  const cuttingMode = modeOr(input.cuttingMode, ['none', 'per_unit', 'per_sheet', 'per_cut'] as const, 'none');
+  const spotUvMode = modeOr(input.spotUvMode, ['none', 'per_unit', 'per_sheet', 'per_side_impression'] as const, 'none');
+  const packingMode = modeOr(input.packingMode, ['none', 'per_unit', 'flat'] as const, 'none');
+  const cutCount = Math.max(1, Math.round(nonNegativeNumber(input.cutCount, 1)));
 
-  if (setupCostMinor > 0) {
-    costLines.push({
-      code: 'setup',
-      label: 'Setup / make-ready charge',
-      quantity: 1,
-      unitCostMinor: setupCostMinor,
-      totalMinor: setupCostMinor,
-    });
-  }
+  addCostLine(
+    finishingLines,
+    'lamination',
+    `Lamination (${laminationMode})`,
+    finishingQuantity(laminationMode, quantity, totalSheets, impressions),
+    input.laminationCostMinor || 0,
+  );
+  addCostLine(
+    finishingLines,
+    'folding',
+    `Folding (${foldingMode})`,
+    finishingQuantity(foldingMode, quantity, totalSheets, impressions),
+    input.foldingCostMinor || 0,
+  );
+  addCostLine(
+    finishingLines,
+    'cutting',
+    `Cutting (${cuttingMode})`,
+    finishingQuantity(cuttingMode, quantity, totalSheets, impressions, cutCount),
+    input.cuttingCostMinor || 0,
+  );
+  addCostLine(
+    finishingLines,
+    'spot_uv',
+    `Spot UV (${spotUvMode})`,
+    finishingQuantity(spotUvMode, quantity, totalSheets, impressions),
+    input.spotUvCostMinor || 0,
+  );
+  addCostLine(
+    finishingLines,
+    'packing',
+    `Packing (${packingMode})`,
+    finishingQuantity(packingMode, quantity, totalSheets, impressions),
+    input.packingCostMinor || 0,
+  );
 
-  if (finishingCostMinor > 0) {
-    costLines.push({
-      code: 'finishing',
-      label: 'Finishing charge',
-      quantity,
-      unitCostMinor: finishingCostMinor,
-      totalMinor: quantity * finishingCostMinor,
-    });
-  }
+  const materialCostMinor = costLines
+    .filter((line) => line.code === 'material_sheets')
+    .reduce((sum, line) => sum + line.totalMinor, 0);
+  const printCostMinor = costLines
+    .filter((line) => line.code === 'print_clicks')
+    .reduce((sum, line) => sum + line.totalMinor, 0);
+  const setupCostTotalMinor = costLines
+    .filter((line) => line.code === 'setup')
+    .reduce((sum, line) => sum + line.totalMinor, 0);
+  const finishingCostTotalMinor = finishingLines.reduce((sum, line) => sum + line.totalMinor, 0);
 
-  const totalCostMinor = costLines.reduce((sum, line) => sum + line.totalMinor, 0);
+  const allLines = [...costLines, ...finishingLines];
+  const totalCostMinor = allLines.reduce((sum, line) => sum + line.totalMinor, 0);
   const unitCostMinor = Math.ceil(totalCostMinor / quantity);
 
   return {
@@ -198,8 +286,13 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
     totalSheets,
     impressions,
     currency,
-    costLines,
+    costLines: allLines,
+    finishingLines,
     totalCostMinor,
+    materialCostMinor,
+    printCostMinor,
+    setupCostTotalMinor,
+    finishingCostTotalMinor,
     unitCostMinor,
   };
 }

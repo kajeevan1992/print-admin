@@ -15,6 +15,17 @@ type PrintMathsForm = {
   clickCostMinor: number;
   setupCostMinor: number;
   finishingCostMinor: number;
+  laminationCostMinor: number;
+  laminationMode: string;
+  foldingCostMinor: number;
+  foldingMode: string;
+  cuttingCostMinor: number;
+  cuttingMode: string;
+  cutCount: number;
+  spotUvCostMinor: number;
+  spotUvMode: string;
+  packingCostMinor: number;
+  packingMode: string;
 };
 
 const initialForm: PrintMathsForm = {
@@ -30,10 +41,58 @@ const initialForm: PrintMathsForm = {
   clickCostMinor: 4,
   setupCostMinor: 500,
   finishingCostMinor: 0,
+  laminationCostMinor: 0,
+  laminationMode: 'none',
+  foldingCostMinor: 0,
+  foldingMode: 'none',
+  cuttingCostMinor: 0,
+  cuttingMode: 'none',
+  cutCount: 1,
+  spotUvCostMinor: 0,
+  spotUvMode: 'none',
+  packingCostMinor: 0,
+  packingMode: 'none',
 };
+
+const numericFields: Array<keyof PrintMathsForm> = [
+  'quantity',
+  'productWidthMm',
+  'productHeightMm',
+  'sheetWidthMm',
+  'sheetHeightMm',
+  'sides',
+  'wastePercent',
+  'makeReadySheets',
+  'sheetCostMinor',
+  'clickCostMinor',
+  'setupCostMinor',
+  'finishingCostMinor',
+  'laminationCostMinor',
+  'foldingCostMinor',
+  'cuttingCostMinor',
+  'cutCount',
+  'spotUvCostMinor',
+  'packingCostMinor',
+];
+
+const modeFields: Array<{ key: keyof PrintMathsForm; options: string[] }> = [
+  { key: 'laminationMode', options: ['none', 'per_unit', 'per_sheet', 'per_side_impression'] },
+  { key: 'foldingMode', options: ['none', 'per_unit', 'per_sheet'] },
+  { key: 'cuttingMode', options: ['none', 'per_unit', 'per_sheet', 'per_cut'] },
+  { key: 'spotUvMode', options: ['none', 'per_unit', 'per_sheet', 'per_side_impression'] },
+  { key: 'packingMode', options: ['none', 'per_unit', 'flat'] },
+];
 
 function formatMoney(minor: number, currency = 'GBP') {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((minor || 0) / 100);
+}
+
+function humanLabel(key: string) {
+  return key
+    .replace(/Minor$/, ' (pence)')
+    .replace(/Mm$/, ' mm')
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (char) => char.toUpperCase());
 }
 
 export default function PrintMathsLab() {
@@ -42,7 +101,7 @@ export default function PrintMathsLab() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  function update(key: keyof PrintMathsForm, value: number) {
+  function update(key: keyof PrintMathsForm, value: number | string) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -71,31 +130,66 @@ export default function PrintMathsLab() {
   }
 
   return (
-    <main style={{ padding: 24, maxWidth: 1100 }}>
+    <main style={{ padding: 24, maxWidth: 1200 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>Print Maths Lab</h1>
       <p style={{ color: '#555', marginTop: 6 }}>
-        Test sheet fit, ups per sheet, sheets needed, waste, make-ready sheets and basic production cost.
+        Test sheet fit, ups per sheet, sheets needed, waste, make-ready sheets, base production cost and finishing stack cost.
       </p>
 
-      <section
-        style={{
-          marginTop: 20,
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: 12,
-        }}
-      >
-        {(Object.keys(form) as Array<keyof PrintMathsForm>).map((key) => (
-          <label key={key} style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
-            <span>{key}</span>
-            <input
-              type="number"
-              value={form[key]}
-              onChange={(event) => update(key, Number(event.target.value))}
-              style={{ padding: 10, border: '1px solid #ccc', borderRadius: 8 }}
-            />
-          </label>
-        ))}
+      <section style={{ marginTop: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700 }}>Core print inputs</h2>
+        <div
+          style={{
+            marginTop: 10,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {numericFields.map((key) => (
+            <label key={key} style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
+              <span>{humanLabel(key)}</span>
+              <input
+                type="number"
+                value={form[key] as number}
+                onChange={(event) => update(key, Number(event.target.value))}
+                style={{ padding: 10, border: '1px solid #ccc', borderRadius: 8 }}
+              />
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginTop: 20 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700 }}>Finishing modes</h2>
+        <p style={{ color: '#666', marginTop: 4 }}>
+          Use modes to decide whether a finish charges per unit, sheet, side/impression, cut, or flat job.
+        </p>
+        <div
+          style={{
+            marginTop: 10,
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: 12,
+          }}
+        >
+          {modeFields.map(({ key, options }) => (
+            <label key={key} style={{ display: 'grid', gap: 6, fontWeight: 600 }}>
+              <span>{humanLabel(key)}</span>
+              <select
+                value={form[key] as string}
+                onChange={(event) => update(key, event.target.value)}
+                style={{ padding: 10, border: '1px solid #ccc', borderRadius: 8 }}
+              >
+                {options.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
       </section>
 
       <button
@@ -132,6 +226,14 @@ export default function PrintMathsLab() {
             <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
               <strong>Impressions</strong>
               <div>{result.impressions}</div>
+            </div>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Base cost</strong>
+              <div>{formatMoney((result.materialCostMinor || 0) + (result.printCostMinor || 0) + (result.setupCostTotalMinor || 0), result.currency)}</div>
+            </div>
+            <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
+              <strong>Finishing cost</strong>
+              <div>{formatMoney(result.finishingCostTotalMinor, result.currency)}</div>
             </div>
             <div style={{ padding: 14, background: '#f6f6f6', borderRadius: 10 }}>
               <strong>Total cost</strong>

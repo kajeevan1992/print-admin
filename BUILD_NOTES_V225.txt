@@ -1,0 +1,19 @@
+v225 - finishing stack pricing foundation
+
+Added:
+- Finishing stack cost lines in src/core/pricing/print-maths.ts
+- Lamination, folding, cutting, spot UV and packing cost placeholders
+- Per-unit, per-sheet, per-side/impression, per-cut and flat charging modes
+- API support on /api/internal/catalog/print-maths for finishing stack params
+- /print-maths-lab UI now includes finishing cost controls and base vs finishing totals
+
+Test after deploy:
+/print-maths-lab
+
+API example:
+/api/internal/catalog/print-maths?quantity=1000&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&wastePercent=5&sheetCostMinor=45&clickCostMinor=4&setupCostMinor=500&laminationCostMinor=8&laminationMode=per_unit&cuttingCostMinor=2&cuttingMode=per_cut&cutCount=2
+
+Notes:
+- This is still internal pricing maths/lab work.
+- It does not change storefront, orders, or checkout.
+- Next step should connect these finishing modes to product option group pricing hooks.

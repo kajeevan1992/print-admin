@@ -50,6 +50,10 @@ export type PrintCostInput = PrintMathsInput & FinishingStackInput & TurnaroundP
   finishingCostMinor?: number;
   makeReadySheets?: number;
   currency?: string;
+  productName?: string;
+  customerName?: string;
+  quoteReference?: string;
+  validDays?: number;
   markupPercent?: number;
   marginPercent?: number;
   minimumSellPriceMinor?: number;
@@ -90,6 +94,25 @@ export type DeliveryEstimate = {
   includeWeekends: boolean;
 };
 
+export type PrintQuoteSummary = {
+  quoteReference: string;
+  productName: string;
+  customerName?: string;
+  quantity: number;
+  currency: string;
+  unitPriceMinor: number;
+  netTotalMinor: number;
+  discountMinor: number;
+  vatRatePercent: number;
+  vatMinor: number;
+  grossTotalMinor: number;
+  validUntil: string;
+  estimatedReadyDate: string;
+  estimatedDeliveryDate: string;
+  productionNotes: string[];
+  lineItems: PrintCostLine[];
+};
+
 export type PrintCostEstimate = SheetPlanResult & {
   discountMode: string;
   discountPercent: number;
@@ -122,6 +145,7 @@ export type PrintCostEstimate = SheetPlanResult & {
   turnaroundMultiplierPercent: number;
   turnaroundFlatFeeMinor: number;
   deliveryEstimate: DeliveryEstimate;
+  quoteSummary: PrintQuoteSummary;
 };
 
 function positiveNumber(value: unknown, fallback: number): number {
@@ -177,6 +201,48 @@ function addDays(start: Date, days: number, includeWeekends: boolean): Date {
 
 function dateOnly(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function formatQuoteReference(raw?: string): string {
+  const value = String(raw || '').trim();
+  if (value) return value;
+  const stamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 12);
+  return `Q-${stamp}`;
+}
+
+function buildQuoteSummary(input: PrintCostInput, estimate: Omit<PrintCostEstimate, 'quoteSummary'>): PrintQuoteSummary {
+  const validDays = Math.max(1, Math.round(nonNegativeNumber(input.validDays, 14)));
+  const validUntil = addDays(new Date(), validDays, true);
+  const productName = String(input.productName || 'Print product').trim() || 'Print product';
+  const customerName = String(input.customerName || '').trim() || undefined;
+  const productionNotes = [
+    `${estimate.upsPerSheet} up on sheet, ${estimate.orientation || 'normal'} orientation`,
+    `${estimate.totalSheets} total sheet(s), ${estimate.impressions} impression(s)`,
+    `Ready estimate: ${estimate.deliveryEstimate.estimatedReadyDate}`,
+    `Delivery estimate: ${estimate.deliveryEstimate.estimatedDeliveryDate}`,
+  ];
+
+  if (!estimate.ok && estimate.reason) productionNotes.unshift(estimate.reason);
+  if (estimate.discountMinor > 0) productionNotes.push(`Discount applied: ${estimate.discountMinor} minor units`);
+
+  return {
+    quoteReference: formatQuoteReference(input.quoteReference),
+    productName,
+    customerName,
+    quantity: Math.max(1, Math.round(positiveNumber(input.quantity, 1))),
+    currency: estimate.currency,
+    unitPriceMinor: estimate.unitSellPriceMinor,
+    netTotalMinor: estimate.netSellPriceMinor,
+    discountMinor: estimate.discountMinor,
+    vatRatePercent: estimate.vatRatePercent,
+    vatMinor: estimate.vatMinor,
+    grossTotalMinor: estimate.grossSellPriceMinor,
+    validUntil: dateOnly(validUntil),
+    estimatedReadyDate: estimate.deliveryEstimate.estimatedReadyDate,
+    estimatedDeliveryDate: estimate.deliveryEstimate.estimatedDeliveryDate,
+    productionNotes,
+    lineItems: estimate.costLines,
+  };
 }
 
 function calculateTaxAndDiscount(sellPriceMinor: number, input: PrintCostInput) {
@@ -305,7 +371,8 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const deliveryEstimate = calculateDeliveryEstimate(input);
 
   if (!plan.ok) {
-    return { ...plan, makeReadySheets, totalSheets: 0, impressions: 0, currency, discountMode: 'none', discountPercent: 0, discountFixedMinor: 0, discountMinor: 0, netSellPriceMinor: 0, vatRatePercent: nonNegativeNumber(input.vatRatePercent, 20), vatMinor: 0, grossSellPriceMinor: 0, vatInclusive: Boolean(input.vatInclusive), costLines: [], finishingLines: [], totalCostMinor: 0, materialCostMinor: 0, printCostMinor: 0, setupCostTotalMinor: 0, finishingCostTotalMinor: 0, unitCostMinor: 0, appliedPricingTier: null, markupPercent: 0, marginPercent: 0, minimumSellPriceMinor: 0, roundingMinor: 1, sellPriceMinor: 0, unitSellPriceMinor: 0, profitMinor: 0, achievedMarginPercent: 0, turnaroundMode: input.turnaroundMode || 'standard', turnaroundMultiplierPercent: 0, turnaroundFlatFeeMinor: 0, deliveryEstimate };
+    const failedEstimate: Omit<PrintCostEstimate, 'quoteSummary'> = { ...plan, makeReadySheets, totalSheets: 0, impressions: 0, currency, discountMode: 'none', discountPercent: 0, discountFixedMinor: 0, discountMinor: 0, netSellPriceMinor: 0, vatRatePercent: nonNegativeNumber(input.vatRatePercent, 20), vatMinor: 0, grossSellPriceMinor: 0, vatInclusive: Boolean(input.vatInclusive), costLines: [], finishingLines: [], totalCostMinor: 0, materialCostMinor: 0, printCostMinor: 0, setupCostTotalMinor: 0, finishingCostTotalMinor: 0, unitCostMinor: 0, appliedPricingTier: null, markupPercent: 0, marginPercent: 0, minimumSellPriceMinor: 0, roundingMinor: 1, sellPriceMinor: 0, unitSellPriceMinor: 0, profitMinor: 0, achievedMarginPercent: 0, turnaroundMode: input.turnaroundMode || 'standard', turnaroundMultiplierPercent: 0, turnaroundFlatFeeMinor: 0, deliveryEstimate };
+    return { ...failedEstimate, quoteSummary: buildQuoteSummary(input, failedEstimate) };
   }
 
   const totalSheets = plan.totalSheets + makeReadySheets;
@@ -353,5 +420,6 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const pricing = calculateSellPriceFromCost(totalCostMinor, quantity, input);
   const taxAndDiscount = calculateTaxAndDiscount(pricing.sellPriceMinor, input);
 
-  return { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing, ...taxAndDiscount, turnaroundMode, turnaroundMultiplierPercent, turnaroundFlatFeeMinor, deliveryEstimate };
+  const estimate: Omit<PrintCostEstimate, 'quoteSummary'> = { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing, ...taxAndDiscount, turnaroundMode, turnaroundMultiplierPercent, turnaroundFlatFeeMinor, deliveryEstimate };
+  return { ...estimate, quoteSummary: buildQuoteSummary(input, estimate) };
 }

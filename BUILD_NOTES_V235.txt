@@ -1,0 +1,25 @@
+v235 - Navigation role visibility foundation
+
+Scope:
+- Central admin navigation registry now supports role/visibility metadata.
+- Sidebar reads registered page/tool links through getVisibleAdminNavigationRegistry(role).
+- Super Admin sidebar can also receive registered tools when allowed by role metadata.
+- Added internal navigation registry inspection endpoint.
+
+Changed files:
+- src/config/admin-navigation.ts
+- src/components/layout/sidebar.tsx
+- app/api/internal/platform/navigation-registry/route.ts
+
+New/updated endpoint:
+- GET /api/internal/platform/navigation-registry?role=admin
+- GET /api/internal/platform/navigation-registry?role=super_admin
+
+Why:
+- New pages/tools must be visible in side menus without patching random service files.
+- Future tools can be hidden, owner-only, tenant-only, role-limited, or feature-flag guarded from one place.
+
+Important:
+- No pricing/order/storefront logic changed.
+- No redesign.
+- Continue registering new pages in src/config/admin-navigation.ts.

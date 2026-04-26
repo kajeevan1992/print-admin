@@ -88,7 +88,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { ADMIN_NAVIGATION_REGISTRY } from '@/config/admin-navigation';
+import { getVisibleAdminNavigationRegistry } from '@/config/admin-navigation';
 
 type NavItem = {
   label: string;
@@ -324,13 +324,13 @@ const iconMap: Record<string, LucideIcon> = {
 };
 
 
-function withRegisteredAdminNav(items: NavItem[]): NavItem[] {
+function withRegisteredAdminNav(items: NavItem[], role?: string | null): NavItem[] {
   const next: NavItem[] = items.map((item) => ({
     ...item,
     children: item.children ? [...item.children] : undefined
   }));
 
-  for (const registryItem of ADMIN_NAVIGATION_REGISTRY) {
+  for (const registryItem of getVisibleAdminNavigationRegistry(role)) {
     const exists = next.some((item) => item.href === registryItem.href || item.children?.some((child) => child.href === registryItem.href));
     if (exists) continue;
 
@@ -406,10 +406,10 @@ export function Sidebar() {
 
   const navItems = useMemo(() => {
     if (session?.role === 'super_admin') {
-      return superAdminNavItems;
+      return withRegisteredAdminNav(superAdminNavItems, session?.role);
     }
 
-    return withRegisteredAdminNav(baseNavItems.filter((item) => item.href !== '/super-admin'));
+    return withRegisteredAdminNav(baseNavItems.filter((item) => item.href !== '/super-admin'), session?.role);
   }, [session?.role]);
 
 

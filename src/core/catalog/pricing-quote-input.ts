@@ -19,13 +19,6 @@ type QuoteInputLine = {
   minChargeMinor?: number;
   pricingMultiplier?: number;
   productionCode?: string;
-  sourceWidth?: number;
-  sourceHeight?: number;
-  bleed?: number;
-  pages?: number;
-  sides?: number;
-  rawGroup?: unknown;
-  rawSelectedValue?: unknown;
   warnings: string[];
 };
 
@@ -135,13 +128,6 @@ export function buildPricingQuoteInputPayload(product: any, selections: Selectio
       minChargeMinor: valueNumber(selectedValue, selected, 'minChargeMinor'),
       pricingMultiplier: valueNumber(selectedValue, selected, 'pricingMultiplier') ?? 1,
       productionCode: text(selectedValue?.productionCode || group?.productionCode),
-      sourceWidth: valueNumber(selectedValue, selected, 'sourceWidth') ?? valueNumber(selectedValue, selected, 'sourceWidthMm') ?? valueNumber(group, selected, 'sourceWidth') ?? valueNumber(group, selected, 'sourceWidthMm') ?? valueNumber(group, selected, 'sheetWidthMm') ?? valueNumber(group, selected, 'rollWidthMm') ?? valueNumber(group, selected, 'boardWidthMm'),
-      sourceHeight: valueNumber(selectedValue, selected, 'sourceHeight') ?? valueNumber(selectedValue, selected, 'sourceHeightMm') ?? valueNumber(group, selected, 'sourceHeight') ?? valueNumber(group, selected, 'sourceHeightMm') ?? valueNumber(group, selected, 'sheetHeightMm') ?? valueNumber(group, selected, 'rollLengthMm') ?? valueNumber(group, selected, 'boardHeightMm'),
-      bleed: valueNumber(selectedValue, selected, 'bleed') ?? valueNumber(selectedValue, selected, 'bleedMm') ?? valueNumber(group, selected, 'bleed') ?? valueNumber(group, selected, 'bleedMm'),
-      pages: valueNumber(selectedValue, selected, 'pages') ?? valueNumber(selectedValue, selected, 'pageCount') ?? valueNumber(group, selected, 'pages') ?? valueNumber(group, selected, 'pageCount'),
-      sides: valueNumber(selectedValue, selected, 'sides') ?? valueNumber(selectedValue, selected, 'sideCount') ?? valueNumber(group, selected, 'sides') ?? valueNumber(group, selected, 'sideCount'),
-      rawGroup: group,
-      rawSelectedValue: selectedValue,
       warnings: lineWarnings,
     };
     warnings.push(...lineWarnings.map((message) => `${line.groupName}: ${message}`));

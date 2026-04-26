@@ -1,0 +1,35 @@
+# v232 — Quote draft order workflow
+
+## Purpose
+Move the pricing/quote lab one safe step closer to real orders without creating production orders yet.
+
+## Added
+- Fixed `/api/internal/catalog/quote-order-payload` so it returns the real quote-to-order prep payload with validation.
+- Added draft order storage endpoint:
+  - `GET /api/internal/catalog/draft-orders`
+  - `POST /api/internal/catalog/draft-orders`
+  - `DELETE /api/internal/catalog/draft-orders?id=<id>`
+- Added draft order library inside `/print-maths-lab`.
+- Added buttons to:
+  - generate quote-to-order payload
+  - save draft order
+  - reload saved draft orders
+  - load/delete saved draft orders
+
+## Storage
+Draft orders are saved through the existing internal config/catalog DB storage key:
+
+`quote-draft-orders`
+
+This keeps the workflow internal and safe until the real Orders module is connected to checkout/cart.
+
+## Test
+1. Open `/print-maths-lab`.
+2. Calculate a quote.
+3. Click `Generate quote-to-order payload`.
+4. Click `Save draft order`.
+5. Refresh the page.
+6. Confirm the saved draft order appears in the draft order library.
+
+## Important
+This does not create a live order yet. It only saves a draft order payload ready for future cart/order conversion.

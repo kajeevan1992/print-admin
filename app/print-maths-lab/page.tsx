@@ -14,6 +14,7 @@ type PrintMathsForm = {
 
 type QuoteMeta = { productName: string; customerName: string; quoteReference: string; validDays: number };
 type Snapshot = { id: string; title: string; name?: string; form: PrintMathsForm; quoteMeta: QuoteMeta; quantityTiers: string; result?: any; createdAt?: string; updatedAt?: string };
+type DraftOrder = { id: string; title: string; status?: string; quoteReference?: string; productName?: string; customerName?: string; grossTotalMinor?: number; currency?: string; payload?: any; createdAt?: string; updatedAt?: string };
 
 const SNAPSHOT_KEY = 'pricing-quote-snapshots';
 
@@ -75,6 +76,7 @@ export default function PrintMathsLab() {
   const [result, setResult] = useState<any>(null);
   const [orderPayload, setOrderPayload] = useState<any>(null);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
+  const [draftOrders, setDraftOrders] = useState<DraftOrder[]>([]);
   const [snapshotStatus, setSnapshotStatus] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -84,6 +86,7 @@ export default function PrintMathsLab() {
 
   useEffect(() => {
     loadSnapshots();
+    loadDraftOrders();
   }, []);
 
   function update(key: keyof PrintMathsForm, value: number | string) {
@@ -217,6 +220,63 @@ export default function PrintMathsLab() {
     navigator.clipboard?.writeText(JSON.stringify(orderPayload, null, 2)).then(() => setSnapshotStatus('Quote-to-order payload copied.')).catch(() => setSnapshotStatus('Could not copy quote-to-order payload.'));
   }
 
+  async function loadDraftOrders() {
+    try {
+      const response = await fetch('/api/internal/catalog/draft-orders', { cache: 'no-store' });
+      const json = await response.json();
+      if (!response.ok || !json.ok) throw new Error(json.error || 'Could not load draft orders');
+      setDraftOrders(Array.isArray(json.data?.items) ? json.data.items : []);
+    } catch (err) {
+      setSnapshotStatus(err instanceof Error ? err.message : 'Draft order API unavailable.');
+    }
+  }
+
+  async function saveDraftOrder() {
+    setLoading(true);
+    setError('');
+    try {
+      let payload = orderPayload;
+      if (!payload) {
+        const response = await fetch(`/api/internal/catalog/quote-order-payload?${buildParams().toString()}`, { cache: 'no-store' });
+        const json = await response.json();
+        if (!response.ok || !json.ok) throw new Error(json.error || 'Could not generate quote-to-order payload');
+        payload = json.data;
+        setOrderPayload(payload);
+      }
+      if (payload?.validation?.errors?.length) throw new Error(`Cannot save draft order: ${payload.validation.errors.join(' | ')}`);
+      const response = await fetch('/api/internal/catalog/draft-orders', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ payload }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json.ok) throw new Error(json.error || 'Could not save draft order');
+      await loadDraftOrders();
+      setSnapshotStatus(`Draft order saved: ${json.item?.title || json.item?.id || 'saved'}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save draft order');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteDraftOrder(id: string) {
+    try {
+      const response = await fetch(`/api/internal/catalog/draft-orders?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      const json = await response.json();
+      if (!response.ok || !json.ok) throw new Error(json.error || 'Could not delete draft order');
+      await loadDraftOrders();
+      setSnapshotStatus('Draft order deleted.');
+    } catch (err) {
+      setSnapshotStatus(err instanceof Error ? err.message : 'Could not delete draft order.');
+    }
+  }
+
+  function loadDraftOrder(draft: DraftOrder) {
+    setOrderPayload(draft.payload || draft);
+    setSnapshotStatus(`Loaded draft order ${draft.title || draft.id}.`);
+  }
+
   return (
     <main style={{ padding: 24, maxWidth: 1280 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>Print Maths Lab</h1>
@@ -237,6 +297,26 @@ export default function PrintMathsLab() {
             <div style={{ display: 'flex', gap: 8 }}><button onClick={() => loadSnapshot(snapshot)} style={{ padding: '7px 10px', border: '1px solid #999', borderRadius: 8 }}>Load</button><button onClick={() => deleteSnapshot(snapshot.id)} style={{ padding: '7px 10px', border: '1px solid #c00', borderRadius: 8, color: '#c00' }}>Delete</button></div>
           </div>)}
         </div> : <p style={{ color: '#777', marginTop: 10 }}>No saved quote snapshots yet.</p>}
+      </section>
+
+      <section style={{ marginTop: 20, padding: 16, border: '1px solid #ddd', borderRadius: 12 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700 }}>Draft orders from quotes</h2>
+        <p style={{ color: '#666', marginTop: 4 }}>This is still a draft workflow. It saves quote-to-order payloads to DB/API so the future cart/order system can pick them up safely.</p>
+        <div style={{ marginTop: 12 }}>
+          <button onClick={loadDraftOrders} style={{ padding: '9px 14px', border: '1px solid #999', borderRadius: 8 }}>Reload draft orders</button>
+        </div>
+        {draftOrders.length ? <div style={{ marginTop: 14, display: 'grid', gap: 8 }}>
+          {draftOrders.map((draft) => <div key={draft.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: 10, border: '1px solid #eee', borderRadius: 8, alignItems: 'center' }}>
+            <div>
+              <strong>{draft.title || draft.id}</strong>
+              <div style={{ color: '#666', fontSize: 13 }}>{draft.status || 'draft'} · {formatMoney(draft.grossTotalMinor || draft.payload?.pricing?.grossTotalMinor || 0, draft.currency || draft.payload?.currency || 'GBP')} · {draft.updatedAt || draft.createdAt || ''}</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => loadDraftOrder(draft)} style={{ padding: '7px 10px', border: '1px solid #999', borderRadius: 8 }}>Load</button>
+              <button onClick={() => deleteDraftOrder(draft.id)} style={{ padding: '7px 10px', border: '1px solid #c00', borderRadius: 8, color: '#c00' }}>Delete</button>
+            </div>
+          </div>)}
+        </div> : <p style={{ color: '#777', marginTop: 10 }}>No draft orders saved yet.</p>}
       </section>
 
       {comparisonRows.length ? <section style={{ marginTop: 20, padding: 16, border: '1px solid #ddd', borderRadius: 12 }}>
@@ -271,6 +351,7 @@ export default function PrintMathsLab() {
         <button onClick={() => run()} disabled={loading} style={{ padding: '10px 16px', border: '1px solid #111', borderRadius: 8, cursor: loading ? 'wait' : 'pointer' }}>{loading ? 'Calculating…' : 'Calculate'}</button>
         <button onClick={generateOrderPayload} disabled={loading} style={{ padding: '10px 16px', border: '1px solid #999', borderRadius: 8, cursor: loading ? 'wait' : 'pointer' }}>Generate quote-to-order payload</button>
         {orderPayload ? <button onClick={copyOrderPayload} style={{ padding: '10px 16px', border: '1px solid #999', borderRadius: 8 }}>Copy order payload</button> : null}
+        <button onClick={saveDraftOrder} disabled={loading} style={{ padding: '10px 16px', border: '1px solid #0a7', borderRadius: 8, color: '#075' }}>Save draft order</button>
       </div>
       {error ? <div style={{ marginTop: 16, padding: 12, border: '1px solid #c00', borderRadius: 8, color: '#c00' }}>{error}</div> : null}
 

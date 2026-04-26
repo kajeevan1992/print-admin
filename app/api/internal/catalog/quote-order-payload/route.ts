@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { calculatePrintCostEstimate } from '@/core/pricing/print-maths';
+import { buildQuoteOrderPrepPayload } from '@/core/pricing/print-maths';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +25,7 @@ function parseQuantityTiers(raw: string | null) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  const result = calculatePrintCostEstimate({
+  const result = buildQuoteOrderPrepPayload({
     quantity: numberParam(searchParams, 'quantity', 100),
     productWidthMm: numberParam(searchParams, 'productWidthMm', 85),
     productHeightMm: numberParam(searchParams, 'productHeightMm', 55),

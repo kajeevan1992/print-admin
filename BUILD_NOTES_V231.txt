@@ -1,0 +1,28 @@
+v231 quote-to-order prep payload
+
+Scope:
+- Continue from v230 quote snapshot library.
+- Prepare a clean quote-to-cart/order payload without creating real orders yet.
+- Keep storefront, orders and checkout out of scope.
+
+Added:
+- New helper: buildQuoteOrderPrepPayload(input)
+- New endpoint:
+  GET /api/internal/catalog/quote-order-payload
+- Print Maths Lab button:
+  Generate quote-to-order payload
+- Payload includes:
+  - quote reference
+  - customer/product/quantity
+  - pricing totals
+  - production/sheet plan
+  - fulfilment dates
+  - cost lines
+  - validation warnings/errors
+
+Test:
+- Open /print-maths-lab
+- Calculate a quote
+- Click Generate quote-to-order payload
+- Or call:
+  /api/internal/catalog/quote-order-payload?quantity=1000&productWidthMm=85&productHeightMm=55&sheetWidthMm=450&sheetHeightMm=320&sides=2&sheetCostMinor=45&clickCostMinor=4&setupCostMinor=500&marginPercent=35&vatRatePercent=20

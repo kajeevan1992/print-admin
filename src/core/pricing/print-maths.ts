@@ -423,3 +423,96 @@ export function calculatePrintCostEstimate(input: PrintCostInput): PrintCostEsti
   const estimate: Omit<PrintCostEstimate, 'quoteSummary'> = { ...plan, makeReadySheets, totalSheets, impressions, currency, costLines: allLines, finishingLines, totalCostMinor, materialCostMinor, printCostMinor, setupCostTotalMinor, finishingCostTotalMinor, unitCostMinor, ...pricing, ...taxAndDiscount, turnaroundMode, turnaroundMultiplierPercent, turnaroundFlatFeeMinor, deliveryEstimate };
   return { ...estimate, quoteSummary: buildQuoteSummary(input, estimate) };
 }
+
+export type QuoteOrderPrepPayload = {
+  source: 'print-maths-lab';
+  status: 'draft';
+  quoteReference: string;
+  productName: string;
+  customerName?: string;
+  quantity: number;
+  currency: string;
+  pricing: {
+    netTotalMinor: number;
+    vatMinor: number;
+    grossTotalMinor: number;
+    unitPriceMinor: number;
+    totalCostMinor: number;
+    profitMinor: number;
+    achievedMarginPercent: number;
+  };
+  production: {
+    sheetWidthMm: number;
+    sheetHeightMm: number;
+    productWidthMm: number;
+    productHeightMm: number;
+    sides: 1 | 2;
+    upsPerSheet: number;
+    totalSheets: number;
+    impressions: number;
+    orientation?: string;
+    wasteSheets: number;
+    makeReadySheets: number;
+  };
+  fulfilment: {
+    turnaroundMode: string;
+    productionDays: number;
+    deliveryDays: number;
+    estimatedReadyDate: string;
+    estimatedDeliveryDate: string;
+  };
+  costLines: PrintCostLine[];
+  validation: { ok: boolean; warnings: string[]; errors: string[] };
+};
+
+export function buildQuoteOrderPrepPayload(input: PrintCostInput): QuoteOrderPrepPayload {
+  const estimate = calculatePrintCostEstimate(input);
+  const warnings: string[] = [];
+  const errors: string[] = [];
+  if (!estimate.ok) errors.push(estimate.reason || 'Product does not fit selected sheet.');
+  if (!estimate.quoteSummary.productName || estimate.quoteSummary.productName === 'Print product') warnings.push('Product name is using the default placeholder.');
+  if (estimate.totalCostMinor <= 0) warnings.push('Total cost is zero; check material, click, setup and finishing costs.');
+  if (estimate.sellPriceMinor <= 0) errors.push('Sell price is zero; quote cannot be converted safely.');
+  if (estimate.achievedMarginPercent < 0) warnings.push('Quote has negative margin.');
+  if (estimate.upsPerSheet <= 0) errors.push('No usable ups-per-sheet result.');
+  return {
+    source: 'print-maths-lab',
+    status: 'draft',
+    quoteReference: estimate.quoteSummary.quoteReference,
+    productName: estimate.quoteSummary.productName,
+    customerName: estimate.quoteSummary.customerName,
+    quantity: estimate.quoteSummary.quantity,
+    currency: estimate.currency,
+    pricing: {
+      netTotalMinor: estimate.netSellPriceMinor,
+      vatMinor: estimate.vatMinor,
+      grossTotalMinor: estimate.grossSellPriceMinor,
+      unitPriceMinor: estimate.unitSellPriceMinor,
+      totalCostMinor: estimate.totalCostMinor,
+      profitMinor: estimate.profitMinor,
+      achievedMarginPercent: estimate.achievedMarginPercent,
+    },
+    production: {
+      sheetWidthMm: input.sheetWidthMm,
+      sheetHeightMm: input.sheetHeightMm,
+      productWidthMm: input.productWidthMm,
+      productHeightMm: input.productHeightMm,
+      sides: input.sides === 2 ? 2 : 1,
+      upsPerSheet: estimate.upsPerSheet,
+      totalSheets: estimate.totalSheets,
+      impressions: estimate.impressions,
+      orientation: estimate.orientation,
+      wasteSheets: estimate.wasteSheets,
+      makeReadySheets: estimate.makeReadySheets || 0,
+    },
+    fulfilment: {
+      turnaroundMode: estimate.turnaroundMode,
+      productionDays: estimate.deliveryEstimate.productionDays,
+      deliveryDays: estimate.deliveryEstimate.deliveryDays,
+      estimatedReadyDate: estimate.deliveryEstimate.estimatedReadyDate,
+      estimatedDeliveryDate: estimate.deliveryEstimate.estimatedDeliveryDate,
+    },
+    costLines: estimate.costLines,
+    validation: { ok: errors.length === 0, warnings, errors },
+  };
+}

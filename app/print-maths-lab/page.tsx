@@ -73,6 +73,7 @@ export default function PrintMathsLab() {
   const [quoteMeta, setQuoteMeta] = useState<QuoteMeta>(initialQuoteMeta);
   const [quantityTiers, setQuantityTiers] = useState(defaultTiers);
   const [result, setResult] = useState<any>(null);
+  const [orderPayload, setOrderPayload] = useState<any>(null);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [snapshotStatus, setSnapshotStatus] = useState('');
   const [error, setError] = useState('');
@@ -111,6 +112,7 @@ export default function PrintMathsLab() {
       const json = await response.json();
       if (!response.ok || !json.ok) throw new Error(json.error || 'Print maths calculation failed');
       setResult(json.data);
+      setOrderPayload(null);
       return json.data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Print maths calculation failed');
@@ -192,6 +194,29 @@ export default function PrintMathsLab() {
     navigator.clipboard?.writeText(payload).then(() => setSnapshotStatus('Quote JSON copied.')).catch(() => setSnapshotStatus('Could not copy quote JSON.'));
   }
 
+
+  async function generateOrderPayload() {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/internal/catalog/quote-order-payload?${buildParams().toString()}`, { cache: 'no-store' });
+      const json = await response.json();
+      if (!response.ok || !json.ok) throw new Error(json.error || 'Could not generate quote-to-order payload');
+      setOrderPayload(json.data);
+      setSnapshotStatus(json.data?.validation?.ok ? 'Quote-to-order payload is ready.' : 'Quote-to-order payload generated with warnings/errors.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not generate quote-to-order payload');
+      setOrderPayload(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyOrderPayload() {
+    if (!orderPayload) return;
+    navigator.clipboard?.writeText(JSON.stringify(orderPayload, null, 2)).then(() => setSnapshotStatus('Quote-to-order payload copied.')).catch(() => setSnapshotStatus('Could not copy quote-to-order payload.'));
+  }
+
   return (
     <main style={{ padding: 24, maxWidth: 1280 }}>
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>Print Maths Lab</h1>
@@ -242,7 +267,11 @@ export default function PrintMathsLab() {
 
       <section style={{ marginTop: 20 }}><h2 style={{ fontSize: 20, fontWeight: 700 }}>Quantity tiers</h2><p style={{ color: '#666' }}>JSON array. Highest matching minQuantity is applied.</p><textarea value={quantityTiers} onChange={(e) => setQuantityTiers(e.target.value)} rows={8} style={{ marginTop: 8, width: '100%', padding: 12, border: '1px solid #ccc', borderRadius: 8, fontFamily: 'monospace' }} /></section>
 
-      <button onClick={() => run()} disabled={loading} style={{ marginTop: 16, padding: '10px 16px', border: '1px solid #111', borderRadius: 8, cursor: loading ? 'wait' : 'pointer' }}>{loading ? 'Calculating…' : 'Calculate'}</button>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16 }}>
+        <button onClick={() => run()} disabled={loading} style={{ padding: '10px 16px', border: '1px solid #111', borderRadius: 8, cursor: loading ? 'wait' : 'pointer' }}>{loading ? 'Calculating…' : 'Calculate'}</button>
+        <button onClick={generateOrderPayload} disabled={loading} style={{ padding: '10px 16px', border: '1px solid #999', borderRadius: 8, cursor: loading ? 'wait' : 'pointer' }}>Generate quote-to-order payload</button>
+        {orderPayload ? <button onClick={copyOrderPayload} style={{ padding: '10px 16px', border: '1px solid #999', borderRadius: 8 }}>Copy order payload</button> : null}
+      </div>
       {error ? <div style={{ marginTop: 16, padding: 12, border: '1px solid #c00', borderRadius: 8, color: '#c00' }}>{error}</div> : null}
 
       {result ? <section style={{ marginTop: 20, display: 'grid', gap: 16 }}>
@@ -257,6 +286,16 @@ export default function PrintMathsLab() {
         </div></div> : null}
 
         {Array.isArray(result.costLines) && result.costLines.length ? <table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th style={{ textAlign: 'left', borderBottom: '1px solid #ddd', padding: 8 }}>Cost line</th><th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Qty</th><th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Unit</th><th style={{ textAlign: 'right', borderBottom: '1px solid #ddd', padding: 8 }}>Total</th></tr></thead><tbody>{result.costLines.map((line: any) => <tr key={line.code}><td style={{ padding: 8, borderBottom: '1px solid #eee' }}>{line.label}</td><td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{line.quantity}</td><td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{formatMoney(line.unitCostMinor, result.currency)}</td><td style={{ padding: 8, borderBottom: '1px solid #eee', textAlign: 'right' }}>{formatMoney(line.totalMinor, result.currency)}</td></tr>)}</tbody></table> : null}
+        {orderPayload ? <div style={{ padding: 16, border: orderPayload.validation?.ok ? '1px solid #0a7' : '1px solid #c90', borderRadius: 10 }}>
+          <h2 style={{ fontSize: 20, fontWeight: 700 }}>Quote-to-order prep payload</h2>
+          <p style={{ color: '#666', marginTop: 4 }}>This does not create an order yet. It prepares the clean payload the cart/order flow can use later.</p>
+          {orderPayload.validation?.errors?.length ? <div style={{ marginTop: 10, color: '#c00' }}><strong>Errors:</strong> {orderPayload.validation.errors.join(' | ')}</div> : null}
+          {orderPayload.validation?.warnings?.length ? <div style={{ marginTop: 10, color: '#9a6a00' }}><strong>Warnings:</strong> {orderPayload.validation.warnings.join(' | ')}</div> : null}
+          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            <div><strong>Status</strong><br />{orderPayload.status}</div><div><strong>Reference</strong><br />{orderPayload.quoteReference}</div><div><strong>Gross total</strong><br />{formatMoney(orderPayload.pricing?.grossTotalMinor, orderPayload.currency)}</div><div><strong>Ready</strong><br />{orderPayload.fulfilment?.estimatedReadyDate}</div>
+          </div>
+          <details style={{ marginTop: 10 }}><summary>Raw quote-to-order payload</summary><pre style={{ marginTop: 8, padding: 16, background: '#f6f6f6', borderRadius: 8, overflow: 'auto' }}>{JSON.stringify(orderPayload, null, 2)}</pre></details>
+        </div> : null}
         <details><summary>Raw result</summary><pre style={{ marginTop: 8, padding: 16, background: '#f6f6f6', borderRadius: 8, overflow: 'auto' }}>{JSON.stringify(result, null, 2)}</pre></details>
       </section> : null}
     </main>

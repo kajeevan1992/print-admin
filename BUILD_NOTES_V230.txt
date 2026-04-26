@@ -1,0 +1,23 @@
+# v230 - Quote Snapshot Library
+
+Scope: extend the print maths/pricing lab with a safer quote workflow.
+
+Added:
+- Save current calculated quote snapshot to internal DB/API config records.
+- Load saved quote snapshots back into the lab.
+- Delete saved quote snapshots.
+- Saved quote comparison table for cost, sell price, gross, profit, margin and ready date.
+- Copy quote JSON helper.
+
+Internal storage:
+- Uses existing generic config item API:
+  - GET/POST/DELETE /api/internal/config/pricing-quote-snapshots/items
+
+Test after deploy:
+1. Open /print-maths-lab.
+2. Calculate a quote.
+3. Click Save current quote.
+4. Refresh page and verify the quote snapshot reloads from DB/API.
+5. Load and delete a snapshot.
+
+No storefront/order changes.

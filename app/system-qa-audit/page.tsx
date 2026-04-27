@@ -10,8 +10,18 @@ type PageAuditItem = {
   registeredSurfaces: string[];
   apiRoutes: string[];
   status: 'connected' | 'partial' | 'placeholder' | 'unknown';
+  repairBucket?: 'ready' | 'missing-navigation' | 'needs-db-api' | 'placeholder-cleanup' | 'manual-review';
+  priorityScore?: number;
   evidence: string[];
   nextAction: string;
+};
+
+type RepairGroup = {
+  key: string;
+  label: string;
+  description: string;
+  count: number;
+  pages: PageAuditItem[];
 };
 
 const statusClass: Record<PageAuditItem['status'], string> = {
@@ -21,10 +31,30 @@ const statusClass: Record<PageAuditItem['status'], string> = {
   unknown: 'border-white/10 bg-white/5 text-textMuted'
 };
 
+const bucketClass: Record<string, string> = {
+  ready: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100',
+  'missing-navigation': 'border-sky-400/20 bg-sky-400/10 text-sky-100',
+  'needs-db-api': 'border-amber-400/20 bg-amber-400/10 text-amber-100',
+  'placeholder-cleanup': 'border-rose-400/20 bg-rose-400/10 text-rose-100',
+  'manual-review': 'border-white/10 bg-white/5 text-textMuted'
+};
+
+function bucketLabel(bucket?: string) {
+  switch (bucket) {
+    case 'ready': return 'Ready';
+    case 'missing-navigation': return 'Missing nav';
+    case 'needs-db-api': return 'Needs DB/API';
+    case 'placeholder-cleanup': return 'Placeholder';
+    case 'manual-review': return 'Manual review';
+    default: return 'Manual review';
+  }
+}
+
 export default function SystemQaAuditPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [bucketFilter, setBucketFilter] = useState('all');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -48,13 +78,16 @@ export default function SystemQaAuditPage() {
   }, []);
 
   const pages: PageAuditItem[] = data?.pages ?? [];
+  const repairGroups: RepairGroup[] = data?.repairGroups ?? [];
+
   const filtered = useMemo(() => {
     return pages.filter((item) => {
       const matchesStatus = statusFilter === 'all' || item.status === statusFilter || (statusFilter === 'missing-nav' && !item.inRegistry);
-      const haystack = `${item.label} ${item.href} ${item.pageFile} ${item.nextAction}`.toLowerCase();
-      return matchesStatus && haystack.includes(query.toLowerCase());
+      const matchesBucket = bucketFilter === 'all' || item.repairBucket === bucketFilter;
+      const haystack = `${item.label} ${item.href} ${item.pageFile} ${item.nextAction} ${item.repairBucket ?? ''}`.toLowerCase();
+      return matchesStatus && matchesBucket && haystack.includes(query.toLowerCase());
     });
-  }, [pages, query, statusFilter]);
+  }, [pages, query, statusFilter, bucketFilter]);
 
   const summary = data?.summary ?? {};
 
@@ -66,16 +99,16 @@ export default function SystemQaAuditPage() {
             <p className="text-[11px] uppercase tracking-[0.28em] text-textMuted">Platform QA</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">System QA Audit Dashboard</h1>
             <p className="mt-2 max-w-3xl text-sm text-textMuted">
-              One checkpoint for pages, sidebar registration, internal API evidence, DB/API readiness, and what needs fixing next.
+              Actionable repair tracker for pages, sidebar registration, internal API evidence, DB/API readiness, and the next fix queue.
             </p>
           </div>
           <div className="rounded-2xl border border-white/8 bg-panelMuted px-4 py-3 text-sm text-textMuted">
-            {loading ? 'Loading audit…' : 'Audit loaded from internal core'}
+            {loading ? 'Loading audit…' : `Audit loaded • ${summary.repairQueue ?? 0} repair items`}
           </div>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4 xl:grid-cols-7">
+      <section className="grid gap-4 md:grid-cols-4 xl:grid-cols-8">
         {[
           ['Pages', summary.pages],
           ['API routes', summary.apiRoutes],
@@ -83,7 +116,8 @@ export default function SystemQaAuditPage() {
           ['Connected', summary.connected],
           ['Partial', summary.partial],
           ['Placeholder', summary.placeholder],
-          ['Missing nav', summary.notInRegistry]
+          ['Missing nav', summary.notInRegistry],
+          ['Repair queue', summary.repairQueue]
         ].map(([label, value]) => (
           <div key={label as string} className="rounded-2xl border border-white/8 bg-panel/80 p-4">
             <p className="text-xs text-textMuted">{label}</p>
@@ -91,6 +125,49 @@ export default function SystemQaAuditPage() {
           </div>
         ))}
       </section>
+
+      <section className="rounded-[24px] border border-white/8 bg-panel/80 p-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Repair tracker</h2>
+            <p className="mt-1 text-sm text-textMuted">Use this section to decide the next build order instead of guessing.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard?.writeText(JSON.stringify(data?.repairQueue ?? [], null, 2))}
+            className="rounded-xl border border-white/10 bg-panelMuted px-3 py-2 text-sm text-white hover:border-white/20"
+          >
+            Copy repair queue JSON
+          </button>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          {repairGroups.map((group) => (
+            <button
+              type="button"
+              key={group.key}
+              onClick={() => setBucketFilter(group.key === bucketFilter ? 'all' : group.key)}
+              className={`rounded-2xl border p-4 text-left transition ${bucketFilter === group.key ? bucketClass[group.key] : 'border-white/8 bg-panelMuted text-textMuted hover:border-white/20'}`}
+            >
+              <p className="text-sm font-semibold text-white">{group.label}</p>
+              <p className="mt-2 text-2xl font-semibold">{group.count}</p>
+              <p className="mt-2 text-xs leading-5">{group.description}</p>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {data?.nextBuildRecommendation?.length ? (
+        <section className="rounded-[24px] border border-sky-400/20 bg-sky-400/10 p-4 text-sm text-sky-100">
+          <h2 className="font-semibold text-white">Recommended next repair build</h2>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            {data.nextBuildRecommendation.map((item: PageAuditItem) => (
+              <li key={item.href}>
+                <span className="font-medium">{item.label}</span> — {item.nextAction}
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {data?.navValidation?.errors?.length ? (
         <section className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
@@ -116,22 +193,35 @@ export default function SystemQaAuditPage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className="rounded-xl border border-white/10 bg-panelMuted px-3 py-2 text-sm text-white outline-none"
             >
-              <option value="all">All</option>
+              <option value="all">All status</option>
               <option value="connected">Connected</option>
               <option value="partial">Partial</option>
               <option value="placeholder">Placeholder</option>
               <option value="unknown">Unknown</option>
               <option value="missing-nav">Missing nav</option>
             </select>
+            <select
+              value={bucketFilter}
+              onChange={(event) => setBucketFilter(event.target.value)}
+              className="rounded-xl border border-white/10 bg-panelMuted px-3 py-2 text-sm text-white outline-none"
+            >
+              <option value="all">All repair buckets</option>
+              <option value="ready">Ready</option>
+              <option value="missing-navigation">Missing navigation</option>
+              <option value="needs-db-api">Needs DB/API</option>
+              <option value="placeholder-cleanup">Placeholder cleanup</option>
+              <option value="manual-review">Manual review</option>
+            </select>
           </div>
         </div>
 
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left text-sm">
+          <table className="w-full min-w-[1120px] text-left text-sm">
             <thead className="text-xs uppercase tracking-[0.18em] text-textMuted">
               <tr>
                 <th className="px-3 py-2">Page</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Repair bucket</th>
                 <th className="px-3 py-2">Sidebar/nav</th>
                 <th className="px-3 py-2">API evidence</th>
                 <th className="px-3 py-2">Next action</th>
@@ -147,6 +237,10 @@ export default function SystemQaAuditPage() {
                   </td>
                   <td className="px-3 py-3">
                     <span className={`inline-flex rounded-full border px-2 py-1 text-xs ${statusClass[item.status]}`}>{item.status}</span>
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className={`inline-flex rounded-full border px-2 py-1 text-xs ${bucketClass[item.repairBucket ?? 'manual-review']}`}>{bucketLabel(item.repairBucket)}</span>
+                    {typeof item.priorityScore === 'number' ? <p className="mt-2 text-[11px] text-textMuted">Priority {item.priorityScore}</p> : null}
                   </td>
                   <td className="px-3 py-3">
                     {item.inRegistry ? (

@@ -6,6 +6,7 @@ import { ADMIN_NAVIGATION_REGISTRY, validateAdminNavigationRegistry } from '@/co
 export const dynamic = 'force-dynamic';
 
 type AuditStatus = 'connected' | 'partial' | 'placeholder' | 'unknown';
+type RepairBucket = 'ready' | 'missing-navigation' | 'needs-db-api' | 'placeholder-cleanup' | 'manual-review';
 
 type PageAuditItem = {
   label: string;
@@ -15,6 +16,8 @@ type PageAuditItem = {
   registeredSurfaces: string[];
   apiRoutes: string[];
   status: AuditStatus;
+  repairBucket: RepairBucket;
+  priorityScore: number;
   evidence: string[];
   nextAction: string;
 };
@@ -94,6 +97,32 @@ function inferStatus(source: string, apiRoutes: string[]): { status: AuditStatus
   };
 }
 
+function repairBucketFor(item: Omit<PageAuditItem, 'repairBucket' | 'priorityScore'>): { repairBucket: RepairBucket; priorityScore: number } {
+  if (!item.inRegistry) return { repairBucket: 'missing-navigation', priorityScore: 90 };
+  if (item.status === 'placeholder') return { repairBucket: 'placeholder-cleanup', priorityScore: 80 };
+  if (item.status === 'partial') return { repairBucket: 'needs-db-api', priorityScore: 70 };
+  if (item.status === 'unknown') return { repairBucket: 'manual-review', priorityScore: 50 };
+  return { repairBucket: 'ready', priorityScore: 10 };
+}
+
+function buildRepairGroups(pages: PageAuditItem[]) {
+  const definitions: { key: RepairBucket; label: string; description: string }[] = [
+    { key: 'missing-navigation', label: 'Missing navigation', description: 'Page exists but is not registered in sidebar/topbar registry.' },
+    { key: 'needs-db-api', label: 'Needs DB/API verification', description: 'Page has internal API evidence but still uses fallback/local state or needs persistence cleanup.' },
+    { key: 'placeholder-cleanup', label: 'Placeholder cleanup', description: 'Page still looks like demo/placeholder and should be wired or replaced.' },
+    { key: 'manual-review', label: 'Manual review', description: 'Page status could not be inferred confidently from source scan.' },
+    { key: 'ready', label: 'Ready/connected', description: 'Page has navigation and DB/API evidence. Still needs manual smoke test.' }
+  ];
+
+  return definitions.map((definition) => {
+    const groupPages = pages
+      .filter((page) => page.repairBucket === definition.key)
+      .sort((a, b) => b.priorityScore - a.priorityScore || a.href.localeCompare(b.href));
+
+    return { ...definition, count: groupPages.length, pages: groupPages.slice(0, 25) };
+  });
+}
+
 function relatedApiRoutes(href: string, apiRoutes: string[]) {
   const last = href.split('/').filter(Boolean).pop() ?? '';
   if (!last) return [];
@@ -121,7 +150,7 @@ export async function GET() {
       const routeMatches = relatedApiRoutes(href, apiRoutes);
       const registered = registeredByHref.get(href) ?? [];
       const inferred = inferStatus(source, routeMatches);
-      return {
+      const baseItem = {
         label: registered[0]?.label ?? titleFromHref(href),
         href,
         pageFile: path.relative(process.cwd(), file).replace(/\\/g, '/'),
@@ -132,6 +161,8 @@ export async function GET() {
         evidence: inferred.evidence,
         nextAction: inferred.nextAction
       };
+      const repair = repairBucketFor(baseItem);
+      return { ...baseItem, ...repair };
     })
     .sort((a, b) => a.href.localeCompare(b.href));
 
@@ -143,10 +174,16 @@ export async function GET() {
     partial: pages.filter((item) => item.status === 'partial').length,
     placeholder: pages.filter((item) => item.status === 'placeholder').length,
     unknown: pages.filter((item) => item.status === 'unknown').length,
-    notInRegistry: pages.filter((item) => !item.inRegistry && !item.href.startsWith('/api')).length
+    notInRegistry: pages.filter((item) => !item.inRegistry && !item.href.startsWith('/api')).length,
+    repairQueue: pages.filter((item) => item.repairBucket !== 'ready').length
   };
 
-  const priority = pages.filter((item) => item.status !== 'connected' || !item.inRegistry).slice(0, 80);
+  const priority = pages
+    .filter((item) => item.repairBucket !== 'ready')
+    .sort((a, b) => b.priorityScore - a.priorityScore || a.href.localeCompare(b.href))
+    .slice(0, 80);
+  const repairGroups = buildRepairGroups(pages);
+  const nextBuildRecommendation = priority.slice(0, 12);
   const navValidation = validateAdminNavigationRegistry();
 
   return NextResponse.json({
@@ -156,9 +193,12 @@ export async function GET() {
       summary,
       pages,
       priority,
+      repairQueue: priority,
+      repairGroups,
+      nextBuildRecommendation,
       apiRoutes,
       navValidation,
-      guidance: 'Use this dashboard as the phase checkpoint: page exists, navigation visibility, internal API evidence, DB/API readiness, and next manual action.'
+      guidance: 'Use this dashboard as the phase checkpoint: page exists, navigation visibility, internal API evidence, DB/API readiness, repair bucket, and next manual action.'
     }
   });
 }

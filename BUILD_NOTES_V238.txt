@@ -1,0 +1,26 @@
+# v238 — System QA repair tracker
+
+Base: v237 system QA audit dashboard
+
+Added:
+- Actionable repair buckets inside /system-qa-audit
+- Repair queue counts and filtering
+- Recommended next repair build section
+- Copy repair queue JSON button
+- API now returns repairQueue, repairGroups, priorityScore, and nextBuildRecommendation
+
+Updated:
+- app/system-qa-audit/page.tsx
+- app/api/internal/platform/system-qa-audit/route.ts
+
+Test after deploy:
+- /system-qa-audit
+- /api/internal/platform/system-qa-audit
+
+Expected:
+- System QA page loads
+- Summary cards include Repair queue
+- Repair tracker cards show Missing navigation, Needs DB/API, Placeholder cleanup, Manual review, Ready/connected
+- Table can filter by status and repair bucket
+
+No pricing/storefront/order flow changes.

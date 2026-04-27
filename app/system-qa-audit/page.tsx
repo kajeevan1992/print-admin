@@ -24,6 +24,16 @@ type RepairGroup = {
   pages: PageAuditItem[];
 };
 
+type SmokeTestStep = {
+  id: string;
+  area: string;
+  label: string;
+  href: string;
+  method: 'manual' | 'api';
+  expected: string;
+  priority: 'critical' | 'high' | 'medium';
+};
+
 const statusClass: Record<PageAuditItem['status'], string> = {
   connected: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100',
   partial: 'border-amber-400/20 bg-amber-400/10 text-amber-100',
@@ -52,6 +62,7 @@ function bucketLabel(bucket?: string) {
 
 export default function SystemQaAuditPage() {
   const [data, setData] = useState<any>(null);
+  const [smokeTests, setSmokeTests] = useState<SmokeTestStep[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [bucketFilter, setBucketFilter] = useState('all');
@@ -70,6 +81,15 @@ export default function SystemQaAuditPage() {
       })
       .finally(() => {
         if (active) setLoading(false);
+      });
+
+    fetch('/api/internal/platform/system-qa-smoke-tests')
+      .then((response) => response.json())
+      .then((json) => {
+        if (active) setSmokeTests(json?.data?.tests ?? []);
+      })
+      .catch(() => {
+        if (active) setSmokeTests([]);
       });
 
     return () => {
@@ -177,6 +197,37 @@ export default function SystemQaAuditPage() {
           </ul>
         </section>
       ) : null}
+
+
+      <section className="rounded-[24px] border border-white/8 bg-panel/80 p-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Post-deploy smoke test checklist</h2>
+            <p className="mt-1 text-sm text-textMuted">Run these checks after each deploy before starting the next build.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard?.writeText(JSON.stringify(smokeTests, null, 2))}
+            className="rounded-xl border border-white/10 bg-panelMuted px-3 py-2 text-sm text-white hover:border-white/20"
+          >
+            Copy smoke tests JSON
+          </button>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {smokeTests.map((test) => (
+            <div key={test.id} className="rounded-2xl border border-white/8 bg-panelMuted p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-textMuted">{test.area}</p>
+                  <a href={test.href} className="mt-1 block font-semibold text-white hover:underline">{test.label}</a>
+                </div>
+                <span className="rounded-full border border-white/10 px-2 py-1 text-[11px] uppercase text-textMuted">{test.priority}</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-textMuted">Expected: {test.expected}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <section className="rounded-[24px] border border-white/8 bg-panel/80 p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

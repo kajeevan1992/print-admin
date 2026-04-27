@@ -1,0 +1,13 @@
+v239 — QA smoke test checklist
+
+Added:
+- Post-deploy smoke test checklist inside /system-qa-audit
+- /api/internal/platform/system-qa-smoke-tests
+
+Scope:
+- QA/audit workflow only.
+- No pricing, order, storefront, or module logic changes.
+
+Test after deploy:
+- /system-qa-audit
+- /api/internal/platform/system-qa-smoke-tests

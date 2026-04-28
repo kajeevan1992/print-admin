@@ -1,0 +1,39 @@
+Build v254 — Production Timeline + Batch/Job History
+
+Scope
+- Continues from v253 production batching.
+- Adds internal production timeline tracking for jobs and batches.
+- Extends existing /storefront-test production flow only.
+- No payment gateway added.
+- No pricing engine logic changed.
+- No UI redesign or duplicate pages.
+
+Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-timeline/route.ts
+- BUILD_NOTES_V254.txt
+
+New internal endpoint
+- GET /api/internal/catalog/production-timeline
+  Returns derived and manual timeline events from production jobs, routing, schedule, and batches.
+- POST /api/internal/catalog/production-timeline
+  Adds a manual timeline note to a job or batch.
+
+Test routes
+- /storefront-test
+- GET /api/internal/catalog/production-timeline
+- POST /api/internal/catalog/production-timeline
+- Existing related routes still used:
+  - /api/internal/catalog/production-queue
+  - /api/internal/catalog/production-routing
+  - /api/internal/catalog/production-schedule
+  - /api/internal/catalog/production-batches
+
+Deploy notes
+- Upload ZIP to repo/app as usual.
+- Run npm install or pnpm install on the deployment target if dependencies are missing.
+- Run npm run build in the deployment environment.
+- Test /storefront-test by creating a draft order, production job, routing, scheduling, batching, then checking timeline events.
+
+Build validation note
+- Local build was not run in this sandbox because node_modules are not included in the ZIP.

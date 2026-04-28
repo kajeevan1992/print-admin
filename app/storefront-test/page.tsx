@@ -183,6 +183,8 @@ export default function StorefrontTestPage() {
   const [productionScheduleSummary, setProductionScheduleSummary] = useState<any>(null);
   const [productionBatches, setProductionBatches] = useState<any[]>([]);
   const [productionBatchSummary, setProductionBatchSummary] = useState<any>(null);
+  const [productionTimelineItems, setProductionTimelineItems] = useState<any[]>([]);
+  const [productionTimelineSummary, setProductionTimelineSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -274,6 +276,17 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadProductionTimeline() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-timeline', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionTimelineItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionTimelineSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production timeline.');
+    }
+  }
+
   async function loadProductionBatches() {
     try {
       const response = await fetch('/api/internal/catalog/production-batches', { cache: 'no-store' });
@@ -294,6 +307,7 @@ export default function StorefrontTestPage() {
     loadProductionRouting();
     loadProductionSchedule();
     loadProductionBatches();
+    loadProductionTimeline();
   }, []);
 
   useEffect(() => {
@@ -582,7 +596,25 @@ export default function StorefrontTestPage() {
     if (json.ok) {
       await loadProductionJobs();
       await loadProductionBatches();
+      await loadProductionTimeline();
     }
+  }
+
+  async function addProductionTimelineNote(entity: any, entityType = 'job') {
+    const entityId = String(entity?.id || '');
+    if (!entityId) {
+      setProductionStatus('Select a job or batch before adding a timeline note.');
+      return;
+    }
+    setProductionStatus('Adding production timeline note...');
+    const response = await fetch('/api/internal/catalog/production-timeline', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ entityId, entityType, eventType: 'manual-note', title: entityType === 'batch' ? `Batch note ${entity.batchNumber || entityId}` : `Job note ${entity.jobNumber || entityId}`, note: 'Manual timeline check added from storefront test.' }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Timeline note added.' : (json.error || 'Timeline note failed.'));
+    if (json.ok) await loadProductionTimeline();
   }
 
   async function updateProductionBatch(batch: any, action: string) {
@@ -602,6 +634,7 @@ export default function StorefrontTestPage() {
     if (json.ok) {
       await loadProductionJobs();
       await loadProductionBatches();
+      await loadProductionTimeline();
     }
   }
 
@@ -940,6 +973,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-100" onClick={loadProductionRouting}>Refresh routing</button>
             <button className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100" onClick={loadProductionSchedule}>Refresh schedule</button>
             <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={loadProductionBatches}>Refresh batches</button>
+            <button className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-2 text-sm font-medium text-fuchsia-100" onClick={loadProductionTimeline}>Refresh timeline</button>
             <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={autoBatchProductionJobs}>Auto Batch</button>
           </div>
         </div>
@@ -987,6 +1021,22 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Jobs in batches</p><p className="text-xl font-semibold">{Number(productionBatchSummary.jobs || 0)}</p></div>
           </div>
         )}
+        {productionTimelineItems.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4">
+            <p className="text-sm font-medium text-fuchsia-50">Production Timeline</p>
+            <div className="mt-3 space-y-2">
+              {productionTimelineItems.slice(0, 6).map((event) => (
+                <div key={String(event.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-fuchsia-50">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">{String(event.title || event.eventType || 'Timeline event')}</p>
+                    <span className="text-fuchsia-100/75">{event.at ? new Date(event.at).toLocaleString() : ''}</span>
+                  </div>
+                  <p className="mt-1 text-fuchsia-100/75">{String(event.entityType || 'job')} · {String(event.eventType || 'event')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {productionBatches.length > 0 && (
           <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
             <p className="text-sm font-medium text-emerald-50">Production Batches</p>
@@ -1004,6 +1054,7 @@ export default function StorefrontTestPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100 disabled:opacity-50" onClick={() => updateProductionBatch(batch, 'release')} disabled={String(batch.status || '') !== 'open'}>Release Batch</button>
                     <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100 disabled:opacity-50" onClick={() => updateProductionBatch(batch, 'complete')} disabled={String(batch.status || '') === 'completed'}>Complete Batch</button>
+                    <button className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-100" onClick={() => addProductionTimelineNote(batch, 'batch')}>Add Timeline Note</button>
                   </div>
                 </div>
               ))}
@@ -1055,6 +1106,7 @@ export default function StorefrontTestPage() {
                       <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'hold')} disabled={String(job.status || '') === 'on-hold' || String(job.status || '') === 'completed'}>Hold</button>
                       <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'complete-prepress')} disabled={String(job.status || '') === 'prepress-complete' || String(job.status || '') === 'completed'}>Prepress Done</button>
                       <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'complete-production')} disabled={String(job.status || '') === 'completed'}>Complete</button>
+                      <button className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-100" onClick={() => addProductionTimelineNote(job, 'job')}>Timeline Note</button>
                     </div>
                   </div>
                 </div>
@@ -1068,9 +1120,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary }, null, 2)}</pre>
       </section>
     </main>
   );

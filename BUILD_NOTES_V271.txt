@@ -1,0 +1,33 @@
+# v271 — Customer Workload Reporting + Export Summary
+
+Base: v270 customer workload performance audit ZIP.
+
+## Added
+- Customer workload reporting panel inside `/storefront-test`.
+- Internal report snapshots for customer service workload.
+- CSV preview generation for workload export preparation.
+- Saved report list with score / breached task summary.
+- Internal communication note logging when reports are generated, exported, or cleared.
+
+## New internal API
+- `GET /api/internal/catalog/customer-workload-reports`
+  - Returns summary, team rows, saved report snapshots and CSV preview.
+- `POST /api/internal/catalog/customer-workload-reports`
+  - Actions: `generate-summary`, `export-csv`, `clear-reports`.
+
+## Changed files
+- `app/storefront-test/page.tsx`
+- `app/api/internal/catalog/customer-workload-reports/route.ts`
+- `BUILD_NOTES_V271.txt`
+
+## Test routes
+- `/storefront-test`
+- `GET /api/internal/catalog/customer-workload-reports`
+- `POST /api/internal/catalog/customer-workload-reports`
+
+## Deploy notes
+- Internal API only.
+- No pricing logic changed.
+- No payment gateway added.
+- No new duplicate pages created.
+- Extends the existing storefront-test operations workflow only.

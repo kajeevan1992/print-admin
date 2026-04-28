@@ -594,28 +594,7 @@ export default function StorefrontTestPage() {
     const response = await fetch('/api/internal/catalog/customer-workload-performance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assigneeId, action }) });
     const json = await response.json();
     setProductionStatus(json.ok ? `Workload performance updated: ${json.item?.action || action}` : (json.error || 'Workload performance update failed.'));
-    if (json.ok) { await loadCustomerWorkloadPerformance(); await loadCustomerWorkloadReports(); await loadCustomerCommunications(); }
-  }
-
-  async function loadCustomerWorkloadReports() {
-    try {
-      const response = await fetch('/api/internal/catalog/customer-workload-reports', { cache: 'no-store' });
-      const json = await response.json();
-      setCustomerWorkloadReportRows(Array.isArray(json?.data?.rows) ? json.data.rows : []);
-      setCustomerWorkloadReportSummary(json?.data?.summary || null);
-      setCustomerWorkloadReports(Array.isArray(json?.data?.reports) ? json.data.reports : []);
-      setCustomerWorkloadCsvPreview(String(json?.data?.csvPreview || ''));
-    } catch (err) {
-      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer workload reports.');
-    }
-  }
-
-  async function updateCustomerWorkloadReports(action: string) {
-    setProductionStatus('Updating customer workload report...');
-    const response = await fetch('/api/internal/catalog/customer-workload-reports', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
-    const json = await response.json();
-    setProductionStatus(json.ok ? `Workload report updated: ${json.item?.reportType || action}` : (json.error || 'Workload report update failed.'));
-    if (json.ok) { await loadCustomerWorkloadReports(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadCustomerWorkloadPerformance(); await loadCustomerCommunications(); }
   }
   async function updateCustomerTaskAssignment(task: any, action: string, assigneeId?: string) {
     const taskId = String(task?.id || '');
@@ -757,7 +736,6 @@ export default function StorefrontTestPage() {
     loadCustomerTaskAssignments();
     loadCustomerTeamWorkload();
     loadCustomerWorkloadPerformance();
-    loadCustomerWorkloadReports();
   }, []);
 
   useEffect(() => {
@@ -1663,33 +1641,6 @@ export default function StorefrontTestPage() {
               ))}
             </div>
             {customerWorkloadPerformanceAudits.length > 0 && (<div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted"><p className="font-medium text-white">Recent performance audit</p><div className="mt-2 grid gap-2 lg:grid-cols-2">{customerWorkloadPerformanceAudits.slice(0, 4).map((audit) => <p key={String(audit.id)}>{String(audit.createdAt)} · {String(audit.action)} · {String(audit.assigneeName || 'Team')} · {String(audit.note || '')}</p>)}</div></div>)}
-          </div>
-        )}
-
-        {customerWorkloadReportSummary && (
-          <div className="mt-5 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div><p className="text-sm font-medium text-emerald-100">Customer workload reporting</p><p className="mt-1 text-xs text-textMuted">Operational report snapshot and CSV preview for customer service workload, SLA pressure and team performance.</p></div>
-              <div className="flex flex-wrap gap-2"><button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-100" onClick={() => updateCustomerWorkloadReports('generate-summary')}>Generate Summary</button><button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-100" onClick={() => updateCustomerWorkloadReports('export-csv')}>Prepare CSV</button><button className="rounded-lg border border-white/20 bg-white/5 px-3 py-1 text-xs font-medium text-white" onClick={() => updateCustomerWorkloadReports('clear-reports')}>Clear Reports</button></div>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-6">
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Team score</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadReportSummary.teamScore || 0)}</p></div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Active</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadReportSummary.activeTasks || 0)}</p></div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Urgent</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadReportSummary.urgentTasks || 0)}</p></div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">At risk</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadReportSummary.atRiskTasks || 0)}</p></div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Breached</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadReportSummary.breachedTasks || 0)}</p></div>
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Saved</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadReportSummary.reportsSaved || 0)}</p></div>
-            </div>
-            <div className="mt-4 grid gap-3 lg:grid-cols-4">
-              {customerWorkloadReportRows.map((row) => (
-                <div key={String(row.assigneeId)} className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted">
-                  <div className="flex items-start justify-between gap-2"><div><p className="font-medium text-white">{String(row.name)}</p><p>{String(row.role || 'Team')}</p></div><span className="rounded-full border border-white/10 px-2 py-1 text-emerald-100">Score {Number(row.performanceScore || 0)}</span></div>
-                  <div className="mt-3 space-y-1"><p>Capacity: {Number(row.capacity || 0)} · Active: {Number(row.activeTasks || 0)}</p><p>Completed: {Number(row.completedTasks || 0)} · Urgent: {Number(row.urgentTasks || 0)}</p><p>At risk: {Number(row.atRiskTasks || 0)} · Breached: {Number(row.breachedTasks || 0)}</p></div>
-                </div>
-              ))}
-            </div>
-            {customerWorkloadCsvPreview && <pre className="mt-4 max-h-48 overflow-auto rounded-xl border border-white/10 bg-black/30 p-3 text-xs text-emerald-50">{customerWorkloadCsvPreview}</pre>}
-            {customerWorkloadReports.length > 0 && (<div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted"><p className="font-medium text-white">Saved workload reports</p><div className="mt-2 grid gap-2 lg:grid-cols-2">{customerWorkloadReports.slice(0, 4).map((report) => <p key={String(report.id)}>{String(report.createdAt)} · {String(report.reportType)} · score {Number(report.summary?.teamScore || 0)} · breached {Number(report.summary?.breachedTasks || 0)}</p>)}</div></div>)}
           </div>
         )}
         {customerTaskAssignmentSummary && (

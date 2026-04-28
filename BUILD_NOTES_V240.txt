@@ -1,0 +1,33 @@
+# v240 - Live Test Readiness Pack
+
+Purpose:
+Prepare the platform for controlled live-site testing without adding broad new features.
+
+Added:
+- `/live-readiness` admin page
+- `/api/internal/platform/live-readiness` endpoint
+- Live readiness checks for:
+  - DATABASE_URL
+  - NODE_ENV
+  - PLATFORM_SECRET_KEY
+  - DB SSL mode hint
+  - Navigation registry health
+  - legacy proxy boundary
+  - internal/public API boundary
+  - catalog demo data readiness
+  - pricing flow readiness
+  - minimum customer flow readiness
+- Manual live-test rehearsal checklist
+- Navigation registry entries for:
+  - System QA Audit
+  - Live Readiness
+
+Deploy/test:
+1. Deploy normally in Coolify.
+2. Open `/live-readiness`.
+3. Open `/api/internal/platform/live-readiness`.
+4. Resolve any FAIL items before customer-facing live tests.
+5. Warnings are acceptable only for internal rehearsal.
+
+Important:
+This build does not enable full public storefront checkout. It prepares the admin/system for live readiness review.

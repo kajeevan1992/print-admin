@@ -21,7 +21,6 @@ export type AdminNavigationRegistryItem = {
 
 // Central place for new admin tools/pages that are added outside the original sidebar.
 // Rule going forward: every new admin page must be registered here or directly in the main sidebar list.
-// v236 adds grouping/order/audit metadata so new pages do not silently disappear from menus.
 export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [
   {
     label: 'Pricing Engine Lab',
@@ -55,6 +54,28 @@ export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [
     roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
     surface: 'sidebar',
     description: 'Checks registered admin pages, role visibility, and missing menu/page issues.'
+  },
+  {
+    label: 'System QA Audit',
+    href: '/system-qa-audit',
+    iconKey: 'ClipboardCheck',
+    parentLabel: 'Advanced',
+    groupLabel: 'System',
+    order: 100,
+    roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
+    surface: 'sidebar',
+    description: 'System QA audit, repair tracker, and post-deploy smoke checklist.'
+  },
+  {
+    label: 'Live Readiness',
+    href: '/live-readiness',
+    iconKey: 'ShieldCheck',
+    parentLabel: 'Advanced',
+    groupLabel: 'System',
+    order: 105,
+    roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
+    surface: 'sidebar',
+    description: 'Pre-live checklist for environment, API boundaries, demo data, pricing, and customer flow.'
   }
 ];
 

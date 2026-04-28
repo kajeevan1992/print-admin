@@ -172,6 +172,8 @@ export default function StorefrontTestPage() {
   const [checkoutStatus, setCheckoutStatus] = useState('');
   const [orderPipelineStatus, setOrderPipelineStatus] = useState('');
   const [pipelineOrders, setPipelineOrders] = useState<any[]>([]);
+  const [productionJobs, setProductionJobs] = useState<any[]>([]);
+  const [productionStatus, setProductionStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -218,9 +220,20 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadProductionJobs() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-flow', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionJobs(Array.isArray(json?.data?.items) ? json.data.items : []);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production flow.');
+    }
+  }
+
   useEffect(() => {
     loadCart();
     loadPipelineOrders();
+    loadProductionJobs();
   }, []);
 
   useEffect(() => {
@@ -231,6 +244,7 @@ export default function StorefrontTestPage() {
     setDraftStatus('');
     setCheckoutStatus('');
     setOrderPipelineStatus('');
+    setProductionStatus('');
     setConfirmedDraft(null);
     setArtworkStatus('');
     setCartStatus('');
@@ -401,7 +415,31 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setOrderPipelineStatus(json.ok ? `Order pipeline created: ${json.item?.orderNumber || json.item?.id || 'saved'}` : (json.error || 'Order pipeline creation failed.'));
-    if (json.ok) await loadPipelineOrders();
+    if (json.ok) {
+      await loadPipelineOrders();
+      await loadProductionJobs();
+    }
+  }
+
+  async function createProductionJob(order: any) {
+    const orderId = String(order?.id || '');
+    if (!orderId) {
+      setProductionStatus('Select a pipeline order first.');
+      return;
+    }
+
+    setProductionStatus('Creating production job...');
+    const response = await fetch('/api/internal/catalog/production-flow', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ orderId }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Production job created: ${json.item?.jobNumber || json.item?.id || 'saved'}` : (json.error || 'Production job creation failed.'));
+    if (json.ok) {
+      await loadPipelineOrders();
+      await loadProductionJobs();
+    }
   }
 
   async function saveCartAsDraftOrder() {
@@ -715,6 +753,9 @@ export default function StorefrontTestPage() {
                     <p className="text-white">{money(Number(order.totals?.grossTotalMinor || 0), String(order.totals?.currency || 'GBP'))}</p>
                     <p>{String(order.status || 'order-received')}</p>
                     <p>{String(order.productionStatus || 'awaiting-artwork-review')}</p>
+                    <button className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 disabled:opacity-50" onClick={() => createProductionJob(order)} disabled={Boolean(order.productionJobId)}>
+                      {order.productionJobId ? 'Production job created' : 'Create Production Job'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -724,11 +765,46 @@ export default function StorefrontTestPage() {
       </section>
 
       <section className="rounded-3xl border border-border bg-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-textMuted">Production flow</p>
+            <h2 className="mt-1 text-xl font-semibold">Recent Production Jobs</h2>
+            <p className="mt-1 text-sm text-textMuted">Pipeline orders with artwork and pricing can move into the prepress production queue. Payments are still not enabled.</p>
+          </div>
+          <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadProductionJobs}>Refresh production</button>
+        </div>
+        {productionStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{productionStatus}</p>}
+        {productionJobs.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No production jobs yet.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {productionJobs.slice(0, 5).map((job) => (
+              <div key={String(job.id)} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{String(job.jobNumber || job.id)}</p>
+                    <p className="mt-1 text-xs text-textMuted">Order: {String(job.orderNumber || job.orderId || '')}</p>
+                    <p className="mt-2 text-sm text-textMuted">Customer: <span className="text-white">{String(job.customer?.name || 'Customer')}</span></p>
+                  </div>
+                  <div className="text-right text-sm text-textMuted">
+                    <p className="text-white">{money(Number(job.totals?.grossTotalMinor || 0), String(job.totals?.currency || 'GBP'))}</p>
+                    <p>{String(job.status || 'production-ready')}</p>
+                    <p>{String(job.productionStage || 'prepress-queue')}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+
+      <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs }, null, 2)}</pre>
       </section>
     </main>
   );

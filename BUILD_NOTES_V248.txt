@@ -1,0 +1,63 @@
+Build v248 - Production Flow
+
+Scope:
+- Continued from v247 order pipeline ZIP only.
+- Added production flow after confirmed storefront checkout draft -> order pipeline.
+- No payment gateway added.
+- No pricing engine logic changed.
+- No redesign or duplicate storefront pages created.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-flow/route.ts
+- BUILD_NOTES_V248.txt
+
+What changed:
+- Added internal production-flow endpoint:
+  - GET /api/internal/catalog/production-flow
+  - POST /api/internal/catalog/production-flow
+- POST creates a production job from an existing storefront order pipeline record.
+- Production job validation checks:
+  - orderId is required
+  - pipeline order exists
+  - line items exist
+  - customer details exist
+  - pricing exists on all line items
+  - artwork is received before production job creation
+- Production job stores:
+  - job number
+  - linked order number / order id / draft id
+  - customer
+  - line items
+  - totals
+  - artwork status
+  - turnaround
+  - delivery estimate
+  - prepress queue stage
+  - audit trail
+- Existing order pipeline record is updated to:
+  - status: in-production
+  - pipelineStage: production
+  - productionStatus: prepress-queue
+  - productionJobId / jobNumber
+
+Storefront-test UI:
+- Added Create Production Job button on recent pipeline orders.
+- Added Recent Production Jobs section.
+- Added production status messages.
+- Added production jobs to debug payload.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/order-pipeline
+- GET /api/internal/catalog/production-flow
+- POST /api/internal/catalog/production-flow with { "orderId": "<pipeline-order-id>" }
+
+Deploy notes:
+- Deploy normally through Coolify from this ZIP.
+- No new environment variables required.
+- Test flow: product -> price -> add to cart -> artwork -> checkout draft -> order pipeline -> production job.
+- If production job creation is blocked, confirm artwork exists on every cart item and the pipeline order has pricing.
+
+Build/test note:
+- Full npm build was not run in this sandbox because the ZIP does not include node_modules and dependencies are not installed.

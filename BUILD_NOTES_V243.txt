@@ -1,0 +1,30 @@
+# v243 Storefront flow validation + test cart
+
+Scope:
+- Improve /storefront-test into a cleaner live-site rehearsal flow.
+- Add option/quantity validation before pricing.
+- Add a customer-style test cart save alongside draft order save.
+- Keep storefront test internal/admin-only for now.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/storefront-cart/route.ts
+- BUILD_NOTES_V243.txt
+
+New endpoint:
+- GET/POST/DELETE /api/internal/catalog/storefront-cart
+
+Test after deploy:
+1. Open /storefront-test.
+2. Select a product.
+3. Choose product options.
+4. Enter quantity.
+5. Click Calculate customer price.
+6. Click Add to test cart.
+7. Click Save as draft order.
+8. Confirm /api/internal/catalog/storefront-cart returns saved cart items.
+9. Confirm /api/internal/catalog/draft-orders returns saved draft orders.
+
+Notes:
+- This does not replace the final hosted storefront.
+- This is a rehearsal bridge to verify catalog → options → pricing → cart/draft order.

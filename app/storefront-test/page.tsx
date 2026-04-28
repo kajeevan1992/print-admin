@@ -9,6 +9,8 @@ type ProductOptionValue = Record<string, any> & {
   isHidden?: boolean;
   isDefault?: boolean;
   sortOrder?: number;
+  description?: string;
+  helpText?: string;
 };
 
 type ProductOptionGroup = Record<string, any> & {
@@ -20,6 +22,9 @@ type ProductOptionGroup = Record<string, any> & {
   displayType?: string;
   defaultValueId?: string;
   required?: boolean;
+  minQuantity?: number;
+  maxQuantity?: number;
+  quantityStep?: number;
   values?: ProductOptionValue[];
   dependencyRules?: any[];
 };
@@ -29,13 +34,37 @@ type ProductRecord = Record<string, any> & {
   slug?: string;
   name: string;
   description?: string;
+  currency?: string;
   optionGroups?: ProductOptionGroup[];
   metadataJson?: { optionGroups?: ProductOptionGroup[] };
+};
+
+type CustomerDetails = {
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
 };
 
 function money(minor?: number, currency = 'GBP') {
   const value = Number(minor || 0) / 100;
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(value);
+}
+
+function cartTotal(items: any[]) {
+  return items.reduce((sum, item) => sum + Number(item.grossTotalMinor || item.pricing?.sellPriceMinor || item.pricing?.grossTotalMinor || 0), 0);
+}
+
+function cartVatTotal(items: any[]) {
+  return items.reduce((sum, item) => sum + Number(item.pricing?.vatMinor || item.pricing?.vatTotalMinor || item.vatMinor || 0), 0);
+}
+
+function cartNetTotal(items: any[]) {
+  return items.reduce((sum, item) => {
+    const gross = Number(item.grossTotalMinor || item.pricing?.sellPriceMinor || item.pricing?.grossTotalMinor || 0);
+    const vat = Number(item.pricing?.vatMinor || item.pricing?.vatTotalMinor || item.vatMinor || 0);
+    return sum + Math.max(0, gross - vat);
+  }, 0);
 }
 
 function optionGroups(product?: ProductRecord | null): ProductOptionGroup[] {
@@ -57,6 +86,12 @@ function valueLabel(value: ProductOptionValue) {
   return String(value.label || value.name || value.title || value.pricingKey || value.id || 'Option').trim();
 }
 
+function sortedValues(group: ProductOptionGroup) {
+  return (group.values || [])
+    .filter((value) => !value.isHidden)
+    .sort((a, b) => Number(a.sortOrder ?? 9999) - Number(b.sortOrder ?? 9999));
+}
+
 function visibleGroups(groups: ProductOptionGroup[], selections: Record<string, string>) {
   const allRules = groups.flatMap((group) => Array.isArray(group.dependencyRules) ? group.dependencyRules : []);
   return groups.filter((group) => {
@@ -70,11 +105,39 @@ function visibleGroups(groups: ProductOptionGroup[], selections: Record<string, 
 function defaultSelections(groups: ProductOptionGroup[]) {
   const selections: Record<string, string> = {};
   groups.forEach((group) => {
-    const values = (group.values || []).filter((value) => !value.isHidden).sort((a, b) => Number(a.sortOrder ?? 9999) - Number(b.sortOrder ?? 9999));
+    const values = sortedValues(group);
     const selected = values.find((value) => valueId(value) === String(group.defaultValueId || '')) || values.find((value) => value.isDefault) || values[0];
     if (selected) selections[groupKey(group)] = valueId(selected);
   });
   return selections;
+}
+
+function validateSelections(groups: ProductOptionGroup[], selections: Record<string, string>, quantity: number) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!Number.isFinite(quantity) || quantity < 1) errors.push('Quantity must be at least 1.');
+
+  groups.forEach((group) => {
+    const key = groupKey(group);
+    const values = sortedValues(group);
+    const selected = selections[key];
+    if (group.required && !selected) errors.push(`${group.name || group.label || key} is required.`);
+    if (selected && !values.some((value) => valueId(value) === selected)) errors.push(`${group.name || group.label || key} has an invalid selection.`);
+    if (values.length === 0) warnings.push(`${group.name || group.label || key} has no visible values.`);
+  });
+
+  const quantityGroup = groups.find((group) => ['quantity', 'qty'].includes(groupKey(group).toLowerCase()) || String(group.source || '').toLowerCase() === 'quantity');
+  if (quantityGroup) {
+    const min = Number(quantityGroup.minQuantity || quantityGroup.min || 0);
+    const max = Number(quantityGroup.maxQuantity || quantityGroup.max || 0);
+    const step = Number(quantityGroup.quantityStep || quantityGroup.step || 0);
+    if (min > 0 && quantity < min) errors.push(`Quantity is below the product minimum of ${min}.`);
+    if (max > 0 && quantity > max) errors.push(`Quantity is above the product maximum of ${max}.`);
+    if (step > 1 && quantity % step !== 0) warnings.push(`Quantity step is ${step}; check this quantity is allowed.`);
+  }
+
+  return { errors, warnings };
 }
 
 export default function StorefrontTestPage() {
@@ -84,8 +147,15 @@ export default function StorefrontTestPage() {
   const [quantity, setQuantity] = useState(100);
   const [selections, setSelections] = useState<Record<string, string>>({});
   const [pricing, setPricing] = useState<any>(null);
+  const [cartStatus, setCartStatus] = useState('');
+  const [cartItems, setCartItems] = useState<any[]>([]);
   const [draftStatus, setDraftStatus] = useState('');
+  const [checkoutStatus, setCheckoutStatus] = useState('');
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+  const [customer, setCustomer] = useState<CustomerDetails>({ name: '', email: '', phone: '', company: '' });
   const [loading, setLoading] = useState(true);
+  const [productLoading, setProductLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -104,11 +174,29 @@ export default function StorefrontTestPage() {
     return () => { active = false; };
   }, []);
 
+  async function loadCart() {
+    try {
+      const response = await fetch('/api/internal/catalog/storefront-cart', { cache: 'no-store' });
+      const json = await response.json();
+      setCartItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+    } catch (err) {
+      setCartStatus(err instanceof Error ? err.message : 'Could not load cart.');
+    }
+  }
+
+  useEffect(() => {
+    loadCart();
+  }, []);
+
   useEffect(() => {
     if (!productId) return;
     let active = true;
     setError('');
     setPricing(null);
+    setDraftStatus('');
+    setCheckoutStatus('');
+    setCartStatus('');
+    setProductLoading(true);
     fetch(`/api/internal/catalog/products/${encodeURIComponent(productId)}`)
       .then((response) => response.json())
       .then((json) => {
@@ -117,15 +205,25 @@ export default function StorefrontTestPage() {
         setProduct(nextProduct);
         setSelections(defaultSelections(optionGroups(nextProduct)));
       })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load product.'));
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load product.'))
+      .finally(() => setProductLoading(false));
     return () => { active = false; };
   }, [productId]);
 
-  const groups = useMemo(() => visibleGroups(optionGroups(product), selections), [product, selections]);
+  const rawGroups = useMemo(() => optionGroups(product), [product]);
+  const groups = useMemo(() => visibleGroups(rawGroups, selections), [rawGroups, selections]);
+  const validation = useMemo(() => validateSelections(groups, selections, quantity), [groups, selections, quantity]);
+  const canPrice = Boolean(product) && validation.errors.length === 0;
 
   async function calculatePrice() {
     if (!product) return;
     setError('');
+    setDraftStatus('');
+    setCartStatus('');
+    if (validation.errors.length > 0) {
+      setError(validation.errors.join(' '));
+      return;
+    }
     setPricing(null);
     const response = await fetch('/api/internal/catalog/pricing-final', {
       method: 'POST',
@@ -140,30 +238,136 @@ export default function StorefrontTestPage() {
     setPricing(json.data);
   }
 
+  function baseOrderPayload(source: string) {
+    if (!product || !pricing) return null;
+    return {
+      source,
+      quoteReference: `SF-${Date.now()}`,
+      productId: product.id,
+      productSlug: product.slug,
+      productName: product.name,
+      quantity,
+      selections,
+      currency: pricing.currency || product.currency || 'GBP',
+      grossTotalMinor: pricing.sellPriceMinor || pricing.grossTotalMinor || 0,
+      unitPriceMinor: pricing.unitPriceMinor || 0,
+      pricing,
+      validation,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
+  async function saveCartItem() {
+    const payload = baseOrderPayload('StorefrontTestCart');
+    if (!payload) return;
+    setCartStatus('Saving cart item...');
+    const response = await fetch('/api/internal/catalog/storefront-cart', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await response.json();
+    setCartStatus(json.ok ? `Cart item saved: ${json.item?.title || json.item?.id || 'saved'}` : (json.error || 'Cart save failed.'));
+    if (json.ok) await loadCart();
+  }
+
+  async function updateCartQuantity(item: any, nextQuantity: number) {
+    const quantityValue = Math.max(1, Number(nextQuantity || 1));
+    setCartStatus('Updating cart item...');
+    const response = await fetch('/api/internal/catalog/storefront-cart', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...item, id: item.id, quantity: quantityValue, title: `${item.productName || item.productSlug || item.productId || 'Cart item'} x ${quantityValue}` }),
+    });
+    const json = await response.json();
+    setCartStatus(json.ok ? 'Cart item updated.' : (json.error || 'Cart update failed.'));
+    if (json.ok) await loadCart();
+  }
+
+  async function removeCartItem(id: string) {
+    setCartStatus('Removing cart item...');
+    const response = await fetch(`/api/internal/catalog/storefront-cart?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const json = await response.json();
+    setCartStatus(json.ok ? 'Cart item removed.' : (json.error || 'Cart remove failed.'));
+    if (json.ok) await loadCart();
+  }
+
+  function validateCheckout() {
+    const errors: string[] = [];
+    if (cartItems.length === 0) errors.push('Cart is empty. Add a priced item first.');
+    if (!customer.name.trim()) errors.push('Customer name is required.');
+    if (!customer.email.trim()) errors.push('Email is required.');
+    if (!customer.phone.trim()) errors.push('Phone is required.');
+    if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) errors.push('Enter a valid email address.');
+    const missingPricing = cartItems.some((item) => !item.pricing && !Number(item.grossTotalMinor || 0));
+    if (missingPricing) errors.push('Every cart item must have pricing before checkout.');
+    return errors;
+  }
+
+  async function confirmCheckoutDraftOrder() {
+    const errors = validateCheckout();
+    if (errors.length > 0) {
+      setCheckoutStatus(errors.join(' '));
+      return;
+    }
+
+    setCheckoutSubmitting(true);
+    setCheckoutStatus('Confirming draft order...');
+    const response = await fetch('/api/internal/catalog/checkout-draft', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ customer }),
+    });
+    const json = await response.json();
+    setCheckoutSubmitting(false);
+    setCheckoutStatus(json.ok ? `Draft order confirmed: ${json.item?.title || json.item?.id || 'saved'}` : (json.error || 'Checkout draft order failed.'));
+    if (json.ok) setDraftStatus(`Checkout draft saved: ${json.item?.quoteReference || json.item?.id || 'saved'}`);
+  }
+
+  async function saveCartAsDraftOrder() {
+    if (cartItems.length === 0) {
+      setDraftStatus('Cart is empty. Add a priced item first.');
+      return;
+    }
+    const grossTotalMinor = cartItems.reduce((sum, item) => sum + Number(item.grossTotalMinor || 0), 0);
+    const currency = String(cartItems[0]?.currency || 'GBP');
+    const payload = {
+      quoteReference: `CART-${Date.now()}`,
+      productName: `${cartItems.length} cart item${cartItems.length === 1 ? '' : 's'}`,
+      quantity: cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+      currency,
+      grossTotalMinor,
+      items: cartItems,
+      source: 'StorefrontTestCartDraftOrder',
+      createdAt: new Date().toISOString(),
+    };
+    setDraftStatus('Saving cart as draft order...');
+    const response = await fetch('/api/internal/catalog/draft-orders', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await response.json();
+    setDraftStatus(json.ok ? `Draft order saved from cart: ${json.item?.title || json.item?.id || 'saved'}` : (json.error || 'Cart draft order failed.'));
+  }
+
   async function saveDraftOrder() {
-    if (!product || !pricing) return;
+    const payload = baseOrderPayload('StorefrontTestDraftOrder');
+    if (!payload) return;
     setDraftStatus('Saving draft order...');
     const response = await fetch('/api/internal/catalog/draft-orders', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        quoteReference: `SF-${Date.now()}`,
-        productId: product.id,
-        productSlug: product.slug,
-        productName: product.name,
+        quoteReference: payload.quoteReference,
+        productId: product?.id,
+        productSlug: product?.slug,
+        productName: product?.name,
         quantity,
         selections,
-        currency: pricing.currency || product.currency || 'GBP',
-        grossTotalMinor: pricing.sellPriceMinor || pricing.grossTotalMinor || 0,
-        payload: {
-          source: 'StorefrontTestPage',
-          productId: product.id,
-          productSlug: product.slug,
-          productName: product.name,
-          quantity,
-          selections,
-          pricing,
-        },
+        currency: payload.currency,
+        grossTotalMinor: payload.grossTotalMinor,
+        payload,
       }),
     });
     const json = await response.json();
@@ -173,9 +377,9 @@ export default function StorefrontTestPage() {
   return (
     <main className="mx-auto max-w-6xl space-y-6 p-6 text-white">
       <div className="rounded-3xl border border-border bg-panel p-5">
-        <p className="text-xs uppercase tracking-[0.22em] text-textMuted">Live test rehearsal</p>
+        <p className="text-xs uppercase tracking-[0.22em] text-textMuted">Live site rehearsal</p>
         <h1 className="mt-2 text-3xl font-semibold">Storefront Test</h1>
-        <p className="mt-2 text-sm text-textMuted">Customer-style flow: product → option selection → live price → draft order.</p>
+        <p className="mt-2 text-sm text-textMuted">Customer-style flow: product → option selection → validation → live price → cart/draft order.</p>
       </div>
 
       {loading && <div className="rounded-2xl border border-border bg-panel p-4 text-textMuted">Loading products...</div>}
@@ -197,16 +401,24 @@ export default function StorefrontTestPage() {
             <input className="rounded-xl border border-border bg-background px-3 py-2" type="number" min={1} value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} />
           </label>
 
-          <button className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-100" onClick={calculatePrice} disabled={!product}>
-            Calculate customer price
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm">
+            <p className="font-medium">Readiness</p>
+            {validation.errors.length === 0 ? <p className="mt-1 text-emerald-200">Ready to price.</p> : <ul className="mt-2 list-disc space-y-1 pl-5 text-red-200">{validation.errors.map((item) => <li key={item}>{item}</li>)}</ul>}
+            {validation.warnings.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-amber-100">{validation.warnings.map((item) => <li key={item}>{item}</li>)}</ul>}
+          </div>
+
+          <button className="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-100 disabled:opacity-50" onClick={calculatePrice} disabled={!canPrice || productLoading}>
+            {productLoading ? 'Loading product...' : 'Calculate customer price'}
           </button>
 
           {pricing && (
-            <button className="ml-2 mt-4 rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-100" onClick={saveDraftOrder}>
-              Save as draft order
-            </button>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button className="rounded-xl border border-indigo-500/40 bg-indigo-500/15 px-4 py-2 text-sm font-medium text-indigo-100" onClick={saveCartItem}>Add to test cart</button>
+              <button className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-100" onClick={saveDraftOrder}>Save as draft order</button>
+            </div>
           )}
 
+          {cartStatus && <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{cartStatus}</p>}
           {draftStatus && <p className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{draftStatus}</p>}
         </section>
 
@@ -218,7 +430,7 @@ export default function StorefrontTestPage() {
             {groups.length === 0 && <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">This product has no option groups yet. Configure options in Product Builder first.</p>}
             {groups.map((group) => {
               const key = groupKey(group);
-              const values = (group.values || []).filter((value) => !value.isHidden).sort((a, b) => Number(a.sortOrder ?? 9999) - Number(b.sortOrder ?? 9999));
+              const values = sortedValues(group);
               const displayType = String(group.displayType || group.display || 'dropdown');
               return (
                 <div key={key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
@@ -245,6 +457,7 @@ export default function StorefrontTestPage() {
                     </div>
                   ) : (
                     <select className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" value={selections[key] || ''} onChange={(event) => setSelections((prev) => ({ ...prev, [key]: event.target.value }))}>
+                      <option value="">Select {group.name || group.label || key}</option>
                       {values.map((value) => <option key={valueId(value)} value={valueId(value)}>{valueLabel(value)}</option>)}
                     </select>
                   )}
@@ -269,8 +482,102 @@ export default function StorefrontTestPage() {
       )}
 
       <section className="rounded-3xl border border-border bg-panel p-5">
-        <p className="text-sm font-medium">Debug selections</p>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, pricing }, null, 2)}</pre>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-textMuted">Test cart</p>
+            <h2 className="mt-1 text-xl font-semibold">Cart Review</h2>
+            <p className="mt-1 text-sm text-textMuted">Review, update or remove priced items before saving the cart as a draft order.</p>
+          </div>
+          <div className="flex gap-2">
+            <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadCart}>Refresh cart</button>
+            <button className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-sm font-medium text-sky-100 disabled:opacity-50" onClick={saveCartAsDraftOrder} disabled={cartItems.length === 0}>Save cart as draft order</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-100 disabled:opacity-50" onClick={() => setShowCheckout(true)} disabled={cartItems.length === 0}>Proceed to Checkout</button>
+          </div>
+        </div>
+
+        {cartItems.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No cart items yet. Calculate a product price, then add it to the test cart.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {cartItems.map((item) => (
+              <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{String(item.productName || item.productSlug || item.productId || item.title || 'Cart item')}</p>
+                    <p className="mt-1 text-xs text-textMuted">{String(item.id || '')}</p>
+                    <p className="mt-2 text-sm text-textMuted">Total: <span className="text-white">{money(Number(item.grossTotalMinor || 0), String(item.currency || 'GBP'))}</span></p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm text-textMuted">
+                      Qty
+                      <input className="w-24 rounded-lg border border-border bg-background px-2 py-1 text-white" type="number" min={1} defaultValue={Number(item.quantity || 1)} onBlur={(event) => updateCartQuantity(item, Number(event.target.value || 1))} />
+                    </label>
+                    <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm text-red-100" onClick={() => removeCartItem(String(item.id))}>Remove</button>
+                  </div>
+                </div>
+                {item.selections && <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify(item.selections, null, 2)}</pre>}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {showCheckout && (
+        <section className="rounded-3xl border border-emerald-500/25 bg-panel p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.22em] text-emerald-100/75">Checkout</p>
+              <h2 className="mt-1 text-xl font-semibold">Customer Details</h2>
+              <p className="mt-1 text-sm text-textMuted">No payments yet. This confirms the cart into a structured draft order.</p>
+            </div>
+            <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={() => setShowCheckout(false)}>Hide checkout</button>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">Customer name <span className="text-red-300">*</span></span>
+              <input className="rounded-xl border border-border bg-background px-3 py-2" value={customer.name} onChange={(event) => setCustomer((prev) => ({ ...prev, name: event.target.value }))} />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">Email <span className="text-red-300">*</span></span>
+              <input className="rounded-xl border border-border bg-background px-3 py-2" type="email" value={customer.email} onChange={(event) => setCustomer((prev) => ({ ...prev, email: event.target.value }))} />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">Phone <span className="text-red-300">*</span></span>
+              <input className="rounded-xl border border-border bg-background px-3 py-2" value={customer.phone} onChange={(event) => setCustomer((prev) => ({ ...prev, phone: event.target.value }))} />
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="font-medium">Company <span className="text-textMuted">optional</span></span>
+              <input className="rounded-xl border border-border bg-background px-3 py-2" value={customer.company} onChange={(event) => setCustomer((prev) => ({ ...prev, company: event.target.value }))} />
+            </label>
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="font-medium">Draft order confirmation</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-4">
+              <div><p className="text-xs text-textMuted">Items</p><p className="text-xl font-semibold">{cartItems.length}</p></div>
+              <div><p className="text-xs text-textMuted">Net</p><p className="text-xl font-semibold">{money(cartNetTotal(cartItems), String(cartItems[0]?.currency || 'GBP'))}</p></div>
+              <div><p className="text-xs text-textMuted">VAT</p><p className="text-xl font-semibold">{money(cartVatTotal(cartItems), String(cartItems[0]?.currency || 'GBP'))}</p></div>
+              <div><p className="text-xs text-textMuted">Total</p><p className="text-xl font-semibold">{money(cartTotal(cartItems), String(cartItems[0]?.currency || 'GBP'))}</p></div>
+            </div>
+            <p className="mt-3 text-sm text-textMuted">Includes selected options, pricing breakdown, VAT, totals, turnaround and delivery estimate where available on the priced cart item.</p>
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-100 disabled:opacity-50" onClick={confirmCheckoutDraftOrder} disabled={checkoutSubmitting || cartItems.length === 0}>
+              {checkoutSubmitting ? 'Confirming...' : 'Confirm Draft Order'}
+            </button>
+            {checkoutStatus && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{checkoutStatus}</p>}
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-3xl border border-border bg-panel p-5">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm font-medium">Debug payload</p>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer }, null, 2))}>Copy JSON</button>
+        </div>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer }, null, 2)}</pre>
       </section>
     </main>
   );

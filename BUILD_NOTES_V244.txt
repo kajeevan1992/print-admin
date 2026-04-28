@@ -1,0 +1,39 @@
+v244 storefront cart review + draft order handoff
+
+Scope
+- Continue live customer-flow rehearsal from v243.
+- No storefront redesign.
+- No checkout/payment activation.
+- No production order conversion yet.
+
+Added
+- /storefront-test now loads saved test cart items.
+- Cart Review section on /storefront-test.
+- Refresh cart button.
+- Update cart item quantity from the cart review.
+- Remove cart item from the cart review.
+- Save full cart as a draft order.
+
+Internal API used
+- GET /api/internal/catalog/storefront-cart
+- POST /api/internal/catalog/storefront-cart
+- DELETE /api/internal/catalog/storefront-cart?id=<cartItemId>
+- POST /api/internal/catalog/draft-orders
+
+Test flow
+1. Deploy v244.
+2. Open /storefront-test.
+3. Select a product.
+4. Select required options.
+5. Calculate customer price.
+6. Add to test cart.
+7. Confirm item appears in Cart Review.
+8. Change quantity and tab/click away from the field.
+9. Remove one item.
+10. Save cart as draft order.
+11. Confirm draft order persists through /api/internal/catalog/draft-orders.
+
+Notes
+- This is still a rehearsal/test storefront flow.
+- The cart quantity update persists the cart record; full automatic re-pricing of changed cart quantities is reserved for the next pricing-cart build.
+- The draft order created from cart is still draft only and does not trigger production/order workflows.

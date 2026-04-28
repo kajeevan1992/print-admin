@@ -1,0 +1,28 @@
+Build v245 — Checkout + Customer Details (no payments)
+
+Scope completed:
+- Extended existing /storefront-test flow only.
+- Added checkout section with customer name, email, phone, and optional company.
+- Added Proceed to Checkout and Confirm Draft Order actions.
+- Added internal POST /api/internal/catalog/checkout-draft endpoint.
+- Converts existing storefront test cart into a structured draft order payload.
+- Draft order includes customer details, selected options, per-item pricing, VAT, totals, turnaround, and delivery estimate when available from cart/pricing payloads.
+- Added validation for required customer fields, valid email shape, empty cart protection, and missing pricing protection.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/checkout-draft/route.ts
+- BUILD_NOTES_V245.txt
+
+Test routes:
+- /storefront-test
+- /api/internal/catalog/storefront-cart
+- /api/internal/catalog/checkout-draft
+- /api/internal/catalog/draft-orders
+
+Deploy notes:
+- No database migration added.
+- No pricing engine files changed.
+- No payment gateway added.
+- Admin/Super Admin/storefront-test remain on internal APIs.
+- /api/proxy was not used.

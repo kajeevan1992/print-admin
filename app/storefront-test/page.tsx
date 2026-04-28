@@ -195,6 +195,8 @@ export default function StorefrontTestPage() {
   const [orderStatusSummary, setOrderStatusSummary] = useState<any>(null);
   const [customerNotificationItems, setCustomerNotificationItems] = useState<any[]>([]);
   const [customerNotificationSummary, setCustomerNotificationSummary] = useState<any>(null);
+  const [notificationTemplates, setNotificationTemplates] = useState<any[]>([]);
+  const [notificationTemplateSummary, setNotificationTemplateSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -354,6 +356,33 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadNotificationTemplates() {
+    try {
+      const response = await fetch('/api/internal/catalog/notification-templates', { cache: 'no-store' });
+      const json = await response.json();
+      setNotificationTemplates(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setNotificationTemplateSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load notification templates.');
+    }
+  }
+
+  async function seedNotificationTemplates() {
+    setProductionStatus('Seeding customer notification templates...');
+    const response = await fetch('/api/internal/catalog/notification-templates', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'seed-defaults' }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Notification templates seeded.' : (json.error || 'Notification template seed failed.'));
+    if (json.ok) await loadNotificationTemplates();
+  }
+
+  async function toggleNotificationTemplate(template: any) {
+    setProductionStatus('Updating notification template status...');
+    const response = await fetch('/api/internal/catalog/notification-templates', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'toggle-template', id: template.id }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Notification template updated.' : (json.error || 'Notification template update failed.'));
+    if (json.ok) await loadNotificationTemplates();
+  }
+
   async function updateOrderStatus(order: any, customerVisibleStatus: string) {
     const orderId = String(order?.id || '');
     if (!orderId) { setProductionStatus('Select a pipeline order before updating customer status.'); return; }
@@ -400,6 +429,7 @@ export default function StorefrontTestPage() {
     loadProductionDelivery();
     loadOrderStatus();
     loadCustomerNotifications();
+    loadNotificationTemplates();
   }, []);
 
   useEffect(() => {
@@ -1069,6 +1099,8 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadPipelineOrders}>Refresh pipeline</button>
             <button className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-100" onClick={loadOrderStatus}>Refresh status</button>
             <button className="rounded-xl border border-pink-500/40 bg-pink-500/10 px-3 py-2 text-sm font-medium text-pink-100" onClick={loadCustomerNotifications}>Refresh notifications</button>
+            <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={loadNotificationTemplates}>Refresh templates</button>
+            <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
         </div>
         {orderStatusSummary && (
@@ -1080,12 +1112,40 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Complete</p><p className="text-xl font-semibold">{Number(orderStatusSummary.complete || 0)}</p></div>
           </div>
         )}
+        {notificationTemplateSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-violet-500/20 bg-violet-500/10 p-3"><p className="text-xs text-violet-100/75">Templates</p><p className="text-xl font-semibold">{Number(notificationTemplateSummary.totalTemplates || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Active</p><p className="text-xl font-semibold">{Number(notificationTemplateSummary.activeTemplates || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Email templates</p><p className="text-xl font-semibold">{Number(notificationTemplateSummary.emailTemplates || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">SMS templates</p><p className="text-xl font-semibold">{Number(notificationTemplateSummary.smsTemplates || 0)}</p></div>
+          </div>
+        )}
         {customerNotificationSummary && (
           <div className="mt-3 grid gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-pink-500/20 bg-pink-500/10 p-3"><p className="text-xs text-pink-100/75">Notifications</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.total || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Email</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.email || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">SMS</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.sms || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Queued</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.queued || 0)}</p></div>
+          </div>
+        )}
+
+        {notificationTemplates.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
+            <p className="text-sm font-medium text-violet-100">Customer notification templates</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {notificationTemplates.slice(0, 4).map((template) => (
+                <div key={String(template.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{String(template.subject || template.key)}</p>
+                      <p className="mt-1 text-xs text-textMuted">{String(template.key)} · {String(template.channel)} · {String(template.status || 'active')}</p>
+                    </div>
+                    <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100" onClick={() => toggleNotificationTemplate(template)}>Toggle</button>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs text-textMuted">{String(template.body || '')}</p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1345,9 +1405,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary }, null, 2)}</pre>
       </section>
     </main>
   );

@@ -1,0 +1,33 @@
+# v260 — Customer Notification Templates + Log Visibility
+
+Base: v259 customer notification events ZIP.
+
+## Added
+- Internal notification template registry for storefront/customer order updates.
+- Seed defaults for email/SMS notification templates.
+- Toggle template active/disabled status.
+- Template summary cards inside existing /storefront-test order pipeline section.
+- Notification template preview cards.
+- Notification log/template summary included in debug JSON.
+
+## New internal route
+- GET /api/internal/catalog/notification-templates
+- POST /api/internal/catalog/notification-templates
+
+## Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/notification-templates/route.ts
+- BUILD_NOTES_V260.txt
+
+## Test routes
+- /storefront-test
+- GET /api/internal/catalog/notification-templates
+- POST /api/internal/catalog/notification-templates
+- GET /api/internal/catalog/customer-notifications
+
+## Deploy notes
+- No payment gateway added.
+- No pricing engine changes.
+- No /api/proxy usage.
+- Uses internal catalog config storage, matching the current unified-core pattern used by recent production/customer status routes.
+- Build was not run because the uploaded ZIP does not include node_modules.

@@ -1,0 +1,25 @@
+Build v269 — Customer Team Workload Board
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-team-workload/route.ts
+- BUILD_NOTES_V269.txt
+
+Added:
+- Customer service team workload board.
+- Internal API route: /api/internal/catalog/customer-team-workload
+- Capacity, active assigned task, unassigned task, urgent task, SLA risk and breached workload summary.
+- Balance Next action to assign the next unassigned active task to a team member.
+- Review action to log an internal customer communication note.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/customer-team-workload
+- POST /api/internal/catalog/customer-team-workload
+
+Deploy notes:
+- No payment gateway added.
+- No pricing engine logic changed.
+- No /api/proxy usage added.
+- Uses existing internal catalog config storage pattern.
+- Build not run because node_modules are not included in the ZIP.

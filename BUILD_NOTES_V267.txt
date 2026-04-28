@@ -1,0 +1,30 @@
+# v267 — Customer Task SLA + Escalation Controls
+
+Base: v266 customer service tasks.
+
+## Added
+- Customer task SLA/status calculation on top of existing customer service tasks.
+- Internal SLA summary: on-track, at-risk, breached, escalated, escalation-required.
+- SLA actions: Escalate, Snooze +2h, Snooze +24h, Clear escalation.
+- Internal communication log entry for every SLA action.
+
+## New internal route
+- GET /api/internal/catalog/customer-task-sla
+- POST /api/internal/catalog/customer-task-sla
+
+## Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-task-sla/route.ts
+- BUILD_NOTES_V267.txt
+
+## Test routes
+- /storefront-test
+- GET /api/internal/catalog/customer-task-sla
+- POST /api/internal/catalog/customer-task-sla
+
+## Deploy notes
+- No payment gateway added.
+- No pricing engine logic changed.
+- No duplicate pages created.
+- Uses internal catalog config records only, consistent with the recent storefront-test operational flow.
+- Build was not run in this environment because the ZIP does not include node_modules.

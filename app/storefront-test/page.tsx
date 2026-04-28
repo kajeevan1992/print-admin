@@ -209,6 +209,8 @@ export default function StorefrontTestPage() {
   const [customerCreditSummary, setCustomerCreditSummary] = useState<any>(null);
   const [customerTaskItems, setCustomerTaskItems] = useState<any[]>([]);
   const [customerTaskSummary, setCustomerTaskSummary] = useState<any>(null);
+  const [customerTaskSlaItems, setCustomerTaskSlaItems] = useState<any[]>([]);
+  const [customerTaskSlaSummary, setCustomerTaskSlaSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -502,6 +504,31 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadCustomerTaskSla() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-task-sla', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerTaskSlaItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerTaskSlaSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer task SLA.');
+    }
+  }
+
+  async function updateCustomerTaskSla(task: any, action: string) {
+    const taskId = String(task?.id || '');
+    if (!taskId) { setProductionStatus('Select a task before updating SLA.'); return; }
+    setProductionStatus('Updating customer task SLA...');
+    const response = await fetch('/api/internal/catalog/customer-task-sla', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ taskId, action, note: 'SLA action from storefront-test operations view.' }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Task SLA updated: ${json.item?.slaState || action}` : (json.error || 'Task SLA update failed.'));
+    if (json.ok) { await loadCustomerTaskSla(); await loadCustomerTasks(); await loadCustomerCommunications(); }
+  }
+
   async function updateCustomerTask(orderOrTask: any, action: string) {
     const orderId = String(orderOrTask?.orderId || orderOrTask?.id || '');
     if (!orderId) { setProductionStatus('Select an order before updating customer task.'); return; }
@@ -524,7 +551,7 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setProductionStatus(json.ok ? `Customer task updated: ${json.item?.status || action}` : (json.error || 'Customer task update failed.'));
-    if (json.ok) { await loadCustomerTasks(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadCustomerTasks(); await loadCustomerTaskSla(); await loadCustomerCommunications(); }
   }
 
   async function updateNotificationPreference(preference: any, action: string) {
@@ -624,6 +651,7 @@ export default function StorefrontTestPage() {
     loadCustomerIssues();
     loadCustomerCredits();
     loadCustomerTasks();
+    loadCustomerTaskSla();
   }, []);
 
   useEffect(() => {
@@ -1300,6 +1328,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={loadCustomerIssues}>Refresh issues</button>
             <button className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm font-medium text-yellow-100" onClick={loadCustomerCredits}>Refresh credits</button>
             <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={loadCustomerTasks}>Refresh tasks</button>
+            <button className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-100" onClick={loadCustomerTaskSla}>Refresh SLA</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
@@ -1368,6 +1397,16 @@ export default function StorefrontTestPage() {
           </div>
         )}
 
+        {customerTaskSlaSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3"><p className="text-xs text-amber-100/75">Task SLA</p><p className="text-xl font-semibold">{Number(customerTaskSlaSummary.totalTasks || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">On track</p><p className="text-xl font-semibold">{Number(customerTaskSlaSummary.onTrack || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">At risk</p><p className="text-xl font-semibold">{Number(customerTaskSlaSummary.atRisk || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Breached</p><p className="text-xl font-semibold">{Number(customerTaskSlaSummary.breached || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Escalate</p><p className="text-xl font-semibold">{Number(customerTaskSlaSummary.escalationRequired || 0)}</p></div>
+          </div>
+        )}
+
         {customerCreditSummary && (
           <div className="mt-3 grid gap-3 sm:grid-cols-5">
             <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-3"><p className="text-xs text-yellow-100/75">Credit requests</p><p className="text-xl font-semibold">{Number(customerCreditSummary.totalRequests || 0)}</p></div>
@@ -1431,6 +1470,32 @@ export default function StorefrontTestPage() {
             </div>
           </div>
         )}
+        {customerTaskSlaItems.length > 0 && (
+          <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4">
+            <p className="text-sm font-medium text-amber-100">Customer task SLA / escalation</p>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {customerTaskSlaItems.slice(0, 6).map((task) => (
+                <div key={String(task.id)} className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{String(task.title || task.orderNumber || task.orderId)}</p>
+                      <p>{String(task.slaState)} · {String(task.priority)} · {task.remainingMinutes === null ? 'no SLA clock' : String(Number(task.remainingMinutes)) + ' min left'}</p>
+                      <p>Due: {String(task.dueAt || '')}</p>
+                      {task.escalatedAt && <p className="mt-1 text-amber-100">Escalated: {String(task.escalatedAt)}</p>}
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100" onClick={() => updateCustomerTaskSla(task, 'escalate')}>Escalate</button>
+                      <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100" onClick={() => updateCustomerTaskSla(task, 'snooze-2h')}>+2h</button>
+                      <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100" onClick={() => updateCustomerTaskSla(task, 'snooze-24h')}>+24h</button>
+                      <button className="rounded-lg border border-white/20 bg-white/5 px-2 py-1 text-xs font-medium text-white" onClick={() => updateCustomerTaskSla(task, 'clear-escalation')}>Clear</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {customerTaskItems.length > 0 && (
           <div className="mt-5 rounded-2xl border border-orange-500/25 bg-orange-500/10 p-4">
             <p className="text-sm font-medium text-orange-100">Customer service task list</p>
@@ -1805,9 +1870,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary }, null, 2)}</pre>
       </section>
     </main>
   );

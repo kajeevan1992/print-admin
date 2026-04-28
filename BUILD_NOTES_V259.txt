@@ -1,0 +1,26 @@
+Build v259 — Customer Notifications Events
+
+Scope:
+- Continue from v258 customer order status/audit flow.
+- Add internal customer notification event queue for customer-visible status updates.
+- No payment gateway, no public API, no pricing engine changes, no redesign.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-notifications/route.ts
+- BUILD_NOTES_V259.txt
+
+Added internal route:
+- GET /api/internal/catalog/customer-notifications
+- POST /api/internal/catalog/customer-notifications
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/order-status
+- GET /api/internal/catalog/customer-notifications
+- POST /api/internal/catalog/customer-notifications
+
+Deploy notes:
+- Uses existing internal catalog config storage pattern.
+- Notification records are queued events only; no real email/SMS provider is connected yet.
+- Works on top of v258 order status audit records.

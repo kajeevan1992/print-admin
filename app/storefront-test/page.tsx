@@ -193,6 +193,8 @@ export default function StorefrontTestPage() {
   const [productionDeliverySummary, setProductionDeliverySummary] = useState<any>(null);
   const [orderStatusItems, setOrderStatusItems] = useState<any[]>([]);
   const [orderStatusSummary, setOrderStatusSummary] = useState<any>(null);
+  const [customerNotificationItems, setCustomerNotificationItems] = useState<any[]>([]);
+  const [customerNotificationSummary, setCustomerNotificationSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -340,6 +342,18 @@ export default function StorefrontTestPage() {
     }
   }
 
+
+  async function loadCustomerNotifications() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-notifications', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerNotificationItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerNotificationSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer notifications.');
+    }
+  }
+
   async function updateOrderStatus(order: any, customerVisibleStatus: string) {
     const orderId = String(order?.id || '');
     if (!orderId) { setProductionStatus('Select a pipeline order before updating customer status.'); return; }
@@ -347,7 +361,17 @@ export default function StorefrontTestPage() {
     const response = await fetch('/api/internal/catalog/order-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId, customerVisibleStatus }) });
     const json = await response.json();
     setProductionStatus(json.ok ? 'Customer status updated: ' + String(json.item?.customerVisibleStatus || 'saved') : (json.error || 'Customer status update failed.'));
-    if (json.ok) await loadOrderStatus();
+    if (json.ok) { await loadOrderStatus(); await loadCustomerNotifications(); }
+  }
+
+  async function sendCustomerNotification(status: any, channel = 'email') {
+    const orderId = String(status?.orderId || '');
+    if (!orderId) { setProductionStatus('Select a customer status before creating a notification.'); return; }
+    setProductionStatus('Creating customer notification event...');
+    const response = await fetch('/api/internal/catalog/customer-notifications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId, channel }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Notification queued: ${json.item?.subject || json.item?.id || 'saved'}` : (json.error || 'Notification event failed.'));
+    if (json.ok) await loadCustomerNotifications();
   }
 
   async function loadProductionBatches() {
@@ -375,6 +399,7 @@ export default function StorefrontTestPage() {
     loadProductionDispatch();
     loadProductionDelivery();
     loadOrderStatus();
+    loadCustomerNotifications();
   }, []);
 
   useEffect(() => {
@@ -1043,6 +1068,7 @@ export default function StorefrontTestPage() {
           <div className="flex flex-wrap gap-2">
             <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadPipelineOrders}>Refresh pipeline</button>
             <button className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-100" onClick={loadOrderStatus}>Refresh status</button>
+            <button className="rounded-xl border border-pink-500/40 bg-pink-500/10 px-3 py-2 text-sm font-medium text-pink-100" onClick={loadCustomerNotifications}>Refresh notifications</button>
           </div>
         </div>
         {orderStatusSummary && (
@@ -1052,6 +1078,14 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Production</p><p className="text-xl font-semibold">{Number(orderStatusSummary.production || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Transit</p><p className="text-xl font-semibold">{Number(orderStatusSummary.transit || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Complete</p><p className="text-xl font-semibold">{Number(orderStatusSummary.complete || 0)}</p></div>
+          </div>
+        )}
+        {customerNotificationSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-pink-500/20 bg-pink-500/10 p-3"><p className="text-xs text-pink-100/75">Notifications</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Email</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.email || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">SMS</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.sms || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Queued</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.queued || 0)}</p></div>
           </div>
         )}
 
@@ -1074,7 +1108,12 @@ export default function StorefrontTestPage() {
                     {(() => {
                       const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || ''));
                       if (!status) return <p className="mt-2 text-xs text-rose-100">Customer: not published</p>;
-                      return <p className="mt-2 text-xs text-rose-100">Customer: {String(status.customerVisibleStatus || 'order-received')}</p>;
+                      return (
+                        <div className="mt-2 text-xs text-rose-100">
+                          <p>Customer: {String(status.customerVisibleStatus || 'order-received')}</p>
+                          <p className="text-pink-100">Notifications: {customerNotificationItems.filter((item) => String(item.orderId || '') === String(order.id || '')).length}</p>
+                        </div>
+                      );
                     })()}
                     <button className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 disabled:opacity-50" onClick={() => createProductionJob(order)} disabled={Boolean(order.productionJobId)}>
                       {order.productionJobId ? 'Production job created' : 'Create Production Job'}
@@ -1082,6 +1121,8 @@ export default function StorefrontTestPage() {
                     <div className="mt-2 flex flex-wrap justify-end gap-2">
                       <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updateOrderStatus(order, 'order-received')}>Publish Received</button>
                       <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updateOrderStatus(order, 'in-production')}>Publish Production</button>
+                      {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'email')}>Queue Email</button> : null; })()}
+                      {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'sms')}>Queue SMS</button> : null; })()}
                     </div>
                   </div>
                 </div>
@@ -1304,9 +1345,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary }, null, 2)}</pre>
       </section>
     </main>
   );

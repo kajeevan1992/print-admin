@@ -191,6 +191,8 @@ export default function StorefrontTestPage() {
   const [productionDispatchSummary, setProductionDispatchSummary] = useState<any>(null);
   const [productionDeliveryItems, setProductionDeliveryItems] = useState<any[]>([]);
   const [productionDeliverySummary, setProductionDeliverySummary] = useState<any>(null);
+  const [orderStatusItems, setOrderStatusItems] = useState<any[]>([]);
+  const [orderStatusSummary, setOrderStatusSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -327,6 +329,27 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadOrderStatus() {
+    try {
+      const response = await fetch('/api/internal/catalog/order-status', { cache: 'no-store' });
+      const json = await response.json();
+      setOrderStatusItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setOrderStatusSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer order status.');
+    }
+  }
+
+  async function updateOrderStatus(order: any, customerVisibleStatus: string) {
+    const orderId = String(order?.id || '');
+    if (!orderId) { setProductionStatus('Select a pipeline order before updating customer status.'); return; }
+    setProductionStatus('Updating customer-visible order status...');
+    const response = await fetch('/api/internal/catalog/order-status', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId, customerVisibleStatus }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Customer status updated: ' + String(json.item?.customerVisibleStatus || 'saved') : (json.error || 'Customer status update failed.'));
+    if (json.ok) await loadOrderStatus();
+  }
+
   async function loadProductionBatches() {
     try {
       const response = await fetch('/api/internal/catalog/production-batches', { cache: 'no-store' });
@@ -351,6 +374,7 @@ export default function StorefrontTestPage() {
     loadProductionQuality();
     loadProductionDispatch();
     loadProductionDelivery();
+    loadOrderStatus();
   }, []);
 
   useEffect(() => {
@@ -1016,8 +1040,21 @@ export default function StorefrontTestPage() {
             <h2 className="mt-1 text-xl font-semibold">Recent Pipeline Orders</h2>
             <p className="mt-1 text-sm text-textMuted">Confirmed checkout drafts move here as order-received records. Payment is still not enabled.</p>
           </div>
-          <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadPipelineOrders}>Refresh pipeline</button>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadPipelineOrders}>Refresh pipeline</button>
+            <button className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-100" onClick={loadOrderStatus}>Refresh status</button>
+          </div>
         </div>
+        {orderStatusSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3"><p className="text-xs text-rose-100/75">Customer statuses</p><p className="text-xl font-semibold">{Number(orderStatusSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Received</p><p className="text-xl font-semibold">{Number(orderStatusSummary.received || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Production</p><p className="text-xl font-semibold">{Number(orderStatusSummary.production || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Transit</p><p className="text-xl font-semibold">{Number(orderStatusSummary.transit || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Complete</p><p className="text-xl font-semibold">{Number(orderStatusSummary.complete || 0)}</p></div>
+          </div>
+        )}
+
         {pipelineOrders.length === 0 ? (
           <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No pipeline orders yet.</p>
         ) : (
@@ -1034,9 +1071,18 @@ export default function StorefrontTestPage() {
                     <p className="text-white">{money(Number(order.totals?.grossTotalMinor || 0), String(order.totals?.currency || 'GBP'))}</p>
                     <p>{String(order.status || 'order-received')}</p>
                     <p>{String(order.productionStatus || 'awaiting-artwork-review')}</p>
+                    {(() => {
+                      const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || ''));
+                      if (!status) return <p className="mt-2 text-xs text-rose-100">Customer: not published</p>;
+                      return <p className="mt-2 text-xs text-rose-100">Customer: {String(status.customerVisibleStatus || 'order-received')}</p>;
+                    })()}
                     <button className="mt-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 disabled:opacity-50" onClick={() => createProductionJob(order)} disabled={Boolean(order.productionJobId)}>
                       {order.productionJobId ? 'Production job created' : 'Create Production Job'}
                     </button>
+                    <div className="mt-2 flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updateOrderStatus(order, 'order-received')}>Publish Received</button>
+                      <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updateOrderStatus(order, 'in-production')}>Publish Production</button>
+                    </div>
                   </div>
                 </div>
               </div>

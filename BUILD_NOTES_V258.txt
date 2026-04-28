@@ -1,0 +1,29 @@
+# v258 — Customer Order Status + Audit Trail
+
+Built from v257 delivery/collection tracking ZIP.
+
+## Added
+- Customer-visible order status records for pipeline orders.
+- Internal status audit trail stored in unified internal catalog config storage.
+- Manual publish controls from the existing storefront-test order pipeline list.
+- Status summary cards for received / production / transit / complete orders.
+
+## New internal route
+- GET /api/internal/catalog/order-status
+- POST /api/internal/catalog/order-status
+
+## Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/order-status/route.ts
+- BUILD_NOTES_V258.txt
+
+## Test routes
+- /storefront-test
+- GET /api/internal/catalog/order-status
+- POST /api/internal/catalog/order-status
+
+## Deploy notes
+- No payment gateway added.
+- No pricing engine changes.
+- No /api/proxy usage.
+- Existing storefront-test flow is extended only.

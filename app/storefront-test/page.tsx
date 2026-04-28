@@ -203,6 +203,8 @@ export default function StorefrontTestPage() {
   const [notificationPreferenceSummary, setNotificationPreferenceSummary] = useState<any>(null);
   const [customerCommunicationItems, setCustomerCommunicationItems] = useState<any[]>([]);
   const [customerCommunicationSummary, setCustomerCommunicationSummary] = useState<any>(null);
+  const [customerIssueItems, setCustomerIssueItems] = useState<any[]>([]);
+  const [customerIssueSummary, setCustomerIssueSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -417,6 +419,39 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadCustomerCommunications();
   }
 
+
+  async function loadCustomerIssues() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-issues', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerIssueItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerIssueSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer issues.');
+    }
+  }
+
+  async function updateCustomerIssue(orderOrIssue: any, action: string) {
+    const orderId = String(orderOrIssue?.orderId || orderOrIssue?.id || '');
+    if (!orderId) { setProductionStatus('Select an order before updating issue status.'); return; }
+    setProductionStatus('Updating customer issue...');
+    const response = await fetch('/api/internal/catalog/customer-issues', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        orderId,
+        issueId: orderOrIssue?.issueId || orderOrIssue?.id,
+        action,
+        orderNumber: orderOrIssue?.orderNumber,
+        customerName: orderOrIssue?.customer?.name || orderOrIssue?.customerName,
+        customerEmail: orderOrIssue?.customer?.email || orderOrIssue?.customerEmail,
+        reason: action === 'open-issue' ? 'Customer/order exception raised from storefront-test workflow.' : undefined,
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Customer issue updated: ${json.item?.status || action}` : (json.error || 'Customer issue update failed.'));
+    if (json.ok) { await loadCustomerIssues(); await loadCustomerCommunications(); await loadOrderStatus(); }
+  }
   async function updateNotificationPreference(preference: any, action: string) {
     const id = String(preference?.id || '');
     if (!id) { setProductionStatus('Select a notification preference before updating.'); return; }
@@ -511,6 +546,7 @@ export default function StorefrontTestPage() {
     loadNotificationAudit();
     loadNotificationPreferences();
     loadCustomerCommunications();
+    loadCustomerIssues();
   }, []);
 
   useEffect(() => {
@@ -1184,6 +1220,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-100" onClick={loadNotificationAudit}>Refresh audit</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadNotificationPreferences}>Refresh preferences</button>
             <button className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-100" onClick={loadCustomerCommunications}>Refresh comms</button>
+            <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={loadCustomerIssues}>Refresh issues</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
@@ -1229,6 +1266,15 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Internal notes</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.internalNotes || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Email</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.email || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">SMS</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.sms || 0)}</p></div>
+          </div>
+        )}
+
+        {customerIssueSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3"><p className="text-xs text-red-100/75">Customer issues</p><p className="text-xl font-semibold">{Number(customerIssueSummary.totalIssues || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Open</p><p className="text-xl font-semibold">{Number(customerIssueSummary.open || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Waiting</p><p className="text-xl font-semibold">{Number(customerIssueSummary.waiting || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Resolved</p><p className="text-xl font-semibold">{Number(customerIssueSummary.resolved || 0)}</p></div>
           </div>
         )}
 
@@ -1286,6 +1332,29 @@ export default function StorefrontTestPage() {
             </div>
           </div>
         )}
+        {customerIssueItems.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+            <p className="text-sm font-medium text-red-100">Customer issue / exception handling</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {customerIssueItems.slice(0, 6).map((issue) => (
+                <div key={String(issue.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{String(issue.orderNumber || issue.orderId || issue.id)}</p>
+                      <p className="mt-1 text-xs text-textMuted">{String(issue.status)} · {String(issue.severity || 'normal')} · {String(issue.createdAt || '')}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100" onClick={() => updateCustomerIssue(issue, 'waiting-customer')}>Waiting</button>
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateCustomerIssue(issue, 'resolve')}>Resolve</button>
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs text-textMuted">{String(issue.reason || issue.note || '')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {customerCommunicationItems.length > 0 && (
           <div className="mt-4 rounded-2xl border border-teal-500/20 bg-teal-500/10 p-4">
             <p className="text-sm font-medium text-teal-100">Customer communication log</p>
@@ -1361,6 +1430,7 @@ export default function StorefrontTestPage() {
                       {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'email')}>Queue Email</button> : null; })()}
                       {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'sms')}>Queue SMS</button> : null; })()}
                       <button className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-100" onClick={() => logCustomerCommunication(order)}>Log Comms Note</button>
+                      <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateCustomerIssue(order, 'open-issue')}>Open Issue</button>
                     </div>
                   </div>
                 </div>
@@ -1583,9 +1653,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary }, null, 2)}</pre>
       </section>
     </main>
   );

@@ -1,0 +1,32 @@
+v264 — Customer Issue / Exception Handling
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-issues/route.ts
+- BUILD_NOTES_V264.txt
+
+Added:
+- Customer issue / exception queue
+- Open Issue button on pipeline orders
+- Waiting Customer / Resolve controls
+- Summary cards for open, waiting, resolved issues
+- Customer issue updates also log internal communication notes
+
+Internal routes:
+- GET /api/internal/catalog/customer-issues
+- POST /api/internal/catalog/customer-issues
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/customer-issues
+- POST /api/internal/catalog/customer-issues
+
+Deploy notes:
+- Internal API only.
+- Uses existing internal catalog admin-config storage pattern.
+- No payment gateway added.
+- Pricing engine logic untouched.
+- No redesign or duplicate page added.
+
+Build note:
+- Local npm build not run because dependencies/node_modules are not included in this ZIP workspace.

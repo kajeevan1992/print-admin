@@ -1,0 +1,29 @@
+# v253 — Production Batching
+
+Base: v251/v252 combined routing + scheduling build.
+
+## Added
+- Internal production batching endpoint:
+  - GET /api/internal/catalog/production-batches
+  - POST /api/internal/catalog/production-batches
+- Auto-batching for routed, unbatched production jobs.
+- Batch grouping by machine + stage + product name.
+- Batch status controls: open, released, completed.
+- Storefront-test production section now shows batch summary, recent batches, and job batch labels.
+
+## Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-batches/route.ts
+- BUILD_NOTES_V253.txt
+
+## Test routes
+- /storefront-test
+- GET /api/internal/catalog/production-batches
+- POST /api/internal/catalog/production-batches
+
+## Deploy notes
+- No payment gateway added.
+- No pricing engine changes.
+- No UI redesign.
+- Uses internal catalog/admin-config storage only.
+- Requires app dependencies during deployment; node_modules is not included in ZIP.

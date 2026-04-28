@@ -181,6 +181,8 @@ export default function StorefrontTestPage() {
   const [productionMachines, setProductionMachines] = useState<any[]>([]);
   const [productionScheduleItems, setProductionScheduleItems] = useState<any[]>([]);
   const [productionScheduleSummary, setProductionScheduleSummary] = useState<any>(null);
+  const [productionBatches, setProductionBatches] = useState<any[]>([]);
+  const [productionBatchSummary, setProductionBatchSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -272,6 +274,18 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadProductionBatches() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-batches', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionBatches(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionBatchSummary(json?.data?.summary || null);
+      if (Array.isArray(json?.data?.jobs)) setProductionJobs(json.data.jobs);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production batches.');
+    }
+  }
+
   useEffect(() => {
     loadCart();
     loadPipelineOrders();
@@ -279,6 +293,7 @@ export default function StorefrontTestPage() {
     loadProductionHandoff();
     loadProductionRouting();
     loadProductionSchedule();
+    loadProductionBatches();
   }, []);
 
   useEffect(() => {
@@ -552,6 +567,41 @@ export default function StorefrontTestPage() {
       await loadProductionJobs();
       await loadProductionRouting();
       await loadProductionSchedule();
+    }
+  }
+
+  async function autoBatchProductionJobs() {
+    setProductionStatus('Creating production batches...');
+    const response = await fetch('/api/internal/catalog/production-batches', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'auto-batch' }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Batching complete: ${Number(json.data?.summary?.total || 0)} batch(es)` : (json.error || 'Production batching failed.'));
+    if (json.ok) {
+      await loadProductionJobs();
+      await loadProductionBatches();
+    }
+  }
+
+  async function updateProductionBatch(batch: any, action: string) {
+    const batchId = String(batch?.id || '');
+    if (!batchId) {
+      setProductionStatus('Select a production batch first.');
+      return;
+    }
+    setProductionStatus(action === 'complete' ? 'Completing batch...' : 'Releasing batch...');
+    const response = await fetch('/api/internal/catalog/production-batches', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, batchId }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Batch updated: ${json.item?.batchNumber || batchId}` : (json.error || 'Batch update failed.'));
+    if (json.ok) {
+      await loadProductionJobs();
+      await loadProductionBatches();
     }
   }
 
@@ -889,6 +939,8 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadProductionHandoff}>Refresh handoff</button>
             <button className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-100" onClick={loadProductionRouting}>Refresh routing</button>
             <button className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100" onClick={loadProductionSchedule}>Refresh schedule</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={loadProductionBatches}>Refresh batches</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={autoBatchProductionJobs}>Auto Batch</button>
           </div>
         </div>
         {productionQueueSummary && (
@@ -924,6 +976,38 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Today</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.scheduledToday || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Overdue</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.overdue || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Minutes</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.totalMinutes || 0)}</p></div>
+          </div>
+        )}
+        {productionBatchSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3"><p className="text-xs text-emerald-100/75">Batches</p><p className="text-xl font-semibold">{Number(productionBatchSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Open</p><p className="text-xl font-semibold">{Number(productionBatchSummary.open || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Released</p><p className="text-xl font-semibold">{Number(productionBatchSummary.released || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Complete</p><p className="text-xl font-semibold">{Number(productionBatchSummary.completed || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Jobs in batches</p><p className="text-xl font-semibold">{Number(productionBatchSummary.jobs || 0)}</p></div>
+          </div>
+        )}
+        {productionBatches.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+            <p className="text-sm font-medium text-emerald-50">Production Batches</p>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {productionBatches.slice(0, 4).map((batch) => (
+                <div key={String(batch.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium">{String(batch.batchNumber || batch.id)}</p>
+                      <p className="mt-1 text-xs text-emerald-100/75">{String(batch.machineName || 'Machine')} · {String(batch.stage || 'stage')} · {Number(batch.jobIds?.length || 0)} job(s)</p>
+                      <p className="mt-1 text-xs text-emerald-100/75">Product: {String(batch.productName || 'Mixed product')}</p>
+                    </div>
+                    <span className="rounded-full border border-white/10 px-2 py-1 text-xs text-emerald-50">{String(batch.status || 'open')}</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100 disabled:opacity-50" onClick={() => updateProductionBatch(batch, 'release')} disabled={String(batch.status || '') !== 'open'}>Release Batch</button>
+                    <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100 disabled:opacity-50" onClick={() => updateProductionBatch(batch, 'complete')} disabled={String(batch.status || '') === 'completed'}>Complete Batch</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {productionStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{productionStatus}</p>}
@@ -962,6 +1046,7 @@ export default function StorefrontTestPage() {
                     <p>{String(job.productionStage || 'prepress-queue')}</p>
                     <p className="mt-2 text-xs">Route: {String(job.routing?.machineName || job.assignedMachineName || 'Not assigned')}</p>
                     <p className="text-xs">Scheduled: {job.schedule?.scheduledStart ? new Date(job.schedule.scheduledStart).toLocaleString() : 'Not scheduled'}</p>
+                    <p className="text-xs">Batch: {String(job.batch?.batchNumber || job.batchNumber || 'Not batched')}</p>
                     <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100" onClick={() => assignProductionRouting(job, 'prepress-desk-1', 'prepress')}>Route Prepress</button>
                       <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100" onClick={() => assignProductionRouting(job, 'digital-press-1', 'print')}>Route Print</button>

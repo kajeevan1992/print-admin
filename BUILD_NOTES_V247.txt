@@ -1,0 +1,38 @@
+BUILD V247 — Draft order to order pipeline
+
+Scope:
+- Continued from v246 ZIP only.
+- Extended existing /storefront-test flow after checkout draft confirmation.
+- No payment gateway added.
+- No pricing engine changes.
+- No UI redesign or duplicate storefront flow.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/order-pipeline/route.ts
+- BUILD_NOTES_V247.txt
+
+What changed:
+- Added internal order pipeline endpoint: /api/internal/catalog/order-pipeline
+- Added GET for recent pipeline orders.
+- Added POST to convert a confirmed checkout draft order into an order-received pipeline record.
+- Pipeline record includes customer, line items, selected options, pricing totals, VAT, artwork metadata, turnaround, delivery estimate, paymentStatus=not-required-yet, and productionStatus=awaiting-artwork-review.
+- Existing checkout draft is updated with orderNumber, pipelineOrderId, and status=order-received.
+- Storefront test UI now has Create Order Pipeline after Confirm Draft Order.
+- Added Recent Pipeline Orders panel to the same storefront-test page.
+
+Test routes:
+- GET /storefront-test
+- POST /api/internal/catalog/checkout-draft
+- GET /api/internal/catalog/order-pipeline
+- POST /api/internal/catalog/order-pipeline
+- GET /api/internal/catalog/draft-orders
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- This build still uses internal catalog/admin-config storage for the test pipeline record.
+- Payment remains intentionally disabled.
+- v248 can extend these order-received records into production flow.
+
+Build test:
+- Not run in this container because the uploaded ZIP does not include node_modules.

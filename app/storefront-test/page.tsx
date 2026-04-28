@@ -170,6 +170,9 @@ export default function StorefrontTestPage() {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [draftStatus, setDraftStatus] = useState('');
   const [checkoutStatus, setCheckoutStatus] = useState('');
+  const [orderPipelineStatus, setOrderPipelineStatus] = useState('');
+  const [pipelineOrders, setPipelineOrders] = useState<any[]>([]);
+  const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
   const [showCheckout, setShowCheckout] = useState(false);
@@ -205,8 +208,19 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadPipelineOrders() {
+    try {
+      const response = await fetch('/api/internal/catalog/order-pipeline', { cache: 'no-store' });
+      const json = await response.json();
+      setPipelineOrders(Array.isArray(json?.data?.items) ? json.data.items : []);
+    } catch (err) {
+      setOrderPipelineStatus(err instanceof Error ? err.message : 'Could not load order pipeline.');
+    }
+  }
+
   useEffect(() => {
     loadCart();
+    loadPipelineOrders();
   }, []);
 
   useEffect(() => {
@@ -216,6 +230,8 @@ export default function StorefrontTestPage() {
     setPricing(null);
     setDraftStatus('');
     setCheckoutStatus('');
+    setOrderPipelineStatus('');
+    setConfirmedDraft(null);
     setArtworkStatus('');
     setCartStatus('');
     setProductLoading(true);
@@ -364,7 +380,28 @@ export default function StorefrontTestPage() {
     const json = await response.json();
     setCheckoutSubmitting(false);
     setCheckoutStatus(json.ok ? `Draft order confirmed: ${json.item?.title || json.item?.id || 'saved'}` : (json.error || 'Checkout draft order failed.'));
-    if (json.ok) setDraftStatus(`Checkout draft saved: ${json.item?.quoteReference || json.item?.id || 'saved'}`);
+    if (json.ok) {
+      setConfirmedDraft(json.item || null);
+      setDraftStatus(`Checkout draft saved: ${json.item?.quoteReference || json.item?.id || 'saved'}`);
+    }
+  }
+
+  async function createOrderPipelineRecord() {
+    const draftId = String(confirmedDraft?.id || '');
+    if (!draftId) {
+      setOrderPipelineStatus('Confirm a checkout draft order first.');
+      return;
+    }
+
+    setOrderPipelineStatus('Creating order pipeline record...');
+    const response = await fetch('/api/internal/catalog/order-pipeline', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ draftOrderId: draftId }),
+    });
+    const json = await response.json();
+    setOrderPipelineStatus(json.ok ? `Order pipeline created: ${json.item?.orderNumber || json.item?.id || 'saved'}` : (json.error || 'Order pipeline creation failed.'));
+    if (json.ok) await loadPipelineOrders();
   }
 
   async function saveCartAsDraftOrder() {
@@ -637,17 +674,61 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-4 py-2 text-sm font-medium text-emerald-100 disabled:opacity-50" onClick={confirmCheckoutDraftOrder} disabled={checkoutSubmitting || cartItems.length === 0}>
               {checkoutSubmitting ? 'Confirming...' : 'Confirm Draft Order'}
             </button>
+            <button className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-4 py-2 text-sm font-medium text-sky-100 disabled:opacity-50" onClick={createOrderPipelineRecord} disabled={!confirmedDraft}>
+              Create Order Pipeline
+            </button>
             {checkoutStatus && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{checkoutStatus}</p>}
+            {orderPipelineStatus && <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{orderPipelineStatus}</p>}
           </div>
+
+          {confirmedDraft && (
+            <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-100">
+              <p className="font-medium">Ready for order pipeline</p>
+              <p className="mt-1 text-textMuted">Draft: {String(confirmedDraft.quoteReference || confirmedDraft.id)} · Status: {String(confirmedDraft.status || 'draft-order')}</p>
+            </div>
+          )}
         </section>
       )}
 
       <section className="rounded-3xl border border-border bg-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-textMuted">Order pipeline</p>
+            <h2 className="mt-1 text-xl font-semibold">Recent Pipeline Orders</h2>
+            <p className="mt-1 text-sm text-textMuted">Confirmed checkout drafts move here as order-received records. Payment is still not enabled.</p>
+          </div>
+          <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadPipelineOrders}>Refresh pipeline</button>
+        </div>
+        {pipelineOrders.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No pipeline orders yet.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {pipelineOrders.slice(0, 5).map((order) => (
+              <div key={String(order.id)} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{String(order.orderNumber || order.id)}</p>
+                    <p className="mt-1 text-xs text-textMuted">Draft: {String(order.draftOrderId || '')}</p>
+                    <p className="mt-2 text-sm text-textMuted">Customer: <span className="text-white">{String(order.customer?.name || 'Customer')}</span></p>
+                  </div>
+                  <div className="text-right text-sm text-textMuted">
+                    <p className="text-white">{money(Number(order.totals?.grossTotalMinor || 0), String(order.totals?.currency || 'GBP'))}</p>
+                    <p>{String(order.status || 'order-received')}</p>
+                    <p>{String(order.productionStatus || 'awaiting-artwork-review')}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders }, null, 2)}</pre>
       </section>
     </main>
   );

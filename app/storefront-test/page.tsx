@@ -216,6 +216,9 @@ export default function StorefrontTestPage() {
   const [customerTaskAssignees, setCustomerTaskAssignees] = useState<any[]>([]);
   const [customerTeamWorkloadItems, setCustomerTeamWorkloadItems] = useState<any[]>([]);
   const [customerTeamWorkloadSummary, setCustomerTeamWorkloadSummary] = useState<any>(null);
+  const [customerWorkloadPerformanceItems, setCustomerWorkloadPerformanceItems] = useState<any[]>([]);
+  const [customerWorkloadPerformanceSummary, setCustomerWorkloadPerformanceSummary] = useState<any>(null);
+  const [customerWorkloadPerformanceAudits, setCustomerWorkloadPerformanceAudits] = useState<any[]>([]);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -565,9 +568,30 @@ export default function StorefrontTestPage() {
     const response = await fetch('/api/internal/catalog/customer-team-workload', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assigneeId, action }) });
     const json = await response.json();
     setProductionStatus(json.ok ? `Team workload updated: ${json.item?.name || action}` : (json.error || 'Team workload update failed.'));
-    if (json.ok) { await loadCustomerTeamWorkload(); await loadCustomerTaskAssignments(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadCustomerTeamWorkload(); await loadCustomerTaskAssignments(); await loadCustomerWorkloadPerformance(); await loadCustomerCommunications(); }
   }
 
+
+  async function loadCustomerWorkloadPerformance() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-workload-performance', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerWorkloadPerformanceItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerWorkloadPerformanceSummary(json?.data?.summary || null);
+      setCustomerWorkloadPerformanceAudits(Array.isArray(json?.data?.audits) ? json.data.audits : []);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer workload performance.');
+    }
+  }
+
+  async function updateCustomerWorkloadPerformance(member: any, action: string) {
+    const assigneeId = String(member?.id || member?.assigneeId || '');
+    setProductionStatus('Updating customer workload performance audit...');
+    const response = await fetch('/api/internal/catalog/customer-workload-performance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ assigneeId, action }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Workload performance updated: ${json.item?.action || action}` : (json.error || 'Workload performance update failed.'));
+    if (json.ok) { await loadCustomerWorkloadPerformance(); await loadCustomerCommunications(); }
+  }
   async function updateCustomerTaskAssignment(task: any, action: string, assigneeId?: string) {
     const taskId = String(task?.id || '');
     if (!taskId) { setProductionStatus('Select a task before updating assignment.'); return; }
@@ -707,6 +731,7 @@ export default function StorefrontTestPage() {
     loadCustomerTaskSla();
     loadCustomerTaskAssignments();
     loadCustomerTeamWorkload();
+    loadCustomerWorkloadPerformance();
   }, []);
 
   useEffect(() => {
@@ -1588,6 +1613,32 @@ export default function StorefrontTestPage() {
           </div>
         )}
 
+
+        {customerWorkloadPerformanceSummary && (
+          <div className="mt-5 rounded-2xl border border-fuchsia-500/25 bg-fuchsia-500/10 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><p className="text-sm font-medium text-fuchsia-100">Customer workload performance</p><p className="mt-1 text-xs text-textMuted">Team score, SLA pressure, completion speed and audit actions for customer service workload.</p></div>
+              <div className="flex flex-wrap gap-2"><button className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1 text-xs font-medium text-fuchsia-100" onClick={() => updateCustomerWorkloadPerformance({}, 'snapshot')}>Snapshot</button><button className="rounded-lg border border-white/20 bg-white/5 px-3 py-1 text-xs font-medium text-white" onClick={() => updateCustomerWorkloadPerformance({}, 'clear-audit')}>Clear Audit</button></div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-5">
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Team score</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadPerformanceSummary.teamScore || 0)}</p></div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Active</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadPerformanceSummary.activeTasks || 0)}</p></div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Completed</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadPerformanceSummary.completedTasks || 0)}</p></div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Breached</p><p className="text-xl font-semibold text-white">{Number(customerWorkloadPerformanceSummary.breachedTasks || 0)}</p></div>
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-textMuted">Avg close</p><p className="text-xl font-semibold text-white">{customerWorkloadPerformanceSummary.averageCompletionMinutes === null ? '—' : `${Number(customerWorkloadPerformanceSummary.averageCompletionMinutes)}m`}</p></div>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-4">
+              {customerWorkloadPerformanceItems.map((member) => (
+                <div key={String(member.id)} className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted">
+                  <div className="flex items-start justify-between gap-2"><div><p className="font-medium text-white">{String(member.name)}</p><p>{String(member.role || 'Team')}</p></div><span className="rounded-full border border-white/10 px-2 py-1 text-fuchsia-100">{String(member.trend || 'healthy')}</span></div>
+                  <div className="mt-3 space-y-1"><p>Score: {Number(member.performanceScore || 0)}</p><p>Active: {Number(member.activeTasks || 0)} · Completed: {Number(member.completedTasks || 0)}</p><p>Risk: {Number(member.atRiskTasks || 0)} · Breached: {Number(member.breachedTasks || 0)}</p><p>Audits: {Number(member.auditEvents || 0)}</p></div>
+                  <button className="mt-3 rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-2 py-1 text-xs font-medium text-fuchsia-100" onClick={() => updateCustomerWorkloadPerformance(member, 'coach')}>Coach / Review</button>
+                </div>
+              ))}
+            </div>
+            {customerWorkloadPerformanceAudits.length > 0 && (<div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted"><p className="font-medium text-white">Recent performance audit</p><div className="mt-2 grid gap-2 lg:grid-cols-2">{customerWorkloadPerformanceAudits.slice(0, 4).map((audit) => <p key={String(audit.id)}>{String(audit.createdAt)} · {String(audit.action)} · {String(audit.assigneeName || 'Team')} · {String(audit.note || '')}</p>)}</div></div>)}
+          </div>
+        )}
         {customerTaskAssignmentSummary && (
           <div className="mt-4 grid gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-3"><p className="text-xs text-blue-100/75">Assigned tasks</p><p className="text-xl font-semibold">{Number(customerTaskAssignmentSummary.assigned || 0)}</p></div>
@@ -1975,9 +2026,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits }, null, 2)}</pre>
       </section>
     </main>
   );

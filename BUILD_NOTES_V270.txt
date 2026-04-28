@@ -1,0 +1,35 @@
+Build v270 — Customer workload performance audit
+
+Scope:
+- Continue from v269 customer team workload board.
+- Add customer workload performance metrics and audit actions.
+- Internal API only; no public API, proxy, payments, pricing changes, or redesign.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-workload-performance/route.ts
+- BUILD_NOTES_V270.txt
+
+New internal route:
+- GET /api/internal/catalog/customer-workload-performance
+- POST /api/internal/catalog/customer-workload-performance
+
+Storefront-test additions:
+- Team performance score summary.
+- Active/completed/at-risk/breached workload metrics.
+- Average task close time.
+- Snapshot action.
+- Coach / Review action per team member.
+- Clear audit action.
+- Recent performance audit list.
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- No environment changes required.
+- No database migration added; uses existing internal catalog config storage pattern.
+- Build was not run in this environment because node_modules are not included in the ZIP.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/customer-workload-performance
+- POST /api/internal/catalog/customer-workload-performance

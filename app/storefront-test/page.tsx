@@ -189,6 +189,8 @@ export default function StorefrontTestPage() {
   const [productionQualitySummary, setProductionQualitySummary] = useState<any>(null);
   const [productionDispatchItems, setProductionDispatchItems] = useState<any[]>([]);
   const [productionDispatchSummary, setProductionDispatchSummary] = useState<any>(null);
+  const [productionDeliveryItems, setProductionDeliveryItems] = useState<any[]>([]);
+  const [productionDeliverySummary, setProductionDeliverySummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -313,6 +315,18 @@ export default function StorefrontTestPage() {
     }
   }
 
+
+  async function loadProductionDelivery() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-delivery', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionDeliveryItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionDeliverySummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production delivery.');
+    }
+  }
+
   async function loadProductionBatches() {
     try {
       const response = await fetch('/api/internal/catalog/production-batches', { cache: 'no-store' });
@@ -336,6 +350,7 @@ export default function StorefrontTestPage() {
     loadProductionTimeline();
     loadProductionQuality();
     loadProductionDispatch();
+    loadProductionDelivery();
   }, []);
 
   useEffect(() => {
@@ -674,6 +689,17 @@ export default function StorefrontTestPage() {
     const json = await response.json();
     setProductionStatus(json.ok ? `Dispatch updated: ${json.item?.status || 'saved'}` : (json.error || 'Dispatch update failed.'));
     if (json.ok) { await loadProductionDispatch(); await loadProductionJobs(); await loadProductionTimeline(); }
+  }
+
+
+  async function updateProductionDelivery(job: any, action: string) {
+    const jobId = String(job?.id || '');
+    if (!jobId) { setProductionStatus('Select a dispatched production job before delivery tracking.'); return; }
+    setProductionStatus(action === 'mark-delivered' ? 'Marking delivery complete...' : 'Creating delivery tracking...');
+    const response = await fetch('/api/internal/catalog/production-delivery', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, action }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Delivery updated: ${json.item?.status || json.item?.trackingReference || 'saved'}` : (json.error || 'Delivery update failed.'));
+    if (json.ok) { await loadProductionDelivery(); await loadProductionDispatch(); await loadProductionJobs(); await loadProductionTimeline(); }
   }
 
   async function updateProductionBatch(batch: any, action: string) {
@@ -1035,6 +1061,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-2 text-sm font-medium text-fuchsia-100" onClick={loadProductionTimeline}>Refresh timeline</button>
             <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={loadProductionQuality}>Refresh QC</button>
             <button className="rounded-xl border border-lime-500/40 bg-lime-500/10 px-3 py-2 text-sm font-medium text-lime-100" onClick={loadProductionDispatch}>Refresh Dispatch</button>
+            <button className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-100" onClick={loadProductionDelivery}>Refresh Delivery</button>
             <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={autoBatchProductionJobs}>Auto Batch</button>
           </div>
         </div>
@@ -1080,6 +1107,15 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Blocked</p><p className="text-xl font-semibold">{Number(productionDispatchSummary.blocked || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Packing</p><p className="text-xl font-semibold">{Number(productionDispatchSummary.packingPrepared || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Dispatched</p><p className="text-xl font-semibold">{Number(productionDispatchSummary.dispatched || 0)}</p></div>
+          </div>
+        )}
+        {productionDeliverySummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-teal-500/20 bg-teal-500/10 p-3"><p className="text-xs text-teal-100/75">Delivery jobs</p><p className="text-xl font-semibold">{Number(productionDeliverySummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Ready</p><p className="text-xl font-semibold">{Number(productionDeliverySummary.ready || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">In transit</p><p className="text-xl font-semibold">{Number(productionDeliverySummary.inTransit || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Delivered</p><p className="text-xl font-semibold">{Number(productionDeliverySummary.delivered || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Collection</p><p className="text-xl font-semibold">{Number(productionDeliverySummary.collection || 0)}</p></div>
           </div>
         )}
         {productionBatchSummary && (
@@ -1188,6 +1224,11 @@ export default function StorefrontTestPage() {
                       const readyChecks = Array.isArray(dispatch.checklist) ? dispatch.checklist.filter((item: any) => item.ok).length : 0;
                       return <p className="text-xs text-lime-100">Dispatch: {String(dispatch.status || 'dispatch-blocked')} · {readyChecks}/{Number(dispatch.checklist?.length || 5)}</p>;
                     })()}
+                                        {(() => {
+                      const delivery = productionDeliveryItems.find((item) => String(item.jobId || '') === String(job.id || ''));
+                      if (!delivery) return <p className="text-xs text-teal-100">Delivery: not created</p>;
+                      return <p className="text-xs text-teal-100">Delivery: {String(delivery.status || 'ready-for-delivery')} · {String(delivery.trackingReference || delivery.method || 'no ref')}</p>;
+                    })()}
                     <div className="mt-3 flex flex-wrap justify-end gap-2">
                       <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100" onClick={() => assignProductionRouting(job, 'prepress-desk-1', 'prepress')}>Route Prepress</button>
                       <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100" onClick={() => assignProductionRouting(job, 'digital-press-1', 'print')}>Route Print</button>
@@ -1201,6 +1242,8 @@ export default function StorefrontTestPage() {
                       <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateProductionQuality(job, 'fail', 'colour-size-checked')}>Fail QC</button>
                       <button className="rounded-lg border border-lime-500/40 bg-lime-500/10 px-3 py-1.5 text-xs font-medium text-lime-100" onClick={() => updateProductionDispatch(job, 'prepare-packing')}>Prepare Packing</button>
                       <button className="rounded-lg border border-lime-500/40 bg-lime-500/10 px-3 py-1.5 text-xs font-medium text-lime-100" onClick={() => updateProductionDispatch(job, 'mark-dispatched')}>Mark Dispatched</button>
+                      <button className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-100" onClick={() => updateProductionDelivery(job, 'create-tracking')}>Create Tracking</button>
+                      <button className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-100" onClick={() => updateProductionDelivery(job, 'mark-delivered')}>Mark Delivered</button>
                       <button className="rounded-lg border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-100" onClick={() => addProductionTimelineNote(job, 'job')}>Timeline Note</button>
                     </div>
                   </div>
@@ -1215,7 +1258,7 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary }, null, 2))}>Copy JSON</button>
         </div>
         <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary }, null, 2)}</pre>
       </section>

@@ -1,0 +1,30 @@
+# v257 — Delivery + Collection Tracking
+
+Scope:
+- Continue from v256 dispatch/packing handoff.
+- Add delivery/collection tracking after dispatched jobs.
+- Keep all work inside internal unified-core routes and existing storefront-test page.
+- No pricing engine changes, no payments, no redesign.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-delivery/route.ts
+- BUILD_NOTES_V257.txt
+
+Added:
+- Internal endpoint: /api/internal/catalog/production-delivery
+- GET delivery/collection summary and records
+- POST create-tracking and mark-delivered actions
+- Storefront-test delivery summary cards
+- Job-level delivery status, tracking reference, create tracking and mark delivered controls
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-delivery
+- POST /api/internal/catalog/production-delivery
+
+Deploy notes:
+- Deploy as a normal Next.js app update.
+- This route stores delivery records in the existing internal catalog config storage pattern.
+- Requires a production job to be dispatched before tracking can be created.
+- Build not run in this environment because dependencies/node_modules are not included in the ZIP.

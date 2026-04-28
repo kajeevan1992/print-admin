@@ -197,6 +197,8 @@ export default function StorefrontTestPage() {
   const [customerNotificationSummary, setCustomerNotificationSummary] = useState<any>(null);
   const [notificationTemplates, setNotificationTemplates] = useState<any[]>([]);
   const [notificationTemplateSummary, setNotificationTemplateSummary] = useState<any>(null);
+  const [notificationAuditItems, setNotificationAuditItems] = useState<any[]>([]);
+  const [notificationAuditSummary, setNotificationAuditSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -367,6 +369,28 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadNotificationAudit() {
+    try {
+      const response = await fetch('/api/internal/catalog/notification-audit', { cache: 'no-store' });
+      const json = await response.json();
+      setNotificationAuditItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setNotificationAuditSummary(json?.data?.summary || null);
+      if (Array.isArray(json?.data?.notifications)) setCustomerNotificationItems(json.data.notifications);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load notification audit.');
+    }
+  }
+
+  async function updateNotificationAudit(notification: any, action: string) {
+    const notificationId = String(notification?.id || '');
+    if (!notificationId) { setProductionStatus('Select a notification before updating audit.'); return; }
+    setProductionStatus('Updating notification audit...');
+    const response = await fetch('/api/internal/catalog/notification-audit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notificationId, action }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Notification audit saved: ${json.item?.action || action}` : (json.error || 'Notification audit update failed.'));
+    if (json.ok) { await loadCustomerNotifications(); await loadNotificationAudit(); }
+  }
+
   async function seedNotificationTemplates() {
     setProductionStatus('Seeding customer notification templates...');
     const response = await fetch('/api/internal/catalog/notification-templates', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'seed-defaults' }) });
@@ -400,7 +424,7 @@ export default function StorefrontTestPage() {
     const response = await fetch('/api/internal/catalog/customer-notifications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId, channel }) });
     const json = await response.json();
     setProductionStatus(json.ok ? `Notification queued: ${json.item?.subject || json.item?.id || 'saved'}` : (json.error || 'Notification event failed.'));
-    if (json.ok) await loadCustomerNotifications();
+    if (json.ok) { await loadCustomerNotifications(); await loadNotificationAudit(); }
   }
 
   async function loadProductionBatches() {
@@ -430,6 +454,7 @@ export default function StorefrontTestPage() {
     loadOrderStatus();
     loadCustomerNotifications();
     loadNotificationTemplates();
+    loadNotificationAudit();
   }, []);
 
   useEffect(() => {
@@ -1100,6 +1125,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-100" onClick={loadOrderStatus}>Refresh status</button>
             <button className="rounded-xl border border-pink-500/40 bg-pink-500/10 px-3 py-2 text-sm font-medium text-pink-100" onClick={loadCustomerNotifications}>Refresh notifications</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={loadNotificationTemplates}>Refresh templates</button>
+            <button className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-100" onClick={loadNotificationAudit}>Refresh audit</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
         </div>
@@ -1128,6 +1154,14 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Queued</p><p className="text-xl font-semibold">{Number(customerNotificationSummary.queued || 0)}</p></div>
           </div>
         )}
+        {notificationAuditSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3"><p className="text-xs text-indigo-100/75">Audit events</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.auditEvents || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Sent</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.sent || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Failed</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.failed || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Retry ready</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.retryReady || 0)}</p></div>
+          </div>
+        )}
 
         {notificationTemplates.length > 0 && (
           <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
@@ -1146,6 +1180,32 @@ export default function StorefrontTestPage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+
+        {customerNotificationItems.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4">
+            <p className="text-sm font-medium text-indigo-100">Notification send audit</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {customerNotificationItems.slice(0, 4).map((notification) => (
+                <div key={String(notification.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{String(notification.subject || notification.id)}</p>
+                      <p className="mt-1 text-xs text-textMuted">{String(notification.channel)} · {String(notification.status || 'queued')} · attempts {Number(notification.attempts || 0)}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateNotificationAudit(notification, 'mark-sent')}>Mark Sent</button>
+                      <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-100" onClick={() => updateNotificationAudit(notification, 'mark-failed')}>Fail</button>
+                      <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100" onClick={() => updateNotificationAudit(notification, 'retry')}>Retry</button>
+                    </div>
+                  </div>
+                  <p className="mt-2 line-clamp-2 text-xs text-textMuted">{String(notification.message || '')}</p>
+                </div>
+              ))}
+            </div>
+            {notificationAuditItems.length > 0 && <p className="mt-3 text-xs text-textMuted">Latest audit: {String(notificationAuditItems[0]?.action || '')} · {String(notificationAuditItems[0]?.createdAt || '')}</p>}
           </div>
         )}
 
@@ -1405,9 +1465,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary }, null, 2)}</pre>
       </section>
     </main>
   );

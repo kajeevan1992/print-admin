@@ -1,0 +1,38 @@
+Build v261 — Notification Audit + Retry Controls
+
+Scope:
+- Continued from v260 notification templates/log build.
+- Added internal notification audit trail and manual send state controls.
+- No payment gateway added.
+- No pricing engine changes.
+- No UI redesign or duplicate storefront pages.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/notification-audit/route.ts
+- BUILD_NOTES_V261.txt
+
+Added internal route:
+- GET /api/internal/catalog/notification-audit
+- POST /api/internal/catalog/notification-audit
+
+POST actions:
+- mark-sent
+- mark-failed
+- retry
+
+What to test:
+1. Open /storefront-test.
+2. Create/confirm draft order, then create pipeline order if needed.
+3. Publish customer status.
+4. Queue email/SMS notification.
+5. Use Notification send audit controls:
+   - Mark Sent
+   - Fail
+   - Retry
+6. Refresh audit and confirm counts/history update.
+
+Deploy notes:
+- Uses existing internal catalog config storage pattern.
+- Stores audit records under admin-config key: storefront-notification-audit-log.
+- Updates existing notification records under admin-config key: storefront-customer-notifications.

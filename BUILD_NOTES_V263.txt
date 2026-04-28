@@ -1,0 +1,38 @@
+# v263 — Customer Communication Log / Message Centre Visibility
+
+Base: print-admin-v262-notification-preferences-rules.zip
+
+Scope:
+- Continue from notification preferences/rules.
+- Add customer communication visibility without adding a payment gateway.
+- Keep changes inside existing storefront-test flow and internal catalog API.
+- Do not change pricing engine logic.
+- Do not redesign layout or create duplicate pages.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-communications/route.ts
+- BUILD_NOTES_V263.txt
+
+Added:
+- Internal customer communication log endpoint.
+- Aggregated communication view from customer notification events and notification audit events.
+- Manual internal communication note logging from pipeline orders.
+- Storefront-test communication summary cards.
+- Storefront-test latest communication log panel.
+
+Internal route:
+- GET  /api/internal/catalog/customer-communications
+- POST /api/internal/catalog/customer-communications
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/customer-communications
+- POST /api/internal/catalog/customer-communications
+
+Deploy notes:
+- Uses existing internal catalog admin-config storage pattern.
+- No /api/proxy usage.
+- No payment gateway added.
+- No pricing engine changes.
+- Build not run locally because the ZIP does not include node_modules.

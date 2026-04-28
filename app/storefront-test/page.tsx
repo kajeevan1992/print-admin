@@ -201,6 +201,8 @@ export default function StorefrontTestPage() {
   const [notificationAuditSummary, setNotificationAuditSummary] = useState<any>(null);
   const [notificationPreferences, setNotificationPreferences] = useState<any[]>([]);
   const [notificationPreferenceSummary, setNotificationPreferenceSummary] = useState<any>(null);
+  const [customerCommunicationItems, setCustomerCommunicationItems] = useState<any[]>([]);
+  const [customerCommunicationSummary, setCustomerCommunicationSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -394,6 +396,27 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadCustomerCommunications() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-communications', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerCommunicationItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerCommunicationSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer communications.');
+    }
+  }
+
+  async function logCustomerCommunication(order: any) {
+    const orderId = String(order?.id || order?.orderId || '');
+    if (!orderId) { setProductionStatus('Select a pipeline order before logging a communication note.'); return; }
+    setProductionStatus('Logging customer communication note...');
+    const response = await fetch('/api/internal/catalog/customer-communications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId, orderNumber: order.orderNumber, customerName: order.customer?.name, message: `Internal follow-up note for ${order.orderNumber || orderId}` }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Customer communication note logged.' : (json.error || 'Communication note failed.'));
+    if (json.ok) await loadCustomerCommunications();
+  }
+
   async function updateNotificationPreference(preference: any, action: string) {
     const id = String(preference?.id || '');
     if (!id) { setProductionStatus('Select a notification preference before updating.'); return; }
@@ -419,7 +442,7 @@ export default function StorefrontTestPage() {
     const response = await fetch('/api/internal/catalog/notification-audit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ notificationId, action }) });
     const json = await response.json();
     setProductionStatus(json.ok ? `Notification audit saved: ${json.item?.action || action}` : (json.error || 'Notification audit update failed.'));
-    if (json.ok) { await loadCustomerNotifications(); await loadNotificationAudit(); }
+    if (json.ok) { await loadCustomerNotifications(); await loadNotificationAudit(); await loadCustomerCommunications(); }
   }
 
   async function seedNotificationTemplates() {
@@ -455,7 +478,7 @@ export default function StorefrontTestPage() {
     const response = await fetch('/api/internal/catalog/customer-notifications', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId, channel }) });
     const json = await response.json();
     setProductionStatus(json.ok ? `Notification queued: ${json.item?.subject || json.item?.id || 'saved'}` : (json.error || 'Notification event failed.'));
-    if (json.ok) { await loadCustomerNotifications(); await loadNotificationAudit(); }
+    if (json.ok) { await loadCustomerNotifications(); await loadNotificationAudit(); await loadCustomerCommunications(); }
   }
 
   async function loadProductionBatches() {
@@ -487,6 +510,7 @@ export default function StorefrontTestPage() {
     loadNotificationTemplates();
     loadNotificationAudit();
     loadNotificationPreferences();
+    loadCustomerCommunications();
   }, []);
 
   useEffect(() => {
@@ -1159,6 +1183,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={loadNotificationTemplates}>Refresh templates</button>
             <button className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-100" onClick={loadNotificationAudit}>Refresh audit</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadNotificationPreferences}>Refresh preferences</button>
+            <button className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-100" onClick={loadCustomerCommunications}>Refresh comms</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
@@ -1194,6 +1219,16 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Sent</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.sent || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Failed</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.failed || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Retry ready</p><p className="text-xl font-semibold">{Number(notificationAuditSummary.retryReady || 0)}</p></div>
+          </div>
+        )}
+
+        {customerCommunicationSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-teal-500/20 bg-teal-500/10 p-3"><p className="text-xs text-teal-100/75">Comms log</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.totalMessages || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Outbound</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.outbound || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Internal notes</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.internalNotes || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Email</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.email || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">SMS</p><p className="text-xl font-semibold">{Number(customerCommunicationSummary.sms || 0)}</p></div>
           </div>
         )}
 
@@ -1251,6 +1286,21 @@ export default function StorefrontTestPage() {
             </div>
           </div>
         )}
+        {customerCommunicationItems.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-teal-500/20 bg-teal-500/10 p-4">
+            <p className="text-sm font-medium text-teal-100">Customer communication log</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {customerCommunicationItems.slice(0, 6).map((item) => (
+                <div key={String(item.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm">
+                  <p className="font-medium text-white">{String(item.subject || item.orderNumber || item.id)}</p>
+                  <p className="mt-1 text-xs text-textMuted">{String(item.channel)} · {String(item.direction)} · {String(item.status)} · {String(item.createdAt || '')}</p>
+                  <p className="mt-2 line-clamp-2 text-xs text-textMuted">{String(item.message || '')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {customerNotificationItems.length > 0 && (
           <div className="mt-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4">
             <p className="text-sm font-medium text-indigo-100">Notification send audit</p>
@@ -1310,6 +1360,7 @@ export default function StorefrontTestPage() {
                       <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updateOrderStatus(order, 'in-production')}>Publish Production</button>
                       {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'email')}>Queue Email</button> : null; })()}
                       {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'sms')}>Queue SMS</button> : null; })()}
+                      <button className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-100" onClick={() => logCustomerCommunication(order)}>Log Comms Note</button>
                     </div>
                   </div>
                 </div>
@@ -1532,9 +1583,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary }, null, 2)}</pre>
       </section>
     </main>
   );

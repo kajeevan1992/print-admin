@@ -174,6 +174,7 @@ export default function StorefrontTestPage() {
   const [pipelineOrders, setPipelineOrders] = useState<any[]>([]);
   const [productionJobs, setProductionJobs] = useState<any[]>([]);
   const [productionStatus, setProductionStatus] = useState('');
+  const [productionQueueSummary, setProductionQueueSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -222,9 +223,10 @@ export default function StorefrontTestPage() {
 
   async function loadProductionJobs() {
     try {
-      const response = await fetch('/api/internal/catalog/production-flow', { cache: 'no-store' });
+      const response = await fetch('/api/internal/catalog/production-queue', { cache: 'no-store' });
       const json = await response.json();
       setProductionJobs(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionQueueSummary(json?.data?.summary || null);
     } catch (err) {
       setProductionStatus(err instanceof Error ? err.message : 'Could not load production flow.');
     }
@@ -436,6 +438,27 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setProductionStatus(json.ok ? `Production job created: ${json.item?.jobNumber || json.item?.id || 'saved'}` : (json.error || 'Production job creation failed.'));
+    if (json.ok) {
+      await loadPipelineOrders();
+      await loadProductionJobs();
+    }
+  }
+
+  async function updateProductionQueueJob(job: any, action: string) {
+    const jobId = String(job?.id || '');
+    if (!jobId) {
+      setProductionStatus('Select a production job first.');
+      return;
+    }
+
+    setProductionStatus('Updating production queue...');
+    const response = await fetch('/api/internal/catalog/production-queue', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobId, action }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Production queue updated: ${json.item?.jobNumber || json.item?.id || 'saved'}` : (json.error || 'Production queue update failed.'));
     if (json.ok) {
       await loadPipelineOrders();
       await loadProductionJobs();
@@ -773,6 +796,15 @@ export default function StorefrontTestPage() {
           </div>
           <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadProductionJobs}>Refresh production</button>
         </div>
+        {productionQueueSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Total</p><p className="text-xl font-semibold">{Number(productionQueueSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Ready</p><p className="text-xl font-semibold">{Number(productionQueueSummary.ready || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Active</p><p className="text-xl font-semibold">{Number(productionQueueSummary.active || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Hold</p><p className="text-xl font-semibold">{Number(productionQueueSummary.hold || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Complete</p><p className="text-xl font-semibold">{Number(productionQueueSummary.complete || 0)}</p></div>
+          </div>
+        )}
         {productionStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{productionStatus}</p>}
         {productionJobs.length === 0 ? (
           <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No production jobs yet.</p>
@@ -790,6 +822,12 @@ export default function StorefrontTestPage() {
                     <p className="text-white">{money(Number(job.totals?.grossTotalMinor || 0), String(job.totals?.currency || 'GBP'))}</p>
                     <p>{String(job.status || 'production-ready')}</p>
                     <p>{String(job.productionStage || 'prepress-queue')}</p>
+                    <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'start-prepress')} disabled={String(job.status || '') === 'in-production' || String(job.status || '') === 'completed'}>Start Prepress</button>
+                      <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'hold')} disabled={String(job.status || '') === 'on-hold' || String(job.status || '') === 'completed'}>Hold</button>
+                      <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'complete-prepress')} disabled={String(job.status || '') === 'prepress-complete' || String(job.status || '') === 'completed'}>Prepress Done</button>
+                      <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'complete-production')} disabled={String(job.status || '') === 'completed'}>Complete</button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -802,9 +840,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary }, null, 2)}</pre>
       </section>
     </main>
   );

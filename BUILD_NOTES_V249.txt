@@ -1,0 +1,50 @@
+Build v249 — Production Queue Status Controls
+
+Scope:
+- Continued from v248 ZIP only.
+- Extended the existing storefront-test production flow into a basic internal production queue control layer.
+- No payment gateway added.
+- No pricing engine logic changed.
+- No redesign or duplicate storefront created.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-queue/route.ts
+- BUILD_NOTES_V249.txt
+
+What changed:
+1. Added internal production queue endpoint:
+   - GET /api/internal/catalog/production-queue
+   - PATCH /api/internal/catalog/production-queue
+
+2. Added production queue summary counts:
+   - total
+   - ready
+   - active
+   - hold
+   - complete
+
+3. Added production job status actions inside /storefront-test:
+   - Start Prepress
+   - Hold
+   - Prepress Done
+   - Complete
+
+4. Queue status updates also sync the matching order pipeline record:
+   - status
+   - pipelineStage
+   - productionStatus
+   - updatedAt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-queue
+- PATCH /api/internal/catalog/production-queue
+- GET /api/internal/catalog/production-flow
+- GET /api/internal/catalog/order-pipeline
+
+Deploy notes:
+- Upload ZIP to Coolify/Git deploy as before.
+- No new environment variables required.
+- Existing internal catalog storage is reused via admin-config records.
+- node_modules is not included in this ZIP.

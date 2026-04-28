@@ -177,6 +177,10 @@ export default function StorefrontTestPage() {
   const [productionQueueSummary, setProductionQueueSummary] = useState<any>(null);
   const [productionHandoffPackets, setProductionHandoffPackets] = useState<any[]>([]);
   const [productionHandoffSummary, setProductionHandoffSummary] = useState<any>(null);
+  const [productionRoutingSummary, setProductionRoutingSummary] = useState<any>(null);
+  const [productionMachines, setProductionMachines] = useState<any[]>([]);
+  const [productionScheduleItems, setProductionScheduleItems] = useState<any[]>([]);
+  const [productionScheduleSummary, setProductionScheduleSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -245,11 +249,36 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadProductionRouting() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-routing', { cache: 'no-store' });
+      const json = await response.json();
+      if (Array.isArray(json?.data?.items)) setProductionJobs(json.data.items);
+      setProductionMachines(Array.isArray(json?.data?.machines) ? json.data.machines : []);
+      setProductionRoutingSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production routing.');
+    }
+  }
+
+  async function loadProductionSchedule() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-schedule', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionScheduleItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionScheduleSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production schedule.');
+    }
+  }
+
   useEffect(() => {
     loadCart();
     loadPipelineOrders();
     loadProductionJobs();
     loadProductionHandoff();
+    loadProductionRouting();
+    loadProductionSchedule();
   }, []);
 
   useEffect(() => {
@@ -478,6 +507,51 @@ export default function StorefrontTestPage() {
       await loadPipelineOrders();
       await loadProductionJobs();
       await loadProductionHandoff();
+    }
+  }
+
+  async function assignProductionRouting(job: any, machineId?: string, stage?: string) {
+    const jobId = String(job?.id || '');
+    if (!jobId) {
+      setProductionStatus('Select a production job first.');
+      return;
+    }
+    const fallbackMachine = productionMachines[0] || { id: 'prepress-desk-1', stage: 'prepress' };
+    setProductionStatus('Assigning production routing...');
+    const response = await fetch('/api/internal/catalog/production-routing', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobId, machineId: machineId || fallbackMachine.id, stage: stage || fallbackMachine.stage || 'prepress' }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Routing assigned: ${json.item?.machineName || json.item?.machineId || 'machine'}` : (json.error || 'Routing assignment failed.'));
+    if (json.ok) {
+      await loadProductionJobs();
+      await loadProductionRouting();
+      await loadProductionHandoff();
+    }
+  }
+
+  async function scheduleProductionJob(job: any) {
+    const jobId = String(job?.id || '');
+    if (!jobId) {
+      setProductionStatus('Select a production job first.');
+      return;
+    }
+    const start = new Date(Date.now() + 60 * 60 * 1000);
+    start.setMinutes(0, 0, 0);
+    setProductionStatus('Scheduling production job...');
+    const response = await fetch('/api/internal/catalog/production-schedule', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobId, scheduledStart: start.toISOString() }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Scheduled: ${new Date(json.item?.scheduledStart).toLocaleString()}` : (json.error || 'Production scheduling failed.'));
+    if (json.ok) {
+      await loadProductionJobs();
+      await loadProductionRouting();
+      await loadProductionSchedule();
     }
   }
 
@@ -813,6 +887,8 @@ export default function StorefrontTestPage() {
           <div className="flex flex-wrap gap-2">
             <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadProductionJobs}>Refresh production</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadProductionHandoff}>Refresh handoff</button>
+            <button className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-100" onClick={loadProductionRouting}>Refresh routing</button>
+            <button className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100" onClick={loadProductionSchedule}>Refresh schedule</button>
           </div>
         </div>
         {productionQueueSummary && (
@@ -831,6 +907,23 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3"><p className="text-xs text-cyan-100/75">Handoff packets</p><p className="text-xl font-semibold">{Number(productionHandoffSummary.total || 0)}</p></div>
             <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3"><p className="text-xs text-emerald-100/75">Ready</p><p className="text-xl font-semibold">{Number(productionHandoffSummary.ready || 0)}</p></div>
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3"><p className="text-xs text-amber-100/75">Blocked</p><p className="text-xl font-semibold">{Number(productionHandoffSummary.blocked || 0)}</p></div>
+          </div>
+        )}
+        {productionRoutingSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-purple-500/20 bg-purple-500/10 p-3"><p className="text-xs text-purple-100/75">Routed</p><p className="text-xl font-semibold">{Number(productionRoutingSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Prepress</p><p className="text-xl font-semibold">{Number(productionRoutingSummary.prepress || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Print</p><p className="text-xl font-semibold">{Number(productionRoutingSummary.print || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Finishing</p><p className="text-xl font-semibold">{Number(productionRoutingSummary.finishing || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Machines</p><p className="text-xl font-semibold">{Number(productionRoutingSummary.assignedMachines || 0)}</p></div>
+          </div>
+        )}
+        {productionScheduleSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-3"><p className="text-xs text-blue-100/75">Scheduled</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Today</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.scheduledToday || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Overdue</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.overdue || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Minutes</p><p className="text-xl font-semibold">{Number(productionScheduleSummary.totalMinutes || 0)}</p></div>
           </div>
         )}
         {productionStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{productionStatus}</p>}
@@ -867,7 +960,12 @@ export default function StorefrontTestPage() {
                     <p className="text-white">{money(Number(job.totals?.grossTotalMinor || 0), String(job.totals?.currency || 'GBP'))}</p>
                     <p>{String(job.status || 'production-ready')}</p>
                     <p>{String(job.productionStage || 'prepress-queue')}</p>
+                    <p className="mt-2 text-xs">Route: {String(job.routing?.machineName || job.assignedMachineName || 'Not assigned')}</p>
+                    <p className="text-xs">Scheduled: {job.schedule?.scheduledStart ? new Date(job.schedule.scheduledStart).toLocaleString() : 'Not scheduled'}</p>
                     <div className="mt-3 flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100" onClick={() => assignProductionRouting(job, 'prepress-desk-1', 'prepress')}>Route Prepress</button>
+                      <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-100" onClick={() => assignProductionRouting(job, 'digital-press-1', 'print')}>Route Print</button>
+                      <button className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-100 disabled:opacity-50" onClick={() => scheduleProductionJob(job)} disabled={!job.routing && !job.assignedMachineId}>Schedule +1h</button>
                       <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'start-prepress')} disabled={String(job.status || '') === 'in-production' || String(job.status || '') === 'completed'}>Start Prepress</button>
                       <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'hold')} disabled={String(job.status || '') === 'on-hold' || String(job.status || '') === 'completed'}>Hold</button>
                       <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100 disabled:opacity-50" onClick={() => updateProductionQueueJob(job, 'complete-prepress')} disabled={String(job.status || '') === 'prepress-complete' || String(job.status || '') === 'completed'}>Prepress Done</button>
@@ -885,9 +983,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary }, null, 2)}</pre>
       </section>
     </main>
   );

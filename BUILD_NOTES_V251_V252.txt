@@ -1,0 +1,46 @@
+Build: v251 + v252 combined
+Base: v250 production handoff packets ZIP
+Scope: Production routing assignments + lightweight production scheduling
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-routing/route.ts
+- app/api/internal/catalog/production-schedule/route.ts
+- BUILD_NOTES_V251_V252.txt
+
+What changed:
+- Added internal production routing endpoint: /api/internal/catalog/production-routing
+  - GET lists production jobs with routing assignment state
+  - POST assigns/reassigns a job to a machine and production stage
+  - Stores routing in internal admin-config metadata under storefront-production-routing
+  - Updates the existing storefront-production-flow job with assigned machine/stage
+
+- Added internal production schedule endpoint: /api/internal/catalog/production-schedule
+  - GET lists scheduled production windows and summary metrics
+  - POST schedules a routed production job
+  - Requires routing before scheduling
+  - Stores schedule in internal admin-config metadata under storefront-production-schedule
+  - Updates the existing storefront-production-flow job with schedule metadata
+
+- Extended /storefront-test only:
+  - Refresh routing button
+  - Refresh schedule button
+  - Routing summary cards
+  - Schedule summary cards
+  - Route Prepress / Route Print actions per production job
+  - Schedule +1h action per routed production job
+  - Debug JSON includes routing + schedule state
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-routing
+- POST /api/internal/catalog/production-routing
+- GET /api/internal/catalog/production-schedule
+- POST /api/internal/catalog/production-schedule
+
+Deploy notes:
+- No pricing engine logic changed.
+- No payment gateway added.
+- No UI redesign or duplicate page created.
+- Admin + Storefront flow remains internal API only.
+- Build was not run in this container because the uploaded ZIP does not include node_modules.

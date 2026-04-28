@@ -1,0 +1,46 @@
+# v256 — Dispatch Readiness + Packing Handoff
+
+Scope:
+- Extends existing storefront-test production flow after QC.
+- Adds dispatch readiness and packing handoff records.
+- Uses internal unified-core catalog storage only.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-dispatch/route.ts
+- BUILD_NOTES_V256.txt
+
+New internal route:
+- GET /api/internal/catalog/production-dispatch
+- POST /api/internal/catalog/production-dispatch
+
+What was added:
+- Dispatch readiness summary: ready, blocked, packing prepared, dispatched.
+- Dispatch checklist checks:
+  - QC passed
+  - production completed
+  - customer details captured
+  - delivery estimate available
+  - packing slip prepared
+- Storefront-test controls:
+  - Refresh Dispatch
+  - Prepare Packing
+  - Mark Dispatched
+- Production job dispatch status display.
+
+Rules followed:
+- No payment gateway added.
+- No pricing engine logic changed.
+- No /api/proxy usage.
+- No duplicate pages.
+- Existing storefront-test flow extended only.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-dispatch
+- POST /api/internal/catalog/production-dispatch
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- Run npm install / npm run build in the deployment environment.
+- This ZIP does not include node_modules.

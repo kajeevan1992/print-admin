@@ -1,0 +1,41 @@
+# v255 — Production Quality Control Checkpoints
+
+Base: v254 production timeline/history ZIP.
+
+Scope:
+- Adds quality control checkpoints after production routing, scheduling, batching, and timeline.
+- Extends only the existing `/storefront-test` production flow.
+- Uses internal unified-core routes only.
+- Does not change pricing engine logic.
+- Does not add payments.
+- Does not redesign the layout.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-quality/route.ts
+- BUILD_NOTES_V255.txt
+
+New internal route:
+- GET /api/internal/catalog/production-quality
+- POST /api/internal/catalog/production-quality
+
+What was added:
+- QC summary cards: total, pending, passed, failed, blocked.
+- Per-job QC status display.
+- QC actions from storefront-test:
+  - QC Artwork
+  - Pass QC
+  - Fail QC
+- Internal quality records stored via internal catalog config records.
+- Production job qualityStatus is updated without changing pricing/payment/order logic.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-quality
+- POST /api/internal/catalog/production-quality
+
+Deploy notes:
+- Deploy as the next full ZIP on top of v254/v253 production flow.
+- Keep `/api/proxy` disabled.
+- No environment variable changes required.
+- Build was not run here because node_modules are not included in the ZIP.

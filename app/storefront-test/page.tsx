@@ -205,6 +205,8 @@ export default function StorefrontTestPage() {
   const [customerCommunicationSummary, setCustomerCommunicationSummary] = useState<any>(null);
   const [customerIssueItems, setCustomerIssueItems] = useState<any[]>([]);
   const [customerIssueSummary, setCustomerIssueSummary] = useState<any>(null);
+  const [customerCreditItems, setCustomerCreditItems] = useState<any[]>([]);
+  const [customerCreditSummary, setCustomerCreditSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -452,6 +454,41 @@ export default function StorefrontTestPage() {
     setProductionStatus(json.ok ? `Customer issue updated: ${json.item?.status || action}` : (json.error || 'Customer issue update failed.'));
     if (json.ok) { await loadCustomerIssues(); await loadCustomerCommunications(); await loadOrderStatus(); }
   }
+  async function loadCustomerCredits() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-credits', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerCreditItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerCreditSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer credit requests.');
+    }
+  }
+
+  async function updateCustomerCredit(orderOrCredit: any, action: string) {
+    const orderId = String(orderOrCredit?.orderId || orderOrCredit?.id || '');
+    if (!orderId) { setProductionStatus('Select an order before updating credit/refund request.'); return; }
+    setProductionStatus('Updating customer credit request...');
+    const response = await fetch('/api/internal/catalog/customer-credits', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        orderId,
+        creditId: orderOrCredit?.creditId || orderOrCredit?.id,
+        action,
+        orderNumber: orderOrCredit?.orderNumber,
+        customerName: orderOrCredit?.customer?.name || orderOrCredit?.customerName,
+        customerEmail: orderOrCredit?.customer?.email || orderOrCredit?.customerEmail,
+        grossTotalMinor: orderOrCredit?.grossTotalMinor || orderOrCredit?.totals?.grossTotalMinor,
+        currency: orderOrCredit?.currency || orderOrCredit?.totals?.currency || 'GBP',
+        reason: action === 'request-credit' ? 'Customer service credit/refund review requested from storefront-test workflow.' : undefined,
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Credit request updated: ${json.item?.status || action}` : (json.error || 'Credit request update failed.'));
+    if (json.ok) { await loadCustomerCredits(); await loadCustomerCommunications(); await loadCustomerIssues(); }
+  }
+
   async function updateNotificationPreference(preference: any, action: string) {
     const id = String(preference?.id || '');
     if (!id) { setProductionStatus('Select a notification preference before updating.'); return; }
@@ -547,6 +584,7 @@ export default function StorefrontTestPage() {
     loadNotificationPreferences();
     loadCustomerCommunications();
     loadCustomerIssues();
+    loadCustomerCredits();
   }, []);
 
   useEffect(() => {
@@ -1221,6 +1259,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadNotificationPreferences}>Refresh preferences</button>
             <button className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-100" onClick={loadCustomerCommunications}>Refresh comms</button>
             <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={loadCustomerIssues}>Refresh issues</button>
+            <button className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm font-medium text-yellow-100" onClick={loadCustomerCredits}>Refresh credits</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
@@ -1278,6 +1317,16 @@ export default function StorefrontTestPage() {
           </div>
         )}
 
+
+        {customerCreditSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-3"><p className="text-xs text-yellow-100/75">Credit requests</p><p className="text-xl font-semibold">{Number(customerCreditSummary.totalRequests || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Review</p><p className="text-xl font-semibold">{Number(customerCreditSummary.review || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Approved</p><p className="text-xl font-semibold">{Number(customerCreditSummary.approved || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Issued</p><p className="text-xl font-semibold">{Number(customerCreditSummary.issued || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Value</p><p className="text-xl font-semibold">{money(Number(customerCreditSummary.totalRequestedMinor || 0), 'GBP')}</p></div>
+          </div>
+        )}
         {notificationTemplates.length > 0 && (
           <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
             <p className="text-sm font-medium text-violet-100">Customer notification templates</p>
@@ -1332,6 +1381,31 @@ export default function StorefrontTestPage() {
             </div>
           </div>
         )}
+        {customerCreditItems.length > 0 && (
+          <div className="mt-5 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4">
+            <p className="text-sm font-medium text-yellow-100">Credit / refund request tracker</p>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {customerCreditItems.slice(0, 6).map((item) => (
+                <div key={item.id} className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{item.orderNumber || item.orderId}</p>
+                      <p>{item.customerName || 'Customer'} · {item.status}</p>
+                      <p>{item.reason}</p>
+                      <p className="mt-1 text-yellow-100">Requested: {money(Number(item.requestedMinor || 0), item.currency || 'GBP')}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateCustomerCredit(item, 'approve')}>Approve</button>
+                      <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-100" onClick={() => updateCustomerCredit(item, 'reject')}>Reject</button>
+                      <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100" onClick={() => updateCustomerCredit(item, 'mark-issued')}>Mark Issued</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {customerIssueItems.length > 0 && (
           <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
             <p className="text-sm font-medium text-red-100">Customer issue / exception handling</p>
@@ -1431,6 +1505,7 @@ export default function StorefrontTestPage() {
                       {(() => { const status = orderStatusItems.find((item) => String(item.orderId || '') === String(order.id || '')); return status ? <button className="rounded-lg border border-pink-500/40 bg-pink-500/10 px-3 py-1.5 text-xs font-medium text-pink-100" onClick={() => sendCustomerNotification(status, 'sms')}>Queue SMS</button> : null; })()}
                       <button className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-100" onClick={() => logCustomerCommunication(order)}>Log Comms Note</button>
                       <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateCustomerIssue(order, 'open-issue')}>Open Issue</button>
+                      <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-100" onClick={() => updateCustomerCredit(order, 'request-credit')}>Credit Review</button>
                     </div>
                   </div>
                 </div>
@@ -1653,9 +1728,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary }, null, 2)}</pre>
       </section>
     </main>
   );

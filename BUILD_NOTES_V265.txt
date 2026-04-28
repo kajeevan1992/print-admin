@@ -1,0 +1,36 @@
+# v265 — Customer Credit / Refund Request Tracking
+
+Base: v264 customer issue / exception handling ZIP.
+
+Scope:
+- Add customer service credit/refund request tracking only.
+- No payment gateway.
+- No automatic refunds.
+- No pricing engine changes.
+- No redesign or duplicate pages.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-credits/route.ts
+- BUILD_NOTES_V265.txt
+
+Added internal route:
+- GET /api/internal/catalog/customer-credits
+- POST /api/internal/catalog/customer-credits
+
+What changed:
+- Added Credit Review action on pipeline orders.
+- Added internal credit/refund request tracker.
+- Added approve / reject / mark issued controls.
+- Added credit request summary cards.
+- Linked credit actions to customer communications and issue queue audit notes.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/customer-credits
+- POST /api/internal/catalog/customer-credits
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- This build stores credit/refund request records through the existing internal catalog config storage pattern.
+- It does not move money or connect to any payment/refund provider.

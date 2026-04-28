@@ -46,6 +46,16 @@ type CustomerDetails = {
   company: string;
 };
 
+type ArtworkUpload = {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  status: string;
+  uploadedAt: string;
+  notes?: string;
+};
+
 function money(minor?: number, currency = 'GBP') {
   const value = Number(minor || 0) / 100;
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(value);
@@ -65,6 +75,15 @@ function cartNetTotal(items: any[]) {
     const vat = Number(item.pricing?.vatMinor || item.pricing?.vatTotalMinor || item.vatMinor || 0);
     return sum + Math.max(0, gross - vat);
   }, 0);
+}
+
+function itemArtwork(item: any): ArtworkUpload[] {
+  const uploads = item?.artworkUploads || item?.artwork?.uploads || [];
+  return Array.isArray(uploads) ? uploads : [];
+}
+
+function cartArtworkCount(items: any[]) {
+  return items.reduce((sum, item) => sum + itemArtwork(item).length, 0);
 }
 
 function optionGroups(product?: ProductRecord | null): ProductOptionGroup[] {
@@ -151,6 +170,8 @@ export default function StorefrontTestPage() {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [draftStatus, setDraftStatus] = useState('');
   const [checkoutStatus, setCheckoutStatus] = useState('');
+  const [artworkStatus, setArtworkStatus] = useState('');
+  const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
   const [showCheckout, setShowCheckout] = useState(false);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [customer, setCustomer] = useState<CustomerDetails>({ name: '', email: '', phone: '', company: '' });
@@ -195,6 +216,7 @@ export default function StorefrontTestPage() {
     setPricing(null);
     setDraftStatus('');
     setCheckoutStatus('');
+    setArtworkStatus('');
     setCartStatus('');
     setProductLoading(true);
     fetch(`/api/internal/catalog/products/${encodeURIComponent(productId)}`)
@@ -292,6 +314,25 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadCart();
   }
 
+  async function uploadArtwork(item: any, fileList: FileList | null) {
+    const files = Array.from(fileList || []);
+    const notes = artworkNotes[String(item.id || '')] || '';
+    if (files.length === 0 && !notes.trim()) return;
+    setArtworkStatus('Saving artwork upload metadata...');
+    const response = await fetch('/api/internal/catalog/storefront-artwork', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        cartItemId: String(item.id || ''),
+        notes,
+        files: files.map((file) => ({ fileName: file.name, fileSize: file.size, mimeType: file.type || 'application/octet-stream', lastModified: file.lastModified })),
+      }),
+    });
+    const json = await response.json();
+    setArtworkStatus(json.ok ? `Artwork saved for ${json.item?.productName || 'cart item'}.` : (json.error || 'Artwork save failed.'));
+    if (json.ok) await loadCart();
+  }
+
   function validateCheckout() {
     const errors: string[] = [];
     if (cartItems.length === 0) errors.push('Cart is empty. Add a priced item first.');
@@ -301,6 +342,8 @@ export default function StorefrontTestPage() {
     if (customer.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email.trim())) errors.push('Enter a valid email address.');
     const missingPricing = cartItems.some((item) => !item.pricing && !Number(item.grossTotalMinor || 0));
     if (missingPricing) errors.push('Every cart item must have pricing before checkout.');
+    const missingArtwork = cartItems.some((item) => itemArtwork(item).length === 0);
+    if (missingArtwork) errors.push('Upload artwork for every cart item before confirming.');
     return errors;
   }
 
@@ -488,7 +531,7 @@ export default function StorefrontTestPage() {
             <h2 className="mt-1 text-xl font-semibold">Cart Review</h2>
             <p className="mt-1 text-sm text-textMuted">Review, update or remove priced items before saving the cart as a draft order.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadCart}>Refresh cart</button>
             <button className="rounded-xl border border-sky-500/40 bg-sky-500/15 px-3 py-2 text-sm font-medium text-sky-100 disabled:opacity-50" onClick={saveCartAsDraftOrder} disabled={cartItems.length === 0}>Save cart as draft order</button>
             <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-100 disabled:opacity-50" onClick={() => setShowCheckout(true)} disabled={cartItems.length === 0}>Proceed to Checkout</button>
@@ -515,11 +558,37 @@ export default function StorefrontTestPage() {
                     <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm text-red-100" onClick={() => removeCartItem(String(item.id))}>Remove</button>
                   </div>
                 </div>
+
+                <div className="mt-4 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-indigo-100">Artwork upload</p>
+                      <p className="mt-1 text-xs text-textMuted">Attach customer artwork metadata to this cart item before draft order confirmation.</p>
+                    </div>
+                    <span className="rounded-full border border-indigo-400/30 px-2 py-1 text-xs text-indigo-100">{itemArtwork(item).length} file{itemArtwork(item).length === 1 ? '' : 's'}</span>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+                    <input className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-textMuted" type="file" multiple onChange={(event) => uploadArtwork(item, event.target.files)} />
+                    <input className="rounded-xl border border-border bg-background px-3 py-2 text-sm" placeholder="Artwork notes" value={artworkNotes[String(item.id || '')] || ''} onChange={(event) => setArtworkNotes((prev) => ({ ...prev, [String(item.id || '')]: event.target.value }))} />
+                  </div>
+                  {itemArtwork(item).length > 0 && (
+                    <ul className="mt-3 space-y-1 text-xs text-textMuted">
+                      {itemArtwork(item).map((upload) => (
+                        <li key={upload.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-black/20 px-2 py-1">
+                          <span>{upload.fileName}</span>
+                          <span>{Math.ceil(Number(upload.fileSize || 0) / 1024)} KB · {upload.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 {item.selections && <pre className="mt-3 max-h-32 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify(item.selections, null, 2)}</pre>}
               </div>
             ))}
           </div>
         )}
+        {artworkStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{artworkStatus}</p>}
       </section>
 
       {showCheckout && (
@@ -560,7 +629,8 @@ export default function StorefrontTestPage() {
               <div><p className="text-xs text-textMuted">VAT</p><p className="text-xl font-semibold">{money(cartVatTotal(cartItems), String(cartItems[0]?.currency || 'GBP'))}</p></div>
               <div><p className="text-xs text-textMuted">Total</p><p className="text-xl font-semibold">{money(cartTotal(cartItems), String(cartItems[0]?.currency || 'GBP'))}</p></div>
             </div>
-            <p className="mt-3 text-sm text-textMuted">Includes selected options, pricing breakdown, VAT, totals, turnaround and delivery estimate where available on the priced cart item.</p>
+            <div className="mt-3 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-3 text-sm text-indigo-100">Artwork files attached: {cartArtworkCount(cartItems)}. Draft order confirmation requires artwork on every cart item.</div>
+            <p className="mt-3 text-sm text-textMuted">Includes selected options, pricing breakdown, VAT, totals, turnaround, delivery estimate and artwork upload metadata where available on the priced cart item.</p>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -575,9 +645,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes }, null, 2)}</pre>
       </section>
     </main>
   );

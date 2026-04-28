@@ -1,0 +1,45 @@
+# v246 — Storefront Artwork Upload
+
+Scope
+- Continued from v245 ZIP only.
+- Extended the existing /storefront-test flow from checkout/customer details into artwork upload metadata capture.
+- No payment gateway added.
+- No pricing engine logic changed.
+- No UI redesign or duplicate storefront pages added.
+
+Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/storefront-artwork/route.ts
+- app/api/internal/catalog/checkout-draft/route.ts
+- BUILD_NOTES_V246.txt
+
+What changed
+1. Storefront cart review now includes an Artwork upload block per cart item.
+2. Upload captures file metadata: name, size, MIME type, last modified, upload status, notes, timestamp.
+3. New internal endpoint added:
+   - POST /api/internal/catalog/storefront-artwork
+4. Artwork metadata is saved back onto the existing storefront-test cart record in internal catalog storage.
+5. Checkout draft confirmation now validates that every cart item has artwork uploaded.
+6. Checkout draft payload now includes artworkUploads and artwork status per structured draft-order item.
+
+Test routes
+- /storefront-test
+- /api/internal/catalog/storefront-cart
+- /api/internal/catalog/storefront-artwork
+- /api/internal/catalog/checkout-draft
+- /api/internal/catalog/draft-orders
+
+Manual test flow
+1. Open /storefront-test.
+2. Select product/options and calculate customer price.
+3. Add priced item to test cart.
+4. In Cart Review, upload artwork for the cart item.
+5. Click Proceed to Checkout.
+6. Add customer name, email and phone.
+7. Click Confirm Draft Order.
+8. Draft order should save only when cart has pricing + customer details + artwork metadata.
+
+Deploy notes
+- Deploy as normal Next.js app through Coolify.
+- Run npm install/pnpm install in deployment as dependencies are not included in ZIP.
+- This stores artwork metadata only; real binary/object storage can be connected later without changing checkout flow shape.

@@ -69,6 +69,11 @@ function itemDeliveryEstimate(item: CartItem) {
   return item.deliveryEstimate || item.pricing?.deliveryEstimate || item.pricing?.estimatedDelivery || item.pricing?.deliveryDate || null;
 }
 
+function itemArtworkUploads(item: CartItem) {
+  const uploads = (item as any).artworkUploads || (item as any).artwork?.uploads || [];
+  return Array.isArray(uploads) ? uploads : [];
+}
+
 async function readCartItems(request: NextRequest): Promise<CartItem[]> {
   try {
     const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, CART_KEY);
@@ -121,6 +126,9 @@ export async function POST(request: NextRequest) {
     const missingPricing = cartItems.some((item) => !item.pricing && itemGross(item) <= 0);
     if (missingPricing) return responseError(new Error('Every cart item must have pricing before checkout.'), 400);
 
+    const missingArtwork = cartItems.some((item) => itemArtworkUploads(item).length === 0);
+    if (missingArtwork) return responseError(new Error('Every cart item must have artwork uploaded before checkout draft confirmation.'), 400);
+
     const currency = String(cartItems[0]?.currency || cartItems[0]?.pricing?.currency || 'GBP');
     const grossTotalMinor = cartItems.reduce((sum, item) => sum + itemGross(item), 0);
     const vatTotalMinor = cartItems.reduce((sum, item) => sum + itemVat(item), 0);
@@ -143,6 +151,12 @@ export async function POST(request: NextRequest) {
       grossTotalMinor: itemGross(item),
       turnaround: itemTurnaround(item),
       deliveryEstimate: itemDeliveryEstimate(item),
+      artworkUploads: itemArtworkUploads(item),
+      artwork: {
+        status: itemArtworkUploads(item).length > 0 ? 'artwork-received' : 'missing-artwork',
+        uploads: itemArtworkUploads(item),
+        notes: (item as any).artwork?.notes || '',
+      },
     }));
 
     const payload = {
@@ -160,6 +174,8 @@ export async function POST(request: NextRequest) {
       },
       turnaround: structuredItems.map((item) => item.turnaround).filter(Boolean),
       deliveryEstimate: structuredItems.map((item) => item.deliveryEstimate).filter(Boolean),
+      artworkUploads: structuredItems.flatMap((item) => item.artworkUploads || []),
+      artworkStatus: structuredItems.every((item) => (item.artworkUploads || []).length > 0) ? 'artwork-received' : 'missing-artwork',
       createdAt: now,
     };
 

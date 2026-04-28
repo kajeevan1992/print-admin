@@ -175,6 +175,8 @@ export default function StorefrontTestPage() {
   const [productionJobs, setProductionJobs] = useState<any[]>([]);
   const [productionStatus, setProductionStatus] = useState('');
   const [productionQueueSummary, setProductionQueueSummary] = useState<any>(null);
+  const [productionHandoffPackets, setProductionHandoffPackets] = useState<any[]>([]);
+  const [productionHandoffSummary, setProductionHandoffSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -232,10 +234,22 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadProductionHandoff() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-handoff', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionHandoffPackets(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionHandoffSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production handoff.');
+    }
+  }
+
   useEffect(() => {
     loadCart();
     loadPipelineOrders();
     loadProductionJobs();
+    loadProductionHandoff();
   }, []);
 
   useEffect(() => {
@@ -441,6 +455,7 @@ export default function StorefrontTestPage() {
     if (json.ok) {
       await loadPipelineOrders();
       await loadProductionJobs();
+      await loadProductionHandoff();
     }
   }
 
@@ -462,6 +477,7 @@ export default function StorefrontTestPage() {
     if (json.ok) {
       await loadPipelineOrders();
       await loadProductionJobs();
+      await loadProductionHandoff();
     }
   }
 
@@ -794,7 +810,10 @@ export default function StorefrontTestPage() {
             <h2 className="mt-1 text-xl font-semibold">Recent Production Jobs</h2>
             <p className="mt-1 text-sm text-textMuted">Pipeline orders with artwork and pricing can move into the prepress production queue. Payments are still not enabled.</p>
           </div>
-          <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadProductionJobs}>Refresh production</button>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-border px-3 py-2 text-sm text-textMuted" onClick={loadProductionJobs}>Refresh production</button>
+            <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadProductionHandoff}>Refresh handoff</button>
+          </div>
         </div>
         {productionQueueSummary && (
           <div className="mt-4 grid gap-3 sm:grid-cols-5">
@@ -803,6 +822,15 @@ export default function StorefrontTestPage() {
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Active</p><p className="text-xl font-semibold">{Number(productionQueueSummary.active || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Hold</p><p className="text-xl font-semibold">{Number(productionQueueSummary.hold || 0)}</p></div>
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Complete</p><p className="text-xl font-semibold">{Number(productionQueueSummary.complete || 0)}</p></div>
+          </div>
+        )}
+
+
+        {productionHandoffSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3"><p className="text-xs text-cyan-100/75">Handoff packets</p><p className="text-xl font-semibold">{Number(productionHandoffSummary.total || 0)}</p></div>
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3"><p className="text-xs text-emerald-100/75">Ready</p><p className="text-xl font-semibold">{Number(productionHandoffSummary.ready || 0)}</p></div>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3"><p className="text-xs text-amber-100/75">Blocked</p><p className="text-xl font-semibold">{Number(productionHandoffSummary.blocked || 0)}</p></div>
           </div>
         )}
         {productionStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{productionStatus}</p>}
@@ -817,6 +845,23 @@ export default function StorefrontTestPage() {
                     <p className="font-medium">{String(job.jobNumber || job.id)}</p>
                     <p className="mt-1 text-xs text-textMuted">Order: {String(job.orderNumber || job.orderId || '')}</p>
                     <p className="mt-2 text-sm text-textMuted">Customer: <span className="text-white">{String(job.customer?.name || 'Customer')}</span></p>
+                    <div className="mt-3 rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-xs text-cyan-50">
+                      {(() => {
+                        const packet = productionHandoffPackets.find((item) => String(item.id || '') === String(job.id || ''));
+                        if (!packet) return <p>Handoff packet not loaded yet.</p>;
+                        return (
+                          <div>
+                            <p className="font-medium">Handoff: {packet.handoffReady ? 'Ready' : 'Blocked'} · Artwork files: {Number(packet.artworkCount || 0)}</p>
+                            <p className="mt-1 text-cyan-100/80">Next: {String(packet.nextAction || 'Review job')}</p>
+                            <div className="mt-2 grid gap-1">
+                              {(Array.isArray(packet.checklist) ? packet.checklist : []).map((check: any) => (
+                                <p key={String(check.key)} className={check.ok ? 'text-emerald-100' : 'text-amber-100'}>{check.ok ? '✓' : '!'} {String(check.label || check.key)}</p>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
                   <div className="text-right text-sm text-textMuted">
                     <p className="text-white">{money(Number(job.totals?.grossTotalMinor || 0), String(job.totals?.currency || 'GBP'))}</p>
@@ -840,9 +885,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary }, null, 2)}</pre>
       </section>
     </main>
   );

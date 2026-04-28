@@ -1,0 +1,25 @@
+BUILD V250 — Production handoff packets
+
+Scope:
+- Continued from v249 ZIP only.
+- Added internal production handoff endpoint for storefront-test production jobs.
+- Added handoff readiness checklist in the existing storefront-test production section.
+- No payment gateway added.
+- No pricing engine logic changed.
+- No UI redesign or duplicate pages.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-handoff/route.ts
+- BUILD_NOTES_V250.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-handoff
+- GET/PATCH /api/internal/catalog/production-queue
+- POST /api/internal/catalog/production-flow
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- Uses existing internal catalog storage/admin-config records.
+- Requires existing product/cart/checkout/order-pipeline data to see handoff packets.

@@ -199,6 +199,8 @@ export default function StorefrontTestPage() {
   const [notificationTemplateSummary, setNotificationTemplateSummary] = useState<any>(null);
   const [notificationAuditItems, setNotificationAuditItems] = useState<any[]>([]);
   const [notificationAuditSummary, setNotificationAuditSummary] = useState<any>(null);
+  const [notificationPreferences, setNotificationPreferences] = useState<any[]>([]);
+  const [notificationPreferenceSummary, setNotificationPreferenceSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -381,6 +383,35 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadNotificationPreferences() {
+    try {
+      const response = await fetch('/api/internal/catalog/notification-preferences', { cache: 'no-store' });
+      const json = await response.json();
+      setNotificationPreferences(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setNotificationPreferenceSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load notification preferences.');
+    }
+  }
+
+  async function updateNotificationPreference(preference: any, action: string) {
+    const id = String(preference?.id || '');
+    if (!id) { setProductionStatus('Select a notification preference before updating.'); return; }
+    setProductionStatus('Updating notification preference...');
+    const response = await fetch('/api/internal/catalog/notification-preferences', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, action }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Notification preference updated.' : (json.error || 'Notification preference update failed.'));
+    if (json.ok) { await loadNotificationPreferences(); await loadCustomerNotifications(); }
+  }
+
+  async function seedNotificationPreferences() {
+    setProductionStatus('Seeding notification preferences...');
+    const response = await fetch('/api/internal/catalog/notification-preferences', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action: 'seed-defaults' }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Notification preferences seeded.' : (json.error || 'Notification preferences seed failed.'));
+    if (json.ok) await loadNotificationPreferences();
+  }
+
   async function updateNotificationAudit(notification: any, action: string) {
     const notificationId = String(notification?.id || '');
     if (!notificationId) { setProductionStatus('Select a notification before updating audit.'); return; }
@@ -455,6 +486,7 @@ export default function StorefrontTestPage() {
     loadCustomerNotifications();
     loadNotificationTemplates();
     loadNotificationAudit();
+    loadNotificationPreferences();
   }, []);
 
   useEffect(() => {
@@ -1126,6 +1158,8 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-pink-500/40 bg-pink-500/10 px-3 py-2 text-sm font-medium text-pink-100" onClick={loadCustomerNotifications}>Refresh notifications</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={loadNotificationTemplates}>Refresh templates</button>
             <button className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-sm font-medium text-indigo-100" onClick={loadNotificationAudit}>Refresh audit</button>
+            <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={loadNotificationPreferences}>Refresh preferences</button>
+            <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
         </div>
@@ -1184,6 +1218,39 @@ export default function StorefrontTestPage() {
         )}
 
 
+
+        {notificationPreferenceSummary && (
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 p-3"><p className="text-xs text-cyan-100/75">Preferences</p><p className="text-xl font-semibold">{Number(notificationPreferenceSummary.totalPreferences || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Email enabled</p><p className="text-xl font-semibold">{Number(notificationPreferenceSummary.emailEnabled || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">SMS enabled</p><p className="text-xl font-semibold">{Number(notificationPreferenceSummary.smsEnabled || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Muted</p><p className="text-xl font-semibold">{Number(notificationPreferenceSummary.muted || 0)}</p></div>
+          </div>
+        )}
+
+        {notificationPreferences.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+            <p className="text-sm font-medium text-cyan-100">Customer notification preferences</p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {notificationPreferences.slice(0, 4).map((preference) => (
+                <div key={String(preference.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{String(preference.customerName || preference.orderNumber || preference.id)}</p>
+                      <p className="mt-1 text-xs text-textMuted">Email {preference.emailEnabled ? 'on' : 'off'} · SMS {preference.smsEnabled ? 'on' : 'off'} · {preference.muted ? 'muted' : 'active'}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-100" onClick={() => updateNotificationPreference(preference, 'toggle-email')}>Email</button>
+                      <button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-100" onClick={() => updateNotificationPreference(preference, 'toggle-sms')}>SMS</button>
+                      <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-100" onClick={() => updateNotificationPreference(preference, 'toggle-muted')}>Mute</button>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-textMuted">Allowed: {Array.isArray(preference.allowedEvents) ? preference.allowedEvents.join(', ') : 'all order status updates'}.</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {customerNotificationItems.length > 0 && (
           <div className="mt-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4">
             <p className="text-sm font-medium text-indigo-100">Notification send audit</p>
@@ -1465,9 +1532,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary }, null, 2)}</pre>
       </section>
     </main>
   );

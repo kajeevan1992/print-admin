@@ -1,0 +1,34 @@
+Build v262 — Notification Preferences + Delivery Rules
+
+Scope:
+- Continue from v261 notification audit/retry.
+- Add internal notification preferences and channel delivery rules.
+- Keep all work inside existing storefront-test flow and internal catalog APIs.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/notification-preferences/route.ts
+- BUILD_NOTES_V262.txt
+
+Added:
+- New internal route: /api/internal/catalog/notification-preferences
+- Seed preferences from existing customer order status records.
+- Toggle email, SMS, and muted state per customer/order preference.
+- Preference summary in storefront-test.
+- Queued notification blocking when a preference disables a channel or mutes the customer/order.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/notification-preferences
+- POST /api/internal/catalog/notification-preferences { "action": "seed-defaults" }
+- POST /api/internal/catalog/notification-preferences { "id": "...", "action": "toggle-email" }
+- POST /api/internal/catalog/notification-preferences { "id": "...", "action": "toggle-sms" }
+- POST /api/internal/catalog/notification-preferences { "id": "...", "action": "toggle-muted" }
+
+Deploy notes:
+- No pricing engine changes.
+- No payment gateway added.
+- No /api/proxy usage.
+- No duplicated pages.
+- Uses existing internal catalog config storage pattern.
+- Build not run locally because node_modules are not included in the uploaded ZIP.

@@ -1,0 +1,42 @@
+# v268 — Customer Task Ownership + Assignment
+
+Base: v267 customer task SLA/escalation ZIP.
+
+## Added
+- Customer task ownership and assignment layer.
+- New internal route: `/api/internal/catalog/customer-task-assignments`.
+- Default internal assignee pool:
+  - Support Lead
+  - Artwork Desk
+  - Production Coordinator
+  - Dispatch Desk
+- Assignment actions:
+  - Assign Next
+  - Assign Support
+  - Unassign
+- Assignment workload summary:
+  - assigned tasks
+  - unassigned tasks
+  - active assigned tasks
+  - overloaded assignees
+- Assignment actions write internal communication notes.
+
+## Changed files
+- `app/storefront-test/page.tsx`
+- `app/api/internal/catalog/customer-task-assignments/route.ts`
+- `BUILD_NOTES_V268.txt`
+
+## Test routes
+- `/storefront-test`
+- `GET /api/internal/catalog/customer-task-assignments`
+- `POST /api/internal/catalog/customer-task-assignments`
+
+## Deploy notes
+- Internal API only.
+- No payment gateway added.
+- No pricing engine changes.
+- No layout redesign or duplicate pages.
+- Uses existing admin-config internal catalog persistence pattern.
+
+## Build note
+- Build was not run in this packaging environment because the ZIP does not include `node_modules`.

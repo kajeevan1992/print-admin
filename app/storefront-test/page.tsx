@@ -211,6 +211,9 @@ export default function StorefrontTestPage() {
   const [customerTaskSummary, setCustomerTaskSummary] = useState<any>(null);
   const [customerTaskSlaItems, setCustomerTaskSlaItems] = useState<any[]>([]);
   const [customerTaskSlaSummary, setCustomerTaskSlaSummary] = useState<any>(null);
+  const [customerTaskAssignmentItems, setCustomerTaskAssignmentItems] = useState<any[]>([]);
+  const [customerTaskAssignmentSummary, setCustomerTaskAssignmentSummary] = useState<any>(null);
+  const [customerTaskAssignees, setCustomerTaskAssignees] = useState<any[]>([]);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -529,6 +532,33 @@ export default function StorefrontTestPage() {
     if (json.ok) { await loadCustomerTaskSla(); await loadCustomerTasks(); await loadCustomerCommunications(); }
   }
 
+
+  async function loadCustomerTaskAssignments() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-task-assignments', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerTaskAssignmentItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerTaskAssignmentSummary(json?.data?.summary || null);
+      setCustomerTaskAssignees(Array.isArray(json?.data?.assignees) ? json.data.assignees : []);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer task assignments.');
+    }
+  }
+
+  async function updateCustomerTaskAssignment(task: any, action: string, assigneeId?: string) {
+    const taskId = String(task?.id || '');
+    if (!taskId) { setProductionStatus('Select a task before updating assignment.'); return; }
+    setProductionStatus('Updating customer task assignment...');
+    const response = await fetch('/api/internal/catalog/customer-task-assignments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ taskId, action, assigneeId }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Task assignment updated: ${json.item?.assigneeName || json.item?.assignmentState || action}` : (json.error || 'Task assignment update failed.'));
+    if (json.ok) { await loadCustomerTaskAssignments(); await loadCustomerTasks(); await loadCustomerTaskSla(); await loadCustomerCommunications(); }
+  }
+
   async function updateCustomerTask(orderOrTask: any, action: string) {
     const orderId = String(orderOrTask?.orderId || orderOrTask?.id || '');
     if (!orderId) { setProductionStatus('Select an order before updating customer task.'); return; }
@@ -652,6 +682,7 @@ export default function StorefrontTestPage() {
     loadCustomerCredits();
     loadCustomerTasks();
     loadCustomerTaskSla();
+    loadCustomerTaskAssignments();
   }, []);
 
   useEffect(() => {
@@ -1329,6 +1360,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm font-medium text-yellow-100" onClick={loadCustomerCredits}>Refresh credits</button>
             <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={loadCustomerTasks}>Refresh tasks</button>
             <button className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-100" onClick={loadCustomerTaskSla}>Refresh SLA</button>
+            <button className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100" onClick={loadCustomerTaskAssignments}>Refresh assignments</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
@@ -1496,6 +1528,15 @@ export default function StorefrontTestPage() {
           </div>
         )}
 
+        {customerTaskAssignmentSummary && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-3"><p className="text-xs text-blue-100/75">Assigned tasks</p><p className="text-xl font-semibold">{Number(customerTaskAssignmentSummary.assigned || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Unassigned</p><p className="text-xl font-semibold">{Number(customerTaskAssignmentSummary.unassigned || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Active assigned</p><p className="text-xl font-semibold">{Number(customerTaskAssignmentSummary.activeAssigned || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Overloaded</p><p className="text-xl font-semibold">{Number(customerTaskAssignmentSummary.overloadedAssignees || 0)}</p></div>
+          </div>
+        )}
+
         {customerTaskItems.length > 0 && (
           <div className="mt-5 rounded-2xl border border-orange-500/25 bg-orange-500/10 p-4">
             <p className="text-sm font-medium text-orange-100">Customer service task list</p>
@@ -1506,10 +1547,14 @@ export default function StorefrontTestPage() {
                     <div>
                       <p className="font-medium text-white">{String(task.title || task.orderNumber || task.orderId)}</p>
                       <p>{String(task.customerName || 'Customer')} · {String(task.status)} · {String(task.priority)}</p>
+                      <p>Owner: {String(task.assigneeName || customerTaskAssignmentItems.find((item) => String(item.id) === String(task.id))?.assigneeName || 'Unassigned')}</p>
                       <p>Due: {String(task.dueAt || '')}</p>
                       <p className="mt-1">{String(task.note || '')}</p>
                     </div>
                     <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-100" onClick={() => updateCustomerTaskAssignment(task, 'assign-next')}>Assign Next</button>
+                      <button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-100" onClick={() => updateCustomerTaskAssignment(task, 'assign', customerTaskAssignees[0]?.id || 'support-lead')}>Assign Support</button>
+                      <button className="rounded-lg border border-slate-500/40 bg-slate-500/10 px-2 py-1 text-xs font-medium text-slate-100" onClick={() => updateCustomerTaskAssignment(task, 'unassign')}>Unassign</button>
                       <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100" onClick={() => updateCustomerTask(task, 'start')}>Start</button>
                       <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateCustomerTask(task, 'urgent')}>Urgent</button>
                       <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-100" onClick={() => updateCustomerTask(task, 'block')}>Block</button>
@@ -1870,9 +1915,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees }, null, 2)}</pre>
       </section>
     </main>
   );

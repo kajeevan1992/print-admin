@@ -1,0 +1,29 @@
+Build v266 — Customer Service Tasks / Follow-up Queue
+
+Base:
+- Built from v265 customer credit/refund tracking ZIP.
+
+Added:
+- Internal customer service task/follow-up queue.
+- New internal API route: /api/internal/catalog/customer-tasks
+- Task actions: create, start, urgent, block, complete, reopen.
+- Task SLA summary: total, open, in-progress, urgent, overdue.
+- Storefront-test controls for adding tasks from pipeline orders.
+- Task updates write internal communication log entries for audit visibility.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/customer-tasks/route.ts
+- BUILD_NOTES_V266.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/customer-tasks
+- POST /api/internal/catalog/customer-tasks
+
+Deploy notes:
+- No pricing engine changes.
+- No payment gateway/refund money movement added.
+- No /api/proxy usage.
+- Internal API only, following unified-core rules.
+- Build not run here because the ZIP does not include node_modules.

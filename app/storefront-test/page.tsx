@@ -207,6 +207,8 @@ export default function StorefrontTestPage() {
   const [customerIssueSummary, setCustomerIssueSummary] = useState<any>(null);
   const [customerCreditItems, setCustomerCreditItems] = useState<any[]>([]);
   const [customerCreditSummary, setCustomerCreditSummary] = useState<any>(null);
+  const [customerTaskItems, setCustomerTaskItems] = useState<any[]>([]);
+  const [customerTaskSummary, setCustomerTaskSummary] = useState<any>(null);
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -489,6 +491,42 @@ export default function StorefrontTestPage() {
     if (json.ok) { await loadCustomerCredits(); await loadCustomerCommunications(); await loadCustomerIssues(); }
   }
 
+  async function loadCustomerTasks() {
+    try {
+      const response = await fetch('/api/internal/catalog/customer-tasks', { cache: 'no-store' });
+      const json = await response.json();
+      setCustomerTaskItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setCustomerTaskSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load customer service tasks.');
+    }
+  }
+
+  async function updateCustomerTask(orderOrTask: any, action: string) {
+    const orderId = String(orderOrTask?.orderId || orderOrTask?.id || '');
+    if (!orderId) { setProductionStatus('Select an order before updating customer task.'); return; }
+    setProductionStatus('Updating customer service task...');
+    const response = await fetch('/api/internal/catalog/customer-tasks', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        orderId,
+        taskId: orderOrTask?.taskId || orderOrTask?.id,
+        action,
+        orderNumber: orderOrTask?.orderNumber,
+        customerName: orderOrTask?.customer?.name || orderOrTask?.customerName,
+        customerEmail: orderOrTask?.customer?.email || orderOrTask?.customerEmail,
+        title: action === 'create-task' ? `Follow up ${orderOrTask?.orderNumber || orderId}` : orderOrTask?.title,
+        sourceRef: orderOrTask?.sourceRef || 'manual-customer-follow-up',
+        dueInHours: action === 'urgent' ? 4 : 24,
+        note: action === 'create-task' ? 'Internal customer service follow-up task created from storefront-test workflow.' : orderOrTask?.note,
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Customer task updated: ${json.item?.status || action}` : (json.error || 'Customer task update failed.'));
+    if (json.ok) { await loadCustomerTasks(); await loadCustomerCommunications(); }
+  }
+
   async function updateNotificationPreference(preference: any, action: string) {
     const id = String(preference?.id || '');
     if (!id) { setProductionStatus('Select a notification preference before updating.'); return; }
@@ -585,6 +623,7 @@ export default function StorefrontTestPage() {
     loadCustomerCommunications();
     loadCustomerIssues();
     loadCustomerCredits();
+    loadCustomerTasks();
   }, []);
 
   useEffect(() => {
@@ -1260,6 +1299,7 @@ export default function StorefrontTestPage() {
             <button className="rounded-xl border border-teal-500/40 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-100" onClick={loadCustomerCommunications}>Refresh comms</button>
             <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={loadCustomerIssues}>Refresh issues</button>
             <button className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm font-medium text-yellow-100" onClick={loadCustomerCredits}>Refresh credits</button>
+            <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={loadCustomerTasks}>Refresh tasks</button>
             <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedNotificationPreferences}>Seed preferences</button>
             <button className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-100" onClick={seedNotificationTemplates}>Seed templates</button>
           </div>
@@ -1317,6 +1357,16 @@ export default function StorefrontTestPage() {
           </div>
         )}
 
+
+        {customerTaskSummary && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-5">
+            <div className="rounded-xl border border-orange-500/20 bg-orange-500/10 p-3"><p className="text-xs text-orange-100/75">Service tasks</p><p className="text-xl font-semibold">{Number(customerTaskSummary.totalTasks || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Open</p><p className="text-xl font-semibold">{Number(customerTaskSummary.open || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Progress</p><p className="text-xl font-semibold">{Number(customerTaskSummary.inProgress || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Urgent</p><p className="text-xl font-semibold">{Number(customerTaskSummary.urgent || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Overdue</p><p className="text-xl font-semibold">{Number(customerTaskSummary.overdue || 0)}</p></div>
+          </div>
+        )}
 
         {customerCreditSummary && (
           <div className="mt-3 grid gap-3 sm:grid-cols-5">
@@ -1381,6 +1431,32 @@ export default function StorefrontTestPage() {
             </div>
           </div>
         )}
+        {customerTaskItems.length > 0 && (
+          <div className="mt-5 rounded-2xl border border-orange-500/25 bg-orange-500/10 p-4">
+            <p className="text-sm font-medium text-orange-100">Customer service task list</p>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {customerTaskItems.slice(0, 6).map((task) => (
+                <div key={String(task.id)} className="rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-textMuted">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-white">{String(task.title || task.orderNumber || task.orderId)}</p>
+                      <p>{String(task.customerName || 'Customer')} · {String(task.status)} · {String(task.priority)}</p>
+                      <p>Due: {String(task.dueAt || '')}</p>
+                      <p className="mt-1">{String(task.note || '')}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2 py-1 text-xs font-medium text-sky-100" onClick={() => updateCustomerTask(task, 'start')}>Start</button>
+                      <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateCustomerTask(task, 'urgent')}>Urgent</button>
+                      <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-xs font-medium text-rose-100" onClick={() => updateCustomerTask(task, 'block')}>Block</button>
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateCustomerTask(task, 'complete')}>Complete</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {customerCreditItems.length > 0 && (
           <div className="mt-5 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4">
             <p className="text-sm font-medium text-yellow-100">Credit / refund request tracker</p>
@@ -1506,6 +1582,7 @@ export default function StorefrontTestPage() {
                       <button className="rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-xs font-medium text-teal-100" onClick={() => logCustomerCommunication(order)}>Log Comms Note</button>
                       <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateCustomerIssue(order, 'open-issue')}>Open Issue</button>
                       <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-100" onClick={() => updateCustomerCredit(order, 'request-credit')}>Credit Review</button>
+                      <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-100" onClick={() => updateCustomerTask(order, 'create-task')}>Add Task</button>
                     </div>
                   </div>
                 </div>
@@ -1728,9 +1805,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary }, null, 2)}</pre>
       </section>
     </main>
   );

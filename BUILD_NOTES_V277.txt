@@ -1,0 +1,31 @@
+BUILD v277 — Payment Refunds + Reversal Tracking
+
+Scope:
+- Continue from v276 payment reconciliation.
+- Add internal refund/reversal tracking linked to captured payment intents and invoice ledger records.
+- No live payment gateway money movement.
+- No pricing engine changes.
+- No UI redesign.
+
+Added:
+- Internal route: /api/internal/catalog/payment-refunds
+- Refund/reversal records seeded from captured payment intents.
+- Request / Approve / Mark Refunded / Reverse / Close controls.
+- Ledger negative payment entries for marked refunds/reversals.
+- Invoice status update to refunded or partially-refunded when refund/reversal is marked.
+- Internal communication note for each refund action.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/payment-refunds/route.ts
+- BUILD_NOTES_V277.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/payment-refunds
+- POST /api/internal/catalog/payment-refunds
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- Run npm install/build in deployment environment.
+- This build is internal-only and does not call Stripe/live gateway APIs.

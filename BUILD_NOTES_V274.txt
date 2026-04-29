@@ -1,0 +1,24 @@
+Build v274 — Finance Reports + Export Preview
+
+Added:
+- Internal finance reports endpoint at /api/internal/catalog/finance-reports
+- Invoice line-item report rows derived from the existing finance ledger
+- Aged receivables summary buckets: current, 1-14 days, 15-30 days, 30+ days
+- CSV export preview and export snapshot action
+- Storefront-test finance section now shows reporting/export status alongside invoices and VAT
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/finance-reports/route.ts
+- BUILD_NOTES_V274.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/finance-reports
+- POST /api/internal/catalog/finance-reports with { "action": "snapshot-export" }
+
+Deploy notes:
+- No payment gateway added.
+- No money movement added.
+- No pricing engine logic changed.
+- Uses existing internal catalog storage and tenant context.

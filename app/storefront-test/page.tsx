@@ -227,6 +227,13 @@ export default function StorefrontTestPage() {
   const [financePayments, setFinancePayments] = useState<any[]>([]);
   const [financeVatSummary, setFinanceVatSummary] = useState<any>(null);
   const [financeSummary, setFinanceSummary] = useState<any>(null);
+  const [financeReportSummary, setFinanceReportSummary] = useState<any>(null);
+  const [financeReportRows, setFinanceReportRows] = useState<any[]>([]);
+  const [financeReportExports, setFinanceReportExports] = useState<any[]>([]);
+  const [financeCsvPreview, setFinanceCsvPreview] = useState('');
+  const [paymentIntents, setPaymentIntents] = useState<any[]>([]);
+  const [paymentEvents, setPaymentEvents] = useState<any[]>([]);
+  const [paymentSummary, setPaymentSummary] = useState<any>(null);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -635,6 +642,58 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadFinanceReports() {
+    try {
+      const response = await fetch('/api/internal/catalog/finance-reports', { cache: 'no-store' });
+      const json = await response.json();
+      setFinanceReportSummary(json?.data?.summary || null);
+      setFinanceReportRows(Array.isArray(json?.data?.rows) ? json.data.rows : []);
+      setFinanceReportExports(Array.isArray(json?.data?.exports) ? json.data.exports : []);
+      setFinanceCsvPreview(String(json?.data?.csvPreview || ''));
+    } catch (err) {
+      setFinanceStatus(err instanceof Error ? err.message : 'Could not load finance reports.');
+    }
+  }
+
+
+  async function loadPaymentIntents() {
+    try {
+      const response = await fetch('/api/internal/catalog/payment-intents', { cache: 'no-store' });
+      const json = await response.json();
+      setPaymentIntents(Array.isArray(json?.data?.intents) ? json.data.intents : []);
+      setPaymentEvents(Array.isArray(json?.data?.events) ? json.data.events : []);
+      setPaymentSummary(json?.data?.summary || null);
+    } catch (err) {
+      setFinanceStatus(err instanceof Error ? err.message : 'Could not load payment intents.');
+    }
+  }
+
+  async function updatePaymentIntent(source: any, action: string) {
+    const invoiceId = String(source?.invoiceId || source?.id || '');
+    const intentId = String(source?.intentId || source?.id || '');
+    setFinanceStatus('Updating payment status...');
+    const response = await fetch('/api/internal/catalog/payment-intents', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, invoiceId, intentId }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Payment updated: ${json.item?.invoiceNumber || json.item?.status || action}` : (json.error || 'Payment update failed.'));
+    if (json.ok) { await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+  }
+
+  async function updateFinanceReports(action: string) {
+    setFinanceStatus('Updating finance report/export...');
+    const response = await fetch('/api/internal/catalog/finance-reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Finance report updated: ${json.item?.exportNumber || json.item?.type || action}` : (json.error || 'Finance report update failed.'));
+    if (json.ok) { await loadFinanceReports(); await loadCustomerCommunications(); }
+  }
+
   async function updateFinanceLedger(source: any, action: string) {
     const orderId = String(source?.orderId || source?.id || '');
     setFinanceStatus('Updating finance ledger...');
@@ -656,7 +715,7 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setFinanceStatus(json.ok ? `Finance updated: ${json.item?.invoiceNumber || json.item?.status || action}` : (json.error || 'Finance update failed.'));
-    if (json.ok) { await loadFinanceLedger(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
   }
 
   async function updateCustomerTaskAssignment(task: any, action: string, assigneeId?: string) {
@@ -801,6 +860,8 @@ export default function StorefrontTestPage() {
     loadCustomerWorkloadPerformance();
     loadCustomerWorkloadReports();
     loadFinanceLedger();
+    loadFinanceReports();
+    loadPaymentIntents();
   }, []);
 
   useEffect(() => {
@@ -2127,9 +2188,11 @@ export default function StorefrontTestPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updateFinanceLedger(pipelineOrders[0] || confirmedDraft || {}, 'create-invoice')}>Create Invoice</button>
+            <button className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-100" onClick={() => updatePaymentIntent(financeInvoices[0] || {}, 'create-payment-link')}>Create Payment Request</button>
             <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updateFinanceLedger(financeInvoices[0] || {}, 'mark-paid')}>Mark Paid</button>
             <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updateFinanceLedger(financeInvoices[0] || {}, 'mark-overdue')}>Mark Overdue</button>
             <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100" onClick={() => updateFinanceLedger({}, 'snapshot-vat')}>VAT Snapshot</button>
+            <button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-100" onClick={() => updateFinanceReports('snapshot-export')}>Export Snapshot</button>
           </div>
         </div>
         {financeStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{financeStatus}</p>}
@@ -2138,6 +2201,8 @@ export default function StorefrontTestPage() {
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Outstanding</p><p className="mt-1 text-2xl font-semibold">{money(Number(financeSummary?.outstandingMinor || 0), String(financeSummary?.currency || 'GBP'))}</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Paid tracked</p><p className="mt-1 text-2xl font-semibold">{money(Number(financeSummary?.paidMinor || 0), String(financeSummary?.currency || 'GBP'))}</p></div>
           <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">VAT liability</p><p className="mt-1 text-2xl font-semibold">{money(Number(financeVatSummary?.vatDueMinor || 0), String(financeVatSummary?.currency || 'GBP'))}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Awaiting payment</p><p className="mt-1 text-2xl font-semibold">{money(Number(paymentSummary?.awaitingPaymentMinor || 0), String(paymentSummary?.currency || 'GBP'))}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Captured tracked</p><p className="mt-1 text-2xl font-semibold">{money(Number(paymentSummary?.capturedMinor || 0), String(paymentSummary?.currency || 'GBP'))}</p></div>
         </div>
         {financeInvoices.length === 0 ? (
           <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No invoices yet. Create one from the latest pipeline order/draft.</p>
@@ -2158,6 +2223,7 @@ export default function StorefrontTestPage() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updateFinanceLedger(invoice, 'mark-paid')}>Mark Paid</button>
+                  <button className="rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-3 py-1.5 text-xs font-medium text-indigo-100" onClick={() => updatePaymentIntent(invoice, 'create-payment-link')}>Payment Request</button>
                   <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updateFinanceLedger(invoice, 'mark-overdue')}>Overdue</button>
                   <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateFinanceLedger(invoice, 'void-invoice')}>Void</button>
                 </div>
@@ -2165,6 +2231,36 @@ export default function StorefrontTestPage() {
             ))}
           </div>
         )}
+
+        {paymentIntents.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-indigo-50">Payment requests / Stripe-ready tracking</p>
+                <p className="mt-1 text-xs text-indigo-100/70">Creates payment-request records and tracks authorization/capture status. No live gateway call or money movement in this build.</p>
+              </div>
+              <div className="text-right text-xs text-indigo-100/80"><p>{Number(paymentSummary?.intentCount || 0)} intents</p><p>{Number(paymentSummary?.eventCount || 0)} events</p></div>
+            </div>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {paymentIntents.slice(0, 6).map((intent) => (
+                <div key={String(intent.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-indigo-100/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="font-medium text-indigo-50">{String(intent.invoiceNumber || intent.id)}</p><p className="mt-1">{String(intent.customerEmail || 'Customer')} · {String(intent.providerMode || intent.provider || 'manual')}</p></div>
+                    <div className="text-right"><p className="font-semibold text-indigo-50">{money(Number(intent.amountMinor || 0), String(intent.currency || 'GBP'))}</p><p className="mt-1">{String(intent.status || 'pending')}</p></div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100" onClick={() => updatePaymentIntent(intent, 'mark-authorized')}>Authorize</button>
+                    <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updatePaymentIntent(intent, 'mark-captured')}>Capture / Mark Paid</button>
+                    <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updatePaymentIntent(intent, 'mark-failed')}>Fail</button>
+                    <button className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => updatePaymentIntent(intent, 'cancel-intent')}>Cancel</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {paymentEvents.length > 0 && <p className="mt-3 text-xs text-indigo-100/70">Latest event: {String(paymentEvents[0]?.action || '')} · {String(paymentEvents[0]?.invoiceNumber || '')}</p>}
+          </div>
+        )}
+
         {financePayments.length > 0 && (
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
             <p className="text-sm font-medium text-sky-50">Payment tracking log</p>
@@ -2175,14 +2271,31 @@ export default function StorefrontTestPage() {
             </div>
           </div>
         )}
+        <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-cyan-50">Finance report / export preview</p>
+              <p className="mt-1 text-xs text-cyan-100/70">Line-item invoice rows, aged receivables and VAT export preview. Internal tracking only.</p>
+            </div>
+            <div className="text-right text-xs text-cyan-100/80"><p>{Number(financeReportSummary?.rowCount || 0)} rows</p><p>{Number(financeReportSummary?.exportCount || 0)} exports</p></div>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Current</p><p className="mt-1 font-semibold text-cyan-50">{money(Number(financeReportSummary?.currentMinor || 0), String(financeReportSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">1–14 days</p><p className="mt-1 font-semibold text-cyan-50">{money(Number(financeReportSummary?.aged1To14Minor || 0), String(financeReportSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">15–30 days</p><p className="mt-1 font-semibold text-cyan-50">{money(Number(financeReportSummary?.aged15To30Minor || 0), String(financeReportSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">30+ days</p><p className="mt-1 font-semibold text-cyan-50">{money(Number(financeReportSummary?.aged30PlusMinor || 0), String(financeReportSummary?.currency || 'GBP'))}</p></div>
+          </div>
+          {financeReportRows.length > 0 && (<div className="mt-3 overflow-auto rounded-xl border border-white/10"><table className="min-w-full text-left text-xs text-cyan-100/80"><thead className="bg-white/5 text-cyan-50"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Net</th><th className="px-3 py-2">VAT</th><th className="px-3 py-2">Gross</th></tr></thead><tbody>{financeReportRows.slice(0, 6).map((row) => (<tr key={String(row.id)} className="border-t border-white/10"><td className="px-3 py-2">{String(row.invoiceNumber || row.id)}</td><td className="px-3 py-2">{String(row.customerName || 'Customer')}</td><td className="px-3 py-2">{String(row.status || '')}</td><td className="px-3 py-2">{money(Number(row.netTotalMinor || 0), String(row.currency || 'GBP'))}</td><td className="px-3 py-2">{money(Number(row.vatTotalMinor || 0), String(row.currency || 'GBP'))}</td><td className="px-3 py-2">{money(Number(row.grossTotalMinor || 0), String(row.currency || 'GBP'))}</td></tr>))}</tbody></table></div>)}
+          {financeCsvPreview && <pre className="mt-3 max-h-36 overflow-auto rounded-xl bg-black/20 p-3 text-xs text-cyan-100/70">{financeCsvPreview}</pre>}
+        </div>
       </section>
 
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary }, null, 2)}</pre>
       </section>
     </main>
   );

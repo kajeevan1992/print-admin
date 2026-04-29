@@ -1,0 +1,40 @@
+# v275 — Payment Requests + Stripe-Ready Status Tracking
+
+Scope:
+- Adds first payment layer on top of v274 finance reports.
+- Internal-only payment intent/request tracking.
+- No live Stripe call, no gateway dependency, no money movement.
+- Captured payment status updates the internal finance ledger invoice to paid and records a tracked payment event.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/payment-intents/route.ts
+- BUILD_NOTES_V275.txt
+
+New internal endpoint:
+- GET /api/internal/catalog/payment-intents
+- POST /api/internal/catalog/payment-intents
+
+Supported POST actions:
+- create-payment-link
+- mark-authorized
+- mark-captured
+- mark-failed
+- cancel-intent
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/payment-intents
+- POST /api/internal/catalog/payment-intents
+
+Deploy notes:
+- Deploy as normal through Coolify.
+- No new environment variables required in this build.
+- No Stripe secret required yet; providerMode is stored as not-connected.
+- Next build can safely replace providerMode with real Stripe checkout/session creation once env vars are added.
+
+Safety notes:
+- Did not touch pricing engine logic.
+- Did not add /api/proxy usage.
+- Did not add payment gateway money movement.
+- Did not redesign layout; only extended existing storefront-test finance area.

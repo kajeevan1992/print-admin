@@ -243,6 +243,9 @@ export default function StorefrontTestPage() {
   const [paymentSettlementItems, setPaymentSettlementItems] = useState<any[]>([]);
   const [paymentSettlementActions, setPaymentSettlementActions] = useState<any[]>([]);
   const [paymentSettlementSummary, setPaymentSettlementSummary] = useState<any>(null);
+  const [paymentDisputeItems, setPaymentDisputeItems] = useState<any[]>([]);
+  const [paymentDisputeActions, setPaymentDisputeActions] = useState<any[]>([]);
+  const [paymentDisputeSummary, setPaymentDisputeSummary] = useState<any>(null);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -714,6 +717,31 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadPaymentDisputes() {
+    try {
+      const response = await fetch('/api/internal/catalog/payment-disputes', { cache: 'no-store' });
+      const json = await response.json();
+      setPaymentDisputeItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setPaymentDisputeActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setPaymentDisputeSummary(json?.data?.summary || null);
+    } catch (err) {
+      setFinanceStatus(err instanceof Error ? err.message : 'Could not load payment disputes.');
+    }
+  }
+
+  async function updatePaymentDispute(item: any, action: string) {
+    const disputeId = String(item?.id || '');
+    setFinanceStatus('Updating dispute/chargeback tracking...');
+    const response = await fetch('/api/internal/catalog/payment-disputes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, disputeId, intentId: item?.intentId, invoiceId: item?.invoiceId }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Dispute updated: ${json.item?.disputeReference || json.item?.status || action}` : (json.error || 'Payment dispute update failed.'));
+    if (json.ok) { await loadPaymentDisputes(); await loadPaymentSettlements(); await loadPaymentRefunds(); await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+  }
+
   async function updatePaymentSettlement(item: any, action: string) {
     const settlementId = String(item?.id || '');
     setFinanceStatus('Updating settlement/payout tracking...');
@@ -951,6 +979,7 @@ export default function StorefrontTestPage() {
     loadPaymentReconciliation();
     loadPaymentRefunds();
     loadPaymentSettlements();
+    loadPaymentDisputes();
   }, []);
 
   useEffect(() => {
@@ -2468,6 +2497,46 @@ export default function StorefrontTestPage() {
             </div>
           )}
           {paymentSettlementActions.length > 0 && <p className="mt-3 text-xs text-violet-100/70">Latest settlement action: {String(paymentSettlementActions[0]?.action || '')} · {String(paymentSettlementActions[0]?.payoutReference || '')}</p>}
+
+        <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-red-50">Dispute / chargeback tracking</p>
+              <p className="mt-1 text-xs text-red-100/70">Tracks chargeback exposure, evidence deadlines and dispute outcomes against captured payments. Internal only — no live gateway dispute action.</p>
+            </div>
+            <button className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => loadPaymentDisputes()}>Refresh disputes</button>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Active exposure</p><p className="mt-1 font-semibold text-red-50">{money(Number(paymentDisputeSummary?.activeExposureMinor || 0), String(paymentDisputeSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Active disputes</p><p className="mt-1 font-semibold text-red-50">{Number(paymentDisputeSummary?.activeCount || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Evidence needed</p><p className="mt-1 font-semibold text-red-50">{Number(paymentDisputeSummary?.evidenceNeededCount || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Lost exposure</p><p className="mt-1 font-semibold text-red-50">{money(Number(paymentDisputeSummary?.lostExposureMinor || 0), String(paymentDisputeSummary?.currency || 'GBP'))}</p></div>
+          </div>
+          {paymentDisputeItems.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-red-100/70">No captured payments are ready for dispute tracking yet.</p>
+          ) : (
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {paymentDisputeItems.slice(0, 6).map((item) => (
+                <div key={String(item.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-red-100/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="font-medium text-red-50">{String(item.disputeReference || item.invoiceNumber || item.id)}</p><p className="mt-1">{String(item.status || 'no-dispute')} · {String(item.invoiceNumber || 'unmatched')}</p></div>
+                    <div className="text-right"><p className="font-semibold text-red-50">{money(Number(item.disputeAmountMinor || 0), String(item.currency || 'GBP'))}</p><p className="mt-1">due {String(item.evidenceDueDate || 'n/a')}</p></div>
+                  </div>
+                  <p className="mt-2 text-red-100/70">Settlement: {String(item.settlementStatus || 'not settled')} · {String(item.payoutReference || 'no payout')}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updatePaymentDispute(item, 'open-dispute')}>Open</button>
+                    <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updatePaymentDispute(item, 'request-evidence')}>Need Evidence</button>
+                    <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updatePaymentDispute(item, 'submit-evidence')}>Submit Evidence</button>
+                    <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updatePaymentDispute(item, 'mark-won')}>Won</button>
+                    <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updatePaymentDispute(item, 'mark-lost')}>Lost</button>
+                    <button className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => updatePaymentDispute(item, 'close-dispute')}>Close</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {paymentDisputeActions.length > 0 && <p className="mt-3 text-xs text-red-100/70">Latest dispute action: {String(paymentDisputeActions[0]?.action || '')} · {String(paymentDisputeActions[0]?.disputeReference || '')}</p>}
+        </div>
         </div>
         {financePayments.length > 0 && (
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">

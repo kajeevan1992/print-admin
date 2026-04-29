@@ -1,0 +1,22 @@
+# v279 — Payment Dispute / Chargeback Tracking
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/payment-disputes/route.ts
+- BUILD_NOTES_V279.txt
+
+Added:
+- dispute / chargeback tracking
+- active exposure summary
+- evidence needed tracking
+- Open / Need Evidence / Submit Evidence / Won / Lost / Close controls
+- internal route: /api/internal/catalog/payment-disputes
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/payment-disputes
+- POST /api/internal/catalog/payment-disputes
+
+Deploy notes:
+- No live Stripe dispute action, no gateway money movement, no pricing changes.
+- Deploy through Coolify as normal.

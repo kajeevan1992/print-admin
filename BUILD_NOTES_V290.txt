@@ -1,0 +1,22 @@
+# v290 — Machine Lane Planner Foundation
+
+Added:
+- Internal machine planner route: /api/internal/catalog/production-machine-planner
+- Machine lane capacity summary
+- Seed planner from production job board
+- Auto schedule jobs by priority into machine lanes
+- Start / Pause / Rush / Block / Complete controls
+- Blocked jobs remain protected and cannot be started
+
+Changed:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-machine-planner/route.ts
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-machine-planner
+- POST /api/internal/catalog/production-machine-planner
+
+Notes:
+- No pricing, VAT, payment, or storefront redesign changes.
+- This is the foundation before drag-and-drop planner UI.

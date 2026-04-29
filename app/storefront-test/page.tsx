@@ -273,6 +273,10 @@ export default function StorefrontTestPage() {
   const [productionBoardLanes, setProductionBoardLanes] = useState<any[]>([]);
   const [productionBoardSummary, setProductionBoardSummary] = useState<any>(null);
   const [productionBoardActions, setProductionBoardActions] = useState<any[]>([]);
+  const [machinePlannerJobs, setMachinePlannerJobs] = useState<any[]>([]);
+  const [machinePlannerLanes, setMachinePlannerLanes] = useState<any[]>([]);
+  const [machinePlannerSummary, setMachinePlannerSummary] = useState<any>(null);
+  const [machinePlannerActions, setMachinePlannerActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -968,6 +972,57 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadProductionJobBoard();
   }
 
+
+  async function loadMachinePlanner() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-machine-planner', { cache: 'no-store' });
+      const json = await response.json();
+      setMachinePlannerJobs(Array.isArray(json?.data?.jobs) ? json.data.jobs : []);
+      setMachinePlannerLanes(Array.isArray(json?.data?.lanes) ? json.data.lanes : []);
+      setMachinePlannerActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setMachinePlannerSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load machine planner.');
+    }
+  }
+
+  async function updateMachinePlanner(job: any, action: string) {
+    const jobId = String(job?.id || '');
+    setProductionStatus('Updating machine planner...');
+    const response = await fetch('/api/internal/catalog/production-machine-planner', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobId, action, note: action === 'block' ? 'Blocked from storefront-test machine planner.' : undefined }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Machine planner updated: ${action}` : (json.error || 'Machine planner update failed.'));
+    if (json.ok) await loadMachinePlanner();
+  }
+
+  async function seedMachinePlannerFromBoard() {
+    setProductionStatus('Seeding machine planner from production board...');
+    const response = await fetch('/api/internal/catalog/production-machine-planner', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'seed-from-board', jobs: productionBoardItems }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Machine planner seeded from board.' : (json.error || 'Machine planner seed failed.'));
+    if (json.ok) await loadMachinePlanner();
+  }
+
+  async function autoScheduleMachinePlanner() {
+    setProductionStatus('Auto-scheduling machine planner...');
+    const response = await fetch('/api/internal/catalog/production-machine-planner', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'auto-schedule' }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Machine planner auto-scheduled.' : (json.error || 'Machine planner schedule failed.'));
+    if (json.ok) await loadMachinePlanner();
+  }
+
   async function splitOrderIntoProductionJobs() {
     const source = orderWorkflowItems[0] || pipelineOrders[0] || confirmedDraft || {};
     setProductionStatus('Splitting order into production jobs...');
@@ -1261,6 +1316,7 @@ export default function StorefrontTestPage() {
     loadOrderWorkflow();
     loadProductionJobRecords();
     loadProductionJobBoard();
+    loadMachinePlanner();
   }, []);
 
   useEffect(() => {
@@ -1953,6 +2009,57 @@ export default function StorefrontTestPage() {
           ))}
         </div>
         {productionBoardActions.length > 0 && <p className="mt-3 text-xs text-indigo-100/70">Latest board action: {String(productionBoardActions[0]?.action || '')} - {String(productionBoardActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-cyan-100/70">Machine planner</p>
+            <h2 className="mt-1 text-xl font-semibold text-cyan-50">v290 machine lane planner foundation</h2>
+            <p className="mt-2 max-w-3xl text-sm text-cyan-100/75">Schedules ready production board jobs into machine lanes with capacity minutes, start/end windows and blocked-job protection. This is the foundation for the real drag-and-drop planner.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={seedMachinePlannerFromBoard}>Seed From Board</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={autoScheduleMachinePlanner}>Auto Schedule</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadMachinePlanner}>Refresh Planner</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Planner jobs</p><p className="mt-1 font-semibold text-cyan-50">{Number(machinePlannerSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Waiting</p><p className="mt-1 font-semibold text-cyan-50">{Number(machinePlannerSummary?.waiting || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Scheduled</p><p className="mt-1 font-semibold text-emerald-100">{Number(machinePlannerSummary?.scheduled || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Running</p><p className="mt-1 font-semibold text-emerald-100">{Number(machinePlannerSummary?.running || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(machinePlannerSummary?.blocked || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Minutes</p><p className="mt-1 font-semibold text-cyan-50">{Number(machinePlannerSummary?.scheduledMinutes || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {machinePlannerLanes.map((lane) => (
+            <div key={String(lane.key)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-cyan-100/80">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-medium text-cyan-50">{String(lane.name || lane.key)}</p><p className="mt-1 text-cyan-100/70">{String(lane.type || '')} - capacity {Number(lane.capacityMinutesToday || 0)}m</p></div>
+                <span className="text-cyan-100/70">Used {Number(lane.usedMinutes || 0)}m</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {(Array.isArray(lane.jobs) ? lane.jobs : []).slice(0, 4).map((job: any) => (
+                  <div key={String(job.id)} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="flex items-start justify-between gap-2"><p className="font-medium text-cyan-50">{String(job.orderNumber || job.id)}</p><span className={job.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{String(job.status || '')}</span></div>
+                    <p className="mt-1 text-cyan-100/70">{String(job.productName || '')} - {Number(job.estimatedMinutes || 0)}m - {String(job.priority || 'normal')}</p>
+                    {job.scheduledStart && <p className="mt-1 text-cyan-100/60">{new Date(String(job.scheduledStart)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} → {job.scheduledEnd ? new Date(String(job.scheduledEnd)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'open'}</p>}
+                    {job.blockReason && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-100">{String(job.blockReason)}</p>}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100 disabled:opacity-50" onClick={() => updateMachinePlanner(job, 'start')} disabled={Boolean(job.productionBlocked)}>Start</button>
+                      <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-100" onClick={() => updateMachinePlanner(job, 'rush')}>Rush</button>
+                      <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateMachinePlanner(job, 'pause')}>Pause</button>
+                      <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateMachinePlanner(job, 'block')}>Block</button>
+                      <button className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs font-medium text-textMuted" onClick={() => updateMachinePlanner(job, 'complete')}>Done</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {machinePlannerActions.length > 0 && <p className="mt-3 text-xs text-cyan-100/70">Latest planner action: {String(machinePlannerActions[0]?.action || '')} - {String(machinePlannerActions[0]?.at || '')}</p>}
       </section>
 
       <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">

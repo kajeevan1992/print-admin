@@ -252,6 +252,11 @@ export default function StorefrontTestPage() {
   const [preflightGateItems, setPreflightGateItems] = useState<any[]>([]);
   const [preflightGateRules, setPreflightGateRules] = useState<any[]>([]);
   const [preflightGateSummary, setPreflightGateSummary] = useState<any>(null);
+  const [tradeImportSuppliers, setTradeImportSuppliers] = useState<any[]>([]);
+  const [tradeImportProducts, setTradeImportProducts] = useState<any[]>([]);
+  const [tradeImportClones, setTradeImportClones] = useState<any[]>([]);
+  const [tradeImportSummary, setTradeImportSummary] = useState<any>(null);
+  const [tradeImportActions, setTradeImportActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -736,6 +741,18 @@ export default function StorefrontTestPage() {
   }
 
   async function updatePaymentDispute(item: any, action: string) {
+    const disputeId = String(item?.id || '');
+    setFinanceStatus('Updating dispute/chargeback tracking...');
+    const response = await fetch('/api/internal/catalog/payment-disputes', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, disputeId, intentId: item?.intentId, invoiceId: item?.invoiceId }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Dispute updated: ${json.item?.disputeReference || json.item?.status || action}` : (json.error || 'Payment dispute update failed.'));
+    if (json.ok) { await loadPaymentDisputes(); await loadPaymentSettlements(); await loadPaymentRefunds(); await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+  }
+
   async function loadPluginParity() {
     try {
       const response = await fetch('/api/internal/catalog/plugin-parity', { cache: 'no-store' });
@@ -771,20 +788,35 @@ export default function StorefrontTestPage() {
   async function updatePreflightGate(action = 'run-preflight') {
     setProductionStatus('Running plugin-parity preflight comparison...');
     const response = await fetch('/api/internal/catalog/preflight-gate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+  async function loadTradeSupplierImport() {
+    try {
+      const response = await fetch('/api/internal/catalog/trade-supplier-import', { cache: 'no-store' });
+      const json = await response.json();
+      setTradeImportSuppliers(Array.isArray(json?.data?.suppliers) ? json.data.suppliers : []);
+      setTradeImportProducts(Array.isArray(json?.data?.syncedProducts) ? json.data.syncedProducts : []);
+      setTradeImportClones(Array.isArray(json?.data?.clonedProducts) ? json.data.clonedProducts : []);
+      setTradeImportActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setTradeImportSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load trade supplier import.');
+    }
+  }
+
+  async function updateTradeSupplierImport(action: string, payload: any = {}) {
+    setProductionStatus('Updating trade supplier import workspace...');
+    const response = await fetch('/api/internal/catalog/trade-supplier-import', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Trade supplier import updated: ${json.item?.action || action}` : (json.error || 'Trade supplier import update failed.'));
+    if (json.ok) await loadTradeSupplierImport();
+  }
+
     const json = await response.json();
     setProductionStatus(json.ok ? `Preflight gate updated: ${json.item?.action || action}` : (json.error || 'Preflight gate update failed.'));
     if (json.ok) { await loadPreflightGate(); await loadProductionJobs(); }
-  }
-    const disputeId = String(item?.id || '');
-    setFinanceStatus('Updating dispute/chargeback tracking...');
-    const response = await fetch('/api/internal/catalog/payment-disputes', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ action, disputeId, intentId: item?.intentId, invoiceId: item?.invoiceId }),
-    });
-    const json = await response.json();
-    setFinanceStatus(json.ok ? `Dispute updated: ${json.item?.disputeReference || json.item?.status || action}` : (json.error || 'Payment dispute update failed.'));
-    if (json.ok) { await loadPaymentDisputes(); await loadPaymentSettlements(); await loadPaymentRefunds(); await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
   }
 
   async function updatePaymentSettlement(item: any, action: string) {
@@ -1027,6 +1059,7 @@ export default function StorefrontTestPage() {
     loadPaymentDisputes();
     loadPluginParity();
     loadPreflightGate();
+    loadTradeSupplierImport();
   }, []);
 
   useEffect(() => {
@@ -2612,6 +2645,54 @@ export default function StorefrontTestPage() {
           {financeReportRows.length > 0 && (<div className="mt-3 overflow-auto rounded-xl border border-white/10"><table className="min-w-full text-left text-xs text-cyan-100/80"><thead className="bg-white/5 text-cyan-50"><tr><th className="px-3 py-2">Invoice</th><th className="px-3 py-2">Customer</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Net</th><th className="px-3 py-2">VAT</th><th className="px-3 py-2">Gross</th></tr></thead><tbody>{financeReportRows.slice(0, 6).map((row) => (<tr key={String(row.id)} className="border-t border-white/10"><td className="px-3 py-2">{String(row.invoiceNumber || row.id)}</td><td className="px-3 py-2">{String(row.customerName || 'Customer')}</td><td className="px-3 py-2">{String(row.status || '')}</td><td className="px-3 py-2">{money(Number(row.netTotalMinor || 0), String(row.currency || 'GBP'))}</td><td className="px-3 py-2">{money(Number(row.vatTotalMinor || 0), String(row.currency || 'GBP'))}</td><td className="px-3 py-2">{money(Number(row.grossTotalMinor || 0), String(row.currency || 'GBP'))}</td></tr>))}</tbody></table></div>)}
           {financeCsvPreview && <pre className="mt-3 max-h-36 overflow-auto rounded-xl bg-black/20 p-3 text-xs text-cyan-100/70">{financeCsvPreview}</pre>}
         </div>
+      </section>
+
+      <section className="rounded-3xl border border-sky-500/20 bg-sky-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-sky-100/70">Trade supplier import</p>
+            <h2 className="mt-1 text-xl font-semibold text-sky-50">Supplier API sync + clone workspace</h2>
+            <p className="mt-2 max-w-3xl text-sm text-sky-100/75">Connect supplier credentials, sync supplier products/options/materials/prices, clone selected products into the storefront and block unwanted materials, sides or quantities before publishing.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-100" onClick={() => updateTradeSupplierImport('save-credentials', { supplierId: 'supplier-tradeprint', apiKey: 'demo_tradeprint_key' })}>Save Demo Credentials</button>
+            <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={() => updateTradeSupplierImport('sync-products', { supplierId: 'supplier-tradeprint' })}>Sync Products</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={() => updateTradeSupplierImport('clone-product', { productId: tradeImportProducts[0]?.id })}>Clone First Product</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Connected suppliers</p><p className="mt-1 font-semibold text-sky-50">{Number(tradeImportSummary?.connectedSuppliers || 0)} / {Number(tradeImportSummary?.supplierCount || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Synced products</p><p className="mt-1 font-semibold text-sky-50">{Number(tradeImportSummary?.syncedProductCount || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Cloned products</p><p className="mt-1 font-semibold text-sky-50">{Number(tradeImportSummary?.clonedProductCount || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Blocked options</p><p className="mt-1 font-semibold text-sky-50">{Number(tradeImportSummary?.disabledMaterialCount || 0) + Number(tradeImportSummary?.blockedQuantityCount || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+            <p className="text-sm font-medium text-sky-50">Supplier connections</p>
+            <div className="mt-3 space-y-2">
+              {tradeImportSuppliers.map((supplier) => (
+                <div key={String(supplier.id)} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-sky-100/80">
+                  <div className="flex items-start justify-between gap-3"><p className="font-medium text-sky-50">{String(supplier.name)}</p><span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px]">{String(supplier.status)}</span></div>
+                  <p className="mt-1 text-sky-100/70">Markup {Number(supplier.globalMarkupPercent || 0)}% · Auth {String(supplier.authType || '')} · Last sync {String(supplier.lastSyncAt || 'not synced')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+            <p className="text-sm font-medium text-cyan-50">Synced supplier products</p>
+            <div className="mt-3 space-y-3">
+              {tradeImportProducts.slice(0, 4).map((product) => (
+                <div key={String(product.id)} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-cyan-100/80">
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-medium text-cyan-50">{String(product.storefrontName || product.name)}</p><p className="mt-1 text-cyan-100/70">{String(product.supplierSku)} · VAT {String(product.vatClass)} · pricing {String(product.pricingSource)} · markup {Number(product.productMarkupPercent || 0)}%</p></div><button className="rounded-lg border border-cyan-500/40 px-2 py-1 text-[11px] text-cyan-100" onClick={() => updateTradeSupplierImport('clone-product', { productId: product.id })}>Clone</button></div>
+                  <div className="mt-2 flex flex-wrap gap-1">{(product.materials || []).slice(0, 6).map((material: any) => <button key={String(material.key)} className={material.enabled ? 'rounded-full border border-emerald-500/30 px-2 py-0.5 text-[11px] text-emerald-100' : 'rounded-full border border-red-500/30 px-2 py-0.5 text-[11px] text-red-100'} onClick={() => updateTradeSupplierImport('toggle-material', { productId: product.id, key: material.key })}>{String(material.label)}</button>)}</div>
+                  <div className="mt-2 flex flex-wrap gap-1">{(product.quantities || []).slice(0, 8).map((quantity: any) => <button key={String(quantity.qty)} className={quantity.enabled ? 'rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-cyan-100/80' : 'rounded-full border border-red-500/30 px-2 py-0.5 text-[11px] text-red-100'} onClick={() => updateTradeSupplierImport('toggle-quantity', { productId: product.id, qty: quantity.qty })}>{Number(quantity.qty)}</button>)}</div>
+                </div>
+              ))}
+              {tradeImportProducts.length === 0 && <p className="text-xs text-cyan-100/70">No supplier products synced yet. Save credentials, then sync products.</p>}
+            </div>
+          </div>
+        </div>
+        {tradeImportClones.length > 0 && <p className="mt-3 text-xs text-sky-100/70">Latest cloned product: {String(tradeImportClones[0]?.name || tradeImportClones[0]?.id)} · {String(tradeImportClones[0]?.status || '')}</p>}
       </section>
 
       <section className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5">

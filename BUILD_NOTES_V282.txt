@@ -1,0 +1,41 @@
+Build v282 — Trade Supplier API Import + Clone Workspace
+
+Scope:
+- Continued from v281 fixed VAT/materials/pricing-source foundation.
+- Added internal trade supplier import workspace.
+- No public /api/v1 and no /api/proxy usage.
+- No pricing engine rewrite, no payment gateway movement.
+
+Added:
+- Supplier API credential connection model with masked credential status.
+- Supplier product sync model for products, options, materials, sides, quantities, turnaround prices, images and artwork PDFs.
+- Clone supplier product into own storefront draft product model.
+- Disable/block controls for supplier materials, sides and quantities.
+- Supplier/global markup and product-level markup support.
+- Supplier pricing source remains distinct from internal pricing and matrix/Excel pricing.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/trade-supplier-import/route.ts
+- BUILD_NOTES_V282.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/trade-supplier-import
+- POST /api/internal/catalog/trade-supplier-import
+
+POST actions:
+- save-credentials
+- sync-products
+- toggle-material
+- toggle-side
+- toggle-quantity
+- apply-global-markup
+- set-product-markup
+- clone-product
+
+Deploy notes:
+- Internal API only.
+- Uses existing internal catalog admin-config storage pattern.
+- Demo supplier data is used until real supplier API adapters are wired.
+- Build not run in this environment because node_modules/next are not included in the ZIP.

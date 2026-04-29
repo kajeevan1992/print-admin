@@ -1,0 +1,41 @@
+# v278 — Payment Settlement / Payout Tracking
+
+Scope:
+- Adds internal settlement and payout tracking after payment capture, reconciliation and refund/reversal tracking.
+- No live Stripe transfers, bank payouts, payment capture, refund money movement, or gateway mutation.
+- Internal API only. No /api/proxy usage.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/payment-settlements/route.ts
+- BUILD_NOTES_V278.txt
+
+New internal route:
+- GET /api/internal/catalog/payment-settlements
+- POST /api/internal/catalog/payment-settlements
+
+Added UI inside /storefront-test:
+- Settlement / payout tracking card
+- Pending net, settled net, hold count and action count
+- Create Payout Batch
+- Mark Settled
+- Hold
+- Fail
+- Clear Hold
+
+Data stored through existing internal catalog config records:
+- storefront-payment-settlements
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/payment-settlements
+- POST /api/internal/catalog/payment-settlements
+
+Deploy notes:
+- Deploy as normal through existing unified-core app.
+- No environment variables required.
+- No Stripe keys required.
+- This is tracking-only settlement logic for later live gateway reconciliation.
+
+Build note:
+- Build was not run in this environment because the uploaded ZIP does not include node_modules.

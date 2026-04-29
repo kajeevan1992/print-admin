@@ -240,6 +240,9 @@ export default function StorefrontTestPage() {
   const [paymentRefundItems, setPaymentRefundItems] = useState<any[]>([]);
   const [paymentRefundActions, setPaymentRefundActions] = useState<any[]>([]);
   const [paymentRefundSummary, setPaymentRefundSummary] = useState<any>(null);
+  const [paymentSettlementItems, setPaymentSettlementItems] = useState<any[]>([]);
+  const [paymentSettlementActions, setPaymentSettlementActions] = useState<any[]>([]);
+  const [paymentSettlementSummary, setPaymentSettlementSummary] = useState<any>(null);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -698,6 +701,32 @@ export default function StorefrontTestPage() {
     }
   }
 
+
+  async function loadPaymentSettlements() {
+    try {
+      const response = await fetch('/api/internal/catalog/payment-settlements', { cache: 'no-store' });
+      const json = await response.json();
+      setPaymentSettlementItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setPaymentSettlementActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setPaymentSettlementSummary(json?.data?.summary || null);
+    } catch (err) {
+      setFinanceStatus(err instanceof Error ? err.message : 'Could not load payment settlements.');
+    }
+  }
+
+  async function updatePaymentSettlement(item: any, action: string) {
+    const settlementId = String(item?.id || '');
+    setFinanceStatus('Updating settlement/payout tracking...');
+    const response = await fetch('/api/internal/catalog/payment-settlements', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, settlementId, intentId: item?.intentId, invoiceId: item?.invoiceId }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Settlement updated: ${json.item?.payoutReference || json.item?.status || action}` : (json.error || 'Settlement update failed.'));
+    if (json.ok) { await loadPaymentSettlements(); await loadPaymentRefunds(); await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+  }
+
   async function updatePaymentRefund(item: any, action: string) {
     const refundId = String(item?.id || '');
     const intentId = String(item?.intentId || '');
@@ -709,7 +738,7 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setFinanceStatus(json.ok ? `Refund tracking updated: ${json.item?.invoiceNumber || json.item?.status || action}` : (json.error || 'Refund update failed.'));
-    if (json.ok) { await loadPaymentRefunds(); await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCredits(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadPaymentRefunds(); await loadPaymentSettlements(); await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCredits(); await loadCustomerCommunications(); }
   }
 
   async function updatePaymentReconciliation(item: any, action: string) {
@@ -722,7 +751,7 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setFinanceStatus(json.ok ? `Reconciliation updated: ${json.item?.invoiceNumber || action}` : (json.error || 'Payment reconciliation failed.'));
-    if (json.ok) { await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadPaymentReconciliation(); await loadPaymentSettlements(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
   }
 
   async function updatePaymentIntent(source: any, action: string) {
@@ -736,7 +765,7 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setFinanceStatus(json.ok ? `Payment updated: ${json.item?.invoiceNumber || json.item?.status || action}` : (json.error || 'Payment update failed.'));
-    if (json.ok) { await loadPaymentIntents(); await loadPaymentReconciliation(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadPaymentIntents(); await loadPaymentSettlements(); await loadPaymentReconciliation(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
   }
 
   async function updateFinanceReports(action: string) {
@@ -921,6 +950,7 @@ export default function StorefrontTestPage() {
     loadPaymentIntents();
     loadPaymentReconciliation();
     loadPaymentRefunds();
+    loadPaymentSettlements();
   }, []);
 
   useEffect(() => {
@@ -2398,6 +2428,47 @@ export default function StorefrontTestPage() {
           )}
           {paymentRefundActions.length > 0 && <p className="mt-3 text-xs text-rose-100/70">Latest refund action: {String(paymentRefundActions[0]?.action || '')} · {String(paymentRefundActions[0]?.invoiceNumber || '')}</p>}
         </div>
+
+        <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-violet-50">Settlement / payout tracking</p>
+              <p className="mt-1 text-xs text-violet-100/70">Tracks captured payments into payout batches, settlement status and net value after refunds. Internal only — no live Stripe transfer or bank movement.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100" onClick={() => updatePaymentSettlement({}, 'create-payout-batch')}>Create Payout Batch</button>
+              <button className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => loadPaymentSettlements()}>Refresh settlements</button>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-violet-100/70">Pending net</p><p className="mt-1 font-semibold text-violet-50">{money(Number(paymentSettlementSummary?.pendingNetMinor || 0), String(paymentSettlementSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-violet-100/70">Settled net</p><p className="mt-1 font-semibold text-violet-50">{money(Number(paymentSettlementSummary?.settledNetMinor || 0), String(paymentSettlementSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-violet-100/70">On hold</p><p className="mt-1 font-semibold text-violet-50">{Number(paymentSettlementSummary?.holdCount || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-violet-100/70">Actions</p><p className="mt-1 font-semibold text-violet-50">{Number(paymentSettlementSummary?.actionCount || 0)}</p></div>
+          </div>
+          {paymentSettlementItems.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-violet-100/70">No captured payments are ready for settlement tracking yet.</p>
+          ) : (
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {paymentSettlementItems.slice(0, 6).map((item) => (
+                <div key={String(item.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-violet-100/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="font-medium text-violet-50">{String(item.payoutReference || item.invoiceNumber || item.id)}</p><p className="mt-1">{String(item.status || 'pending')} · {String(item.invoiceNumber || 'unmatched')}</p></div>
+                    <div className="text-right"><p className="font-semibold text-violet-50">{money(Number(item.netSettlementMinor || 0), String(item.currency || 'GBP'))}</p><p className="mt-1">refunds {money(Number(item.refundedMinor || 0), String(item.currency || 'GBP'))}</p></div>
+                  </div>
+                  <p className="mt-2 text-violet-100/70">Captured {money(Number(item.capturedMinor || 0), String(item.currency || 'GBP'))} · expected payout {String(item.expectedPayoutDate || 'not scheduled')}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updatePaymentSettlement(item, 'mark-settled')}>Mark Settled</button>
+                    <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updatePaymentSettlement(item, 'hold-settlement')}>Hold</button>
+                    <button className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100" onClick={() => updatePaymentSettlement(item, 'fail-settlement')}>Fail</button>
+                    <button className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => updatePaymentSettlement(item, 'clear-hold')}>Clear Hold</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {paymentSettlementActions.length > 0 && <p className="mt-3 text-xs text-violet-100/70">Latest settlement action: {String(paymentSettlementActions[0]?.action || '')} · {String(paymentSettlementActions[0]?.payoutReference || '')}</p>}
+        </div>
         {financePayments.length > 0 && (
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
             <p className="text-sm font-medium text-sky-50">Payment tracking log</p>
@@ -2430,9 +2501,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary, paymentReconciliationItems, paymentReconciliationActions, paymentReconciliationSummary, paymentRefundItems, paymentRefundActions, paymentRefundSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary, paymentReconciliationItems, paymentReconciliationActions, paymentReconciliationSummary, paymentRefundItems, paymentRefundActions, paymentRefundSummary, paymentSettlementItems, paymentSettlementActions, paymentSettlementSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary, paymentReconciliationItems, paymentReconciliationActions, paymentReconciliationSummary, paymentRefundItems, paymentRefundActions, paymentRefundSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary, paymentReconciliationItems, paymentReconciliationActions, paymentReconciliationSummary, paymentRefundItems, paymentRefundActions, paymentRefundSummary, paymentSettlementItems, paymentSettlementActions, paymentSettlementSummary }, null, 2)}</pre>
       </section>
     </main>
   );

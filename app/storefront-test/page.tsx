@@ -266,6 +266,9 @@ export default function StorefrontTestPage() {
   const [orderWorkflowItems, setOrderWorkflowItems] = useState<any[]>([]);
   const [orderWorkflowSummary, setOrderWorkflowSummary] = useState<any>(null);
   const [orderWorkflowActions, setOrderWorkflowActions] = useState<any[]>([]);
+  const [productionJobItems, setProductionJobItems] = useState<any[]>([]);
+  const [productionJobSummary, setProductionJobSummary] = useState<any>(null);
+  const [productionJobActions, setProductionJobActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -897,6 +900,53 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadOrderWorkflow();
   }
 
+
+  async function loadProductionJobRecords() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-jobs', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionJobItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionJobActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionJobSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production job records.');
+    }
+  }
+
+  async function updateProductionJobRecord(item: any, action: string) {
+    const jobId = String(item?.id || '');
+    setProductionStatus('Updating production job record...');
+    const response = await fetch('/api/internal/catalog/production-jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobId, action, note: action === 'block' ? 'Blocked from storefront-test job board.' : undefined }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Production job updated: ${json.item?.status || action}` : (json.error || 'Production job update failed.'));
+    if (json.ok) { await loadProductionJobRecords(); await loadProductionJobs(); }
+  }
+
+  async function splitOrderIntoProductionJobs() {
+    const source = orderWorkflowItems[0] || pipelineOrders[0] || confirmedDraft || {};
+    setProductionStatus('Splitting order into production jobs...');
+    const response = await fetch('/api/internal/catalog/production-jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'split-order',
+        workflowId: source.id || source.workflowId,
+        orderId: source.orderId || source.id,
+        orderNumber: source.orderNumber,
+        productName: source.productName || cartItems[0]?.productName || 'Storefront Product',
+        quantity: source.quantity || cartItems[0]?.quantity || 1,
+        preflightStatus: source.preflightStatus || 'pending',
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Order split into production jobs.' : (json.error || 'Order split failed.'));
+    if (json.ok) await loadProductionJobRecords();
+  }
+
   async function loadTradeSupplierImport() {
     try {
       const response = await fetch('/api/internal/catalog/trade-supplier-import', { cache: 'no-store' });
@@ -1167,6 +1217,7 @@ export default function StorefrontTestPage() {
     loadProductionValidation();
     loadArtworkInspection();
     loadOrderWorkflow();
+    loadProductionJobRecords();
   }, []);
 
   useEffect(() => {
@@ -1774,6 +1825,46 @@ export default function StorefrontTestPage() {
           ))}
         </div>
         {orderWorkflowActions.length > 0 && <p className="mt-3 text-xs text-cyan-100/70">Latest workflow action: {String(orderWorkflowActions[0]?.action || '')} · {String(orderWorkflowActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-fuchsia-100/70">Production job records</p>
+            <h2 className="mt-1 text-xl font-semibold text-fuchsia-50">v288 order split to production jobs</h2>
+            <p className="mt-2 max-w-3xl text-sm text-fuchsia-100/75">Splits confirmed/preflighted orders into manufacturing job records such as print and finishing jobs. Jobs stay blocked until preflight is passed or overridden, so the production queue receives safe work only.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-2 text-sm font-medium text-fuchsia-100" onClick={splitOrderIntoProductionJobs}>Split Order</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadProductionJobRecords}>Refresh</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Jobs</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(productionJobSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(productionJobSummary?.blocked || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Ready</p><p className="mt-1 font-semibold text-emerald-100">{Number(productionJobSummary?.ready || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Queued</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(productionJobSummary?.queued || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Print</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(productionJobSummary?.print || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Finishing</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(productionJobSummary?.finishing || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {productionJobItems.slice(0, 8).map((job) => (
+            <div key={String(job.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-fuchsia-100/80">
+              <div className="flex items-start justify-between gap-3"><p className="font-medium text-fuchsia-50">{String(job.orderNumber || job.orderId || job.id)} - {String(job.jobType || '')}</p><span className={job.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{String(job.status || '')}</span></div>
+              <p className="mt-1 text-fuchsia-100/70">{String(job.productName || '')} - qty {Number(job.quantity || 0)} - preflight {String(job.preflightStatus || '')}</p>
+              <p className="mt-1 text-fuchsia-100/70">{String(job.materialKey || '')} to {String(job.machineKey || '')}</p>
+              {job.blockReason && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-100">{String(job.blockReason)}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updateProductionJobRecord(job, 'mark-preflight-pass')}>Pass</button>
+                <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateProductionJobRecord(job, 'block')}>Block</button>
+                <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100 disabled:opacity-50" onClick={() => updateProductionJobRecord(job, 'release')} disabled={Boolean(job.productionBlocked && job.preflightStatus !== 'pass' && job.preflightStatus !== 'override')}>Release</button>
+                <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updateProductionJobRecord(job, 'start')}>Start</button>
+                <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => updateProductionJobRecord(job, 'complete')}>Done</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {productionJobActions.length > 0 && <p className="mt-3 text-xs text-fuchsia-100/70">Latest job action: {String(productionJobActions[0]?.action || '')} - {String(productionJobActions[0]?.at || '')}</p>}
       </section>
 
       <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">

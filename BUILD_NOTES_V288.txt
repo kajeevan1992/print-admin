@@ -1,0 +1,31 @@
+Print Admin v288 — Order Split to Production Jobs
+
+Scope:
+- Continue from v287 order workflow/status engine.
+- Add manufacturing job records generated from orders.
+- Keep preflight blocking rules intact.
+- No pricing, VAT, supplier, or payment logic changed.
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-jobs/route.ts
+- BUILD_NOTES_V288.txt
+
+Added internal route:
+- GET/POST /api/internal/catalog/production-jobs
+
+What it adds:
+- Split order/workflow into print and finishing job records.
+- Store job type, stage, status, material key, machine key, quantity, preflight status, block reason, and history.
+- Block production jobs until preflight passes or is overridden.
+- Release, start, block, pass preflight, and complete job controls in storefront-test.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-jobs
+- POST /api/internal/catalog/production-jobs
+
+Deploy notes:
+- Push full ZIP contents to GitHub main.
+- Coolify can deploy with existing Nixpacks config.
+- This build is internal API only and does not use /api/proxy.

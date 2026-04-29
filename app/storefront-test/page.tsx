@@ -260,6 +260,9 @@ export default function StorefrontTestPage() {
   const [productionValidationItems, setProductionValidationItems] = useState<any[]>([]);
   const [productionValidationSummary, setProductionValidationSummary] = useState<any>(null);
   const [productionValidationActions, setProductionValidationActions] = useState<any[]>([]);
+  const [artworkInspectionItems, setArtworkInspectionItems] = useState<any[]>([]);
+  const [artworkInspectionSummary, setArtworkInspectionSummary] = useState<any>(null);
+  const [artworkInspectionActions, setArtworkInspectionActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -824,6 +827,30 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadProductionValidation();
   }
 
+  async function loadArtworkInspection() {
+    try {
+      const response = await fetch('/api/internal/catalog/artwork-inspection', { cache: 'no-store' });
+      const json = await response.json();
+      setArtworkInspectionItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setArtworkInspectionActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setArtworkInspectionSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load artwork inspection.');
+    }
+  }
+
+  async function updateArtworkInspection(action: string) {
+    setProductionStatus('Updating artwork inspection...');
+    const response = await fetch('/api/internal/catalog/artwork-inspection', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Artwork inspection updated: ${json.item?.action || action}` : (json.error || 'Artwork inspection failed.'));
+    if (json.ok) await loadArtworkInspection();
+  }
+
   async function loadTradeSupplierImport() {
     try {
       const response = await fetch('/api/internal/catalog/trade-supplier-import', { cache: 'no-store' });
@@ -1092,6 +1119,7 @@ export default function StorefrontTestPage() {
     loadPreflightGate();
     loadTradeSupplierImport();
     loadProductionValidation();
+    loadArtworkInspection();
   }, []);
 
   useEffect(() => {
@@ -1526,7 +1554,40 @@ export default function StorefrontTestPage() {
       {error && <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-100">{error}</div>}
 
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-        <section className="rounded-3xl border border-border bg-panel p-5">
+        <section className="rounded-3xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-fuchsia-100/70">Artwork inspection</p>
+            <h2 className="mt-1 text-xl font-semibold text-fuchsia-50">PDF inspection foundation</h2>
+            <p className="mt-2 max-w-3xl text-sm text-fuchsia-100/75">Compares detected artwork metadata against product artwork rules: page count, trim size, bleed and PDF-only checks. This prepares the later real PDF parser/preflight worker while already feeding production block flags.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-fuchsia-500/40 bg-fuchsia-500/10 px-3 py-2 text-sm font-medium text-fuchsia-100" onClick={() => updateArtworkInspection('inspect-all')}>Inspect Artwork</button>
+            <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={() => updateArtworkInspection('simulate-fail')}>Simulate Fail</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={() => updateArtworkInspection('clear-blocks')}>Clear Blocks</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Artwork files</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(artworkInspectionSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Pass</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(artworkInspectionSummary?.pass || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Fail/review</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(artworkInspectionSummary?.fail || 0) + Number(artworkInspectionSummary?.needsReview || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-fuchsia-100/70">Production blocked</p><p className="mt-1 font-semibold text-fuchsia-50">{Number(artworkInspectionSummary?.blocked || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {artworkInspectionItems.slice(0, 6).map((item) => (
+            <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-sm text-fuchsia-100/80">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-medium text-fuchsia-50">{String(item.productName || item.orderNumber || item.id)}</p><p className="mt-1 text-xs text-fuchsia-100/70">{String(item.fileName || '')} · {String(item.mimeType || '')}</p></div><span className={String(item.status) === 'pass' ? 'text-emerald-200' : String(item.status) === 'fail' ? 'text-red-200' : 'text-fuchsia-100'}>{String(item.status || 'pending')}</span></div>
+              <p className="mt-3 text-xs text-fuchsia-100/70">Expected: {Number(item.expected?.pages || 0)} pages · {Number(item.expected?.trimWidthMm || 0)} × {Number(item.expected?.trimHeightMm || 0)}mm · bleed {Number(item.expected?.bleedMm || 0)}mm</p>
+              <p className="mt-1 text-xs text-fuchsia-100/70">Detected: {item.detected?.pages ?? 'pending'} pages · {item.detected?.trimWidthMm ?? 'pending'} × {item.detected?.trimHeightMm ?? 'pending'}mm · bleed {item.detected?.bleedMm ?? 'pending'}mm</p>
+              {Array.isArray(item.issues) && item.issues.length > 0 && <ul className="mt-2 list-disc pl-4 text-xs text-red-100/80">{item.issues.map((issue: string) => <li key={issue}>{issue}</li>)}</ul>}
+              <p className="mt-2 text-xs text-fuchsia-100/60">Parser: {String(item.detected?.parser || 'not-run')} · Blocked: {String(Boolean(item.productionBlocked))}</p>
+            </div>
+          ))}
+        </div>
+        {artworkInspectionActions.length > 0 && <p className="mt-3 text-xs text-fuchsia-100/70">Latest inspection action: {String(artworkInspectionActions[0]?.action || '')} · {String(artworkInspectionActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-border bg-panel p-5">
           <label className="grid gap-2 text-sm">
             <span className="font-medium">Product</span>
             <select className="rounded-xl border border-border bg-background px-3 py-2" value={productId} onChange={(event) => setProductId(event.target.value)}>

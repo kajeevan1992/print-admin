@@ -1,0 +1,15 @@
+# v285 — Artwork PDF Inspection Foundation
+
+Added:
+- Internal route: /api/internal/catalog/artwork-inspection
+- Artwork inspection queue foundation
+- Expected vs detected metadata comparison
+- Page count, trim size, bleed, PDF-only checks
+- Production block flag for failed artwork inspection
+- Storefront-test inspection dashboard section
+
+Notes:
+- This is a safe foundation for real PDF parsing.
+- No pricing logic changed.
+- No payment gateway added.
+- No UI redesign; existing storefront-test flow extended only.

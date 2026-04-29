@@ -1,0 +1,27 @@
+# v281 FIXED — VAT + Materials + Pricing Source Foundation
+
+Base: v280 plugin parity/preflight gate ZIP.
+
+Scope applied only from confirmed requirements:
+- Line-item VAT foundation: product/add-on VAT, mixed VAT basket, zero-rated leaflets/booklets and standard-rated business cards/boards/design services.
+- Material physical specs: sheet, board and roll stock records with sizes/roll lengths and compatible machine keys.
+- Machine capability foundation: sheet/board/roll capability, max widths/sizes and variable roll length support.
+- Pricing source selector foundation: internal engine, supplier API and Excel/matrix upload.
+- Trade supplier foundation: suppliers, credentials placeholder, synced products/options/prices model, clone/edit/hide/block/markup controls.
+
+New internal routes:
+- GET/POST /api/internal/catalog/vat-engine
+- GET/POST /api/internal/catalog/material-specs
+- GET/POST /api/internal/catalog/machine-capabilities
+- GET/POST /api/internal/catalog/pricing-sources
+- GET/POST /api/internal/catalog/trade-suppliers
+
+Notes:
+- VAT is not global. VAT must be calculated per invoice/order line.
+- Design services are standard VAT even when the base product is zero-rated.
+- No live supplier API calls yet; this is the registry/data-shape foundation for v282.
+- No pricing engine logic was modified.
+- No payment gateway or live money movement was added.
+
+Build test:
+- Not run because dependencies/node_modules are not included in the ZIP.

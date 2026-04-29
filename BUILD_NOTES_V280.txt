@@ -1,0 +1,37 @@
+V280 — Plugin Core Parity Audit + Preflight Gate Foundation
+
+Scope:
+- Built from v279 as the SaaS base.
+- Used uploaded Print Platform Core v2.40.0 spec/plugin as guidance only.
+- No pricing engine changes.
+- No payment gateway or live money movement.
+- No UI redesign or duplicate page creation.
+
+Added:
+- Plugin core parity audit endpoint and storefront-test section.
+- Artwork rule registry foundation using controlled product rules.
+- Requested-vs-expected artwork preflight comparison.
+- Pass/fail issue list for pages, trim size, bleed and PDF-only upload checks.
+- Production blocking flag foundation for failed preflight results.
+
+New internal routes:
+- GET/POST /api/internal/catalog/plugin-parity
+- GET/POST /api/internal/catalog/preflight-gate
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/plugin-parity/route.ts
+- app/api/internal/catalog/preflight-gate/route.ts
+- BUILD_NOTES_V280.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/plugin-parity
+- POST /api/internal/catalog/plugin-parity
+- GET /api/internal/catalog/preflight-gate
+- POST /api/internal/catalog/preflight-gate
+
+Deploy notes:
+- Deploy like previous builds.
+- This build stores parity/preflight state in existing internal admin-config storage.
+- Later builds should replace fallback artwork rules with per-product DB artwork rules and add real PDF parsing.

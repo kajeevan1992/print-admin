@@ -246,6 +246,12 @@ export default function StorefrontTestPage() {
   const [paymentDisputeItems, setPaymentDisputeItems] = useState<any[]>([]);
   const [paymentDisputeActions, setPaymentDisputeActions] = useState<any[]>([]);
   const [paymentDisputeSummary, setPaymentDisputeSummary] = useState<any>(null);
+  const [pluginParityItems, setPluginParityItems] = useState<any[]>([]);
+  const [pluginParitySummary, setPluginParitySummary] = useState<any>(null);
+  const [pluginParityHistory, setPluginParityHistory] = useState<any[]>([]);
+  const [preflightGateItems, setPreflightGateItems] = useState<any[]>([]);
+  const [preflightGateRules, setPreflightGateRules] = useState<any[]>([]);
+  const [preflightGateSummary, setPreflightGateSummary] = useState<any>(null);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -730,6 +736,45 @@ export default function StorefrontTestPage() {
   }
 
   async function updatePaymentDispute(item: any, action: string) {
+  async function loadPluginParity() {
+    try {
+      const response = await fetch('/api/internal/catalog/plugin-parity', { cache: 'no-store' });
+      const json = await response.json();
+      setPluginParityItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setPluginParityHistory(Array.isArray(json?.data?.history) ? json.data.history : []);
+      setPluginParitySummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load plugin parity audit.');
+    }
+  }
+
+  async function updatePluginParity(action = 'snapshot') {
+    setProductionStatus('Saving plugin parity audit snapshot...');
+    const response = await fetch('/api/internal/catalog/plugin-parity', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Plugin parity audit saved: ${json.item?.action || action}` : (json.error || 'Plugin parity update failed.'));
+    if (json.ok) await loadPluginParity();
+  }
+
+  async function loadPreflightGate() {
+    try {
+      const response = await fetch('/api/internal/catalog/preflight-gate', { cache: 'no-store' });
+      const json = await response.json();
+      setPreflightGateItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setPreflightGateRules(Array.isArray(json?.data?.artworkRules) ? json.data.artworkRules : []);
+      setPreflightGateSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load preflight gate.');
+    }
+  }
+
+  async function updatePreflightGate(action = 'run-preflight') {
+    setProductionStatus('Running plugin-parity preflight comparison...');
+    const response = await fetch('/api/internal/catalog/preflight-gate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Preflight gate updated: ${json.item?.action || action}` : (json.error || 'Preflight gate update failed.'));
+    if (json.ok) { await loadPreflightGate(); await loadProductionJobs(); }
+  }
     const disputeId = String(item?.id || '');
     setFinanceStatus('Updating dispute/chargeback tracking...');
     const response = await fetch('/api/internal/catalog/payment-disputes', {
@@ -980,6 +1025,8 @@ export default function StorefrontTestPage() {
     loadPaymentRefunds();
     loadPaymentSettlements();
     loadPaymentDisputes();
+    loadPluginParity();
+    loadPreflightGate();
   }, []);
 
   useEffect(() => {
@@ -2567,6 +2614,61 @@ export default function StorefrontTestPage() {
         </div>
       </section>
 
+      <section className="rounded-3xl border border-amber-500/20 bg-amber-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-amber-100/70">Plugin parity bridge</p>
+            <h2 className="mt-1 text-xl font-semibold text-amber-50">Print Platform Core parity + preflight gate</h2>
+            <p className="mt-2 max-w-3xl text-sm text-amber-100/75">Tracks the WooCommerce plugin engines that must exist in unified-core: controlled material/finish keys, product config, artwork rules, requested specs, expected-vs-requested preflight and production blocking.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-100" onClick={() => updatePluginParity('snapshot')}>Save Parity Snapshot</button>
+            <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={() => updatePreflightGate('run-preflight')}>Run Preflight Compare</button>
+            <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={() => updatePreflightGate('apply-production-blocks')}>Apply Production Blocks</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-amber-100/70">Parity items</p><p className="mt-1 font-semibold text-amber-50">{Number(pluginParitySummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-amber-100/70">Critical</p><p className="mt-1 font-semibold text-amber-50">{Number(pluginParitySummary?.critical || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-amber-100/70">Preflight fail</p><p className="mt-1 font-semibold text-amber-50">{Number(preflightGateSummary?.fail || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-amber-100/70">Production blocked</p><p className="mt-1 font-semibold text-amber-50">{Number(preflightGateSummary?.blocked || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+            <p className="text-sm font-medium text-amber-50">Core engine parity checklist</p>
+            <div className="mt-3 space-y-2">
+              {pluginParityItems.slice(0, 8).map((item) => (
+                <div key={String(item.key)} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-amber-100/80">
+                  <div className="flex items-start justify-between gap-3"><p className="font-medium text-amber-50">{String(item.label || item.key)}</p><span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px]">{String(item.saasStatus || '')}</span></div>
+                  <p className="mt-1 text-amber-100/70">{String(item.note || '')}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+            <p className="text-sm font-medium text-orange-50">Artwork rules + preflight gate</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {preflightGateRules.slice(0, 4).map((rule) => (
+                <div key={String(rule.productSlug)} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-orange-100/80">
+                  <p className="font-medium text-orange-50">{String(rule.productSlug)}</p>
+                  <p className="mt-1">{String(rule.profile)} · {Number(rule.expectedPages || 0)} pages · {Number(rule.bleedMm || 0)}mm bleed</p>
+                  <p className="mt-1 text-orange-100/70">Trim {Number(rule.trimWidthMm || 0)} × {Number(rule.trimHeightMm || 0)}mm · PDF only {String(Boolean(rule.pdfOnly))}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-3 space-y-2">
+              {preflightGateItems.slice(0, 6).map((item) => (
+                <div key={String(item.id)} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 text-xs text-orange-100/80">
+                  <div className="flex items-start justify-between gap-3"><p className="font-medium text-orange-50">{String(item.productName || item.orderNumber || item.id)}</p><span className={String(item.status) === 'pass' ? 'text-emerald-200' : 'text-red-200'}>{String(item.status || 'pending')}</span></div>
+                  <p className="mt-1 text-orange-100/70">Requested: {Number(item.requested?.pages || 0)} pages · {Number(item.requested?.trimWidthMm || 0)} × {Number(item.requested?.trimHeightMm || 0)}mm · bleed {Number(item.requested?.bleedMm || 0)}mm</p>
+                  {Array.isArray(item.issues) && item.issues.length > 0 && <ul className="mt-2 list-disc pl-4 text-red-100/80">{item.issues.map((issue: string) => <li key={issue}>{issue}</li>)}</ul>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        {pluginParityHistory.length > 0 && <p className="mt-3 text-xs text-amber-100/70">Latest parity snapshot: {String(pluginParityHistory[0]?.action || '')} · {String(pluginParityHistory[0]?.at || '')}</p>}
+      </section>
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>

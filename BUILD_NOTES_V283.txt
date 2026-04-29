@@ -1,0 +1,33 @@
+# v283 — Excel / Matrix Pricing Engine
+
+Base: print-admin-v282-trade-supplier-import-clone.zip
+
+Changed files:
+- app/api/internal/catalog/matrix-pricing/route.ts
+- BUILD_NOTES_V283.txt
+
+Added:
+- Route1-style table matrix pricing support
+- Grid-format matrix pricing support
+- Auto-detect table vs grid format
+- Normalise matrix rows into internal pricing rows
+- Resolve exact price by productId, qty, size, material, finish, sides and turnaround
+- Strict matrix behaviour: no fallback to internal or supplier pricing when matrix pricing is selected
+
+Test route:
+- GET /api/internal/catalog/matrix-pricing?productId=default-product
+- POST /api/internal/catalog/matrix-pricing
+- DELETE /api/internal/catalog/matrix-pricing?productId=default-product
+
+Example POST body:
+{
+  "productId": "business-cards",
+  "currency": "GBP",
+  "data": [
+    { "Qty": 1000, "Size": "85x55", "Material": "450gsm silk", "Sides": "double", "Turnaround": "standard", "Price": 45 },
+    { "Qty": 1000, "Size": "85x55", "Material": "450gsm silk", "Sides": "double", "Turnaround": "express", "Price": 55 }
+  ]
+}
+
+Example resolve:
+GET /api/internal/catalog/matrix-pricing?productId=business-cards&qty=1000&size=85x55&material=450gsm%20silk&sides=double&turnaround=standard

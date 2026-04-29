@@ -1,0 +1,12 @@
+# v283 Deploy Fix Full ZIP
+
+Base: full v283 rebuilt project.
+
+Fix:
+- Replaced matrix-pricing route with deploy-safe dynamic Node route.
+- Avoids static optimisation issues by exporting dynamic = 'force-dynamic'.
+- Keeps table + grid matrix pricing support.
+
+Test routes:
+- /api/internal/catalog/matrix-pricing
+- /storefront-test

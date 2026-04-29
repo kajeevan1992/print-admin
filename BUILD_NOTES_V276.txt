@@ -1,0 +1,33 @@
+# v276 — Payment Reconciliation + Invoice Matching
+
+## Scope
+Built on top of v275 payment requests / Stripe-ready tracking.
+
+## Added
+- Payment reconciliation records
+- Invoice vs captured-payment matching
+- Missing ledger payment detection
+- Variance summary
+- Reconcile / Review / Write Off / Close controls
+- Internal reconciliation action history
+
+## New internal route
+- GET /api/internal/catalog/payment-reconciliation
+- POST /api/internal/catalog/payment-reconciliation
+
+## Changed files
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/payment-reconciliation/route.ts
+- BUILD_NOTES_V276.txt
+
+## Test routes
+- /storefront-test
+- GET /api/internal/catalog/payment-reconciliation
+- POST /api/internal/catalog/payment-reconciliation
+
+## Deploy notes
+- Internal API only.
+- No /api/proxy used.
+- No live Stripe gateway call or money movement added.
+- No pricing engine logic changed.
+- No payment gateway secret required for this build.

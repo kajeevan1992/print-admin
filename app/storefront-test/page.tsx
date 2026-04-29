@@ -234,6 +234,9 @@ export default function StorefrontTestPage() {
   const [paymentIntents, setPaymentIntents] = useState<any[]>([]);
   const [paymentEvents, setPaymentEvents] = useState<any[]>([]);
   const [paymentSummary, setPaymentSummary] = useState<any>(null);
+  const [paymentReconciliationItems, setPaymentReconciliationItems] = useState<any[]>([]);
+  const [paymentReconciliationActions, setPaymentReconciliationActions] = useState<any[]>([]);
+  const [paymentReconciliationSummary, setPaymentReconciliationSummary] = useState<any>(null);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -668,6 +671,31 @@ export default function StorefrontTestPage() {
     }
   }
 
+  async function loadPaymentReconciliation() {
+    try {
+      const response = await fetch('/api/internal/catalog/payment-reconciliation', { cache: 'no-store' });
+      const json = await response.json();
+      setPaymentReconciliationItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setPaymentReconciliationActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setPaymentReconciliationSummary(json?.data?.summary || null);
+    } catch (err) {
+      setFinanceStatus(err instanceof Error ? err.message : 'Could not load payment reconciliation.');
+    }
+  }
+
+  async function updatePaymentReconciliation(item: any, action: string) {
+    const intentId = String(item?.intentId || item?.id || '');
+    setFinanceStatus('Updating payment reconciliation...');
+    const response = await fetch('/api/internal/catalog/payment-reconciliation', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, intentId }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Reconciliation updated: ${json.item?.invoiceNumber || action}` : (json.error || 'Payment reconciliation failed.'));
+    if (json.ok) { await loadPaymentReconciliation(); await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+  }
+
   async function updatePaymentIntent(source: any, action: string) {
     const invoiceId = String(source?.invoiceId || source?.id || '');
     const intentId = String(source?.intentId || source?.id || '');
@@ -679,7 +707,7 @@ export default function StorefrontTestPage() {
     });
     const json = await response.json();
     setFinanceStatus(json.ok ? `Payment updated: ${json.item?.invoiceNumber || json.item?.status || action}` : (json.error || 'Payment update failed.'));
-    if (json.ok) { await loadPaymentIntents(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
+    if (json.ok) { await loadPaymentIntents(); await loadPaymentReconciliation(); await loadFinanceLedger(); await loadFinanceReports(); await loadCustomerCommunications(); }
   }
 
   async function updateFinanceReports(action: string) {
@@ -862,6 +890,7 @@ export default function StorefrontTestPage() {
     loadFinanceLedger();
     loadFinanceReports();
     loadPaymentIntents();
+    loadPaymentReconciliation();
   }, []);
 
   useEffect(() => {
@@ -2261,6 +2290,45 @@ export default function StorefrontTestPage() {
           </div>
         )}
 
+        <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-emerald-50">Payment reconciliation</p>
+              <p className="mt-1 text-xs text-emerald-100/70">Matches captured payment records against invoices and ledger payments. Still internal tracking only, no gateway money movement.</p>
+            </div>
+            <div className="text-right text-xs text-emerald-100/80"><p>{Number(paymentReconciliationSummary?.openCount || 0)} open</p><p>{Number(paymentReconciliationSummary?.matchedCount || 0)} matched</p></div>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Missing ledger</p><p className="mt-1 font-semibold text-emerald-50">{Number(paymentReconciliationSummary?.missingLedgerCount || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Manual review</p><p className="mt-1 font-semibold text-emerald-50">{Number(paymentReconciliationSummary?.reviewCount || 0)}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Variance</p><p className="mt-1 font-semibold text-emerald-50">{money(Number(paymentReconciliationSummary?.varianceMinor || 0), String(paymentReconciliationSummary?.currency || 'GBP'))}</p></div>
+            <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Actions</p><p className="mt-1 font-semibold text-emerald-50">{Number(paymentReconciliationSummary?.actionCount || 0)}</p></div>
+          </div>
+          {paymentReconciliationItems.length === 0 ? (
+            <p className="mt-3 rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-emerald-100/70">No payment requests to reconcile yet.</p>
+          ) : (
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {paymentReconciliationItems.slice(0, 6).map((item) => (
+                <div key={String(item.id)} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-emerald-100/80">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><p className="font-medium text-emerald-50">{String(item.invoiceNumber || item.id)}</p><p className="mt-1">{String(item.issue || 'pending')} · invoice {String(item.invoiceStatus || '')}</p></div>
+                    <div className="text-right"><p className="font-semibold text-emerald-50">{money(Number(item.capturedMinor || 0), String(item.currency || 'GBP'))}</p><p className="mt-1">{String(item.status || 'pending')}</p></div>
+                  </div>
+                  <p className="mt-2 text-emerald-100/70">Expected {money(Number(item.expectedMinor || 0), String(item.currency || 'GBP'))} · variance {money(Number(item.varianceMinor || 0), String(item.currency || 'GBP'))}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updatePaymentReconciliation(item, 'reconcile-captured')}>Reconcile</button>
+                    <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updatePaymentReconciliation(item, 'flag-review')}>Review</button>
+                    <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updatePaymentReconciliation(item, 'write-off-variance')}>Write Off</button>
+                    <button className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => updatePaymentReconciliation(item, 'close-reconciliation')}>Close</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {paymentReconciliationActions.length > 0 && <p className="mt-3 text-xs text-emerald-100/70">Latest reconciliation: {String(paymentReconciliationActions[0]?.action || '')} · {String(paymentReconciliationActions[0]?.invoiceNumber || '')}</p>}
+        </div>
+
+
         {financePayments.length > 0 && (
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
             <p className="text-sm font-medium text-sky-50">Payment tracking log</p>
@@ -2293,9 +2361,9 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>
-          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary }, null, 2))}>Copy JSON</button>
+          <button className="rounded-lg border border-border px-3 py-1 text-xs text-textMuted" onClick={() => navigator.clipboard?.writeText(JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, productionDispatchItems, productionDispatchSummary, productionDeliveryItems, productionDeliverySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary, paymentReconciliationItems, paymentReconciliationActions, paymentReconciliationSummary }, null, 2))}>Copy JSON</button>
         </div>
-        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary }, null, 2)}</pre>
+        <pre className="mt-3 max-h-72 overflow-auto rounded-xl bg-black/30 p-3 text-xs text-textMuted">{JSON.stringify({ productId, quantity, selections, validation, pricing, cartItems, customer, artworkNotes, confirmedDraft, pipelineOrders, productionJobs, productionQueueSummary, productionHandoffPackets, productionHandoffSummary, productionRoutingSummary, productionMachines, productionScheduleItems, productionScheduleSummary, productionTimelineItems, productionTimelineSummary, productionQualityItems, productionQualitySummary, customerNotificationItems, customerNotificationSummary, notificationTemplates, notificationTemplateSummary, notificationAuditItems, notificationAuditSummary, notificationPreferences, notificationPreferenceSummary, customerCommunicationItems, customerCommunicationSummary, customerIssueItems, customerIssueSummary, customerCreditItems, customerCreditSummary, customerTaskItems, customerTaskSummary, customerTaskSlaItems, customerTaskSlaSummary, customerTaskAssignmentItems, customerTaskAssignmentSummary, customerTaskAssignees, customerTeamWorkloadItems, customerTeamWorkloadSummary, customerWorkloadPerformanceItems, customerWorkloadPerformanceSummary, customerWorkloadPerformanceAudits, paymentIntents, paymentEvents, paymentSummary, paymentReconciliationItems, paymentReconciliationActions, paymentReconciliationSummary }, null, 2)}</pre>
       </section>
     </main>
   );

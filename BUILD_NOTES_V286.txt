@@ -1,0 +1,15 @@
+# v286 — Preflight Production Blocking Clean Patch
+
+Added:
+- Internal route: /api/internal/catalog/preflight-production
+- Expected vs actual artwork comparison
+- Production blocked status when page count, trim size, or bleed fails
+- Override action requiring a reason
+
+Base:
+- Built from v285 artwork PDF inspection foundation.
+
+Deploy notes:
+- No payment changes.
+- No pricing changes.
+- No UI redesign.

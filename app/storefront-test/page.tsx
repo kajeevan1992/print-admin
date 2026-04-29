@@ -263,6 +263,9 @@ export default function StorefrontTestPage() {
   const [artworkInspectionItems, setArtworkInspectionItems] = useState<any[]>([]);
   const [artworkInspectionSummary, setArtworkInspectionSummary] = useState<any>(null);
   const [artworkInspectionActions, setArtworkInspectionActions] = useState<any[]>([]);
+  const [orderWorkflowItems, setOrderWorkflowItems] = useState<any[]>([]);
+  const [orderWorkflowSummary, setOrderWorkflowSummary] = useState<any>(null);
+  const [orderWorkflowActions, setOrderWorkflowActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -851,6 +854,49 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadArtworkInspection();
   }
 
+  async function loadOrderWorkflow() {
+    try {
+      const response = await fetch('/api/internal/catalog/order-workflow', { cache: 'no-store' });
+      const json = await response.json();
+      setOrderWorkflowItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setOrderWorkflowActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setOrderWorkflowSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load order workflow.');
+    }
+  }
+
+  async function updateOrderWorkflow(item: any, action: string) {
+    const workflowId = String(item?.id || item?.workflowId || item?.orderId || '');
+    setProductionStatus('Updating order workflow...');
+    const response = await fetch('/api/internal/catalog/order-workflow', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ workflowId, action, note: action === 'override-preflight' ? 'Manager override from storefront-test.' : undefined }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Order workflow updated: ${json.item?.stage || action}` : (json.error || 'Order workflow update failed.'));
+    if (json.ok) { await loadOrderWorkflow(); await loadPipelineOrders(); await loadProductionJobs(); await loadOrderStatus(); }
+  }
+
+  async function createOrderWorkflowDemo() {
+    setProductionStatus('Creating demo order workflow...');
+    const source = pipelineOrders[0] || confirmedDraft || {};
+    const response = await fetch('/api/internal/catalog/order-workflow', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create-demo',
+        orderId: source.id || source.orderId,
+        orderNumber: source.orderNumber,
+        customerName: source.customer?.name || customer.name || 'Storefront Customer',
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Order workflow created.' : (json.error || 'Order workflow create failed.'));
+    if (json.ok) await loadOrderWorkflow();
+  }
+
   async function loadTradeSupplierImport() {
     try {
       const response = await fetch('/api/internal/catalog/trade-supplier-import', { cache: 'no-store' });
@@ -1120,6 +1166,7 @@ export default function StorefrontTestPage() {
     loadTradeSupplierImport();
     loadProductionValidation();
     loadArtworkInspection();
+    loadOrderWorkflow();
   }, []);
 
   useEffect(() => {
@@ -1681,6 +1728,53 @@ export default function StorefrontTestPage() {
           {pricing.warnings?.length > 0 && <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">{pricing.warnings.join(' · ')}</div>}
         </section>
       )}
+
+      <section className="rounded-3xl border border-cyan-500/20 bg-cyan-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-cyan-100/70">Order workflow engine</p>
+            <h2 className="mt-1 text-xl font-semibold text-cyan-50">v287 order pipeline + status engine</h2>
+            <p className="mt-2 max-w-3xl text-sm text-cyan-100/75">Controls draft → confirmed → preflight → production → dispatch → completed. Production release stays blocked until preflight passes or a manager override is recorded.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-sm font-medium text-cyan-100" onClick={createOrderWorkflowDemo}>Create Workflow</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadOrderWorkflow}>Refresh</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-7">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Total</p><p className="mt-1 font-semibold text-cyan-50">{Number(orderWorkflowSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Draft</p><p className="mt-1 font-semibold text-cyan-50">{Number(orderWorkflowSummary?.draft || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Preflight</p><p className="mt-1 font-semibold text-cyan-50">{Number(orderWorkflowSummary?.preflight || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Production</p><p className="mt-1 font-semibold text-cyan-50">{Number(orderWorkflowSummary?.production || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Dispatch</p><p className="mt-1 font-semibold text-cyan-50">{Number(orderWorkflowSummary?.dispatch || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Completed</p><p className="mt-1 font-semibold text-cyan-50">{Number(orderWorkflowSummary?.completed || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-cyan-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(orderWorkflowSummary?.blocked || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3">
+          {orderWorkflowItems.slice(0, 6).map((item) => (
+            <div key={String(item.id)} className="rounded-xl border border-white/10 bg-black/10 p-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="font-medium text-cyan-50">{String(item.orderNumber || item.orderId || item.id)}</p>
+                  <p className="mt-1 text-xs text-cyan-100/70">Stage: {String(item.stage || '')} · Status: {String(item.status || '')} · Preflight: {String(item.preflightStatus || '')}</p>
+                  <p className="mt-1 text-xs text-textMuted">Next action: {String(item.nextAction || 'none')} · Production {item.productionBlocked ? 'blocked' : 'ready'}</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-100" onClick={() => updateOrderWorkflow(item, 'confirm-order')}>Confirm</button>
+                  <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updateOrderWorkflow(item, 'send-to-preflight')}>Preflight</button>
+                  <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updateOrderWorkflow(item, 'mark-preflight-pass')}>Pass</button>
+                  <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateOrderWorkflow(item, 'mark-preflight-fail')}>Fail</button>
+                  <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-100" onClick={() => updateOrderWorkflow(item, 'override-preflight')}>Override</button>
+                  <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100 disabled:opacity-50" onClick={() => updateOrderWorkflow(item, 'release-to-production')} disabled={Boolean(item.productionBlocked && item.preflightStatus !== 'pass' && item.preflightStatus !== 'override')}>Production</button>
+                  <button className="rounded-lg border border-lime-500/40 bg-lime-500/10 px-3 py-1.5 text-xs font-medium text-lime-100" onClick={() => updateOrderWorkflow(item, 'release-to-dispatch')}>Dispatch</button>
+                  <button className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-textMuted" onClick={() => updateOrderWorkflow(item, 'mark-completed')}>Complete</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {orderWorkflowActions.length > 0 && <p className="mt-3 text-xs text-cyan-100/70">Latest workflow action: {String(orderWorkflowActions[0]?.action || '')} · {String(orderWorkflowActions[0]?.at || '')}</p>}
+      </section>
 
       <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">

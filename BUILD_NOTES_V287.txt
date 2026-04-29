@@ -1,0 +1,29 @@
+# v287 — Order Pipeline + Status Engine
+
+Scope:
+- Continue from v286 clean preflight-production build.
+- Add internal order workflow/status engine.
+- Do not touch pricing, payments, VAT or supplier pricing logic.
+- Keep storefront-test as the test harness only.
+
+Added:
+- Internal route: /api/internal/catalog/order-workflow
+- Workflow stages: draft, confirmed, preflight, production, dispatch, completed, blocked
+- Production release guard: blocked until preflight pass or manager override
+- Workflow history/audit trail per item
+- Storefront-test workflow panel with stage controls
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/order-workflow/route.ts
+- BUILD_NOTES_V287.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/order-workflow
+- POST /api/internal/catalog/order-workflow
+
+Deploy notes:
+- Replace existing project with this full ZIP.
+- Commit and push to GitHub.
+- Redeploy via Coolify.

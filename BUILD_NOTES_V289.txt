@@ -1,0 +1,15 @@
+v289 — Production Job Queue Board
+
+Added:
+- Lane-based production job board endpoint.
+- Queue/start/pause/block/rush/complete controls.
+- Board summary for blocked, queued, in-production, urgent/rush jobs and lane count.
+- Storefront-test extension that seeds the board from split production jobs.
+
+Internal route:
+- GET/POST /api/internal/catalog/production-job-board
+
+Rules:
+- Internal API only.
+- No pricing/payment changes.
+- Blocked jobs cannot be queued or started until block is cleared.

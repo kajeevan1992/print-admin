@@ -1,0 +1,27 @@
+# v273 — Finance Layer Foundation
+
+Base used: v271 ZIP available in this workspace. The previously referenced v272 ZIP was not present in /mnt/data, so this build continues from the latest available package and adds the selected Finance Layer.
+
+Added:
+- Internal finance ledger foundation.
+- Invoice creation from latest pipeline order / confirmed draft.
+- Manual payment tracking only: mark paid / overdue / void.
+- VAT summary and VAT snapshot tracking.
+- Internal route: /api/internal/catalog/finance-ledger
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/finance-ledger/route.ts
+- BUILD_NOTES_V273.txt
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/finance-ledger
+- POST /api/internal/catalog/finance-ledger
+
+Deploy notes:
+- No payment gateway added.
+- No money movement added.
+- No pricing engine logic changed.
+- No /api/proxy usage.
+- Finance data is stored via the existing internal catalog config record pattern.

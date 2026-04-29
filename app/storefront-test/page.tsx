@@ -223,6 +223,11 @@ export default function StorefrontTestPage() {
   const [customerWorkloadReportSummary, setCustomerWorkloadReportSummary] = useState<any>(null);
   const [customerWorkloadReports, setCustomerWorkloadReports] = useState<any[]>([]);
   const [customerWorkloadCsvPreview, setCustomerWorkloadCsvPreview] = useState('');
+  const [financeInvoices, setFinanceInvoices] = useState<any[]>([]);
+  const [financePayments, setFinancePayments] = useState<any[]>([]);
+  const [financeVatSummary, setFinanceVatSummary] = useState<any>(null);
+  const [financeSummary, setFinanceSummary] = useState<any>(null);
+  const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
   const [artworkNotes, setArtworkNotes] = useState<Record<string, string>>({});
@@ -617,6 +622,43 @@ export default function StorefrontTestPage() {
     setProductionStatus(json.ok ? `Workload report updated: ${json.item?.reportType || action}` : (json.error || 'Workload report update failed.'));
     if (json.ok) { await loadCustomerWorkloadReports(); await loadCustomerCommunications(); }
   }
+  async function loadFinanceLedger() {
+    try {
+      const response = await fetch('/api/internal/catalog/finance-ledger', { cache: 'no-store' });
+      const json = await response.json();
+      setFinanceInvoices(Array.isArray(json?.data?.invoices) ? json.data.invoices : []);
+      setFinancePayments(Array.isArray(json?.data?.payments) ? json.data.payments : []);
+      setFinanceVatSummary(json?.data?.vatSummary || null);
+      setFinanceSummary(json?.data?.summary || null);
+    } catch (err) {
+      setFinanceStatus(err instanceof Error ? err.message : 'Could not load finance ledger.');
+    }
+  }
+
+  async function updateFinanceLedger(source: any, action: string) {
+    const orderId = String(source?.orderId || source?.id || '');
+    setFinanceStatus('Updating finance ledger...');
+    const response = await fetch('/api/internal/catalog/finance-ledger', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action,
+        orderId,
+        invoiceId: source?.invoiceId || source?.id,
+        orderNumber: source?.orderNumber,
+        customerName: source?.customer?.name || source?.customerName,
+        customerEmail: source?.customer?.email || source?.customerEmail,
+        currency: source?.totals?.currency || source?.currency || 'GBP',
+        netTotalMinor: source?.totals?.netTotalMinor || source?.netTotalMinor,
+        vatTotalMinor: source?.totals?.vatTotalMinor || source?.vatTotalMinor,
+        grossTotalMinor: source?.totals?.grossTotalMinor || source?.grossTotalMinor,
+      }),
+    });
+    const json = await response.json();
+    setFinanceStatus(json.ok ? `Finance updated: ${json.item?.invoiceNumber || json.item?.status || action}` : (json.error || 'Finance update failed.'));
+    if (json.ok) { await loadFinanceLedger(); await loadCustomerCommunications(); }
+  }
+
   async function updateCustomerTaskAssignment(task: any, action: string, assigneeId?: string) {
     const taskId = String(task?.id || '');
     if (!taskId) { setProductionStatus('Select a task before updating assignment.'); return; }
@@ -758,6 +800,7 @@ export default function StorefrontTestPage() {
     loadCustomerTeamWorkload();
     loadCustomerWorkloadPerformance();
     loadCustomerWorkloadReports();
+    loadFinanceLedger();
   }, []);
 
   useEffect(() => {
@@ -2075,6 +2118,64 @@ export default function StorefrontTestPage() {
         )}
       </section>
 
+
+      <section className="rounded-3xl border border-border bg-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Finance Ledger</p>
+            <p className="mt-1 text-sm text-textMuted">Invoice, payment-tracking and VAT summary only. No payment gateway or money movement.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-100" onClick={() => updateFinanceLedger(pipelineOrders[0] || confirmedDraft || {}, 'create-invoice')}>Create Invoice</button>
+            <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updateFinanceLedger(financeInvoices[0] || {}, 'mark-paid')}>Mark Paid</button>
+            <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updateFinanceLedger(financeInvoices[0] || {}, 'mark-overdue')}>Mark Overdue</button>
+            <button className="rounded-lg border border-violet-500/40 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-100" onClick={() => updateFinanceLedger({}, 'snapshot-vat')}>VAT Snapshot</button>
+          </div>
+        </div>
+        {financeStatus && <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-textMuted">{financeStatus}</p>}
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Invoices</p><p className="mt-1 text-2xl font-semibold">{Number(financeSummary?.invoiceCount || 0)}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Outstanding</p><p className="mt-1 text-2xl font-semibold">{money(Number(financeSummary?.outstandingMinor || 0), String(financeSummary?.currency || 'GBP'))}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">Paid tracked</p><p className="mt-1 text-2xl font-semibold">{money(Number(financeSummary?.paidMinor || 0), String(financeSummary?.currency || 'GBP'))}</p></div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"><p className="text-xs text-textMuted">VAT liability</p><p className="mt-1 text-2xl font-semibold">{money(Number(financeVatSummary?.vatDueMinor || 0), String(financeVatSummary?.currency || 'GBP'))}</p></div>
+        </div>
+        {financeInvoices.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-textMuted">No invoices yet. Create one from the latest pipeline order/draft.</p>
+        ) : (
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {financeInvoices.slice(0, 6).map((invoice) => (
+              <div key={String(invoice.id)} className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{String(invoice.invoiceNumber || invoice.id)}</p>
+                    <p className="mt-1 text-xs text-textMuted">{String(invoice.customerName || 'Customer')} · {String(invoice.orderNumber || invoice.orderId || '')}</p>
+                    <p className="mt-2 text-xs text-textMuted">Net {money(Number(invoice.netTotalMinor || 0), String(invoice.currency || 'GBP'))} · VAT {money(Number(invoice.vatTotalMinor || 0), String(invoice.currency || 'GBP'))}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{money(Number(invoice.grossTotalMinor || 0), String(invoice.currency || 'GBP'))}</p>
+                    <p className="mt-1 text-xs text-textMuted">{String(invoice.status || 'draft')}</p>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-100" onClick={() => updateFinanceLedger(invoice, 'mark-paid')}>Mark Paid</button>
+                  <button className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-100" onClick={() => updateFinanceLedger(invoice, 'mark-overdue')}>Overdue</button>
+                  <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100" onClick={() => updateFinanceLedger(invoice, 'void-invoice')}>Void</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {financePayments.length > 0 && (
+          <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+            <p className="text-sm font-medium text-sky-50">Payment tracking log</p>
+            <div className="mt-3 space-y-2">
+              {financePayments.slice(0, 5).map((payment) => (
+                <p key={String(payment.id)} className="text-xs text-sky-100/80">{String(payment.paymentReference || payment.id)} · {money(Number(payment.amountMinor || 0), String(payment.currency || 'GBP'))} · {String(payment.status || 'tracked')}</p>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">

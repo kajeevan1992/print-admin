@@ -1,0 +1,28 @@
+v284 — Production Validation Layer
+
+Added:
+- Internal production validation endpoint: /api/internal/catalog/production-validation
+- Material-to-machine compatibility checks
+- Sheet fit validation against sheet-fed machine max size
+- Board parent-size and flatbed max-size validation
+- Roll width validation against material roll width and machine max roll width
+- Production blocking flag when validation fails
+- Manual clear-blocks override action foundation
+
+Changed:
+- app/api/internal/catalog/production-validation/route.ts
+- app/storefront-test/page.tsx (syntax repair around preflight/trade supplier functions from v283)
+- BUILD_NOTES_V284.txt
+
+Deploy notes:
+- This build fixes the v283 storefront-test syntax corruption and adds v284 validation.
+- No pricing engine logic changed.
+- No payment gateway added.
+- Internal API only.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-validation
+- POST /api/internal/catalog/production-validation { "action": "validate-all" }
+- POST /api/internal/catalog/production-validation { "action": "add-demo-invalid-sheet" }
+- POST /api/internal/catalog/production-validation { "action": "clear-blocks", "reason": "Manager override" }

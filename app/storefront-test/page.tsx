@@ -257,6 +257,9 @@ export default function StorefrontTestPage() {
   const [tradeImportClones, setTradeImportClones] = useState<any[]>([]);
   const [tradeImportSummary, setTradeImportSummary] = useState<any>(null);
   const [tradeImportActions, setTradeImportActions] = useState<any[]>([]);
+  const [productionValidationItems, setProductionValidationItems] = useState<any[]>([]);
+  const [productionValidationSummary, setProductionValidationSummary] = useState<any>(null);
+  const [productionValidationActions, setProductionValidationActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -787,7 +790,40 @@ export default function StorefrontTestPage() {
 
   async function updatePreflightGate(action = 'run-preflight') {
     setProductionStatus('Running plugin-parity preflight comparison...');
-    const response = await fetch('/api/internal/catalog/preflight-gate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }) });
+    const response = await fetch('/api/internal/catalog/preflight-gate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Preflight gate updated: ${json.item?.action || action}` : (json.error || 'Preflight gate update failed.'));
+    if (json.ok) { await loadPreflightGate(); await loadProductionJobs(); }
+  }
+
+  async function loadProductionValidation() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-validation', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionValidationItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionValidationActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionValidationSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production validation.');
+    }
+  }
+
+  async function updateProductionValidation(action: string, payload: any = {}) {
+    setProductionStatus('Updating production validation...');
+    const response = await fetch('/api/internal/catalog/production-validation', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Production validation updated: ${json.item?.action || action}` : (json.error || 'Production validation failed.'));
+    if (json.ok) await loadProductionValidation();
+  }
+
   async function loadTradeSupplierImport() {
     try {
       const response = await fetch('/api/internal/catalog/trade-supplier-import', { cache: 'no-store' });
@@ -812,11 +848,6 @@ export default function StorefrontTestPage() {
     const json = await response.json();
     setProductionStatus(json.ok ? `Trade supplier import updated: ${json.item?.action || action}` : (json.error || 'Trade supplier import update failed.'));
     if (json.ok) await loadTradeSupplierImport();
-  }
-
-    const json = await response.json();
-    setProductionStatus(json.ok ? `Preflight gate updated: ${json.item?.action || action}` : (json.error || 'Preflight gate update failed.'));
-    if (json.ok) { await loadPreflightGate(); await loadProductionJobs(); }
   }
 
   async function updatePaymentSettlement(item: any, action: string) {
@@ -1060,6 +1091,7 @@ export default function StorefrontTestPage() {
     loadPluginParity();
     loadPreflightGate();
     loadTradeSupplierImport();
+    loadProductionValidation();
   }, []);
 
   useEffect(() => {
@@ -1588,6 +1620,39 @@ export default function StorefrontTestPage() {
           {pricing.warnings?.length > 0 && <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-100">{pricing.warnings.join(' · ')}</div>}
         </section>
       )}
+
+      <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-emerald-100/70">Production validation</p>
+            <h2 className="mt-1 text-xl font-semibold text-emerald-50">Material → machine compatibility gate</h2>
+            <p className="mt-2 max-w-3xl text-sm text-emerald-100/75">Checks sheet, board and roll materials against assigned machine capability before production release. Invalid jobs are marked blocked so they cannot safely move into production.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={() => updateProductionValidation('validate-all')}>Validate All</button>
+            <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={() => updateProductionValidation('add-demo-invalid-sheet')}>Add Invalid Sheet Test</button>
+            <button className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm font-medium text-yellow-100" onClick={() => updateProductionValidation('clear-blocks', { reason: 'Manager override from storefront-test' })}>Clear Blocks</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Checked jobs</p><p className="mt-1 font-semibold text-emerald-50">{Number(productionValidationSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Ready</p><p className="mt-1 font-semibold text-emerald-50">{Number(productionValidationSummary?.ready || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(productionValidationSummary?.blocked || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Warnings</p><p className="mt-1 font-semibold text-yellow-100">{Number(productionValidationSummary?.warnings || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {productionValidationItems.slice(0, 6).map((item) => (
+            <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-emerald-100/80">
+              <div className="flex items-start justify-between gap-3"><p className="font-medium text-emerald-50">{String(item.orderNumber || item.id)}</p><span className={item.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{item.productionBlocked ? 'blocked' : 'ready'}</span></div>
+              <p className="mt-1 text-emerald-100/70">{String(item.materialName || item.materialKey)} → {String(item.machineName || item.machineKey)}</p>
+              <p className="mt-1 text-emerald-100/70">{String(item.materialType || '')} · {Number(item.requestedWidthMm || 0)} × {Number(item.requestedHeightMm || 0)}mm</p>
+              {Array.isArray(item.issues) && item.issues.length > 0 && <ul className="mt-2 list-disc pl-4 text-red-100/80">{item.issues.map((issue: string) => <li key={issue}>{issue}</li>)}</ul>}
+              {Array.isArray(item.warnings) && item.warnings.length > 0 && <ul className="mt-2 list-disc pl-4 text-yellow-100/80">{item.warnings.map((warning: string) => <li key={warning}>{warning}</li>)}</ul>}
+            </div>
+          ))}
+        </div>
+        {productionValidationActions.length > 0 && <p className="mt-3 text-xs text-emerald-100/70">Latest validation action: {String(productionValidationActions[0]?.action || '')} · {String(productionValidationActions[0]?.at || '')}</p>}
+      </section>
 
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

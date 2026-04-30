@@ -1,0 +1,21 @@
+# v291 — Shift-aware scheduling + operator assignment
+
+Added:
+- Shift planner foundation on top of v290 machine lane planner.
+- Internal route: /api/internal/catalog/production-shift-planner
+- Shift slots with capacity minutes.
+- Operator skill/capacity assignment.
+- Seed from machine planner.
+- Auto assign shifts/operators.
+- Start / Rush / Block / Done controls.
+- Blocked/preflight-failed jobs stay blocked and cannot start.
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-shift-planner
+- POST /api/internal/catalog/production-shift-planner
+
+Deploy notes:
+- No pricing/payment changes.
+- Internal API only.
+- Additive planner layer; does not redesign existing UI.

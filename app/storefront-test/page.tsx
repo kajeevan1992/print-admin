@@ -277,6 +277,11 @@ export default function StorefrontTestPage() {
   const [machinePlannerLanes, setMachinePlannerLanes] = useState<any[]>([]);
   const [machinePlannerSummary, setMachinePlannerSummary] = useState<any>(null);
   const [machinePlannerActions, setMachinePlannerActions] = useState<any[]>([]);
+  const [shiftPlannerJobs, setShiftPlannerJobs] = useState<any[]>([]);
+  const [shiftPlannerBoard, setShiftPlannerBoard] = useState<any[]>([]);
+  const [shiftPlannerSummary, setShiftPlannerSummary] = useState<any>(null);
+  const [shiftPlannerActions, setShiftPlannerActions] = useState<any[]>([]);
+  const [shiftPlannerOperators, setShiftPlannerOperators] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -1023,6 +1028,57 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadMachinePlanner();
   }
 
+  async function loadShiftPlanner() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-shift-planner', { cache: 'no-store' });
+      const json = await response.json();
+      setShiftPlannerJobs(Array.isArray(json?.data?.jobs) ? json.data.jobs : []);
+      setShiftPlannerBoard(Array.isArray(json?.data?.board) ? json.data.board : []);
+      setShiftPlannerActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setShiftPlannerOperators(Array.isArray(json?.data?.operators) ? json.data.operators : []);
+      setShiftPlannerSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load shift planner.');
+    }
+  }
+
+  async function seedShiftPlannerFromMachinePlanner() {
+    setProductionStatus('Seeding shift planner from machine planner...');
+    const response = await fetch('/api/internal/catalog/production-shift-planner', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'seed-from-machine-planner', jobs: machinePlannerJobs }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Shift planner seeded from machine planner.' : (json.error || 'Shift planner seed failed.'));
+    if (json.ok) await loadShiftPlanner();
+  }
+
+  async function autoAssignShiftPlanner() {
+    setProductionStatus('Auto-assigning shifts and operators...');
+    const response = await fetch('/api/internal/catalog/production-shift-planner', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'auto-assign-shifts' }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Shift planner auto-assigned.' : (json.error || 'Shift planner auto-assign failed.'));
+    if (json.ok) await loadShiftPlanner();
+  }
+
+  async function updateShiftPlanner(job: any, action: string) {
+    const jobId = String(job?.id || '');
+    setProductionStatus('Updating shift planner...');
+    const response = await fetch('/api/internal/catalog/production-shift-planner', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jobId, action, note: action === 'block' ? 'Blocked from storefront-test shift planner.' : undefined }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Shift planner updated: ${action}` : (json.error || 'Shift planner update failed.'));
+    if (json.ok) await loadShiftPlanner();
+  }
+
   async function splitOrderIntoProductionJobs() {
     const source = orderWorkflowItems[0] || pipelineOrders[0] || confirmedDraft || {};
     setProductionStatus('Splitting order into production jobs...');
@@ -1317,6 +1373,7 @@ export default function StorefrontTestPage() {
     loadProductionJobRecords();
     loadProductionJobBoard();
     loadMachinePlanner();
+    loadShiftPlanner();
   }, []);
 
   useEffect(() => {
@@ -2060,6 +2117,57 @@ export default function StorefrontTestPage() {
           ))}
         </div>
         {machinePlannerActions.length > 0 && <p className="mt-3 text-xs text-cyan-100/70">Latest planner action: {String(machinePlannerActions[0]?.action || '')} - {String(machinePlannerActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-sky-500/20 bg-sky-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-sky-100/70">Shift planner</p>
+            <h2 className="mt-1 text-xl font-semibold text-sky-50">v291 shift-aware scheduling + operator assignment</h2>
+            <p className="mt-2 max-w-3xl text-sm text-sky-100/75">Turns machine-planner jobs into shift slots, assigns suitable operators, tracks capacity minutes and keeps blocked/preflight-failed jobs from starting.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm font-medium text-sky-100" onClick={seedShiftPlannerFromMachinePlanner}>Seed From Machine Planner</button>
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={autoAssignShiftPlanner}>Auto Assign Shifts</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadShiftPlanner}>Refresh Shifts</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Jobs</p><p className="mt-1 font-semibold text-sky-50">{Number(shiftPlannerSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Unassigned</p><p className="mt-1 font-semibold text-sky-50">{Number(shiftPlannerSummary?.unassigned || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Scheduled</p><p className="mt-1 font-semibold text-emerald-100">{Number(shiftPlannerSummary?.scheduled || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Running</p><p className="mt-1 font-semibold text-emerald-100">{Number(shiftPlannerSummary?.running || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(shiftPlannerSummary?.blocked || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-sky-100/70">Operators</p><p className="mt-1 font-semibold text-sky-50">{Number(shiftPlannerSummary?.operators || shiftPlannerOperators.length || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {shiftPlannerBoard.map((shift) => (
+            <div key={String(shift.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-sky-100/80">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-medium text-sky-50">{String(shift.name || shift.id)}</p><p className="mt-1 text-sky-100/70">{new Date(String(shift.startsAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} → {new Date(String(shift.endsAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p></div>
+                <span className="text-sky-100/70">Used {Number(shift.usedMinutes || 0)}m</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {(Array.isArray(shift.jobs) ? shift.jobs : []).slice(0, 4).map((job: any) => (
+                  <div key={String(job.id)} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="flex items-start justify-between gap-2"><p className="font-medium text-sky-50">{String(job.orderNumber || job.id)}</p><span className={job.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{String(job.status || '')}</span></div>
+                    <p className="mt-1 text-sky-100/70">{String(job.productName || '')} - {Number(job.estimatedMinutes || 0)}m - {String(job.priority || 'normal')}</p>
+                    <p className="mt-1 text-sky-100/60">Operator: {String(job.operatorId || 'unassigned')}</p>
+                    {job.scheduledStart && <p className="mt-1 text-sky-100/60">{new Date(String(job.scheduledStart)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} → {job.scheduledEnd ? new Date(String(job.scheduledEnd)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'open'}</p>}
+                    {job.blockReason && <p className="mt-2 rounded-lg border border-red-500/30 bg-red-500/10 p-2 text-red-100">{String(job.blockReason)}</p>}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100 disabled:opacity-50" onClick={() => updateShiftPlanner(job, 'start')} disabled={Boolean(job.productionBlocked)}>Start</button>
+                      <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-100" onClick={() => updateShiftPlanner(job, 'rush')}>Rush</button>
+                      <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateShiftPlanner(job, 'block')}>Block</button>
+                      <button className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs font-medium text-textMuted" onClick={() => updateShiftPlanner(job, 'complete')}>Done</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {shiftPlannerActions.length > 0 && <p className="mt-3 text-xs text-sky-100/70">Latest shift action: {String(shiftPlannerActions[0]?.action || '')} - {String(shiftPlannerActions[0]?.at || '')}</p>}
       </section>
 
       <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">

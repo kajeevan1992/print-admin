@@ -1,0 +1,16 @@
+# v300 — Delivery / Collection Completion Gate
+
+Added:
+- Delivery and collection confirmation endpoint.
+- Dispatch release -> fulfilment completion seed flow.
+- Delivery proof-of-delivery metadata.
+- Collection signature/reference metadata.
+- Completion blocking until dispatch has been released/dispatched.
+
+New route:
+- GET/POST /api/internal/catalog/production-delivery-completion
+
+Notes:
+- Internal API only.
+- No payment/pricing changes.
+- No UI redesign.

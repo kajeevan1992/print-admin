@@ -295,6 +295,9 @@ export default function StorefrontTestPage() {
   const [productionReplacementItems, setProductionReplacementItems] = useState<any[]>([]);
   const [productionReplacementSummary, setProductionReplacementSummary] = useState<any>(null);
   const [productionReplacementActions, setProductionReplacementActions] = useState<any[]>([]);
+  const [productionReplacementQcItems, setProductionReplacementQcItems] = useState<any[]>([]);
+  const [productionReplacementQcSummary, setProductionReplacementQcSummary] = useState<any>(null);
+  const [productionReplacementQcActions, setProductionReplacementQcActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -1315,6 +1318,42 @@ export default function StorefrontTestPage() {
     setProductionStatus(json.ok ? `Replacement job updated: ${json.item?.status || action}` : (json.error || 'Replacement job update failed.'));
     if (json.ok) await loadProductionReplacementJobs();
   }
+  async function loadProductionReplacementQc() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-replacement-qc', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionReplacementQcItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionReplacementQcActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionReplacementQcSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load replacement QC.');
+    }
+  }
+
+  async function seedReplacementQcFromJobs() {
+    setProductionStatus('Seeding replacement QC from replacement jobs...');
+    const response = await fetch('/api/internal/catalog/production-replacement-qc', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'seed-from-replacements', replacements: productionReplacementItems }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Replacement QC seeded from replacement jobs.' : (json.error || 'Replacement QC seed failed.'));
+    if (json.ok) await loadProductionReplacementQc();
+  }
+
+  async function updateProductionReplacementQc(item: any, action: string, failedKey?: string) {
+    setProductionStatus('Updating replacement QC...');
+    const response = await fetch('/api/internal/catalog/production-replacement-qc', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ qcId: item?.id, action, failedKey, note: `Replacement QC action from storefront-test: ${action}` }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Replacement QC updated: ${json.item?.status || action}` : (json.error || 'Replacement QC update failed.'));
+    if (json.ok) await loadProductionReplacementQc();
+  }
+
   async function splitOrderIntoProductionJobs() {
     const source = orderWorkflowItems[0] || pipelineOrders[0] || confirmedDraft || {};
     setProductionStatus('Splitting order into production jobs...');
@@ -1614,6 +1653,7 @@ export default function StorefrontTestPage() {
     loadProductionExceptions();
     loadProductionReworkImpact();
     loadProductionReplacementJobs();
+    loadProductionReplacementQc();
   }, []);
 
   useEffect(() => {
@@ -2079,6 +2119,55 @@ export default function StorefrontTestPage() {
           ))}
         </div>
         {artworkInspectionActions.length > 0 && <p className="mt-3 text-xs text-fuchsia-100/70">Latest inspection action: {String(artworkInspectionActions[0]?.action || '')} · {String(artworkInspectionActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-emerald-100/70">Replacement QC</p>
+            <h2 className="mt-1 text-xl font-semibold text-emerald-50">v298 replacement job QC + closeout</h2>
+            <p className="mt-2 max-w-3xl text-sm text-emerald-100/75">Checks remake jobs before dispatch. Failed replacement QC can be sent back into the rework loop or manager-accepted with an audit trail.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100" onClick={seedReplacementQcFromJobs}>Seed From Replacements</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadProductionReplacementQc}>Refresh QC</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Total</p><p className="mt-1 font-semibold text-emerald-50">{Number(productionReplacementQcSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">In QC</p><p className="mt-1 font-semibold text-emerald-50">{Number(productionReplacementQcSummary?.inQc || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Passed</p><p className="mt-1 font-semibold text-emerald-100">{Number(productionReplacementQcSummary?.passed || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Failed</p><p className="mt-1 font-semibold text-red-100">{Number(productionReplacementQcSummary?.failed || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Rework loop</p><p className="mt-1 font-semibold text-orange-100">{Number(productionReplacementQcSummary?.reworkLoop || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-emerald-100/70">Dispatch OK</p><p className="mt-1 font-semibold text-emerald-100">{Number(productionReplacementQcSummary?.dispatchAllowed || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {productionReplacementQcItems.slice(0, 9).map((item) => (
+            <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-emerald-100/80">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-medium text-emerald-50">{String(item.orderNumber || item.replacementJobId || item.id)}</p><p className="mt-1 text-emerald-100/70">{String(item.productName || '')}</p></div>
+                <span className={item.dispatchAllowed ? 'text-emerald-200' : item.reworkLoopRequired ? 'text-red-200' : 'text-yellow-100'}>{String(item.status || '')}</span>
+              </div>
+              <p className="mt-2 text-emerald-100/70">Original: {String(item.originalJobId || '')} · Replacement: {String(item.replacementJobId || '')}</p>
+              <p className="mt-1 text-emerald-100/70">Failed checks: {Array.isArray(item.failedChecks) && item.failedChecks.length ? item.failedChecks.join(', ') : 'none'} · Dispatch allowed: {item.dispatchAllowed ? 'yes' : 'no'}</p>
+              <div className="mt-2 space-y-1">
+                {Array.isArray(item.checks) && item.checks.slice(0, 5).map((check: any) => (
+                  <div key={String(check.key)} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-2 py-1"><span>{String(check.label || check.key)}</span><span>{String(check.status || 'pending')}</span></div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateProductionReplacementQc(item, 'start-qc')}>Start QC</button>
+                <button className="rounded-lg border border-green-500/40 bg-green-500/10 px-2 py-1 text-xs font-medium text-green-100" onClick={() => updateProductionReplacementQc(item, 'pass-checks')}>Pass Checks</button>
+                <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateProductionReplacementQc(item, 'fail-quality', 'colour')}>Fail Quality</button>
+                <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateProductionReplacementQc(item, 'send-rework-loop')}>Rework Loop</button>
+                <button className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-100" onClick={() => updateProductionReplacementQc(item, 'manager-accept')}>Manager Accept</button>
+                <button className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs font-medium text-textMuted" onClick={() => updateProductionReplacementQc(item, 'close')}>Close</button>
+              </div>
+            </div>
+          ))}
+          {productionReplacementQcItems.length === 0 && <p className="text-sm text-emerald-100/70">No replacement QC records yet. Seed from completed replacement jobs.</p>}
+        </div>
+        {productionReplacementQcActions.length > 0 && <p className="mt-3 text-xs text-emerald-100/70">Latest replacement QC action: {String(productionReplacementQcActions[0]?.action || '')} - {String(productionReplacementQcActions[0]?.at || '')}</p>}
       </section>
 
       <section className="rounded-3xl border border-border bg-panel p-5">

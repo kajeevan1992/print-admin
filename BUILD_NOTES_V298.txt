@@ -1,0 +1,23 @@
+# v298 — Replacement Job QC + Closeout
+
+Added:
+- Replacement/remake job QC checklist after replacement production
+- Seed QC records from replacement jobs
+- Start QC / Pass Checks / Fail Quality / Rework Loop / Manager Accept / Close controls
+- Dispatch allowed flag for passed or manager-accepted replacement QC
+- Rework loop required flag for failed replacement QC
+- Internal route: /api/internal/catalog/production-replacement-qc
+
+Changed:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-replacement-qc/route.ts
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-replacement-qc
+- POST /api/internal/catalog/production-replacement-qc
+
+Deploy notes:
+- Built on top of v297.
+- No pricing, VAT, payment, supplier API, or storefront architecture changes.
+- Zip integrity test passed.

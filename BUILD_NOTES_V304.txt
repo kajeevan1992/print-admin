@@ -1,0 +1,36 @@
+BUILD v304 — Artwork + Preflight Theme Bridge
+
+Scope completed:
+- Added hosted theme artwork endpoint: /api/internal/storefront/artwork
+- Added hosted theme preflight endpoint: /api/internal/storefront/preflight
+- Added shared bridge helper: src/core/storefront/artwork-preflight-bridge.ts
+
+What it does:
+- Links artwork upload metadata to hosted theme cart items from v303.
+- Simulates upload safely with metadata-only records for now.
+- Runs preflight automatically after artwork is linked.
+- Returns artwork required flag, artwork status, upload count, preflight pass/fail, issues, and production block status.
+- Stores hosted artwork records under admin-config key hosted-theme-artwork.
+- Stores hosted preflight records under admin-config key hosted-theme-preflight.
+- Updates the v303 hosted cart items with artwork/preflight status so the theme can render the latest state.
+
+Rules followed:
+- Internal API only.
+- No /api/v1 usage.
+- No /api/proxy usage.
+- No pricing engine changes.
+- No UI redesign.
+- Existing cart bridge from v303 reused.
+
+Test routes:
+- GET  /api/internal/storefront/artwork
+- POST /api/internal/storefront/artwork
+  Body example: { "cartItemId": "<cart-item-id>", "files": [{ "fileName": "artwork.pdf", "mimeType": "application/pdf", "fileSize": 123456, "pageCount": 2, "trimWidthMm": 85, "trimHeightMm": 55, "bleedMm": 3 }], "notes": "Customer supplied PDF" }
+- GET  /api/internal/storefront/preflight
+- POST /api/internal/storefront/preflight
+  Body example: { "cartItemId": "<cart-item-id>" }
+
+Deploy notes:
+- Deploy as a full replacement ZIP.
+- Add item to cart first through /api/internal/storefront/cart, then upload artwork against that cart item id.
+- No new env vars required.

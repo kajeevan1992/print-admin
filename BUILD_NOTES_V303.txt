@@ -1,0 +1,50 @@
+V303 — Cart & Checkout Theme Bridge
+
+Changed files:
+- app/api/internal/storefront/cart/route.ts
+- app/api/internal/storefront/checkout/route.ts
+- src/core/storefront/cart-checkout-bridge.ts
+- BUILD_NOTES_V303.txt
+
+What changed:
+- Added hosted-theme internal cart bridge at /api/internal/storefront/cart.
+- Added hosted-theme internal checkout bridge at /api/internal/storefront/checkout.
+- Cart supports add item, update quantity/options, remove item, clear cart, and automatic pricing recalculation.
+- Checkout converts cart into the existing quote draft orders storage key without requiring artwork yet. Artwork/preflight bridge is reserved for v304.
+- VAT is calculated per line item, with zero VAT for leaflet/booklet product classes and standard VAT for business cards, boards, banners, and add-on services.
+- Add-ons are calculated as separate VAT-rated lines so design services remain standard VAT even when the base product is zero-rated.
+- Pricing source is carried through on every cart item and draft order payload.
+- Delivery estimate returns a basic working-day estimate from selected turnaround.
+
+Test routes:
+- GET /api/internal/storefront/cart
+- POST /api/internal/storefront/cart
+- PUT /api/internal/storefront/cart
+- DELETE /api/internal/storefront/cart?id=<cartItemId>
+- DELETE /api/internal/storefront/cart?clear=true
+- GET /api/internal/storefront/checkout
+- POST /api/internal/storefront/checkout
+
+Example cart POST:
+{
+  "productSlug": "business-cards",
+  "quantity": 500,
+  "selections": { "quantity": "500", "material": "450gsm_silk", "finish": "none" },
+  "turnaround": "standard"
+}
+
+Example checkout POST:
+{
+  "customer": {
+    "name": "Test Customer",
+    "email": "test@example.com",
+    "phone": "07123456789",
+    "company": "Test Print Ltd"
+  }
+}
+
+Deploy notes:
+- Internal hosted theme endpoints only. No /api/proxy or /api/v1 wiring was added.
+- Pricing engine files were not modified.
+- Existing draft order storage key is reused: quote-draft-orders.
+- This build is ready for v304 Artwork + Preflight Theme Bridge.

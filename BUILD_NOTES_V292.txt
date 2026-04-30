@@ -1,0 +1,26 @@
+# v292 — Production conflict detection + rescheduling suggestions
+
+Built on top of v291 shift-aware scheduling.
+
+Added:
+- Internal production conflict detector
+- Machine overlap checks
+- Operator double-booking checks
+- Shift capacity breach warnings
+- Missing shift/operator warnings
+- Blocked/preflight-failed job scheduled checks
+- Rescheduling/action suggestions
+- Review / Resolve / Keep Blocked controls in storefront-test
+
+New internal route:
+- GET/POST /api/internal/catalog/production-conflicts
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-conflicts/route.ts
+- BUILD_NOTES_V292.txt
+
+Deploy notes:
+- No pricing, payment, VAT, supplier, or production validation logic changed.
+- This is additive on top of v291 shift planner.
+- Use Analyze From Shifts after seeding/auto-assigning the shift planner.

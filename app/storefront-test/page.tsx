@@ -282,6 +282,10 @@ export default function StorefrontTestPage() {
   const [shiftPlannerSummary, setShiftPlannerSummary] = useState<any>(null);
   const [shiftPlannerActions, setShiftPlannerActions] = useState<any[]>([]);
   const [shiftPlannerOperators, setShiftPlannerOperators] = useState<any[]>([]);
+  const [productionConflictItems, setProductionConflictItems] = useState<any[]>([]);
+  const [productionConflictSuggestions, setProductionConflictSuggestions] = useState<any[]>([]);
+  const [productionConflictSummary, setProductionConflictSummary] = useState<any>(null);
+  const [productionConflictActions, setProductionConflictActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -1079,6 +1083,44 @@ export default function StorefrontTestPage() {
     if (json.ok) await loadShiftPlanner();
   }
 
+
+  async function loadProductionConflicts() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-conflicts', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionConflictItems(Array.isArray(json?.data?.conflicts) ? json.data.conflicts : []);
+      setProductionConflictSuggestions(Array.isArray(json?.data?.suggestions) ? json.data.suggestions : []);
+      setProductionConflictActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionConflictSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production conflicts.');
+    }
+  }
+
+  async function analyzeProductionConflicts() {
+    setProductionStatus('Analyzing machine/operator conflicts...');
+    const response = await fetch('/api/internal/catalog/production-conflicts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'analyze-from-shift-planner', jobs: shiftPlannerJobs }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Production conflicts analyzed.' : (json.error || 'Conflict analysis failed.'));
+    if (json.ok) await loadProductionConflicts();
+  }
+
+  async function updateProductionConflict(conflict: any, action: string) {
+    const conflictId = String(conflict?.id || '');
+    setProductionStatus('Updating conflict...');
+    const response = await fetch('/api/internal/catalog/production-conflicts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ conflictId, action }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Conflict updated: ${action}` : (json.error || 'Conflict update failed.'));
+    if (json.ok) await loadProductionConflicts();
+  }
   async function splitOrderIntoProductionJobs() {
     const source = orderWorkflowItems[0] || pipelineOrders[0] || confirmedDraft || {};
     setProductionStatus('Splitting order into production jobs...');
@@ -1374,6 +1416,7 @@ export default function StorefrontTestPage() {
     loadProductionJobBoard();
     loadMachinePlanner();
     loadShiftPlanner();
+    loadProductionConflicts();
   }, []);
 
   useEffect(() => {
@@ -2173,6 +2216,43 @@ export default function StorefrontTestPage() {
       <section className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
+      <section className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-rose-100/70">Production conflicts</p>
+            <h2 className="mt-1 text-xl font-semibold text-rose-50">v292 conflict detection + rescheduling suggestions</h2>
+            <p className="mt-2 max-w-3xl text-sm text-rose-100/75">Checks shift-planner jobs for machine overlaps, operator double-booking, capacity breaches, missing assignments and blocked jobs that are still scheduled.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm font-medium text-rose-100" onClick={analyzeProductionConflicts}>Analyze From Shifts</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadProductionConflicts}>Refresh Conflicts</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-rose-100/70">Total</p><p className="mt-1 font-semibold text-rose-50">{Number(productionConflictSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-rose-100/70">Open</p><p className="mt-1 font-semibold text-rose-50">{Number(productionConflictSummary?.open || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-rose-100/70">Blockers</p><p className="mt-1 font-semibold text-red-100">{Number(productionConflictSummary?.blockers || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-rose-100/70">Warnings</p><p className="mt-1 font-semibold text-yellow-100">{Number(productionConflictSummary?.warnings || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-rose-100/70">Resolved</p><p className="mt-1 font-semibold text-emerald-100">{Number(productionConflictSummary?.resolved || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {productionConflictItems.slice(0, 8).map((conflict) => (
+            <div key={String(conflict.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-rose-100/80">
+              <div className="flex items-start justify-between gap-3"><div><p className="font-medium text-rose-50">{String(conflict.type || 'conflict')}</p><p className="mt-1 text-rose-100/70">{String(conflict.message || '')}</p></div><span className={conflict.severity === 'blocker' ? 'text-red-200' : 'text-yellow-100'}>{String(conflict.severity || '')}</span></div>
+              <p className="mt-2 rounded-xl border border-white/10 bg-white/5 p-2 text-rose-100/75">Suggestion: {String(conflict.suggestion || '')}</p>
+              <p className="mt-2 text-rose-100/60">Machine: {String(conflict.machineKey || '-')} • Operator: {String(conflict.operatorId || '-')} • Shift: {String(conflict.shiftId || '-')}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-100" onClick={() => updateProductionConflict(conflict, 'review')}>Review</button>
+                <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateProductionConflict(conflict, 'resolve')}>Resolve</button>
+                <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateProductionConflict(conflict, 'block')}>Keep Blocked</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {productionConflictSuggestions.length > 0 && <p className="mt-3 text-xs text-rose-100/70">Top suggestion: {String(productionConflictSuggestions[0]?.label || '')}</p>}
+        {productionConflictActions.length > 0 && <p className="mt-2 text-xs text-rose-100/70">Latest conflict action: {String(productionConflictActions[0]?.action || '')} - {String(productionConflictActions[0]?.at || '')}</p>}
+      </section>
+
             <p className="text-xs uppercase tracking-[0.22em] text-emerald-100/70">Production validation</p>
             <h2 className="mt-1 text-xl font-semibold text-emerald-50">Material → machine compatibility gate</h2>
             <p className="mt-2 max-w-3xl text-sm text-emerald-100/75">Checks sheet, board and roll materials against assigned machine capability before production release. Invalid jobs are marked blocked so they cannot safely move into production.</p>

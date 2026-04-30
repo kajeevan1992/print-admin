@@ -1,0 +1,23 @@
+v302 — Theme Data Adapter
+
+Added:
+- /api/internal/storefront/theme-data
+- /api/internal/catalog/theme-data-adapter
+
+Purpose:
+- Normalize storefront theme product/category/product-detail data.
+- Keep hosted themes internal-only.
+- Expose VAT class, pricing source, option groups, turnarounds and artwork rules in one theme-ready shape.
+
+Test routes:
+- GET /api/internal/storefront/theme-data
+- GET /api/internal/storefront/theme-data?slug=business-cards
+- GET /api/internal/storefront/theme-data?category=print-products
+- GET /api/internal/catalog/theme-data-adapter
+- POST /api/internal/catalog/theme-data-adapter with { "routes": ["/api/internal/storefront/theme-data"] }
+
+Deploy notes:
+- No pricing engine changes.
+- No payment changes.
+- No /api/proxy or /api/v1 usage added.
+- Next build should be v303 Cart/Checkout Theme Bridge.

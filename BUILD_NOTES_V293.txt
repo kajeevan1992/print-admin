@@ -1,0 +1,23 @@
+# v293 — Production Auto-Reschedule Planner
+
+## Added
+- Internal production reschedule planner endpoint.
+- Builds reschedule plans from v292 conflict detection results.
+- Suggests actions for:
+  - machine overlaps
+  - operator overlaps
+  - missing shift assignment
+  - missing operator assignment
+  - shift capacity breaches
+  - blocked/preflight-failed jobs scheduled by mistake
+- Applies draft plan to job objects and records reschedule audit actions.
+
+## New internal route
+- GET/POST `/api/internal/catalog/production-reschedule`
+
+## Safety notes
+- Internal API only.
+- No pricing logic changed.
+- No payment logic changed.
+- No public `/api/v1` or `/api/proxy` usage.
+- Reschedule output is a planner/audit foundation; it does not mutate database production records yet.

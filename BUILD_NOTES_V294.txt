@@ -1,0 +1,20 @@
+# v294 — Production Execution Tracking
+
+Adds an internal production execution tracking layer on top of the v293 reschedule planner.
+
+## Added
+- Route: /api/internal/catalog/production-execution
+- Seed execution jobs from rescheduled/planner jobs
+- Start / pause / resume / progress / block / clear-block / complete actions
+- Live execution event log
+- Summary counts for waiting, running, paused, blocked, completed, and average progress
+
+## Rules
+- Internal API only
+- No pricing/payment changes
+- Blocked jobs cannot be started until clear-block is used
+- In-memory foundation, ready for DB persistence later
+
+## Test Routes
+- GET /api/internal/catalog/production-execution
+- POST /api/internal/catalog/production-execution

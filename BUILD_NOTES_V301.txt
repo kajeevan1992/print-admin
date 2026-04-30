@@ -1,0 +1,29 @@
+v301 — Storefront Internal API Contract
+
+Goal:
+Prepare the system for hosted theme frontend testing by defining the internal-only API contract that hosted storefront themes must use.
+
+Added:
+- Canonical internal storefront contract endpoint:
+  /api/internal/storefront/contract
+- Catalog-compatible alias endpoint:
+  /api/internal/catalog/storefront-contract
+- Internal endpoint manifest for categories, products, pricing, cart, checkout draft, artwork, preflight, payment request and order workflow.
+- Payload contracts for product card, product detail, pricing, cart line, checkout draft and artwork rules.
+- POST validation to detect forbidden /api/proxy or /api/v1 usage in hosted theme route lists.
+
+Rules preserved:
+- No /api/proxy.
+- No hosted-theme use of public /api/v1.
+- No pricing logic changes.
+- No payment gateway changes.
+- No UI redesign.
+
+Test routes:
+- GET /api/internal/storefront/contract
+- POST /api/internal/storefront/contract
+- GET /api/internal/catalog/storefront-contract
+- POST /api/internal/catalog/storefront-contract
+
+Next:
+- v302 — Theme Data Adapter

@@ -1,0 +1,22 @@
+# v299 — Final Dispatch Release Gate
+
+Adds the final dispatch release gate after replacement/remake QC closeout.
+
+## Added
+- Internal route: /api/internal/catalog/production-dispatch-release
+- Original/replacement job merge into one release decision
+- Blocks dispatch when replacement QC failed or rework loop is required
+- Manager override release action with audit trail
+- Mark dispatched only after release
+
+## Changed files
+- app/api/internal/catalog/production-dispatch-release/route.ts
+- BUILD_NOTES_V299.txt
+
+## Test routes
+- GET /api/internal/catalog/production-dispatch-release
+- POST /api/internal/catalog/production-dispatch-release
+
+## Deploy notes
+- Internal API only.
+- No pricing, VAT, payment, or storefront architecture changes.

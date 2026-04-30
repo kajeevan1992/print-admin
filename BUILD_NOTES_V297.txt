@@ -1,0 +1,23 @@
+v297 — Production Replacement Jobs
+
+Added:
+- Replacement/remake job creation from approved rework impact records.
+- Manual replacement job request flow.
+- Approval, create job, schedule, start production, complete and cancel states.
+- Replacement job summary covering requested/created/scheduled/in-production/completed/cancelled, blocked count, chargeable count, extra minutes and estimated cost.
+- New internal route: /api/internal/catalog/production-replacement-jobs
+
+Changed:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-replacement-jobs/route.ts
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-replacement-jobs
+- POST /api/internal/catalog/production-replacement-jobs
+
+Deploy notes:
+- Internal API only.
+- No pricing/payment logic changed.
+- No storefront redesign.
+- Works on top of v296 production rework impact tracking.

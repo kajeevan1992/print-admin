@@ -286,6 +286,15 @@ export default function StorefrontTestPage() {
   const [productionConflictSuggestions, setProductionConflictSuggestions] = useState<any[]>([]);
   const [productionConflictSummary, setProductionConflictSummary] = useState<any>(null);
   const [productionConflictActions, setProductionConflictActions] = useState<any[]>([]);
+  const [productionExceptionItems, setProductionExceptionItems] = useState<any[]>([]);
+  const [productionExceptionSummary, setProductionExceptionSummary] = useState<any>(null);
+  const [productionExceptionActions, setProductionExceptionActions] = useState<any[]>([]);
+  const [productionReworkImpactItems, setProductionReworkImpactItems] = useState<any[]>([]);
+  const [productionReworkImpactSummary, setProductionReworkImpactSummary] = useState<any>(null);
+  const [productionReworkImpactActions, setProductionReworkImpactActions] = useState<any[]>([]);
+  const [productionReplacementItems, setProductionReplacementItems] = useState<any[]>([]);
+  const [productionReplacementSummary, setProductionReplacementSummary] = useState<any>(null);
+  const [productionReplacementActions, setProductionReplacementActions] = useState<any[]>([]);
   const [financeStatus, setFinanceStatus] = useState('');
   const [confirmedDraft, setConfirmedDraft] = useState<any>(null);
   const [artworkStatus, setArtworkStatus] = useState('');
@@ -1121,6 +1130,191 @@ export default function StorefrontTestPage() {
     setProductionStatus(json.ok ? `Conflict updated: ${action}` : (json.error || 'Conflict update failed.'));
     if (json.ok) await loadProductionConflicts();
   }
+
+
+  async function loadProductionExceptions() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-exceptions', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionExceptionItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionExceptionActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionExceptionSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load production exceptions.');
+    }
+  }
+
+  async function seedProductionExceptions() {
+    setProductionStatus('Seeding production exceptions from blocked jobs...');
+    const jobs = [...productionBoardItems, ...machinePlannerJobs, ...shiftPlannerJobs];
+    const response = await fetch('/api/internal/catalog/production-exceptions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'seed-from-jobs', jobs }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Production exceptions seeded from blocked jobs.' : (json.error || 'Production exception seed failed.'));
+    if (json.ok) await loadProductionExceptions();
+  }
+
+  async function openProductionException(job: any = {}) {
+    setProductionStatus('Opening production exception...');
+    const response = await fetch('/api/internal/catalog/production-exceptions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'open-exception',
+        jobId: job?.id || productionBoardItems[0]?.id || 'manual-production-job',
+        orderNumber: job?.orderNumber || productionBoardItems[0]?.orderNumber,
+        productName: job?.productName || productionBoardItems[0]?.productName || 'Production job',
+        machineKey: job?.machineKey || productionBoardItems[0]?.machineKey,
+        issueType: 'manual_exception',
+        severity: 'high',
+        note: 'Manual production exception opened from storefront-test workflow.',
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Production exception opened.' : (json.error || 'Production exception open failed.'));
+    if (json.ok) await loadProductionExceptions();
+  }
+
+  async function updateProductionException(exception: any, action: string) {
+    const exceptionId = String(exception?.id || '');
+    setProductionStatus('Updating production exception...');
+    const response = await fetch('/api/internal/catalog/production-exceptions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ exceptionId, action, note: `Exception action from storefront-test: ${action}` }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Production exception updated: ${json.item?.status || action}` : (json.error || 'Production exception update failed.'));
+    if (json.ok) await loadProductionExceptions();
+  }
+
+
+  async function loadProductionReworkImpact() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-rework-impact', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionReworkImpactItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionReworkImpactActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionReworkImpactSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load rework impact.');
+    }
+  }
+
+  async function estimateReworkImpactFromExceptions() {
+    setProductionStatus('Estimating rework cost/time impact from active exceptions...');
+    const response = await fetch('/api/internal/catalog/production-rework-impact', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'estimate-from-exceptions', exceptions: productionExceptionItems }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Rework impact estimated from production exceptions.' : (json.error || 'Rework impact estimate failed.'));
+    if (json.ok) await loadProductionReworkImpact();
+  }
+
+  async function createManualReworkImpact() {
+    const source = productionExceptionItems[0] || {};
+    setProductionStatus('Creating manual rework impact estimate...');
+    const response = await fetch('/api/internal/catalog/production-rework-impact', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create-estimate',
+        exceptionId: source.id || 'manual-exception',
+        jobId: source.jobId || 'manual-production-job',
+        orderNumber: source.orderNumber,
+        productName: source.productName || 'Production job',
+        reason: source.issueType || 'manual_rework_estimate',
+        extraMinutes: 60,
+        materialWasteMinor: 1500,
+        labourCostMinor: 2700,
+        machineCostMinor: 2100,
+        note: 'Manual rework cost/time estimate from storefront-test workflow.',
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Manual rework impact estimate created.' : (json.error || 'Manual rework impact failed.'));
+    if (json.ok) await loadProductionReworkImpact();
+  }
+
+  async function updateProductionReworkImpact(item: any, action: string) {
+    const impactId = String(item?.id || '');
+    setProductionStatus('Updating rework impact...');
+    const response = await fetch('/api/internal/catalog/production-rework-impact', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ impactId, action, note: `Rework impact action from storefront-test: ${action}` }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Rework impact updated: ${json.item?.status || action}` : (json.error || 'Rework impact update failed.'));
+    if (json.ok) await loadProductionReworkImpact();
+  }
+
+  async function loadProductionReplacementJobs() {
+    try {
+      const response = await fetch('/api/internal/catalog/production-replacement-jobs', { cache: 'no-store' });
+      const json = await response.json();
+      setProductionReplacementItems(Array.isArray(json?.data?.items) ? json.data.items : []);
+      setProductionReplacementActions(Array.isArray(json?.data?.actions) ? json.data.actions : []);
+      setProductionReplacementSummary(json?.data?.summary || null);
+    } catch (err) {
+      setProductionStatus(err instanceof Error ? err.message : 'Could not load replacement jobs.');
+    }
+  }
+
+  async function createReplacementJobsFromReworkImpact() {
+    setProductionStatus('Creating replacement jobs from approved rework impact...');
+    const response = await fetch('/api/internal/catalog/production-replacement-jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'create-from-rework-impact', impacts: productionReworkImpactItems }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Replacement jobs created from rework impact.' : (json.error || 'Replacement job creation failed.'));
+    if (json.ok) await loadProductionReplacementJobs();
+  }
+
+  async function createManualReplacementJob() {
+    const source = productionReworkImpactItems[0] || productionExceptionItems[0] || productionBoardItems[0] || {};
+    setProductionStatus('Creating manual replacement job request...');
+    const response = await fetch('/api/internal/catalog/production-replacement-jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        action: 'create-manual',
+        sourceImpactId: source.id || 'manual-impact',
+        sourceExceptionId: source.exceptionId || source.id || '',
+        originalJobId: source.jobId || source.originalJobId || source.id || 'manual-job',
+        orderNumber: source.orderNumber || '',
+        productName: source.productName || 'Manual replacement job',
+        reason: source.reason || source.issueType || 'manual_replacement',
+        remakeQuantity: 1,
+        extraMinutes: Number(source.extraMinutes || 60),
+        estimatedCostMinor: Number(source.totalImpactMinor || 3500),
+        chargeableToCustomer: Boolean(source.customerChargeable),
+        note: 'Manual replacement job requested from storefront-test workflow.',
+      }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? 'Manual replacement job requested.' : (json.error || 'Manual replacement job failed.'));
+    if (json.ok) await loadProductionReplacementJobs();
+  }
+
+  async function updateProductionReplacementJob(item: any, action: string) {
+    setProductionStatus('Updating replacement job...');
+    const response = await fetch('/api/internal/catalog/production-replacement-jobs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ replacementId: item?.id, action, note: `Replacement job action from storefront-test: ${action}` }),
+    });
+    const json = await response.json();
+    setProductionStatus(json.ok ? `Replacement job updated: ${json.item?.status || action}` : (json.error || 'Replacement job update failed.'));
+    if (json.ok) await loadProductionReplacementJobs();
+  }
   async function splitOrderIntoProductionJobs() {
     const source = orderWorkflowItems[0] || pipelineOrders[0] || confirmedDraft || {};
     setProductionStatus('Splitting order into production jobs...');
@@ -1417,6 +1611,9 @@ export default function StorefrontTestPage() {
     loadMachinePlanner();
     loadShiftPlanner();
     loadProductionConflicts();
+    loadProductionExceptions();
+    loadProductionReworkImpact();
+    loadProductionReplacementJobs();
   }, []);
 
   useEffect(() => {
@@ -3444,6 +3641,146 @@ export default function StorefrontTestPage() {
         </div>
         {pluginParityHistory.length > 0 && <p className="mt-3 text-xs text-amber-100/70">Latest parity snapshot: {String(pluginParityHistory[0]?.action || '')} · {String(pluginParityHistory[0]?.at || '')}</p>}
       </section>
+      <section className="rounded-3xl border border-red-500/20 bg-red-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-red-100/70">Production exceptions</p>
+            <h2 className="mt-1 text-xl font-semibold text-red-50">v295 exception handling + rework loop</h2>
+            <p className="mt-2 max-w-3xl text-sm text-red-100/75">Captures blocked/failed production jobs as exceptions, routes them into rework or manager review, and keeps production blocked until the exception is resolved or scrapped.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-100" onClick={seedProductionExceptions}>Seed From Blocked Jobs</button>
+            <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={() => openProductionException(productionBoardItems[0] || machinePlannerJobs[0] || {})}>Open Manual Exception</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadProductionExceptions}>Refresh Exceptions</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Total</p><p className="mt-1 font-semibold text-red-50">{Number(productionExceptionSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Active</p><p className="mt-1 font-semibold text-red-50">{Number(productionExceptionSummary?.active || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Rework</p><p className="mt-1 font-semibold text-yellow-100">{Number(productionExceptionSummary?.reworkRequired || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Manager</p><p className="mt-1 font-semibold text-orange-100">{Number(productionExceptionSummary?.waitingManager || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(productionExceptionSummary?.blocked || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-red-100/70">Resolved</p><p className="mt-1 font-semibold text-emerald-100">{Number(productionExceptionSummary?.resolved || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {productionExceptionItems.slice(0, 9).map((item) => (
+            <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-red-100/80">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-medium text-red-50">{String(item.orderNumber || item.jobId || item.id)}</p><p className="mt-1 text-red-100/70">{String(item.productName || '')}</p></div>
+                <span className={item.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{String(item.status || '')}</span>
+              </div>
+              <p className="mt-2 text-red-100/70">Issue: {String(item.issueType || '')} - Severity: {String(item.severity || '')}</p>
+              <p className="mt-1 text-red-100/70">Machine: {String(item.machineKey || 'unassigned')} - Operator: {String(item.operatorId || 'unassigned')}</p>
+              {item.reworkJobId && <p className="mt-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-2 text-yellow-100">Rework job: {String(item.reworkJobId)}</p>}
+              {Array.isArray(item.notes) && item.notes[0] && <p className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2 text-red-100/70">{String(item.notes[0])}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-100" onClick={() => updateProductionException(item, 'mark-rework')}>Rework</button>
+                <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateProductionException(item, 'request-manager')}>Manager</button>
+                <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateProductionException(item, 'resolve')}>Resolve</button>
+                <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateProductionException(item, 'scrap')}>Scrap</button>
+              </div>
+            </div>
+          ))}
+          {productionExceptionItems.length === 0 && <p className="text-sm text-red-100/70">No production exceptions yet. Seed from blocked jobs or open a manual exception.</p>}
+        </div>
+        {productionExceptionActions.length > 0 && <p className="mt-3 text-xs text-red-100/70">Latest exception action: {String(productionExceptionActions[0]?.action || '')} - {String(productionExceptionActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-yellow-500/20 bg-yellow-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-yellow-100/70">Rework impact</p>
+            <h2 className="mt-1 text-xl font-semibold text-yellow-50">v296 rework cost + time impact tracking</h2>
+            <p className="mt-2 max-w-3xl text-sm text-yellow-100/75">Estimates extra production minutes, material waste, labour cost and machine cost caused by production exceptions before approving, starting or writing off rework.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-sm font-medium text-yellow-100" onClick={estimateReworkImpactFromExceptions}>Estimate From Exceptions</button>
+            <button className="rounded-xl border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-sm font-medium text-orange-100" onClick={createManualReworkImpact}>Manual Estimate</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadProductionReworkImpact}>Refresh Impact</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-yellow-100/70">Total</p><p className="mt-1 font-semibold text-yellow-50">{Number(productionReworkImpactSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-yellow-100/70">Active</p><p className="mt-1 font-semibold text-yellow-50">{Number(productionReworkImpactSummary?.active || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-yellow-100/70">Extra mins</p><p className="mt-1 font-semibold text-yellow-50">{Number(productionReworkImpactSummary?.extraMinutes || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-yellow-100/70">Active impact</p><p className="mt-1 font-semibold text-yellow-50">£{(Number(productionReworkImpactSummary?.activeImpactMinor || 0) / 100).toFixed(2)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-yellow-100/70">In rework</p><p className="mt-1 font-semibold text-orange-100">{Number(productionReworkImpactSummary?.inRework || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-yellow-100/70">Blocked</p><p className="mt-1 font-semibold text-red-100">{Number(productionReworkImpactSummary?.blocked || 0)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {productionReworkImpactItems.slice(0, 9).map((item) => (
+            <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-yellow-100/80">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-medium text-yellow-50">{String(item.orderNumber || item.jobId || item.id)}</p><p className="mt-1 text-yellow-100/70">{String(item.productName || '')}</p></div>
+                <span className={item.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{String(item.status || '')}</span>
+              </div>
+              <p className="mt-2 text-yellow-100/70">Reason: {String(item.reason || '')} · Exception: {String(item.exceptionId || '')}</p>
+              <p className="mt-1 text-yellow-100/70">Extra time: {Number(item.extraMinutes || 0)} mins · Total impact: £{(Number(item.totalImpactMinor || 0) / 100).toFixed(2)}</p>
+              <p className="mt-1 text-yellow-100/70">Material £{(Number(item.materialWasteMinor || 0) / 100).toFixed(2)} · Labour £{(Number(item.labourCostMinor || 0) / 100).toFixed(2)} · Machine £{(Number(item.machineCostMinor || 0) / 100).toFixed(2)}</p>
+              {item.customerChargeable && <p className="mt-2 rounded-lg border border-orange-500/30 bg-orange-500/10 p-2 text-orange-100">Marked customer-chargeable for later credit/invoice review.</p>}
+              {Array.isArray(item.notes) && item.notes[0] && <p className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2 text-yellow-100/70">{String(item.notes[0])}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-100" onClick={() => updateProductionReworkImpact(item, 'approve')}>Approve</button>
+                <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateProductionReworkImpact(item, 'start-rework')}>Start</button>
+                <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateProductionReworkImpact(item, 'complete')}>Complete</button>
+                <button className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-100" onClick={() => updateProductionReworkImpact(item, 'mark-chargeable')}>Chargeable</button>
+                <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateProductionReworkImpact(item, 'write-off')}>Write Off</button>
+              </div>
+            </div>
+          ))}
+          {productionReworkImpactItems.length === 0 && <p className="text-sm text-yellow-100/70">No rework impact estimates yet. Estimate from active exceptions or create a manual estimate.</p>}
+        </div>
+        {productionReworkImpactActions.length > 0 && <p className="mt-3 text-xs text-yellow-100/70">Latest impact action: {String(productionReworkImpactActions[0]?.action || '')} - {String(productionReworkImpactActions[0]?.at || '')}</p>}
+      </section>
+
+      <section className="rounded-3xl border border-purple-500/20 bg-purple-500/10 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.22em] text-purple-100/70">Replacement jobs</p>
+            <h2 className="mt-1 text-xl font-semibold text-purple-50">v297 rework approval → replacement job creation</h2>
+            <p className="mt-2 max-w-3xl text-sm text-purple-100/75">Turns approved rework impact into controlled remake/replacement production jobs, with approval, creation, scheduling and completion states.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-sm font-medium text-purple-100" onClick={createReplacementJobsFromReworkImpact}>Create From Rework</button>
+            <button className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-100" onClick={createManualReplacementJob}>Manual Replacement</button>
+            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-textMuted" onClick={loadProductionReplacementJobs}>Refresh Replacements</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-6">
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-purple-100/70">Total</p><p className="mt-1 font-semibold text-purple-50">{Number(productionReplacementSummary?.total || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-purple-100/70">Requested</p><p className="mt-1 font-semibold text-purple-50">{Number(productionReplacementSummary?.requested || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-purple-100/70">Created</p><p className="mt-1 font-semibold text-blue-100">{Number(productionReplacementSummary?.created || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-purple-100/70">Scheduled</p><p className="mt-1 font-semibold text-cyan-100">{Number(productionReplacementSummary?.scheduled || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-purple-100/70">In prod</p><p className="mt-1 font-semibold text-orange-100">{Number(productionReplacementSummary?.inProduction || 0)}</p></div>
+          <div className="rounded-xl border border-white/10 bg-black/10 p-3"><p className="text-xs text-purple-100/70">Cost</p><p className="mt-1 font-semibold text-purple-50">£{(Number(productionReplacementSummary?.estimatedCostMinor || 0) / 100).toFixed(2)}</p></div>
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
+          {productionReplacementItems.slice(0, 9).map((item) => (
+            <div key={String(item.id)} className="rounded-2xl border border-white/10 bg-black/10 p-4 text-xs text-purple-100/80">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="font-medium text-purple-50">{String(item.orderNumber || item.replacementJobId || item.id)}</p><p className="mt-1 text-purple-100/70">{String(item.productName || '')}</p></div>
+                <span className={item.productionBlocked ? 'text-red-200' : 'text-emerald-200'}>{String(item.status || '')}</span>
+              </div>
+              <p className="mt-2 text-purple-100/70">Original: {String(item.originalJobId || '')} · Replacement: {String(item.replacementJobId || '')}</p>
+              <p className="mt-1 text-purple-100/70">Reason: {String(item.reason || '')} · Qty: {Number(item.remakeQuantity || 0)} · Extra mins: {Number(item.extraMinutes || 0)}</p>
+              <p className="mt-1 text-purple-100/70">Estimated replacement cost: £{(Number(item.estimatedCostMinor || 0) / 100).toFixed(2)}</p>
+              {item.chargeableToCustomer && <p className="mt-2 rounded-lg border border-orange-500/30 bg-orange-500/10 p-2 text-orange-100">Customer-chargeable replacement — review before invoice/credit update.</p>}
+              {Array.isArray(item.notes) && item.notes[0] && <p className="mt-2 rounded-lg border border-white/10 bg-white/5 p-2 text-purple-100/70">{String(item.notes[0])}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="rounded-lg border border-purple-500/40 bg-purple-500/10 px-2 py-1 text-xs font-medium text-purple-100" onClick={() => updateProductionReplacementJob(item, 'approve')}>Approve</button>
+                <button className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-xs font-medium text-blue-100" onClick={() => updateProductionReplacementJob(item, 'create-job')}>Create Job</button>
+                <button className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-100" onClick={() => updateProductionReplacementJob(item, 'schedule')}>Schedule</button>
+                <button className="rounded-lg border border-orange-500/40 bg-orange-500/10 px-2 py-1 text-xs font-medium text-orange-100" onClick={() => updateProductionReplacementJob(item, 'start-production')}>Start</button>
+                <button className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-100" onClick={() => updateProductionReplacementJob(item, 'complete')}>Complete</button>
+                <button className="rounded-lg border border-red-500/40 bg-red-500/10 px-2 py-1 text-xs font-medium text-red-100" onClick={() => updateProductionReplacementJob(item, 'cancel')}>Cancel</button>
+              </div>
+            </div>
+          ))}
+          {productionReplacementItems.length === 0 && <p className="text-sm text-purple-100/70">No replacement jobs yet. Create from approved rework impact or add a manual replacement.</p>}
+        </div>
+        {productionReplacementActions.length > 0 && <p className="mt-3 text-xs text-purple-100/70">Latest replacement action: {String(productionReplacementActions[0]?.action || '')} - {String(productionReplacementActions[0]?.at || '')}</p>}
+      </section>
+
       <section className="rounded-3xl border border-border bg-panel p-5">
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm font-medium">Debug payload</p>

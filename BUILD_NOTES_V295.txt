@@ -1,0 +1,27 @@
+# v295 — Production Exception Handling + Rework Loop
+
+Base: v294 production execution tracking.
+
+Added:
+- Internal production exception queue
+- Seed exceptions from blocked production jobs
+- Manual production exception creation
+- Rework-required state with generated rework job reference
+- Manager review state
+- Resolve / Scrap controls
+- Production blocked flag retained until exception is resolved or scrapped
+
+Internal route:
+- GET/POST /api/internal/catalog/production-exceptions
+
+Changed files:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-exceptions/route.ts
+- BUILD_NOTES_V295.txt
+
+Deploy notes:
+- Internal API only
+- No pricing changes
+- No payment changes
+- No storefront redesign
+- Works on top of v294 production execution tracking

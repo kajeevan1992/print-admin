@@ -1,0 +1,24 @@
+# v296 — Production Rework Cost + Time Impact Tracking
+
+Added:
+- Internal route: /api/internal/catalog/production-rework-impact
+- Estimate rework cost/time impact from active production exceptions
+- Manual rework impact estimate creation
+- Extra production minutes, material waste, labour cost, machine cost and total impact
+- Approve / Start Rework / Complete / Mark Chargeable / Write Off controls
+- Production blocked flag remains active until complete or written off
+
+Changed:
+- app/storefront-test/page.tsx
+- app/api/internal/catalog/production-rework-impact/route.ts
+
+Test routes:
+- /storefront-test
+- GET /api/internal/catalog/production-rework-impact
+- POST /api/internal/catalog/production-rework-impact
+
+Deploy notes:
+- Internal API only.
+- No pricing engine changes.
+- No payment gateway or money movement.
+- Additive layer on top of v295 production exceptions.

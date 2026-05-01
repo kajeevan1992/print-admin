@@ -28,11 +28,11 @@ const storefrontContract: ContractSection = {
     optionSets: "/api/internal/catalog/option-sets",
     pricing: "/api/internal/catalog/pricing-calculate",
     vat: "/api/internal/catalog/vat-engine",
-    cart: "/api/internal/catalog/storefront-cart",
-    checkoutDraft: "/api/internal/catalog/checkout-draft",
-    artworkUpload: "/api/internal/catalog/storefront-artwork",
+    cart: "/api/internal/storefront/cart",
+    checkoutDraft: "/api/internal/storefront/checkout",
+    artworkUpload: "/api/internal/storefront/artwork",
     artworkInspection: "/api/internal/catalog/artwork-inspection",
-    preflightGate: "/api/internal/catalog/preflight-production",
+    preflightGate: "/api/internal/storefront/preflight",
     paymentRequest: "/api/internal/catalog/payment-intents",
     orderWorkflow: "/api/internal/catalog/order-workflow",
   },
@@ -128,7 +128,7 @@ export async function GET() {
     data: {
       contract: storefrontContract,
       validation: validationSummary(),
-      nextBuilds: ["v302-theme-data-adapter", "v303-cart-checkout-theme-bridge", "v304-artwork-preflight-theme-bridge"],
+      nextBuilds: ["v306-theme-qa-stabilisation"],
     },
   })
 }

@@ -106,7 +106,7 @@ function writeStoredCart(items) {
 function createSafeCartItemId(prefix = "cart-item") {
   try {
     if (typeof globalThis !== "undefined" && globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
-      return `${prefix}-${globalThis.createSafeCartItemId('uuid')}`;
+      return `${prefix}-${globalThis.crypto.randomUUID()}`;
     }
   } catch {}
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -946,6 +946,10 @@ function currency(value) {
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP" }).format(value);
 }
 
+function formatCurrency(value, currencyCode = "GBP") {
+  return new Intl.NumberFormat("en-GB", { style: "currency", currency: currencyCode }).format(Number(value || 0));
+}
+
 function usePathState() {
   const getPath = () => normalizeHostedThemePath(stripThemeBase(window.location.pathname || "/"));
   const [path, setPath] = useState(getPath());
@@ -971,6 +975,7 @@ function normalizeInternalCartItem(item) {
   return {
     ...item,
     id: item.id || createSafeCartItemId('cart-item'),
+    productId: item.productId || item.id || item.slug,
     name: item.productName || item.name || item.title || 'Storefront product',
     slug: item.productSlug || item.slug || item.productId,
     qty,
@@ -984,8 +989,14 @@ function normalizeInternalCartItem(item) {
 function useCart() {
   const [items, setItems] = useState(() => {
     if (typeof window === "undefined") return [];
-    const raw = localStorage.getItem("holo-cart");
-    return raw ? JSON.parse(raw) : [];
+    const stored = readStoredCart();
+    if (stored) return stored;
+    try {
+      const raw = localStorage.getItem("holo-cart");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
@@ -1002,7 +1013,12 @@ function useCart() {
     return () => { active = false; };
   }, []);
 
-  useEffect(() => { if (typeof window !== "undefined") localStorage.setItem("holo-cart", JSON.stringify(items)); }, [items]);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("holo-cart", JSON.stringify(items));
+      writeStoredCart(items);
+    }
+  }, [items]);
 
   const addItem = (item) => {
     const localItem = { ...item, id: createSafeCartItemId('cart-item'), qty: item.qty || 1 };
@@ -1051,8 +1067,12 @@ function useCart() {
       if (next) setItems(next);
     }).catch(() => {});
   };
+  const clear = () => {
+    setItems([]);
+    fetch(getInternalStorefrontUrl('/cart') + '?clear=true', { method: 'DELETE' }).catch(() => {});
+  };
   const subtotal = items.reduce((sum, item) => sum + (Number(item.lineTotal) || Number(item.price || item.unitPrice || 0) * Number(item.qty || 1)), 0);
-  return { items, addItem, removeItem, updateQty, subtotal };
+  return { items, addItem, removeItem, updateQty, clear, subtotal };
 }
 
 function Shell({ children, narrow = false }) {
@@ -2146,6 +2166,7 @@ function CheckoutPage({ cart, navigate }) {
         shippingMinor: Math.round(shipping * 100),
         totalMinor: Math.round(total * 100),
         source: "atlantis-theme",
+        clearCart: false,
       };
 
       const res = await fetch(getInternalStorefrontUrl("/checkout"), {
@@ -2174,8 +2195,7 @@ function CheckoutPage({ cart, navigate }) {
       };
 
       writeLastOrder(orderSummary);
-      cart.clear();
-      setSubmitMessage("Order submitted successfully.");
+      setSubmitMessage("Order submitted successfully. Cart is kept until artwork is attached so preflight can link to the item.");
       navigate("/checkout/success");
     } catch (error) {
       setSubmitMessage("Storefront could not submit the order yet.");
@@ -2188,13 +2208,13 @@ function CheckoutPage({ cart, navigate }) {
     <PageShell
       eyebrow="Checkout"
       title="Checkout foundation"
-      subtitle="This is the next live step after cart. It now submits the checkout to the order API through the local proxy."
+      subtitle="This is the next live step after cart. It submits checkout to the internal hosted storefront bridge and creates a draft order."
     >
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-4 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <div>
             <p className="text-sm font-semibold text-slate-900">Customer details</p>
-            <p className="mt-1 text-sm text-slate-500">Order requests now pass through the local proxy to the live API.</p>
+            <p className="mt-1 text-sm text-slate-500">Order requests now use the internal storefront checkout route only — no proxy and no public API.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <Input placeholder="First name" value={form.firstName} onChange={(e) => updateField("firstName", e.target.value)} />
@@ -2274,7 +2294,7 @@ function CheckoutSuccessPage({ navigate }) {
     <PageShell
       eyebrow="Order received"
       title="Thank you for your order"
-      subtitle="Your Atlantis storefront checkout has handed off to the live API path."
+      subtitle="Your Atlantis storefront checkout has created an internal draft order."
     >
       <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -2284,7 +2304,7 @@ function CheckoutSuccessPage({ navigate }) {
             <p><span className="font-medium text-slate-900">Email:</span> {order?.email || "Not available"}</p>
             <p><span className="font-medium text-slate-900">Submitted:</span> {order?.submittedAt ? new Date(order.submittedAt).toLocaleString() : "Not available"}</p>
             <p><span className="font-medium text-slate-900">Total:</span> {order?.totalMinor != null ? formatMinorPrice(order.totalMinor, "GBP") : "Not available"}</p>
-            <p><span className="font-medium text-slate-900">API response:</span> {order?.upstream?.orderNumber || order?.upstream?.id || "Stored locally from proxy response"}</p>
+            <p><span className="font-medium text-slate-900">API response:</span> {order?.upstream?.quoteReference || order?.upstream?.id || "Stored from internal checkout bridge"}</p>
           </div>
           <div className="mt-6 grid gap-3">
             <Button className="h-11 rounded-full bg-slate-900 text-white hover:bg-slate-800" onClick={() => navigate("/artwork-upload")}>
@@ -2299,9 +2319,9 @@ function CheckoutSuccessPage({ navigate }) {
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">Next recommended step</p>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
-            <p>• connect artwork upload into the submitted order</p>
-            <p>• fetch real order details from the API confirmation response</p>
-            <p>• show tenant-branded email/order confirmation next</p>
+            <p>• attach artwork to the submitted cart item</p>
+            <p>• run the internal preflight bridge automatically</p>
+            <p>• block production when artwork fails validation</p>
           </div>
         </div>
       </section>
@@ -2341,14 +2361,29 @@ function ArtworkUploadPage({ navigate }) {
     setMessage("Submitting artwork...");
 
     try {
+      const linkedItem = order?.upstream?.items?.[0] || order?.items?.[0] || null;
+      const fileName = form.fileName.trim();
+      const mimeType = form.fileType.toLowerCase().includes("pdf") || fileName.toLowerCase().endsWith(".pdf")
+        ? "application/pdf"
+        : form.fileType.toLowerCase().includes("png")
+        ? "image/png"
+        : form.fileType.toLowerCase().includes("jpg") || form.fileType.toLowerCase().includes("jpeg")
+        ? "image/jpeg"
+        : "application/octet-stream";
       const payload = {
-        orderReference: order?.upstream?.orderNumber || order?.upstream?.id || null,
+        cartItemId: linkedItem?.id || linkedItem?.cartItemId || null,
+        orderReference: order?.upstream?.quoteReference || order?.upstream?.id || null,
         customerEmail: order?.email || null,
-        fileName: form.fileName,
-        fileType: form.fileType,
-        note: form.note,
+        notes: form.note,
+        files: [{ fileName, mimeType, fileSize: 0 }],
         source: "atlantis-theme",
       };
+
+      if (!payload.cartItemId) {
+        setMessage("No cart item is available to attach artwork. Add an item to cart again or submit checkout with the cart retained.");
+        setSubmitting(false);
+        return;
+      }
 
       const res = await fetch(getInternalStorefrontUrl("/artwork"), {
         method: "POST",
@@ -2365,7 +2400,8 @@ function ArtworkUploadPage({ navigate }) {
         return;
       }
 
-      setMessage("Artwork submitted successfully.");
+      writeArtworkDraft({ ...form, preflight: data?.data?.preflight || null, artwork: data?.data?.artwork || null });
+      setMessage(data?.data?.preflight?.pass ? "Artwork submitted and preflight passed." : "Artwork submitted; preflight returned issues to review.");
       navigate("/artwork-upload/success");
     } catch (error) {
       setMessage("Storefront could not submit artwork yet.");
@@ -2463,9 +2499,9 @@ function ArtworkUploadSuccessPage({ navigate }) {
         <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold text-slate-900">Next operational stage</p>
           <div className="mt-4 space-y-3 text-sm text-slate-600">
-            <p>• map artwork records to real API order IDs</p>
-            <p>• add binary file storage and upload status</p>
-            <p>• surface artwork review state in customer account and admin dashboard</p>
+            <p>• artwork metadata is linked to the cart item</p>
+            <p>• internal preflight has returned pass/fail and production block status</p>
+            <p>• next step is binary storage and customer proof approval UI</p>
           </div>
           <div className="mt-6 grid gap-3 md:grid-cols-2">
             <Button className="h-11 rounded-full bg-slate-900 text-white hover:bg-slate-800" onClick={() => navigate("/")}>
@@ -2495,14 +2531,14 @@ function AccountPage({ navigate }) {
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data?.ok) {
-          setError("Live orders API is not available yet. Showing the latest locally stored order instead."); setOrders([]);
+          setError("Internal checkout is not available yet. Showing the latest locally stored order instead."); setOrders([]);
           return;
         }
 
-        const list = data?.data?.draftOrder ? [data.data.draftOrder] : data?.data?.items || data?.payload?.data || data?.payload || [];
+        const list = data?.data?.draftOrders || (data?.data?.draftOrder ? [data.data.draftOrder] : data?.payload?.data || data?.payload || []);
         setOrders(Array.isArray(list) ? list : []);
       } catch {
-        setError("Live orders API is not reachable yet. Showing the latest locally stored order instead."); setOrders([]);
+        setError("Internal checkout is not reachable yet. Showing the latest locally stored order instead."); setOrders([]);
       } finally {
         setLoading(false);
       }
@@ -2531,7 +2567,7 @@ function AccountPage({ navigate }) {
     <PageShell
       eyebrow="Account"
       title="Your orders"
-      subtitle="Account history now prioritizes live API orders and only falls back to the latest submitted order when the orders endpoint is unavailable."
+      subtitle="Account history now reads internal checkout draft orders and only falls back locally if unavailable."
     >
       <section className="space-y-4">
         {loading ? (
@@ -2591,7 +2627,7 @@ export default function App() {
   const { path, navigate } = usePathState();
   const cart = useCart();
     const [liveProducts, setLiveProducts] = useState([]);
-  const [apiState, setApiState] = useState({ loading: true, message: "Connecting to live API..." });
+  const [apiState, setApiState] = useState({ loading: true, message: "Connecting to internal hosted storefront API..." });
 
   useEffect(() => {
     let active = true;

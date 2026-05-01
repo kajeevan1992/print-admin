@@ -13,8 +13,8 @@ function makeId(prefix: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const items = await readCartItems(request);
-    return NextResponse.json({ ok: true, source: 'internal-storefront-checkout-bridge', data: { ready: items.length > 0, items, totals: summarizeCart(items) } });
+    const [items, draftOrders] = await Promise.all([readCartItems(request), readDraftOrders(request)]);
+    return NextResponse.json({ ok: true, source: 'internal-storefront-checkout-bridge', data: { ready: items.length > 0, items, totals: summarizeCart(items), draftOrders } });
   } catch (error) {
     return responseError(error);
   }

@@ -29,7 +29,13 @@ export function middleware(request: NextRequest) {
   if (!wantsHostedTheme(request)) return NextResponse.next();
   if (RESERVED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return NextResponse.next();
 
-  if (pathname === '/' || pathname.startsWith('/category/') || pathname.startsWith('/product/') || pathname === '/cart' || pathname === '/checkout') {
+  if (pathname === '/') {
+    const rewriteUrl = url.clone();
+    rewriteUrl.pathname = '/theme/atlantis';
+    return NextResponse.rewrite(rewriteUrl);
+  }
+
+  if (pathname.startsWith('/category/') || pathname.startsWith('/product/') || pathname === '/cart' || pathname === '/checkout') {
     return NextResponse.next();
   }
 

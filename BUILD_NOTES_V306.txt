@@ -1,0 +1,43 @@
+BUILD: v306 — Theme QA + Stabilisation
+SOURCE: v305 hosted theme loader ZIP
+
+Scope completed:
+- Stabilised hosted Atlantis theme journey for browse → configure → cart → checkout → draft order → artwork → preflight.
+- Kept hosted storefront on internal routes only.
+- Fixed checkout copy that still referred to proxy/live API handoff.
+- Fixed missing cart.clear() implementation and local/internal cart persistence mismatch.
+- Prevented checkout from clearing the internal cart before artwork/preflight can link to the submitted cart item.
+- Updated artwork submission payload to use v304 /api/internal/storefront/artwork contract with cartItemId + files[] metadata.
+- Updated internal checkout GET response to include draftOrders for customer account/order history display.
+- Updated internal storefront contract route references to v303/v304 bridge endpoints.
+- Added internal QA endpoint for hosted storefront state inspection.
+- Updated middleware so hosted theme domain/query root / rewrites to /theme/atlantis while admin root remains unchanged.
+
+Changed files:
+- src/themes/atlantis/ThemeApp.jsx
+- app/api/internal/storefront/checkout/route.ts
+- app/api/internal/storefront/contract/route.ts
+- app/api/internal/storefront/qa/route.ts
+- middleware.ts
+- BUILD_NOTES_V306.txt
+
+Test routes:
+- /?hostedTheme=1
+- /theme/atlantis
+- /category/business-cards
+- /product/standard-business-cards
+- /cart
+- /checkout
+- /theme/atlantis/artwork-upload
+- /api/internal/storefront/theme-data
+- /api/internal/storefront/cart
+- /api/internal/storefront/checkout
+- /api/internal/storefront/artwork
+- /api/internal/storefront/preflight
+- /api/internal/storefront/qa
+
+Deploy notes:
+- No /api/proxy or /api/v1 usage was added for hosted theme flows.
+- Pricing engine and VAT logic were not modified.
+- Artwork upload remains metadata-only/simulated as planned for this phase.
+- Build was not run in sandbox because node_modules are not present in the uploaded ZIP environment.

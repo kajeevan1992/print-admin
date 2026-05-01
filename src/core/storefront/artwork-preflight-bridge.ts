@@ -48,10 +48,28 @@ function findRule(source: Record<string, any>) {
   return HOSTED_ARTWORK_RULES.find((rule) => slug.includes(rule.productSlug) || name.includes(rule.productSlug.replace(/-/g, ' '))) || HOSTED_ARTWORK_RULES[0];
 }
 
+function getUploads(source: any) {
+  const uploads = [
+    ...(Array.isArray(source?.artwork?.uploads) ? source.artwork.uploads : []),
+    ...(Array.isArray(source?.artworkUploads) ? source.artworkUploads : []),
+  ];
+  const seen = new Set<string>();
+  return uploads.filter((upload: any) => {
+    const key = String(upload?.id || upload?.fileName || upload?.url || JSON.stringify(upload || {}));
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function bestUpload(source: any) {
+  return getUploads(source).find((upload: any) => upload?.pageCount != null || upload?.trimWidthMm != null || upload?.trimHeightMm != null || upload?.bleedMm != null) || getUploads(source)[0] || {};
+}
+
 function selectedNumber(source: any, keys: string[], fallback = 0) {
   const selections = source?.selections || source?.selectedOptions || source?.options || {};
   const artwork = source?.artwork || {};
-  const upload = Array.isArray(source?.artworkUploads) ? source.artworkUploads[0] : Array.isArray(artwork.uploads) ? artwork.uploads[0] : {};
+  const upload = bestUpload(source);
   for (const key of keys) {
     const value = source?.requestedArtworkSpec?.[key] ?? source?.artworkSpec?.[key] ?? artwork?.[key] ?? upload?.[key] ?? source?.[key] ?? selections[key];
     const num = asNumber(value, -1);
@@ -84,7 +102,7 @@ export function normaliseArtworkFiles(files: StorefrontArtworkFileInput[], notes
 export function runHostedPreflight(item: Record<string, any>, override?: Record<string, any>) {
   const source = { ...item, ...(override || {}) };
   const rule = findRule(source);
-  const uploads = Array.isArray(source.artworkUploads) ? source.artworkUploads : Array.isArray(source.artwork?.uploads) ? source.artwork.uploads : [];
+  const uploads = getUploads(source);
   const requestedPages = selectedNumber(source, ['requestedPages', 'pages', 'pageCount'], rule.expectedPages);
   const requestedWidth = selectedNumber(source, ['requestedTrimWidthMm', 'trimWidthMm', 'widthMm'], rule.trimWidthMm);
   const requestedHeight = selectedNumber(source, ['requestedTrimHeightMm', 'trimHeightMm', 'heightMm'], rule.trimHeightMm);
@@ -186,7 +204,7 @@ export async function updateCartItemArtwork(request: Request, cartItemId: string
   const items = await readCartItems(request);
   const target = items.find((item) => String(item.id) === cartItemId);
   if (!target) throw new Error('Cart item was not found for artwork upload.');
-  const nextUploads = [...(Array.isArray(target.artworkUploads) ? target.artworkUploads : []), ...uploads];
+  const nextUploads = [...getUploads(target), ...uploads];
   const nextItem = {
     ...target,
     artworkUploads: nextUploads,

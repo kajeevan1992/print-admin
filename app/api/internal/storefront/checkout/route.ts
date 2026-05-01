@@ -1,11 +1,11 @@
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { cleanCustomer, estimateDelivery, readCartItems, readDraftOrders, saveCartItems, saveDraftOrders, summarizeCart, validateCustomer } from '@/core/storefront/cart-checkout-bridge';
+import { buildStorefrontReadinessReport, recalculateCartSnapshot, readStorefrontBody, storefrontError, storefrontSuccess, validateCheckoutReadiness } from '@/core/storefront/storefront-integrity';
+import { runPreflightForCart } from '@/core/storefront/artwork-preflight-bridge';
 
-function responseError(error: unknown, status = 500) {
-  return NextResponse.json({ ok: false, source: 'internal-storefront-checkout-bridge', error: error instanceof Error ? error.message : 'Storefront checkout request failed.' }, { status });
-}
+const SOURCE = 'internal-storefront-checkout-bridge';
 
 function makeId(prefix: string) {
   return `${prefix}-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${Math.random().toString(16).slice(2, 8)}`;
@@ -13,28 +13,36 @@ function makeId(prefix: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const [items, draftOrders] = await Promise.all([readCartItems(request), readDraftOrders(request)]);
-    return NextResponse.json({ ok: true, source: 'internal-storefront-checkout-bridge', data: { ready: items.length > 0, items, totals: summarizeCart(items), draftOrders } });
+    const [itemsRaw, draftOrders] = await Promise.all([readCartItems(request), readDraftOrders(request)]);
+    const items = await recalculateCartSnapshot(request, itemsRaw);
+    const report = buildStorefrontReadinessReport({ items, draftOrders });
+
+    return storefrontSuccess(SOURCE, { ...report, draftOrders });
   } catch (error) {
-    return responseError(error);
+    return storefrontError(SOURCE, error);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
+    const body = await readStorefrontBody(request);
     const customer = cleanCustomer(body.customer || body);
-    const errors = validateCustomer(customer);
-    if (errors.length) return responseError(new Error(errors.join(' ')), 400);
+    const customerErrors = validateCustomer(customer);
+    if (customerErrors.length) {
+      throw new Error(customerErrors.join(' '));
+    }
 
-    const cartItems = await readCartItems(request);
-    if (cartItems.length === 0) return responseError(new Error('Cart is empty. Add an item before checkout.'), 400);
+    const rawItems = await readCartItems(request);
+    const items = await recalculateCartSnapshot(request, rawItems);
 
-    const totals = summarizeCart(cartItems);
+    await runPreflightForCart(request);
+    validateCheckoutReadiness(items);
+
+    const totals = summarizeCart(items);
     const now = new Date().toISOString();
     const id = makeId('checkout-draft');
     const quoteReference = `CHECKOUT-${Date.now()}`;
-    const deliveryEstimate = body.deliveryEstimate || estimateDelivery(cartItems[0]?.turnaround);
+    const deliveryEstimate = body.deliveryEstimate || estimateDelivery(items[0]?.turnaround);
 
     const payload = {
       id,
@@ -42,15 +50,15 @@ export async function POST(request: NextRequest) {
       status: 'draft-order',
       source: 'HostedThemeCheckoutBridge',
       customer,
-      items: cartItems,
+      items,
       totals,
       vatBreakdown: totals.vatBreakdown,
       deliveryEstimate,
-      pricingSources: Array.from(new Set(cartItems.map((item) => item.pricingSource || item.pricing?.source || 'internal'))),
+      pricingSources: Array.from(new Set(items.map((item) => item.pricingSource || item.pricing?.source || 'internal'))),
       createdAt: now,
     };
 
-    const title = `${quoteReference} - ${customer.name} - ${cartItems.length} cart item${cartItems.length === 1 ? '' : 's'}`;
+    const title = `${quoteReference} - ${customer.name} - ${items.length} cart item${items.length === 1 ? '' : 's'}`;
     const draft = {
       id,
       title,
@@ -61,8 +69,8 @@ export async function POST(request: NextRequest) {
       customerEmail: customer.email,
       customerPhone: customer.phone,
       customerCompany: customer.company,
-      productName: `${cartItems.length} cart item${cartItems.length === 1 ? '' : 's'}`,
-      quantity: cartItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
+      productName: `${items.length} cart item${items.length === 1 ? '' : 's'}`,
+      quantity: items.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
       currency: totals.currency,
       netTotalMinor: totals.netTotalMinor,
       vatTotalMinor: totals.vatTotalMinor,
@@ -79,8 +87,8 @@ export async function POST(request: NextRequest) {
     const record = await saveDraftOrders(request, [draft, ...existingDrafts.filter((entry) => String(entry.id) !== id)]);
     if (body.clearCart !== false) await saveCartItems(request, []);
 
-    return NextResponse.json({ ok: true, source: 'internal-storefront-checkout-bridge', data: { record, draftOrder: draft, totals, deliveryEstimate } });
+    return storefrontSuccess(SOURCE, { record, draftOrder: draft, totals, deliveryEstimate });
   } catch (error) {
-    return responseError(error);
+    return storefrontError(SOURCE, error);
   }
 }

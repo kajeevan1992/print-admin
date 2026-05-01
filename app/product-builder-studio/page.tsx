@@ -1,231 +1,265 @@
 'use client';
 
-
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Layers3, Printer, ShieldCheck, WandSparkles } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Database, Eye, Layers3, Save, ShieldCheck } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/forms/input';
 import { Select } from '@/components/forms/select';
 
-type Option = { label: string; value: string };
-type Field = { key: string; label: string; type: 'select' | 'text' | 'number'; options?: Option[]; helpText?: string; visibility?: { key: string; equals: string } };
-type Template = { id: string; name: string; description: string; artworkProfile: string; fields: Field[] };
-type Material = { id: string; name: string; surcharge: number; finishIds: string[]; printerIds: string[] };
-type Finish = { id: string; name: string; surcharge: number; setupFee: number };
-type PrinterProfile = { id: string; name: string; technology: string; turnaroundDays: number };
+type Category = { id: string; name: string; slug?: string };
+type Product = { id: string; name: string; slug: string; categoryId?: string | null; priceFromMinor?: number; currency?: string; isActive?: boolean; metadataJson?: Record<string, any> };
+type ReadinessItem = { product: Product; ready: boolean; errors: number; warnings: number; issues: Array<{ code: string; message: string; field: string; severity: 'error' | 'warning' }> };
 
-type Turnaround = 'standard' | 'priority' | 'rush';
-
-const templates: Template[] = [
-  {
-    id: 'business-cards',
-    name: 'Business Cards',
-    description: 'Standard small-format trade card with premium finish support.',
-    artworkProfile: 'Marketing standard',
-    fields: [
-      { key: 'size', label: 'Trim size', type: 'select', options: [{ label: '85 × 55 mm', value: '85x55' }, { label: '90 × 50 mm', value: '90x50' }, { label: 'Square 65 × 65 mm', value: '65x65' }] },
-      { key: 'sides', label: 'Print sides', type: 'select', options: [{ label: 'Single sided', value: 'single' }, { label: 'Double sided', value: 'double' }] },
-      { key: 'whiteInk', label: 'White ink layer', type: 'select', options: [{ label: 'Not required', value: 'off' }, { label: 'Include white ink', value: 'on' }], visibility: { key: 'size', equals: '65x65' } },
-      { key: 'notes', label: 'Artwork notes', type: 'text', helpText: 'Optional guidance for studio || prepress teams.' }
-    ]
-  },
-  {
-    id: 'flyers',
-    name: 'Flyers & Leaflets',
-    description: 'Promotional sheet product with folding and campaign options.',
-    artworkProfile: 'Folded leaflet',
-    fields: [
-      { key: 'size', label: 'Flat size', type: 'select', options: [{ label: 'A6', value: 'a6' }, { label: 'A5', value: 'a5' }, { label: 'A4', value: 'a4' }, { label: 'DL', value: 'dl' }] },
-      { key: 'folding', label: 'Fold style', type: 'select', options: [{ label: 'No fold', value: 'none' }, { label: 'Half fold', value: 'half' }, { label: 'Tri-fold', value: 'tri-fold' }] },
-      { key: 'perforation', label: 'Perforation', type: 'select', options: [{ label: 'No perforation', value: 'off' }, { label: 'Add perforation', value: 'on' }], visibility: { key: 'folding', equals: 'tri-fold' } },
-      { key: 'campaignCode', label: 'Campaign code', type: 'text' }
-    ]
-  },
-  {
-    id: 'booklets',
-    name: 'Booklets',
-    description: 'Multi-page booklet product with binding and spine configuration.',
-    artworkProfile: 'Booklet production',
-    fields: [
-      { key: 'size', label: 'Finished size', type: 'select', options: [{ label: 'A5 Portrait', value: 'a5' }, { label: 'A4 Portrait', value: 'a4' }] },
-      { key: 'binding', label: 'Binding', type: 'select', options: [{ label: 'Saddle stitched', value: 'saddle' }, { label: 'Perfect bound', value: 'perfect' }] },
-      { key: 'pageCount', label: 'Page count', type: 'number' },
-      { key: 'spineText', label: 'Spine text', type: 'text', visibility: { key: 'binding', equals: 'perfect' } }
-    ]
-  }
+const templateOptions = [
+  { value: 'business-cards', label: 'Business Cards', vatRate: 'standard', artworkProfile: 'print-ready-pdf', options: ['size', 'paper', 'sides', 'finish'] },
+  { value: 'leaflets', label: 'Leaflets / Flyers', vatRate: 'zero', artworkProfile: 'flat-sheet-pdf', options: ['size', 'paper', 'sides', 'folding'] },
+  { value: 'booklets', label: 'Booklets', vatRate: 'zero', artworkProfile: 'booklet-pdf', options: ['size', 'pages', 'paper', 'binding'] },
+  { value: 'boards', label: 'Boards / Signs', vatRate: 'standard', artworkProfile: 'large-format-pdf', options: ['size', 'material', 'lamination'] },
 ];
 
-const materials: Material[] = [
-  { id: 'silk-350', name: '350gsm Silk', surcharge: 0, finishIds: ['matt-lam', 'soft-touch', 'spot-uv'], printerIds: ['hp-indigo-7k', 'xerox-iridesse'] },
-  { id: 'uncoated-300', name: '300gsm Uncoated', surcharge: 2, finishIds: ['none', 'matt-lam'], printerIds: ['hp-indigo-7k', 'komori-offset'] },
-  { id: 'silk-170', name: '170gsm Silk', surcharge: 1, finishIds: ['none', 'gloss-lam'], printerIds: ['hp-indigo-7k', 'komori-offset'] }
-];
-const finishes: Finish[] = [
-  { id: 'none', name: 'No finish', surcharge: 0, setupFee: 0 },
-  { id: 'matt-lam', name: 'Matt laminate', surcharge: 6, setupFee: 10 },
-  { id: 'gloss-lam', name: 'Gloss laminate', surcharge: 5, setupFee: 10 },
-  { id: 'soft-touch', name: 'Soft touch laminate', surcharge: 9, setupFee: 14 },
-  { id: 'spot-uv', name: 'Spot UV', surcharge: 18, setupFee: 30 }
-];
-const printers: PrinterProfile[] = [
-  { id: 'hp-indigo-7k', name: 'HP Indigo 7K', technology: 'Digital', turnaroundDays: 2 },
-  { id: 'xerox-iridesse', name: 'Xerox Iridesse', technology: 'Digital specialty', turnaroundDays: 3 },
-  { id: 'komori-offset', name: 'Komori Lithrone', technology: 'Offset', turnaroundDays: 4 }
-];
+const quantityPresets = ['100,250,500,1000', '25,50,100,250,500', '1,2,5,10,25', '250,500,1000,2500,5000'];
 
-const artworkProfiles: Record<string, string[]> = {
-  'Marketing standard': ['3 mm bleed on all edges', 'CMYK artwork preferred', 'Fonts outlined || embedded', 'Images above 300 DPI'],
-  'Folded leaflet': ['Fold panel widths confirmed', 'Safe area respected on fold lines', 'Bleed checked around fold edges'],
-  'Booklet production': ['Page count divisible by 4', 'Creep allowance confirmed', 'Binding setup approved']
-};
-
-const pricingTiers = [
-  { upTo: 250, unitCost: 0.18 },
-  { upTo: 500, unitCost: 0.12 },
-  { upTo: 1000, unitCost: 0.09 },
-  { upTo: 5000, unitCost: 0.06 }
-];
-
-function getVisibleFields(template: Template, values: Record<string, string>) {
-  return template.fields.filter((field) => !field.visibility || values[field.visibility.key] === field.visibility.equals);
+function slugify(value: string) {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-function calculateQuote(quantity: number, materialId: string, finishId: string, printerId: string, turnaround: Turnaround) {
-  const material = materials.find((item) => item.id === materialId) ?? materials[0];
-  const finish = finishes.find((item) => item.id === finishId) ?? finishes[0];
-  const printer = printers.find((item) => item.id === printerId) ?? printers[0];
-  const tier = pricingTiers.find((item) => quantity <= item.upTo) ?? pricingTiers[pricingTiers.length - 1];
-  const baseRun = 14;
-  const machineCost = printer.technology === 'Offset' ? 24 : printer.technology === 'Digital specialty' ? 18 : 12;
-  const turnaroundMultiplier = turnaround === 'rush' ? 1.4 : turnaround === 'priority' ? 1.18 : 1;
-  const subtotal = Math.round((baseRun + quantity * tier.unitCost + material.surcharge + finish.surcharge + finish.setupFee + machineCost) * turnaroundMultiplier);
-  const margin = Math.round(subtotal * 0.32);
-  return {
-    subtotal,
-    margin,
-    total: subtotal + margin,
-    turnaroundDays: turnaround === 'rush' ? Math.max(1, printer.turnaroundDays - 1) : turnaround === 'priority' ? Math.max(1, printer.turnaroundDays - 0.5) : printer.turnaroundDays,
-    tierLabel: `up to ${tier.upTo}`,
-    breakdown: [
-      { label: 'Base run', value: baseRun },
-      { label: 'Material uplift', value: material.surcharge + Math.round(quantity * tier.unitCost) },
-      { label: 'Finish & setup', value: finish.surcharge + finish.setupFee },
-      { label: 'Machine routing', value: machineCost },
-      { label: 'Margin', value: margin }
-    ]
-  };
+function parseCsvNumbers(value: string) {
+  return value.split(',').map((item) => Number(item.trim())).filter((item) => Number.isFinite(item) && item > 0);
+}
+
+function optionObjects(keys: string[]) {
+  return keys.map((key) => ({ id: key, label: key.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), type: key === 'pages' ? 'number' : 'select', required: true }));
+}
+
+function moneyMinor(value: string) {
+  return Math.max(0, Math.round(Number(value || 0) * 100));
+}
+
+function minorToPounds(value?: number) {
+  return ((value || 0) / 100).toFixed(2);
 }
 
 export default function Page() {
-  const [templateId, setTemplateId] = useState(templates[0].id);
-  const [materialId, setMaterialId] = useState(materials[0].id);
-  const [finishId, setFinishId] = useState(materials[0].finishIds[0]);
-  const [printerId, setPrinterId] = useState(materials[0].printerIds[0]);
-  const [quantity, setQuantity] = useState('250');
-  const [turnaround, setTurnaround] = useState<Turnaround>('standard');
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [readiness, setReadiness] = useState<ReadinessItem[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
 
-  const template = useMemo(() => templates.find((item) => item.id === templateId) ?? templates[0], [templateId]);
-  const allowedFinishes = useMemo(() => finishes.filter((item) => (materials.find((m) => m.id === materialId) ?? materials[0]).finishIds.includes(item.id)), [materialId]);
-  const allowedPrinters = useMemo(() => printers.filter((item) => (materials.find((m) => m.id === materialId) ?? materials[0]).printerIds.includes(item.id)), [materialId]);
-  const visibleFields = useMemo(() => getVisibleFields(template, values), [template, values]);
-  const quote = useMemo(() => calculateQuote(Number(quantity) || 100, materialId, finishId, printerId, turnaround), [quantity, materialId, finishId, printerId, turnaround]);
+  const [form, setForm] = useState({
+    id: '',
+    name: 'Business Cards',
+    slug: 'business-cards',
+    categoryId: '',
+    template: 'business-cards',
+    priceFrom: '19.00',
+    vatRate: 'standard',
+    quantities: '100,250,500,1000',
+    pricingSource: 'fixed',
+    artworkRequired: 'yes',
+    visible: 'yes',
+    paymentEnabled: 'yes',
+    status: 'draft',
+  });
 
-  useEffect(() => {
-    if (!allowedFinishes.some((item) => item.id === finishId)) setFinishId(allowedFinishes[0]?.id ?? 'none');
-  }, [allowedFinishes, finishId]);
-  useEffect(() => {
-    if (!allowedPrinters.some((item) => item.id === printerId)) setPrinterId(allowedPrinters[0]?.id ?? printers[0].id);
-  }, [allowedPrinters, printerId]);
+  const selectedTemplate = useMemo(() => templateOptions.find((item) => item.value === form.template) || templateOptions[0], [form.template]);
+  const readinessForSelected = useMemo(() => readiness.find((item) => item.product.id === selectedId || item.product.id === form.id), [readiness, selectedId, form.id]);
+
+  function updateForm(patch: Partial<typeof form>) {
+    setForm((prev) => ({ ...prev, ...patch }));
+  }
+
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const [productsRes, categoriesRes, readinessRes] = await Promise.all([
+        fetch('/api/internal/catalog/products', { cache: 'no-store' }),
+        fetch('/api/internal/catalog/categories', { cache: 'no-store' }),
+        fetch('/api/internal/catalog/product-readiness', { cache: 'no-store' }),
+      ]);
+      const productsJson = await productsRes.json();
+      const categoriesJson = await categoriesRes.json();
+      const readinessJson = await readinessRes.json();
+      if (!productsRes.ok || productsJson.ok === false) throw new Error(productsJson.error || 'Products failed to load.');
+      if (!categoriesRes.ok || categoriesJson.ok === false) throw new Error(categoriesJson.error || 'Categories failed to load.');
+      if (!readinessRes.ok || readinessJson.ok === false) throw new Error(readinessJson.error?.message || 'Readiness failed to load.');
+      setProducts(productsJson.data?.items || []);
+      setCategories(categoriesJson.data?.items || []);
+      setReadiness(readinessJson.data?.items || []);
+      if (!form.categoryId && categoriesJson.data?.items?.[0]?.id) updateForm({ categoryId: categoriesJson.data.items[0].id });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load builder data.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  function loadProduct(id: string) {
+    const product = products.find((item) => item.id === id);
+    if (!product) return;
+    const meta = product.metadataJson || {};
+    const template = meta.template || meta.productTemplate || 'business-cards';
+    const tpl = templateOptions.find((item) => item.value === template) || templateOptions[0];
+    setSelectedId(product.id);
+    setForm({
+      id: product.id,
+      name: product.name || '',
+      slug: product.slug || '',
+      categoryId: product.categoryId || '',
+      template,
+      priceFrom: minorToPounds(product.priceFromMinor),
+      vatRate: meta.vatRate || tpl.vatRate,
+      quantities: Array.isArray(meta.quantities) ? meta.quantities.join(',') : '100,250,500,1000',
+      pricingSource: meta.pricing?.source || 'fixed',
+      artworkRequired: meta.artworkRequired === false ? 'no' : 'yes',
+      visible: meta.storefront?.visible ? 'yes' : 'no',
+      paymentEnabled: meta.checkout?.paymentEnabled === false ? 'no' : 'yes',
+      status: meta.status || (product.isActive ? 'published' : 'draft'),
+    });
+  }
+
+  function newProduct() {
+    setSelectedId('');
+    setForm((prev) => ({ ...prev, id: '', name: 'Business Cards', slug: 'business-cards', template: 'business-cards', priceFrom: '19.00', vatRate: 'standard', status: 'draft' }));
+  }
+
+  async function saveProduct(publish = false) {
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const tpl = selectedTemplate;
+      const id = form.id || `prod-${slugify(form.slug || form.name)}`;
+      const payload = {
+        id,
+        name: form.name,
+        slug: slugify(form.slug || form.name),
+        categoryId: form.categoryId || null,
+        priceFromMinor: moneyMinor(form.priceFrom),
+        currency: 'GBP',
+        isActive: publish || form.status === 'published',
+        productType: tpl.value,
+        metadataJson: {
+          status: publish ? 'published' : form.status,
+          template: tpl.value,
+          vatRate: form.vatRate,
+          artworkRequired: form.artworkRequired === 'yes',
+          options: optionObjects(tpl.options),
+          quantities: parseCsvNumbers(form.quantities),
+          turnaroundOptions: [{ id: 'standard', label: 'Standard', days: 3 }, { id: 'express', label: 'Express', days: 1 }],
+          pricing: { source: form.pricingSource, priceFromMinor: moneyMinor(form.priceFrom) },
+          artworkRules: { profile: tpl.artworkProfile, bleedMm: 3, fileTypes: ['application/pdf'] },
+          storefront: { visible: form.visible === 'yes' || publish },
+          checkout: { paymentEnabled: form.paymentEnabled === 'yes' },
+          builderVersion: 'v323',
+        },
+      };
+      const method = form.id ? 'PUT' : 'POST';
+      const res = await fetch('/api/internal/catalog/products', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const json = await res.json();
+      if (!res.ok || json.ok === false) throw new Error(json.error || 'Product save failed.');
+      const readinessRes = await fetch('/api/internal/catalog/product-readiness', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, visible: payload.metadataJson.storefront.visible, paymentEnabled: payload.metadataJson.checkout.paymentEnabled }) });
+      const readinessJson = await readinessRes.json();
+      if (!readinessRes.ok || readinessJson.ok === false) throw new Error(readinessJson.error?.message || 'Readiness update failed.');
+      setSelectedId(id);
+      updateForm({ id, status: publish ? 'published' : form.status });
+      setMessage(readinessJson.data.ready ? 'Product saved and ready for storefront.' : 'Product saved. Fix readiness issues before publishing.');
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Product save failed.');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Product Builder Studio" subtitle="Model configurable print products with template-driven options, production-aware routing, artwork rules, and live pricing — closer to a real print MIS than a static admin form." />
-      <Card className="overflow-hidden p-0">
-        <div className="grid gap-0 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="p-6 md:p-8">
-            <div className="inline-flex rounded-full border border-white/8 bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-textMuted">Production-grade print configuration</div>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.05em] text-white">Turn products into configurable systems, not one-off records.</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-textMuted">This builder combines template schema, material/finish compatibility, printer routing, artwork readiness, and pricing logic in one guided surface.</p>
+      <PageHeader title="Product Builder Studio" subtitle="Create and save real storefront products with options, VAT, pricing, artwork rules and publish readiness checks." />
+
+      <Card className="p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">v323 Database connected</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">Products now save to internal catalog</h2>
+            <p className="mt-1 text-sm text-textMuted">Builder output is stored in product metadata and checked before storefront publishing.</p>
           </div>
-          <div className="border-t border-white/6 bg-[radial-gradient(circle_at_top_left,rgba(124,140,255,0.18),transparent_42%),rgba(255,255,255,0.03)] p-6 md:border-l md:border-t-0 md:p-8">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Live stack</p>
-            <div className="mt-4 space-y-3">
-              {[
-                { icon: Layers3, label: 'Template', value: template.name },
-                { icon: Printer, label: 'Printer', value: allowedPrinters.find((item) => item.id === printerId)?.name ?? 'Not selected' },
-                { icon: ShieldCheck, label: 'Artwork profile', value: template.artworkProfile },
-                { icon: CheckCircle2, label: 'Estimated sell price', value: `£${quote.total}` }
-              ].map((item) => {
-                const Icon = item.icon;
-                return <div key={item.label} className="rounded-2xl border border-white/8 bg-black/20 p-4"><div className="flex items-start gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.06] text-accentAlt"><Icon size={16} /></div><div><p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">{item.label}</p><p className="mt-1 text-sm font-medium text-white">{item.value}</p></div></div></div>;
-              })}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={newProduct} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05]">New product</button>
+            <button onClick={() => load()} disabled={loading} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05]">Refresh</button>
           </div>
         </div>
       </Card>
 
-      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      {error ? <div className="flex items-center gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100"><AlertTriangle size={18} />{error}</div> : null}
+      {message ? <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100"><CheckCircle2 size={18} />{message}</div> : null}
+
+      <div className="grid gap-4 xl:grid-cols-[320px_1fr_360px]">
+        <Card>
+          <div className="flex items-center gap-2 text-white"><Database size={17} /><h3 className="font-semibold">Catalog products</h3></div>
+          <div className="mt-4 space-y-2">
+            {products.length ? products.map((product) => {
+              const ready = readiness.find((item) => item.product.id === product.id);
+              return <button key={product.id} onClick={() => loadProduct(product.id)} className={`w-full rounded-2xl border p-3 text-left transition ${selectedId === product.id ? 'border-sky-400/40 bg-sky-400/10' : 'border-white/8 bg-white/[0.03] hover:bg-white/[0.06]'}`}>
+                <div className="flex items-start justify-between gap-2"><p className="text-sm font-semibold text-white">{product.name}</p>{ready?.ready ? <CheckCircle2 size={15} className="text-emerald-300" /> : <AlertTriangle size={15} className="text-amber-300" />}</div>
+                <p className="mt-1 text-xs text-textMuted">/{product.slug}</p>
+                <p className="mt-2 text-xs text-textMuted">{ready?.ready ? 'Ready' : `${ready?.errors ?? 0} errors · ${ready?.warnings ?? 0} warnings`}</p>
+              </button>;
+            }) : <p className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">No products found yet.</p>}
+          </div>
+        </Card>
+
         <Card>
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2"><span className="text-sm font-medium">Config template</span><Select options={templates.map((item) => ({ value: item.id, label: item.name }))} value={templateId} onChange={(e) => setTemplateId(e.target.value)} /></label>
-            <label className="space-y-2"><span className="text-sm font-medium">Quantity</span><Input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} /></label>
-            <label className="space-y-2"><span className="text-sm font-medium">Material</span><Select options={materials.map((item) => ({ value: item.id, label: item.name }))} value={materialId} onChange={(e) => setMaterialId(e.target.value)} /></label>
-            <label className="space-y-2"><span className="text-sm font-medium">Finish</span><Select options={allowedFinishes.map((item) => ({ value: item.id, label: item.name }))} value={finishId} onChange={(e) => setFinishId(e.target.value)} /></label>
-            <label className="space-y-2"><span className="text-sm font-medium">Printer profile</span><Select options={allowedPrinters.map((item) => ({ value: item.id, label: `${item.name} · ${item.technology}` }))} value={printerId} onChange={(e) => setPrinterId(e.target.value)} /></label>
-            <label className="space-y-2"><span className="text-sm font-medium">Turnaround</span><Select options={[{ value: 'standard', label: 'Standard' }, { value: 'priority', label: 'Priority' }, { value: 'rush', label: 'Rush' }]} value={turnaround} onChange={(e) => setTurnaround(e.target.value as Turnaround)} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Product name</span><Input value={form.name} onChange={(e) => updateForm({ name: e.target.value, slug: form.slug || slugify(e.target.value) })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Slug / URL</span><Input value={form.slug} onChange={(e) => updateForm({ slug: slugify(e.target.value) })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Category</span><Select options={[{ value: '', label: 'Choose category' }, ...categories.map((item) => ({ value: item.id, label: item.name }))]} value={form.categoryId} onChange={(e) => updateForm({ categoryId: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Template</span><Select options={templateOptions} value={form.template} onChange={(e) => { const tpl = templateOptions.find((item) => item.value === e.target.value) || templateOptions[0]; updateForm({ template: tpl.value, vatRate: tpl.vatRate }); }} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Price from (£)</span><Input type="number" value={form.priceFrom} onChange={(e) => updateForm({ priceFrom: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">VAT rate</span><Select options={[{ value: 'standard', label: 'Standard VAT' }, { value: 'zero', label: 'Zero VAT' }]} value={form.vatRate} onChange={(e) => updateForm({ vatRate: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Quantity breaks</span><Select options={quantityPresets.map((value) => ({ value, label: value }))} value={form.quantities} onChange={(e) => updateForm({ quantities: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Pricing source</span><Select options={[{ value: 'fixed', label: 'Fixed / starter' }, { value: 'matrix', label: 'Matrix / Excel ready' }, { value: 'cost-based', label: 'Cost based' }, { value: 'supplier-api', label: 'Supplier API' }]} value={form.pricingSource} onChange={(e) => updateForm({ pricingSource: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Artwork required</span><Select options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value={form.artworkRequired} onChange={(e) => updateForm({ artworkRequired: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Storefront visible</span><Select options={[{ value: 'yes', label: 'Visible' }, { value: 'no', label: 'Hidden' }]} value={form.visible} onChange={(e) => updateForm({ visible: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Payment</span><Select options={[{ value: 'yes', label: 'Enabled' }, { value: 'no', label: 'Disabled' }]} value={form.paymentEnabled} onChange={(e) => updateForm({ paymentEnabled: e.target.value })} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium">Status</span><Select options={[{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }]} value={form.status} onChange={(e) => updateForm({ status: e.target.value })} /></label>
           </div>
 
           <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-            <p className="text-sm font-medium text-white">Template options</p>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {visibleFields.map((field) => (
-                <div key={field.key} className="space-y-2">
-                  <span className="text-sm font-medium">{field.label}</span>
-                  {field.type === 'select' ? (
-                    <Select options={field.options?.map((item) => ({ value: item.value, label: item.label })) ?? []} value={values[field.key] ?? ''} onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))} />
-                  ) : (
-                    <Input type={field.type === 'number' ? 'number' : 'text'} value={values[field.key] ?? ''} onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))} />
-                  )}
-                  {field.helpText ? <p className="text-[12px] text-textMuted">{field.helpText}</p> : null}
-                </div>
-              ))}
-            </div>
+            <div className="flex items-center gap-2 text-white"><Layers3 size={16} /><p className="font-semibold">Selling options generated</p></div>
+            <div className="mt-3 flex flex-wrap gap-2">{selectedTemplate.options.map((option) => <span key={option} className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-textMuted">{option}</span>)}</div>
+            <p className="mt-3 text-xs text-textMuted">Artwork profile: {selectedTemplate.artworkProfile} · bleed 3mm · PDF enabled</p>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <button disabled={saving} onClick={() => saveProduct(false)} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05] disabled:opacity-50"><Save size={16} />Save product</button>
+            <button disabled={saving} onClick={() => saveProduct(true)} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-950 hover:bg-slate-100 disabled:opacity-50"><Eye size={16} />Save & publish</button>
           </div>
         </Card>
 
         <div className="space-y-4">
           <Card>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Artwork readiness</p>
-            <p className="mt-2 text-sm font-medium text-white">{template.artworkProfile}</p>
-            <div className="mt-4 space-y-2">
-              {(artworkProfiles[template.artworkProfile] ?? []).map((item) => (
-                <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                  <CheckCircle2 size={14} className="mt-0.5 text-accentAlt" />
-                  <p className="text-[12px] leading-6 text-textMuted">{item}</p>
-                </div>
-              ))}
-            </div>
+            <div className="flex items-center gap-2 text-white"><ShieldCheck size={17} /><h3 className="font-semibold">Publish readiness</h3></div>
+            {readinessForSelected ? <div className="mt-4 space-y-3">
+              <div className={`rounded-2xl border p-4 ${readinessForSelected.ready ? 'border-emerald-400/20 bg-emerald-400/10' : 'border-amber-400/20 bg-amber-400/10'}`}>
+                <p className="text-sm font-semibold text-white">{readinessForSelected.ready ? 'Ready for storefront' : 'Needs fixes'}</p>
+                <p className="mt-1 text-xs text-textMuted">{readinessForSelected.errors} errors · {readinessForSelected.warnings} warnings</p>
+              </div>
+              {readinessForSelected.issues.map((item) => <div key={`${item.code}-${item.field}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><p className="text-sm font-semibold text-white">{item.code}</p><p className="mt-1 text-xs leading-5 text-textMuted">{item.message}</p></div>)}
+            </div> : <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">Save or select a product to see readiness.</p>}
           </Card>
 
           <Card>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Pricing breakdown</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">Subtotal</p><p className="mt-2 text-2xl font-semibold text-white">£{quote.subtotal}</p></div>
-              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-[11px] uppercase tracking-[0.22em] text-textMuted">Sell price</p><p className="mt-2 text-2xl font-semibold text-white">£{quote.total}</p></div>
-            </div>
-            <div className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <p className="text-sm font-medium text-white">Applied tier · {quote.tierLabel}</p>
-              <p className="mt-1 text-[13px] text-textMuted">Turnaround {quote.turnaroundDays} days</p>
-              <div className="mt-4 space-y-2">
-                {quote.breakdown.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between text-[13px] text-textMuted"><span>{item.label}</span><span className="font-medium text-white">£{item.value}</span></div>
-                ))}
-              </div>
-            </div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">Storefront payload</p>
+            <pre className="mt-4 max-h-[360px] overflow-auto rounded-2xl border border-white/8 bg-black/30 p-4 text-[11px] leading-5 text-textMuted">{JSON.stringify({ name: form.name, slug: form.slug, priceFromMinor: moneyMinor(form.priceFrom), vatRate: form.vatRate, options: optionObjects(selectedTemplate.options), quantities: parseCsvNumbers(form.quantities), pricing: { source: form.pricingSource }, artworkRules: { profile: selectedTemplate.artworkProfile, bleedMm: 3 } }, null, 2)}</pre>
           </Card>
         </div>
       </div>

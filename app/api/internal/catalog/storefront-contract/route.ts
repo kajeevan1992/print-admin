@@ -1,1 +1,1 @@
-export { GET, POST, dynamic } from "../../../storefront/contract/route"
+export { GET, POST, dynamic } from '@/app/api/internal/storefront/contract/route';

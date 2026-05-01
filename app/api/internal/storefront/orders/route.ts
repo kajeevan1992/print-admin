@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { readDraftOrders, saveDraftOrders } from '@/core/storefront/cart-checkout-bridge';
+import { readFinalOrders } from '@/core/storefront/order-payment-safety';
 
 function responseError(error: unknown, status = 500) {
   return NextResponse.json({
@@ -20,6 +21,9 @@ function normalizeOrder(order: Record<string, any>) {
     orderNumber: String(order.orderNumber || order.quoteReference || payload.quoteReference || 'Draft order'),
     quoteReference: String(order.quoteReference || payload.quoteReference || ''),
     status: String(order.status || payload.status || 'draft-order'),
+    paymentStatus: String(order.paymentStatus || payload.paymentStatus || ''),
+    productionStatus: String(order.productionStatus || payload.productionStatus || ''),
+    locked: Boolean(order.locked),
     customerName: String(order.customerName || customer.name || ''),
     customerEmail: String(order.customerEmail || customer.email || ''),
     customerPhone: String(order.customerPhone || customer.phone || ''),
@@ -39,27 +43,22 @@ function normalizeOrder(order: Record<string, any>) {
   };
 }
 
-export const dynamic = 'force-dynamic'
-
-import { NextRequest } from 'next/server'
-import { readDraftOrders } from '@/core/storefront/cart-checkout-bridge'
-import { readFinalOrders } from '@/core/storefront/order-payment-safety'
-
 export async function GET(request: NextRequest) {
   try {
-    const drafts = await readDraftOrders(request)
-    const finals = await readFinalOrders(request)
-
-    return Response.json({
-      ok: true,
-      source: 'internal-storefront-orders',
-      data: {
-        draftOrders: drafts,
-        finalOrders: finals
-      }
-    })
-  } catch {
-    return Response.json({ ok: false }, { status: 500 })
+    const email = request.nextUrl.searchParams.get('email');
+    const status = request.nextUrl.searchParams.get('status');
+    const type = request.nextUrl.searchParams.get('type');
+    const limit = Math.max(1, Math.min(100, Number(request.nextUrl.searchParams.get('limit') || 50)));
+    const [draftRaw, finalRaw] = await Promise.all([readDraftOrders(request), readFinalOrders(request)]);
+    const drafts = draftRaw.map((entry) => ({ ...normalizeOrder(entry), orderType: 'draft' }));
+    const finals = finalRaw.map((entry) => ({ ...normalizeOrder(entry), orderType: 'final' }));
+    let orders = [...finals, ...drafts];
+    if (email) orders = orders.filter((order) => order.customerEmail.toLowerCase() === email.toLowerCase());
+    if (status) orders = orders.filter((order) => order.status.toLowerCase() === status.toLowerCase());
+    if (type) orders = orders.filter((order) => order.orderType === type);
+    return NextResponse.json({ ok: true, source: 'internal-storefront-orders-bridge', data: { orders: orders.slice(0, limit), draftOrders: drafts, finalOrders: finals, count: orders.length, filters: { email: email || null, status: status || null, type: type || null, limit } } });
+  } catch (error) {
+    return responseError(error);
   }
 }
 
@@ -68,7 +67,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const id = String(body.id || body.orderId || body.quoteReference || '').trim();
     if (!id) return responseError(new Error('Order id or quoteReference is required.'), 400);
-    const allowed = new Set(['draft-order', 'artwork-pending', 'preflight-pending', 'ready-for-production', 'cancelled']);
+    const allowed = new Set(['draft-order', 'artwork-pending', 'preflight-pending', 'ready-for-production', 'cancelled', 'finalised']);
     const status = String(body.status || '').trim();
     if (status && !allowed.has(status)) return responseError(new Error(`Unsupported storefront order status: ${status}`), 400);
 
@@ -77,12 +76,7 @@ export async function PATCH(request: NextRequest) {
     const next = existing.map((order) => {
       if (String(order.id) !== id && String(order.quoteReference) !== id) return order;
       found = true;
-      return {
-        ...order,
-        status: status || order.status,
-        storefrontNotes: body.notes ?? order.storefrontNotes ?? null,
-        updatedAt: new Date().toISOString(),
-      };
+      return { ...order, status: status || order.status, storefrontNotes: body.notes ?? order.storefrontNotes ?? null, updatedAt: new Date().toISOString() };
     });
     if (!found) return responseError(new Error('Draft order was not found.'), 404);
     const record = await saveDraftOrders(request, next);

@@ -1,39 +1,66 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { PublicStorefrontLayout } from '@/components/storefront/public-storefront-layout';
-import { StorefrontSection } from '@/components/storefront/storefront-section';
-import { StorefrontPageRenderer } from '@/components/storefront/storefront-page-renderer';
-import { demoPage, type PageSchema } from '@/storefront/editor/page-schema';
-import { loadSavedStorefrontPageConfig } from '@/components/editor/page-config-storage';
 
-export default function StorefrontPreviewPage() {
-  const [page, setPage] = useState<PageSchema>(demoPage);
+export default function Page() {
+  const [products, setProducts] = useState<any[]>([]);
+  const [cartCount, setCartCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  async function load() {
+    const res = await fetch('/api/internal/catalog/storefront-products');
+    const json = await res.json();
+    setProducts(json.data?.items || []);
+
+    const cartRes = await fetch('/api/internal/storefront/cart');
+    const cartJson = await cartRes.json();
+    setCartCount(cartJson.data?.items?.length || 0);
+
+    setLoading(false);
+  }
 
   useEffect(() => {
-    const saved = loadSavedStorefrontPageConfig();
-    if (saved) setPage(saved);
+    load();
   }, []);
 
-  return (
-    <PublicStorefrontLayout announcement="v130 editor-to-storefront rendering is now live. Saved editor output can now drive storefront page rendering.">
-      <StorefrontSection
-        eyebrow="Storefront rendering"
-        title="Schema-driven storefront preview"
-        body="This page reads the saved visual-editor page config and renders it as a storefront output preview, which is the bridge toward tenant-specific page persistence later."
-      >
-        <div className="mb-4 rounded-3xl border p-4" style={{ borderColor: 'var(--theme-border)', background: 'var(--theme-surface)' }}>
-          <p className="text-sm font-semibold">How to test this</p>
-          <div className="mt-3 space-y-2 text-sm" style={{ color: 'var(--theme-text-muted)' }}>
-            <p>1. Open /storefront-editor and change the page.</p>
-            <p>2. Click Save config.</p>
-            <p>3. Open /storefront-preview.</p>
-            <p>4. Confirm the storefront preview renders the saved schema.</p>
-          </div>
-        </div>
+  async function addToCart(p: any) {
+    await fetch('/api/internal/storefront/cart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productId: p.id,
+        productSlug: p.slug,
+        productName: p.name,
+        quantity: 250
+      })
+    });
 
-        <StorefrontPageRenderer page={page} />
-      </StorefrontSection>
-    </PublicStorefrontLayout>
+    alert('Added to cart');
+    load();
+  }
+
+  if (loading) return <div style={{ padding: 20 }}>Loading storefront...</div>;
+
+  return (
+    <div style={{ padding: 20 }}>
+      <h1>Storefront</h1>
+
+      <div style={{ marginBottom: 20 }}>
+        Cart: {cartCount}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+        {products.map(p => (
+          <div key={p.id} style={{ border: '1px solid #ccc', padding: 10 }}>
+            <h2>{p.name}</h2>
+            <p>£{(p.priceFromMinor / 100).toFixed(2)}</p>
+
+            <button onClick={() => addToCart(p)}>
+              Add to cart
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

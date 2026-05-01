@@ -41,10 +41,10 @@ const BRAND = {
 
 const THEME_BASE_PATH = "/theme/atlantis";
 
-const LOCAL_THEME_PROXY_BASE = "/api/proxy";
+const INTERNAL_STOREFRONT_BASE = "/api/internal/storefront";
 
-function getProxyUrl(path) {
-  return `${LOCAL_THEME_PROXY_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+function getInternalStorefrontUrl(path) {
+  return `${INTERNAL_STOREFRONT_BASE}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 
@@ -53,6 +53,19 @@ function stripThemeBase(pathname) {
   if (pathname === THEME_BASE_PATH) return "/";
   if (pathname.startsWith(THEME_BASE_PATH + "/")) {
     return pathname.slice(THEME_BASE_PATH.length) || "/";
+  }
+  return pathname;
+}
+
+function normalizeHostedThemePath(pathname) {
+  if (!pathname) return "/";
+  if (pathname.startsWith("/product/")) {
+    const slug = pathname.split("/").filter(Boolean)[1] || "";
+    if (slug === "business-cards" || slug === "standard-business-cards") return "/standard-business-cards";
+    if (slug === "a5-leaflets" || slug === "flyers") return "/flyers";
+    if (slug === "booklets") return "/booklets";
+    if (slug === "pvc-banner" || slug === "posters" || slug === "posters-large-format-prints") return "/posters-large-format-prints";
+    return `/${slug}`;
   }
   return pathname;
 }
@@ -934,7 +947,7 @@ function currency(value) {
 }
 
 function usePathState() {
-  const getPath = () => stripThemeBase(window.location.pathname || "/");
+  const getPath = () => normalizeHostedThemePath(stripThemeBase(window.location.pathname || "/"));
   const [path, setPath] = useState(getPath());
   useEffect(() => {
     const onPop = () => setPath(getPath());
@@ -951,16 +964,94 @@ function usePathState() {
   return { path, navigate };
 }
 
+function normalizeInternalCartItem(item) {
+  if (!item) return null;
+  const unitPrice = Number(item.unitNetMinor ?? item.priceFromMinor ?? 0) / 100;
+  const qty = Number(item.quantity ?? item.qty ?? 1);
+  return {
+    ...item,
+    id: item.id || createSafeCartItemId('cart-item'),
+    name: item.productName || item.name || item.title || 'Storefront product',
+    slug: item.productSlug || item.slug || item.productId,
+    qty,
+    price: unitPrice,
+    unitPrice,
+    lineTotal: Number(item.netTotalMinor ?? 0) / 100 || unitPrice * qty,
+    config: item.selections || item.config || {},
+  };
+}
+
 function useCart() {
   const [items, setItems] = useState(() => {
+    if (typeof window === "undefined") return [];
     const raw = localStorage.getItem("holo-cart");
     return raw ? JSON.parse(raw) : [];
   });
-  useEffect(() => { localStorage.setItem("holo-cart", JSON.stringify(items)); }, [items]);
-  const addItem = (item) => setItems((prev) => [...prev, { ...item, id: createSafeCartItemId('uuid'), qty: item.qty || 1 }]);
-  const removeItem = (id) => setItems((prev) => prev.filter((x) => x.id !== id));
-  const updateQty = (id, delta) => setItems((prev) => prev.map((x) => (x.id === id ? { ...x, qty: Math.max(1, x.qty + delta) } : x)));
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+
+  useEffect(() => {
+    let active = true;
+    async function loadInternalCart() {
+      try {
+        const res = await fetch(getInternalStorefrontUrl('/cart'), { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        const next = data?.ok && Array.isArray(data?.data?.items) ? data.data.items.map(normalizeInternalCartItem).filter(Boolean) : null;
+        if (active && next) setItems(next);
+      } catch {}
+    }
+    loadInternalCart();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => { if (typeof window !== "undefined") localStorage.setItem("holo-cart", JSON.stringify(items)); }, [items]);
+
+  const addItem = (item) => {
+    const localItem = { ...item, id: createSafeCartItemId('cart-item'), qty: item.qty || 1 };
+    setItems((prev) => [...prev, localItem]);
+    fetch(getInternalStorefrontUrl('/cart'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: localItem.id,
+        productId: item.productId || item.id || item.slug,
+        productSlug: item.slug || item.productSlug || item.id,
+        productName: item.name,
+        quantity: localItem.qty,
+        unitNetMinor: Math.round((item.price || item.unitPrice || 0) * 100),
+        selections: item.config || item.selections || {},
+        turnaround: item.turnaround || 'standard',
+      }),
+    }).then((res) => res.json()).then((data) => {
+      const next = data?.ok && Array.isArray(data?.data?.items) ? data.data.items.map(normalizeInternalCartItem).filter(Boolean) : null;
+      if (next) setItems(next);
+    }).catch(() => {});
+  };
+
+  const removeItem = (id) => {
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    fetch(`${getInternalStorefrontUrl('/cart')}?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .then((res) => res.json()).then((data) => {
+        const next = data?.ok && Array.isArray(data?.data?.items) ? data.data.items.map(normalizeInternalCartItem).filter(Boolean) : null;
+        if (next) setItems(next);
+      }).catch(() => {});
+  };
+
+  const updateQty = (id, delta) => {
+    let nextQty = 1;
+    setItems((prev) => prev.map((x) => {
+      if (x.id !== id) return x;
+      nextQty = Math.max(1, Number(x.qty || 1) + delta);
+      return { ...x, qty: nextQty, quantity: nextQty, lineTotal: (x.price || x.unitPrice || 0) * nextQty };
+    }));
+    fetch(getInternalStorefrontUrl('/cart'), {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id, quantity: nextQty }),
+    }).then((res) => res.json()).then((data) => {
+      const next = data?.ok && Array.isArray(data?.data?.items) ? data.data.items.map(normalizeInternalCartItem).filter(Boolean) : null;
+      if (next) setItems(next);
+    }).catch(() => {});
+  };
+  const subtotal = items.reduce((sum, item) => sum + (Number(item.lineTotal) || Number(item.price || item.unitPrice || 0) * Number(item.qty || 1)), 0);
   return { items, addItem, removeItem, updateQty, subtotal };
 }
 
@@ -2030,6 +2121,7 @@ function CheckoutPage({ cart, navigate }) {
     try {
       const payload = {
         customer: {
+          name: `${form.firstName} ${form.lastName}`.trim(),
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
@@ -2056,7 +2148,7 @@ function CheckoutPage({ cart, navigate }) {
         source: "atlantis-theme",
       };
 
-      const res = await fetch(getProxyUrl("/orders"), {
+      const res = await fetch(getInternalStorefrontUrl("/checkout"), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -2071,7 +2163,7 @@ function CheckoutPage({ cart, navigate }) {
         return;
       }
 
-      const upstreamPayload = data.payload?.data || data.payload || {};
+      const upstreamPayload = data?.data?.draftOrder || data?.data || data?.payload?.data || data?.payload || {};
       const orderSummary = {
         submittedAt: new Date().toISOString(),
         customerName: `${form.firstName} ${form.lastName}`.trim(),
@@ -2258,7 +2350,7 @@ function ArtworkUploadPage({ navigate }) {
         source: "atlantis-theme",
       };
 
-      const res = await fetch(getProxyUrl("/artwork"), {
+      const res = await fetch(getInternalStorefrontUrl("/artwork"), {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -2399,7 +2491,7 @@ function AccountPage({ navigate }) {
   useEffect(() => {
     async function loadOrders() {
       try {
-        const res = await fetch(getProxyUrl("/orders-list"));
+        const res = await fetch(getInternalStorefrontUrl("/checkout"));
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data?.ok) {
@@ -2407,7 +2499,7 @@ function AccountPage({ navigate }) {
           return;
         }
 
-        const list = data.payload?.data || data.payload || [];
+        const list = data?.data?.draftOrder ? [data.data.draftOrder] : data?.data?.items || data?.payload?.data || data?.payload || [];
         setOrders(Array.isArray(list) ? list : []);
       } catch {
         setError("Live orders API is not reachable yet. Showing the latest locally stored order instead."); setOrders([]);
@@ -2506,36 +2598,36 @@ export default function App() {
 
     async function loadLiveData() {
       try {
-        const healthRes = await fetch(getProxyUrl("/health"), { cache: "no-store" });
+        const healthRes = await fetch(getInternalStorefrontUrl("/contract"), { cache: "no-store" });
         const healthPayload = await healthRes.json().catch(() => null);
 
         if (!healthRes.ok || !healthPayload?.ok) {
           if (active) {
-            setApiState({ loading: false, message: "Storefront loaded, but API proxy could not reach the external API." });
+            setApiState({ loading: false, message: "Hosted theme loaded, but the internal storefront contract endpoint is unavailable." });
           }
           return;
         }
 
         if (active) {
-          setApiState({ loading: true, message: "External API connected through local proxy. Loading products..." });
+          setApiState({ loading: true, message: "Internal storefront contract connected. Loading hosted theme data..." });
         }
 
-        const productsRes = await fetch(getProxyUrl("/products?limit=12&page=1"), { cache: "no-store" });
+        const productsRes = await fetch(getInternalStorefrontUrl("/theme-data"), { cache: "no-store" });
         const productsPayload = await productsRes.json().catch(() => null);
-        const normalizedProducts = productsPayload?.ok ? productsPayload?.data?.items || [] : [];
+        const normalizedProducts = productsPayload?.ok ? productsPayload?.data?.products || productsPayload?.data?.items || [] : [];
 
         if (active) {
           setLiveProducts(normalizedProducts);
           setApiState({
             loading: false,
             message: normalizedProducts.length
-              ? "Connected to live external API data. Cart is ready."
-              : "External API connected, but no products were returned yet.",
+              ? "Connected to internal hosted theme data. Cart is ready."
+              : "Internal theme adapter connected, but no products were returned yet.",
           });
         }
       } catch (error) {
         if (active) {
-          setApiState({ loading: false, message: "Storefront loaded, but local API proxy is not reachable yet." });
+          setApiState({ loading: false, message: "Storefront loaded, but internal hosted theme APIs are not reachable yet." });
         }
       }
     }

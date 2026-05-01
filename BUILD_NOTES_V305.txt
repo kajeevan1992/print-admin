@@ -1,0 +1,51 @@
+BUILD v305 — Hosted Theme Loader
+
+Source: v304 artwork + preflight theme bridge ZIP.
+
+Goal:
+Move from test storefront routing toward real hosted theme frontend routing while keeping unified-core rules intact.
+
+Added / changed:
+- app/category/[slug]/page.tsx
+- app/product/[slug]/page.tsx
+- app/cart/page.tsx
+- app/checkout/page.tsx
+- middleware.ts
+- src/themes/atlantis/ThemeApp.jsx
+
+What this build does:
+- Adds hosted theme route handling for /category/[slug], /product/[slug], /cart, /checkout.
+- Keeps the existing Atlantis theme UI intact.
+- Routes hosted theme data loading through /api/internal/storefront/theme-data.
+- Routes cart actions through /api/internal/storefront/cart.
+- Routes checkout/draft-order creation through /api/internal/storefront/checkout.
+- Routes artwork metadata through /api/internal/storefront/artwork.
+- Removes Atlantis theme usage of /api/proxy.
+- Does not use public /api/v1.
+- Does not redesign the UI.
+- Does not touch pricing engine logic.
+- Does not create duplicate pricing/order systems.
+
+Test routes:
+- /theme/atlantis
+- /theme/atlantis/cart
+- /category/business-cards
+- /category/flyers
+- /product/business-cards
+- /product/a5-leaflets
+- /cart
+- /checkout
+- /api/internal/storefront/theme-data
+- /api/internal/storefront/cart
+- /api/internal/storefront/checkout
+- /api/internal/storefront/artwork
+- /api/internal/storefront/preflight
+
+Hosted-domain note:
+- middleware.ts supports hosted theme mode when header x-print-hosted-theme=true/1, query hostedTheme=true/1, or host starts with theme. or store.
+- This avoids breaking the current admin dashboard root while allowing real hosted theme domains to resolve storefront-style routes.
+
+Deploy notes:
+- Deploy as the full app ZIP.
+- Confirm internal API routes respond before testing the customer route flow.
+- Full journey to test after deploy: browse → product → add to cart → cart → checkout → draft order.

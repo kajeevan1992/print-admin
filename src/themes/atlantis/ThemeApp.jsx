@@ -2527,7 +2527,7 @@ function AccountPage({ navigate }) {
   useEffect(() => {
     async function loadOrders() {
       try {
-        const res = await fetch(getInternalStorefrontUrl("/checkout"));
+        const res = await fetch(getInternalStorefrontUrl("/orders"));
         const data = await res.json().catch(() => null);
 
         if (!res.ok || !data?.ok) {
@@ -2535,7 +2535,7 @@ function AccountPage({ navigate }) {
           return;
         }
 
-        const list = data?.data?.draftOrders || (data?.data?.draftOrder ? [data.data.draftOrder] : data?.payload?.data || data?.payload || []);
+        const list = data?.data?.orders || data?.data?.draftOrders || (data?.data?.draftOrder ? [data.data.draftOrder] : data?.payload?.data || data?.payload || []);
         setOrders(Array.isArray(list) ? list : []);
       } catch {
         setError("Internal checkout is not reachable yet. Showing the latest locally stored order instead."); setOrders([]);
@@ -2567,7 +2567,7 @@ function AccountPage({ navigate }) {
     <PageShell
       eyebrow="Account"
       title="Your orders"
-      subtitle="Account history now reads internal checkout draft orders and only falls back locally if unavailable."
+      subtitle="Account history now reads the internal storefront orders bridge and only falls back locally if unavailable."
     >
       <section className="space-y-4">
         {loading ? (

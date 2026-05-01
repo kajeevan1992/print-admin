@@ -30,6 +30,8 @@ const storefrontContract: ContractSection = {
     vat: "/api/internal/catalog/vat-engine",
     cart: "/api/internal/storefront/cart",
     checkoutDraft: "/api/internal/storefront/checkout",
+    orders: "/api/internal/storefront/orders",
+    readiness: "/api/internal/storefront/readiness",
     artworkUpload: "/api/internal/storefront/artwork",
     artworkInspection: "/api/internal/catalog/artwork-inspection",
     preflightGate: "/api/internal/storefront/preflight",
@@ -128,7 +130,7 @@ export async function GET() {
     data: {
       contract: storefrontContract,
       validation: validationSummary(),
-      nextBuilds: ["v306-theme-qa-stabilisation"],
+      nextBuilds: ["v307-hosted-storefront-live-hardening"],
     },
   })
 }

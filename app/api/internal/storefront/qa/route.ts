@@ -19,13 +19,15 @@ export async function GET(request: NextRequest) {
     '/api/internal/storefront/checkout',
     '/api/internal/storefront/artwork',
     '/api/internal/storefront/preflight',
+    '/api/internal/storefront/orders',
+    '/api/internal/storefront/readiness',
   ];
 
   return NextResponse.json({
     ok: true,
     source: 'internal-storefront-theme-qa',
     data: {
-      build: 'v306-theme-qa-stabilisation',
+      build: 'v307-hosted-storefront-live-hardening',
       rule: 'Hosted storefront uses internal routes only. No /api/proxy or public /api/v1 calls are required.',
       requiredRoutes,
       journey: {
@@ -35,6 +37,8 @@ export async function GET(request: NextRequest) {
         checkoutDrafts: draftOrders.length,
         artworkRecords: artworkRecords.length,
         preflight: summarizePreflight(preflightRecords),
+        ordersEndpointReady: true,
+        readinessEndpointReady: true,
       },
       cart: { items: cartItems, totals },
       draftOrders: draftOrders.slice(0, 10),

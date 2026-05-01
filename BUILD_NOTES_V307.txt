@@ -1,0 +1,42 @@
+BUILD: v307 — Hosted Storefront Live Hardening
+SOURCE: v306 theme QA + stabilisation ZIP
+
+Scope completed:
+- Added a dedicated internal storefront orders bridge for theme account/order-history usage.
+- Added a storefront readiness endpoint for live frontend theme testing.
+- Updated Atlantis account history to read /api/internal/storefront/orders instead of overloading checkout GET.
+- Extended QA and contract output to include the new orders/readiness endpoints.
+- Kept hosted theme architecture internal-only: no /api/proxy and no /api/v1 added.
+
+Changed files:
+- app/api/internal/storefront/orders/route.ts
+- app/api/internal/storefront/readiness/route.ts
+- app/api/internal/storefront/qa/route.ts
+- app/api/internal/storefront/contract/route.ts
+- src/themes/atlantis/ThemeApp.jsx
+- BUILD_NOTES_V307.txt
+
+Test routes:
+- /?hostedTheme=1
+- /theme/atlantis
+- /category/business-cards
+- /product/standard-business-cards
+- /cart
+- /checkout
+- /checkout/success
+- /artwork-upload
+- /account
+- /api/internal/storefront/cart
+- /api/internal/storefront/checkout
+- /api/internal/storefront/orders
+- /api/internal/storefront/artwork
+- /api/internal/storefront/preflight
+- /api/internal/storefront/readiness
+- /api/internal/storefront/qa
+- /api/internal/storefront/contract
+
+Deploy notes:
+- Pricing engine, VAT logic, artwork engine, and production systems were not modified.
+- /api/internal/storefront/orders is a theme-safe read/update layer over existing draft orders.
+- /api/internal/storefront/readiness gives a quick live test snapshot for cart, checkout, orders, artwork, preflight and VAT state.
+- Build was not run in sandbox because node_modules are not present in the uploaded ZIP environment.

@@ -38,7 +38,10 @@ function safeFileName(value: unknown) {
 }
 
 function asNumber(value: unknown, fallback = 0) {
-  const next = Number(String(value ?? '').replace(/[^0-9.]/g, ''));
+  if (value === null || value === undefined || value === '') return fallback;
+  const cleaned = String(value).replace(/[^0-9.]/g, '');
+  if (!cleaned) return fallback;
+  const next = Number(cleaned);
   return Number.isFinite(next) && next >= 0 ? next : fallback;
 }
 

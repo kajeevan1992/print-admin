@@ -39,25 +39,27 @@ function normalizeOrder(order: Record<string, any>) {
   };
 }
 
+export const dynamic = 'force-dynamic'
+
+import { NextRequest } from 'next/server'
+import { readDraftOrders } from '@/core/storefront/cart-checkout-bridge'
+import { readFinalOrders } from '@/core/storefront/order-payment-safety'
+
 export async function GET(request: NextRequest) {
   try {
-    const email = request.nextUrl.searchParams.get('email');
-    const status = request.nextUrl.searchParams.get('status');
-    const limit = Math.max(1, Math.min(100, Number(request.nextUrl.searchParams.get('limit') || 50)));
-    let orders = (await readDraftOrders(request)).map(normalizeOrder);
-    if (email) orders = orders.filter((order) => order.customerEmail.toLowerCase() === email.toLowerCase());
-    if (status) orders = orders.filter((order) => order.status.toLowerCase() === status.toLowerCase());
-    return NextResponse.json({
+    const drafts = await readDraftOrders(request)
+    const finals = await readFinalOrders(request)
+
+    return Response.json({
       ok: true,
-      source: 'internal-storefront-orders-bridge',
+      source: 'internal-storefront-orders',
       data: {
-        orders: orders.slice(0, limit),
-        count: orders.length,
-        filters: { email: email || null, status: status || null, limit },
-      },
-    });
-  } catch (error) {
-    return responseError(error);
+        draftOrders: drafts,
+        finalOrders: finals
+      }
+    })
+  } catch {
+    return Response.json({ ok: false }, { status: 500 })
   }
 }
 

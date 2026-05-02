@@ -45,6 +45,50 @@ export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [
     description: 'Internal print maths, sheet fit, cost, quote, and draft-order test bench.'
   },
   {
+    label: 'Product Rules Builder',
+    href: '/product-rules-builder',
+    iconKey: 'GitBranch',
+    insertAfterLabel: 'Product Rules Lab',
+    groupLabel: 'Catalog',
+    order: 30,
+    roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
+    surface: 'sidebar',
+    description: 'Advanced JSON rules editor for product option conditions and actions.'
+  },
+  {
+    label: 'Visual Rules Builder',
+    href: '/product-rules-visual',
+    iconKey: 'GitBranch',
+    insertAfterLabel: 'Product Rules Builder',
+    groupLabel: 'Catalog',
+    order: 31,
+    roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
+    surface: 'sidebar',
+    description: 'No-code IF/THEN visual rule builder for product configurator logic.'
+  },
+  {
+    label: 'Storefront Content Builder',
+    href: '/product-storefront-content',
+    iconKey: 'FileText',
+    insertAfterLabel: 'Product Builder',
+    groupLabel: 'Catalog',
+    order: 32,
+    roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
+    surface: 'sidebar',
+    description: 'Product-specific storefront images, descriptions, delivery, artwork files, FAQs and related products.'
+  },
+  {
+    label: 'Admin Hardening',
+    href: '/admin-hardening',
+    iconKey: 'ShieldCheck',
+    parentLabel: 'Advanced',
+    groupLabel: 'System',
+    order: 80,
+    roles: ['admin', 'tenant_admin', 'owner', 'super_admin'],
+    surface: 'sidebar',
+    description: 'Admin and super-admin readiness dashboard for catalog, storefront, checkout and order workflow.'
+  },
+  {
     label: 'Navigation Registry',
     href: '/navigation-registry',
     iconKey: 'Map',

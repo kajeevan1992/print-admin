@@ -79,6 +79,7 @@ model Tenant {
   storageLimitGb   Int          @default(10)
   themeKey         String       @default("base")
   supportEmail     String?
+  metadataJson     Json?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -88,6 +89,8 @@ model Tenant {
   categories       Category[]
   orders           Order[]
   artworks         Artwork[]
+  platformDeployments PlatformDeployment[]
+  platformDemoUploads PlatformDemoUpload[]
 }
 
 model Domain {
@@ -308,4 +311,42 @@ model CoreCatalogRecord {
 
   @@unique([tenantId, resource, slug])
   @@index([tenantId, resource])
+}
+
+model PlatformDeployment {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  tenantName   String
+  environment  String   @default("production")
+  status       String   @default("queued")
+  owner        String   @default("Owner Ops")
+  scheduledFor String?
+  note         String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([environment])
+}
+
+model PlatformDemoUpload {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  tenantName   String
+  assetPack    String
+  status       String   @default("draft")
+  uploadedBy   String   @default("Owner Ops")
+  updatedLabel String?
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
 }

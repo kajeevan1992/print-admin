@@ -91,6 +91,9 @@ model Tenant {
   artworks         Artwork[]
   platformDeployments PlatformDeployment[]
   platformDemoUploads PlatformDemoUpload[]
+  billingSubscriptions PlatformBillingSubscription[]
+  billingInvoices PlatformBillingInvoice[]
+  billingPayments PlatformBillingPayment[]
 }
 
 model Domain {
@@ -348,5 +351,106 @@ model PlatformDemoUpload {
   tenant       Tenant?  @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
+  @@index([status])
+}
+
+model PlatformBillingPlan {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  slug               String   @unique
+  currency           String   @default("GBP")
+  monthlyPriceMinor  Int      @default(0)
+  yearlyPriceMinor   Int      @default(0)
+  storefrontsLimit   Int      @default(1)
+  adminUsersLimit    Int      @default(3)
+  storageLimitGb     Int      @default(10)
+  apiAccess          Boolean  @default(false)
+  supplierIntegrations Boolean @default(false)
+  metadataJson       Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  subscriptions      PlatformBillingSubscription[]
+}
+
+model PlatformBillingSubscription {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  planId             String?
+  status             String   @default("trialing")
+  billingInterval    String   @default("monthly")
+  currency           String   @default("GBP")
+  amountMinor        Int      @default(0)
+  provider           String   @default("manual")
+  providerCustomerId String?
+  providerSubscriptionId String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+  cancelAtPeriodEnd  Boolean @default(false)
+  metadataJson       Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan               PlatformBillingPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  invoices           PlatformBillingInvoice[]
+  payments           PlatformBillingPayment[]
+
+  @@index([tenantId])
+  @@index([planId])
+  @@index([status])
+}
+
+model PlatformBillingInvoice {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  subscriptionId     String?
+  invoiceNumber      String   @unique
+  status             String   @default("draft")
+  currency           String   @default("GBP")
+  subtotalMinor      Int      @default(0)
+  taxMinor           Int      @default(0)
+  totalMinor         Int      @default(0)
+  amountPaidMinor    Int      @default(0)
+  dueAt              DateTime?
+  issuedAt           DateTime @default(now())
+  paidAt             DateTime?
+  providerInvoiceId  String?
+  metadataJson       Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription       PlatformBillingSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  payments           PlatformBillingPayment[]
+
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+model PlatformBillingPayment {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  subscriptionId     String?
+  invoiceId          String?
+  status             String   @default("pending")
+  provider           String   @default("manual")
+  providerPaymentId  String?
+  currency           String   @default("GBP")
+  amountMinor        Int      @default(0)
+  paidAt             DateTime?
+  metadataJson       Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription       PlatformBillingSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  invoice            PlatformBillingInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([subscriptionId])
+  @@index([invoiceId])
   @@index([status])
 }

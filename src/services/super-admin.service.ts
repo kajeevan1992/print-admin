@@ -1,90 +1,57 @@
-import { demoUploadSeed, deploymentSeed, tenantAccountsSeed, type DemoUploadRecord, type DeploymentRecord, type TenantAccount } from '@/data/super-admin';
+// v341 — Super Admin now connected to real internal API
 
-const STORAGE_KEYS = {
-  tenants: 'print-admin.super-admin.tenants',
-  deployments: 'print-admin.super-admin.deployments',
-  demos: 'print-admin.super-admin.demos'
-} as const;
-
-const wait = async () => new Promise((resolve) => setTimeout(resolve, 70));
-
-function readStore<T>(key: string, fallback: T[]): T[] {
-  if (typeof window === 'undefined') return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as T[];
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
+async function fetchJson(url: string, options?: RequestInit) {
+  const res = await fetch(url, { ...options, cache: 'no-store' });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.ok === false) {
+    throw new Error(json?.error?.message || `Request failed: ${res.status}`);
   }
-}
-
-function writeStore<T>(key: string, next: T[]) {
-  if (typeof window !== 'undefined') window.localStorage.setItem(key, JSON.stringify(next));
+  return json?.data;
 }
 
 export const superAdminService = {
   async listTenants() {
-    await wait();
-    return readStore<TenantAccount>(STORAGE_KEYS.tenants, tenantAccountsSeed);
+    const data = await fetchJson('/api/internal/platform/tenants');
+    return data.items || [];
   },
-  async saveTenant(record: TenantAccount) {
-    await wait();
-    const items = readStore<TenantAccount>(STORAGE_KEYS.tenants, tenantAccountsSeed);
-    const exists = items.some((item) => item.id === record.id);
-    writeStore(STORAGE_KEYS.tenants, exists ? items.map((item) => (item.id === record.id ? record : item)) : [record, ...items]);
-    return record;
+  async saveTenant(record: any) {
+    return fetchJson('/api/internal/platform/tenants', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
   },
   async deleteTenant(id: string) {
-    await wait();
-    writeStore(STORAGE_KEYS.tenants, readStore<TenantAccount>(STORAGE_KEYS.tenants, tenantAccountsSeed).filter((item) => item.id !== id));
-  },
-  async resetTenants() {
-    await wait();
-    writeStore(STORAGE_KEYS.tenants, tenantAccountsSeed);
-    return tenantAccountsSeed;
+    await fetchJson(`/api/internal/platform/tenants?id=${id}`, { method: 'DELETE' });
   },
 
   async listDeployments() {
-    await wait();
-    return readStore<DeploymentRecord>(STORAGE_KEYS.deployments, deploymentSeed);
+    const data = await fetchJson('/api/internal/platform/deployments');
+    return data.items || [];
   },
-  async saveDeployment(record: DeploymentRecord) {
-    await wait();
-    const items = readStore<DeploymentRecord>(STORAGE_KEYS.deployments, deploymentSeed);
-    const exists = items.some((item) => item.id === record.id);
-    writeStore(STORAGE_KEYS.deployments, exists ? items.map((item) => (item.id === record.id ? record : item)) : [record, ...items]);
-    return record;
+  async saveDeployment(record: any) {
+    return fetchJson('/api/internal/platform/deployments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
   },
   async deleteDeployment(id: string) {
-    await wait();
-    writeStore(STORAGE_KEYS.deployments, readStore<DeploymentRecord>(STORAGE_KEYS.deployments, deploymentSeed).filter((item) => item.id !== id));
-  },
-  async resetDeployments() {
-    await wait();
-    writeStore(STORAGE_KEYS.deployments, deploymentSeed);
-    return deploymentSeed;
+    await fetchJson(`/api/internal/platform/deployments?id=${id}`, { method: 'DELETE' });
   },
 
   async listDemoUploads() {
-    await wait();
-    return readStore<DemoUploadRecord>(STORAGE_KEYS.demos, demoUploadSeed);
+    const data = await fetchJson('/api/internal/platform/demo-uploads');
+    return data.items || [];
   },
-  async saveDemoUpload(record: DemoUploadRecord) {
-    await wait();
-    const items = readStore<DemoUploadRecord>(STORAGE_KEYS.demos, demoUploadSeed);
-    const exists = items.some((item) => item.id === record.id);
-    writeStore(STORAGE_KEYS.demos, exists ? items.map((item) => (item.id === record.id ? record : item)) : [record, ...items]);
-    return record;
+  async saveDemoUpload(record: any) {
+    return fetchJson('/api/internal/platform/demo-uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(record),
+    });
   },
   async deleteDemoUpload(id: string) {
-    await wait();
-    writeStore(STORAGE_KEYS.demos, readStore<DemoUploadRecord>(STORAGE_KEYS.demos, demoUploadSeed).filter((item) => item.id !== id));
+    await fetchJson(`/api/internal/platform/demo-uploads?id=${id}`, { method: 'DELETE' });
   },
-  async resetDemoUploads() {
-    await wait();
-    writeStore(STORAGE_KEYS.demos, demoUploadSeed);
-    return demoUploadSeed;
-  }
 };

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "NEXT_TELEMETRY_DISABLED=1 next dev",
-    "build": "NEXT_TELEMETRY_DISABLED=1 next build",
+    "build": "prisma generate && NEXT_TELEMETRY_DISABLED=1 next build",
     "start": "prisma generate || echo \"Prisma generate skipped or failed at runtime; continuing app start\"; prisma migrate deploy || echo \"Prisma migrate deploy skipped or failed; app will start with safe runtime fallbacks\"; NEXT_TELEMETRY_DISABLED=1 next start",
     "lint": "next lint",
     "prisma:generate": "prisma generate",

@@ -8,260 +8,88 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Circle, Database, ExternalLink
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/forms/select';
+import { Input } from '@/components/forms/input';
 import { PRODUCT_BUILDER_JOURNEY, getProductBuilderTab, getProductBuilderTabHref, type ProductBuilderTabKey } from '@/config/product-builder-journey';
 
-type Product = {
-  id: string;
-  name: string;
-  slug: string;
-  categoryId?: string | null;
-  categoryName?: string | null;
-  priceFromMinor?: number;
-  currency?: string;
-  isActive?: boolean;
-  productType?: string;
-  metadataJson?: Record<string, any>;
-};
+type Product = { id: string; name: string; slug: string; categoryId?: string | null; categoryName?: string | null; priceFromMinor?: number; currency?: string; isActive?: boolean; productType?: string; metadataJson?: Record<string, any> };
+type Category = { id: string; name: string; slug?: string };
+type ReadinessItem = { product: Product; ready: boolean; errors: number; warnings: number; issues: Array<{ code: string; message: string; field: string; severity: 'error' | 'warning' }> };
 
-type ReadinessItem = {
-  product: Product;
-  ready: boolean;
-  errors: number;
-  warnings: number;
-  issues: Array<{ code: string; message: string; field: string; severity: 'error' | 'warning' }>;
-};
+const templateOptions = [
+  { value: 'business-cards', label: 'Business Cards', vatRate: 'standard', artworkProfile: 'print-ready-pdf', options: ['size', 'paper', 'sides', 'finish'] },
+  { value: 'leaflets', label: 'Leaflets / Flyers', vatRate: 'zero', artworkProfile: 'flat-sheet-pdf', options: ['size', 'paper', 'sides', 'folding'] },
+  { value: 'booklets', label: 'Booklets', vatRate: 'zero', artworkProfile: 'booklet-pdf', options: ['size', 'pages', 'paper', 'binding'] },
+  { value: 'boards', label: 'Boards / Signs', vatRate: 'standard', artworkProfile: 'large-format-pdf', options: ['size', 'material', 'lamination'] },
+];
 
-function money(minor?: number, currency = 'GBP') {
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((minor || 0) / 100);
-}
-
-function tabStatusClass(status: string) {
-  if (status === 'live') return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100';
-  if (status === 'migrate') return 'border-sky-400/25 bg-sky-400/10 text-sky-100';
-  if (status === 'replace') return 'border-rose-400/25 bg-rose-400/10 text-rose-100';
-  return 'border-amber-400/25 bg-amber-400/10 text-amber-100';
-}
-
-function hasValue(value: unknown) {
-  if (Array.isArray(value)) return value.length > 0;
-  if (value && typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
-  return value !== undefined && value !== null && value !== '';
-}
+function money(minor?: number, currency = 'GBP') { return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format((minor || 0) / 100); }
+function slugify(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function moneyMinor(value: string) { return Math.max(0, Math.round(Number(value || 0) * 100)); }
+function minorToPounds(value?: number) { return ((value || 0) / 100).toFixed(2); }
+function lines(value: string) { return value.split('\n').map((item) => item.trim()).filter(Boolean); }
+function csv(value: string) { return value.split(',').map((item) => item.trim()).filter(Boolean); }
+function parsePairs(value: string) { return lines(value).map((line) => { const [label, ...rest] = line.split(':'); return { label: (label || '').trim(), value: rest.join(':').trim() }; }).filter((item) => item.label || item.value); }
+function parseFaqs(value: string) { return lines(value).map((line) => { const [question, ...rest] = line.split('|'); return { question: (question || '').trim(), answer: rest.join('|').trim() }; }).filter((item) => item.question || item.answer); }
+function parseServices(value: string) { return lines(value).map((line, index) => { const [label, price] = line.split('|'); return { id: `design-service-${index + 1}`, label: (label || '').trim(), priceMinor: Math.round(Number(price || 0) * 100) }; }).filter((item) => item.label); }
+function parseAssets(value: string) { return lines(value).map((line, index) => { const [label, url] = line.split('|'); return { id: `asset-${index + 1}`, label: (label || '').trim(), url: (url || '').trim() }; }).filter((item) => item.label || item.url); }
+function optionObjects(keys: string[]) { return keys.map((key) => ({ id: key, label: key.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), type: key === 'pages' ? 'number' : 'select', required: true })); }
+function hasValue(value: unknown) { if (Array.isArray(value)) return value.length > 0; if (value && typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0; return value !== undefined && value !== null && value !== ''; }
+function tabStatusClass(status: string) { if (status === 'live') return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100'; if (status === 'migrate') return 'border-sky-400/25 bg-sky-400/10 text-sky-100'; return 'border-amber-400/25 bg-amber-400/10 text-amber-100'; }
 
 function evaluateTabProgress(product: Product | null, readiness?: ReadinessItem) {
   const meta = product?.metadataJson || {};
-  return {
-    overview: Boolean(product),
-    basics: Boolean(product?.name && product?.slug && product?.categoryId && hasValue(meta.template) && hasValue(meta.vatRate)),
-    content: hasValue(meta.media) || hasValue(meta.content) || hasValue(meta.delivery) || hasValue(meta.designServices),
-    options: hasValue(meta.optionGroups) || hasValue(meta.options) || hasValue(meta.selectorUi),
-    rules: Array.isArray(meta.rules) && meta.rules.length > 0,
-    pricing: hasValue(meta.pricing) || Number(product?.priceFromMinor || 0) > 0,
-    'print-maths': hasValue(meta.printMaths) || hasValue(meta.pricing?.quoteMaths),
-    artwork: hasValue(meta.artwork) || hasValue(meta.artworkRules) || meta.artworkRequired === true,
-    preview: hasValue(meta.storefront) || hasValue(meta.media) || hasValue(meta.content),
-    publish: Boolean(readiness?.ready),
-  } satisfies Record<ProductBuilderTabKey, boolean>;
+  return { overview: Boolean(product), basics: Boolean(product?.name && product?.slug && product?.categoryId && hasValue(meta.template) && hasValue(meta.vatRate)), content: hasValue(meta.media) || hasValue(meta.content) || hasValue(meta.delivery) || hasValue(meta.designServices), options: hasValue(meta.optionGroups) || hasValue(meta.options) || hasValue(meta.selectorUi), rules: Array.isArray(meta.rules) && meta.rules.length > 0, pricing: hasValue(meta.pricing) || Number(product?.priceFromMinor || 0) > 0, 'print-maths': hasValue(meta.printMaths) || hasValue(meta.pricing?.quoteMaths), artwork: hasValue(meta.artwork) || hasValue(meta.artworkRules) || meta.artworkRequired === true, preview: hasValue(meta.storefront) || hasValue(meta.media) || hasValue(meta.content), publish: Boolean(readiness?.ready) } satisfies Record<ProductBuilderTabKey, boolean>;
 }
+function progressPercent(progress: Record<ProductBuilderTabKey, boolean>) { return Math.round((PRODUCT_BUILDER_JOURNEY.filter((tab) => progress[tab.key]).length / PRODUCT_BUILDER_JOURNEY.length) * 100); }
 
-function progressPercent(progress: Record<ProductBuilderTabKey, boolean>) {
-  const total = PRODUCT_BUILDER_JOURNEY.length;
-  const done = PRODUCT_BUILDER_JOURNEY.filter((tab) => progress[tab.key]).length;
-  return Math.round((done / total) * 100);
+function contentFormFromProduct(product: Product | null) {
+  const meta = product?.metadataJson || {}; const media = meta.media || {}; const content = meta.content || {}; const delivery = meta.delivery || {}; const artwork = meta.artwork || {}; const editor = meta.editor || {};
+  return {
+    heroImageUrl: media.heroImageUrl || '', galleryUrls: Array.isArray(media.gallery) ? media.gallery.join('\n') : '', materialImages: Array.isArray(media.materialImages) ? media.materialImages.map((item: any) => `${item.label || ''}|${item.url || ''}`).join('\n') : '', shortDescription: content.shortDescription || '', longDescription: content.longDescription || '', sameDayEnabled: delivery.services?.find((item: any) => item.id === 'same-day')?.enabled ? 'yes' : 'no', sameDayCutoff: delivery.services?.find((item: any) => item.id === 'same-day')?.cutoff || '10:00', saverDays: String(delivery.services?.find((item: any) => item.id === 'saver')?.workingDays ?? 5), standardDays: String(delivery.services?.find((item: any) => item.id === 'standard')?.workingDays ?? 3), expressDays: String(delivery.services?.find((item: any) => item.id === 'express')?.workingDays ?? 1), deliveryCountdown: delivery.countdownEnabled === false ? 'no' : 'yes', designServices: Array.isArray(meta.designServices) ? meta.designServices.map((item: any) => `${item.label}|${Number(item.priceMinor || 0) / 100}`).join('\n') : 'Basic design help|25\nFull design service|75', artworkGuides: Array.isArray(artwork.guides) ? artwork.guides.map((item: any) => `${item.label}|${item.url}`).join('\n') : '', artworkTemplates: Array.isArray(artwork.templates) ? artwork.templates.map((item: any) => `${item.label}|${item.url}`).join('\n') : '', specifications: Array.isArray(content.specifications) ? content.specifications.map((item: any) => `${item.label}: ${item.value}`).join('\n') : '', designGuidelines: Array.isArray(content.designGuidelines) ? content.designGuidelines.join('\n') : '', faqs: Array.isArray(content.faqs) ? content.faqs.map((item: any) => `${item.question}|${item.answer}`).join('\n') : '', orderingProcess: Array.isArray(content.orderingProcess) ? content.orderingProcess.join('\n') : '', technicalSpecifications: Array.isArray(content.technicalSpecifications) ? content.technicalSpecifications.map((item: any) => `${item.label}: ${item.value}`).join('\n') : '', sustainabilityPolicy: content.sustainabilityPolicy || '', relatedProducts: Array.isArray(meta.relatedProducts) ? meta.relatedProducts.join(',') : '', materialDetails: Array.isArray(content.materialDetails) ? content.materialDetails.map((item: any) => `${item.label}: ${item.value}`).join('\n') : '', editorMode: editor.useTemplateDesign ? 'template-and-cart' : 'add-to-cart-only'
+  };
+}
+function buildContentMetadata(product: Product, form: ReturnType<typeof contentFormFromProduct>) {
+  const existing = product.metadataJson || {};
+  return { ...existing, media: { ...(existing.media || {}), heroImageUrl: form.heroImageUrl, gallery: lines(form.galleryUrls), materialImages: parseAssets(form.materialImages) }, content: { ...(existing.content || {}), shortDescription: form.shortDescription, longDescription: form.longDescription, specifications: parsePairs(form.specifications), designGuidelines: lines(form.designGuidelines), faqs: parseFaqs(form.faqs), orderingProcess: lines(form.orderingProcess), technicalSpecifications: parsePairs(form.technicalSpecifications), sustainabilityPolicy: form.sustainabilityPolicy, materialDetails: parsePairs(form.materialDetails) }, delivery: { ...(existing.delivery || {}), countdownEnabled: form.deliveryCountdown === 'yes', services: [{ id: 'same-day', label: 'Same Day', enabled: form.sameDayEnabled === 'yes', cutoff: form.sameDayCutoff, workingDays: 0, extraMinor: 1500 }, { id: 'saver', label: 'Saver', enabled: true, workingDays: Number(form.saverDays || 5), extraMinor: 0 }, { id: 'standard', label: 'Standard', enabled: true, workingDays: Number(form.standardDays || 3), extraMinor: 500 }, { id: 'express', label: 'Express', enabled: true, workingDays: Number(form.expressDays || 1), extraMinor: 1000 }] }, designServices: parseServices(form.designServices), artwork: { ...(existing.artwork || {}), guides: parseAssets(form.artworkGuides), templates: parseAssets(form.artworkTemplates), acceptedFiles: ['pdf'], bleedMm: existing.artwork?.bleedMm || existing.artworkRules?.bleedMm || 3 }, editor: { ...(existing.editor || {}), addToCartOnly: form.editorMode === 'add-to-cart-only', useTemplateDesign: form.editorMode === 'template-and-cart' }, relatedProducts: csv(form.relatedProducts), storefrontContentVersion: 'v360' };
 }
 
 export default function UnifiedProductBuilderPage({ searchParams }: { searchParams?: { tab?: string; productId?: string } }) {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [readiness, setReadiness] = useState<ReadinessItem[]>([]);
-  const [selectedId, setSelectedId] = useState(searchParams?.productId || '');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
+  const [products, setProducts] = useState<Product[]>([]); const [categories, setCategories] = useState<Category[]>([]); const [readiness, setReadiness] = useState<ReadinessItem[]>([]); const [selectedId, setSelectedId] = useState(searchParams?.productId || ''); const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [message, setMessage] = useState(''); const [error, setError] = useState('');
   const activeTab = getProductBuilderTab(searchParams?.tab);
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId || product.slug === selectedId) || products[0] || null, [products, selectedId]);
   const selectedReadiness = useMemo(() => readiness.find((item) => item.product.id === selectedProduct?.id), [readiness, selectedProduct?.id]);
-  const progress = useMemo(() => evaluateTabProgress(selectedProduct, selectedReadiness), [selectedProduct, selectedReadiness]);
-  const percent = progressPercent(progress);
+  const progress = useMemo(() => evaluateTabProgress(selectedProduct, selectedReadiness), [selectedProduct, selectedReadiness]); const percent = progressPercent(progress); const productParam = selectedProduct?.id || selectedId;
 
-  async function load() {
-    setLoading(true);
-    setError('');
-    try {
-      const [productsRes, readinessRes] = await Promise.all([
-        fetch('/api/internal/catalog/products?limit=300', { cache: 'no-store' }),
-        fetch('/api/internal/catalog/product-readiness', { cache: 'no-store' }).catch(() => null),
-      ]);
-      const productsJson = await productsRes.json().catch(() => ({}));
-      if (!productsRes.ok || productsJson.ok === false) throw new Error(productsJson.error || 'Products failed to load.');
-      const items = Array.isArray(productsJson.data?.items) ? productsJson.data.items : [];
-      setProducts(items);
-      if (!selectedId && items[0]?.id) setSelectedId(items[0].id);
-
-      if (readinessRes) {
-        const readinessJson = await readinessRes.json().catch(() => ({}));
-        if (readinessRes.ok && readinessJson.ok !== false && Array.isArray(readinessJson.data?.items)) setReadiness(readinessJson.data.items);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Product Builder failed to load.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
+  async function load() { setLoading(true); setError(''); try { const [productsRes, categoriesRes, readinessRes] = await Promise.all([fetch('/api/internal/catalog/products?limit=300', { cache: 'no-store' }), fetch('/api/internal/catalog/categories', { cache: 'no-store' }).catch(() => null), fetch('/api/internal/catalog/product-readiness', { cache: 'no-store' }).catch(() => null)]); const productsJson = await productsRes.json().catch(() => ({})); if (!productsRes.ok || productsJson.ok === false) throw new Error(productsJson.error || 'Products failed to load.'); const items = Array.isArray(productsJson.data?.items) ? productsJson.data.items : []; setProducts(items); if (!selectedId && items[0]?.id) setSelectedId(items[0].id); if (categoriesRes) { const categoriesJson = await categoriesRes.json().catch(() => ({})); if (categoriesRes.ok && categoriesJson.ok !== false && Array.isArray(categoriesJson.data?.items)) setCategories(categoriesJson.data.items); } if (readinessRes) { const readinessJson = await readinessRes.json().catch(() => ({})); if (readinessRes.ok && readinessJson.ok !== false && Array.isArray(readinessJson.data?.items)) setReadiness(readinessJson.data.items); } } catch (err) { setError(err instanceof Error ? err.message : 'Product Builder failed to load.'); } finally { setLoading(false); } }
   useEffect(() => { load(); }, []);
 
-  const productParam = selectedProduct?.id || selectedId;
+  async function saveProduct(product: Product, metadataJson: Record<string, any>, patch: Partial<Product> = {}) { setSaving(true); setError(''); setMessage(''); try { const payload = { id: product.id, name: patch.name ?? product.name, slug: patch.slug ?? product.slug, categoryId: patch.categoryId ?? product.categoryId ?? null, priceFromMinor: patch.priceFromMinor ?? product.priceFromMinor ?? 0, currency: patch.currency ?? product.currency ?? 'GBP', isActive: patch.isActive ?? product.isActive ?? false, productType: patch.productType ?? product.productType, metadataJson }; const res = await fetch('/api/internal/catalog/products', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const json = await res.json().catch(() => ({})); if (!res.ok || json.ok === false) throw new Error(json.error || 'Product save failed.'); setMessage('Product saved.'); await load(); } catch (err) { setError(err instanceof Error ? err.message : 'Product save failed.'); } finally { setSaving(false); } }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Unified Product Builder"
-        subtitle="One clean setup journey for print products: basics, storefront content, selector UI, rules, pricing, print maths, artwork, preview and publish readiness."
-      />
-
-      <Card className="p-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">v359 architecture shell</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">Product setup is now one journey</h2>
-            <p className="mt-1 max-w-3xl text-sm text-textMuted">Existing specialist pages are not deleted. They are mapped into this journey until each tab is migrated into one unified builder component.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={load} disabled={loading} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05] disabled:opacity-50">Refresh</button>
-            <Link href="/product-builder-studio" className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-950 hover:bg-slate-100"><Save size={16}/>Create / edit product</Link>
-          </div>
-        </div>
-      </Card>
-
-      {error ? <div className="flex items-center gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100"><AlertTriangle size={18}/>{error}</div> : null}
-
-      <div className="grid gap-4 xl:grid-cols-[340px_1fr]">
-        <div className="space-y-4">
-          <Card>
-            <div className="flex items-center gap-2 text-white"><Database size={17}/><h3 className="font-semibold">Product</h3></div>
-            <div className="mt-4">
-              <Select
-                value={selectedProduct?.id || selectedId}
-                onChange={(event) => setSelectedId(event.target.value)}
-                options={products.length ? products.map((product) => ({ value: product.id, label: `${product.name} /${product.slug}` })) : [{ value: '', label: loading ? 'Loading products...' : 'No products found' }]}
-              />
-            </div>
-            {selectedProduct ? <div className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <p className="text-lg font-semibold text-white">{selectedProduct.name}</p>
-              <p className="mt-1 text-xs text-textMuted">/{selectedProduct.slug}</p>
-              <div className="mt-4 grid gap-3 text-xs text-textMuted">
-                <div className="flex justify-between gap-3"><span>Category</span><span className="text-white">{selectedProduct.categoryName || selectedProduct.categoryId || 'Not set'}</span></div>
-                <div className="flex justify-between gap-3"><span>Price from</span><span className="text-white">{money(selectedProduct.priceFromMinor, selectedProduct.currency)}</span></div>
-                <div className="flex justify-between gap-3"><span>Status</span><span className="text-white">{selectedProduct.isActive ? 'Published' : 'Draft'}</span></div>
-                <div className="flex justify-between gap-3"><span>Template</span><span className="text-white">{selectedProduct.metadataJson?.template || selectedProduct.productType || 'Not set'}</span></div>
-              </div>
-            </div> : <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">No product selected.</p>}
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-2 text-white"><ShieldCheck size={17}/><h3 className="font-semibold">Setup progress</h3></div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm"><span className="text-textMuted">Completion</span><span className="font-semibold text-white">{percent}%</span></div>
-              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-white" style={{ width: `${percent}%` }} /></div>
-            </div>
-            <div className="mt-4 space-y-2">
-              {PRODUCT_BUILDER_JOURNEY.map((tab) => {
-                const done = progress[tab.key];
-                return <Link key={tab.key} href={getProductBuilderTabHref(tab.key, productParam)} className={`flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm transition ${activeTab.key === tab.key ? 'border-sky-400/40 bg-sky-400/10 text-white' : 'border-white/8 bg-white/[0.02] text-textMuted hover:bg-white/[0.05]'}`}>
-                  <span className="flex items-center gap-2">{done ? <CheckCircle2 size={15} className="text-emerald-300"/> : <Circle size={15}/>} {tab.label}</span>
-                  <ArrowRight size={14}/>
-                </Link>;
-              })}
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card className="p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${tabStatusClass(activeTab.status)}`}>{activeTab.status}</span>
-                  <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-textMuted">{activeTab.key}</span>
-                </div>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">{activeTab.label}</h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-textMuted">{activeTab.description}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {activeTab.sourceRoutes.map((route) => route === '/product-builder' ? null : (
-                  <Link key={route} href={route} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05]">
-                    Open tool <ExternalLink size={15}/>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          {activeTab.key === 'overview' ? <OverviewPanel selectedProduct={selectedProduct} readiness={selectedReadiness} progress={progress} /> : null}
-          {activeTab.key !== 'overview' ? <MigrationPanel tab={activeTab} productId={productParam} isDone={progress[activeTab.key]} /> : null}
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="space-y-6"><PageHeader title="Unified Product Builder" subtitle="One clean setup journey for print products: basics, storefront content, selector UI, rules, pricing, print maths, artwork, preview and publish readiness." />
+    <Card className="p-5"><div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"><div><p className="text-[11px] uppercase tracking-[0.24em] text-textMuted">v360 first real migrated tabs</p><h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-white">Basics + Storefront Content now edit inside Product Builder</h2><p className="mt-1 max-w-3xl text-sm text-textMuted">Old specialist pages still exist as backup while the unified builder becomes the only product setup journey.</p></div><div className="flex flex-wrap gap-2"><button onClick={load} disabled={loading} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05] disabled:opacity-50">Refresh</button></div></div></Card>
+    {error ? <div className="flex items-center gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100"><AlertTriangle size={18}/>{error}</div> : null}{message ? <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100"><CheckCircle2 size={18}/>{message}</div> : null}
+    <div className="grid gap-4 xl:grid-cols-[340px_1fr]"><div className="space-y-4"><Card><div className="flex items-center gap-2 text-white"><Database size={17}/><h3 className="font-semibold">Product</h3></div><div className="mt-4"><Select value={selectedProduct?.id || selectedId} onChange={(event) => setSelectedId(event.target.value)} options={products.length ? products.map((product) => ({ value: product.id, label: `${product.name} /${product.slug}` })) : [{ value: '', label: loading ? 'Loading products...' : 'No products found' }]} /></div>{selectedProduct ? <div className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-4"><p className="text-lg font-semibold text-white">{selectedProduct.name}</p><p className="mt-1 text-xs text-textMuted">/{selectedProduct.slug}</p><div className="mt-4 grid gap-3 text-xs text-textMuted"><div className="flex justify-between gap-3"><span>Category</span><span className="text-white">{selectedProduct.categoryName || selectedProduct.categoryId || 'Not set'}</span></div><div className="flex justify-between gap-3"><span>Price from</span><span className="text-white">{money(selectedProduct.priceFromMinor, selectedProduct.currency)}</span></div><div className="flex justify-between gap-3"><span>Status</span><span className="text-white">{selectedProduct.isActive ? 'Published' : 'Draft'}</span></div><div className="flex justify-between gap-3"><span>Template</span><span className="text-white">{selectedProduct.metadataJson?.template || selectedProduct.productType || 'Not set'}</span></div></div></div> : null}</Card><Card><div className="flex items-center gap-2 text-white"><ShieldCheck size={17}/><h3 className="font-semibold">Setup progress</h3></div><div className="mt-4"><div className="flex items-center justify-between text-sm"><span className="text-textMuted">Completion</span><span className="font-semibold text-white">{percent}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-white" style={{ width: `${percent}%` }} /></div></div><div className="mt-4 space-y-2">{PRODUCT_BUILDER_JOURNEY.map((tab) => <Link key={tab.key} href={getProductBuilderTabHref(tab.key, productParam)} className={`flex items-center justify-between gap-3 rounded-2xl border p-3 text-sm transition ${activeTab.key === tab.key ? 'border-sky-400/40 bg-sky-400/10 text-white' : 'border-white/8 bg-white/[0.02] text-textMuted hover:bg-white/[0.05]'}`}><span className="flex items-center gap-2">{progress[tab.key] ? <CheckCircle2 size={15} className="text-emerald-300"/> : <Circle size={15}/>} {tab.label}</span><ArrowRight size={14}/></Link>)}</div></Card></div>
+      <div className="space-y-4"><Card className="p-5"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.18em] ${tabStatusClass(activeTab.status)}`}>{activeTab.status}</span><span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-textMuted">{activeTab.key}</span></div><h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-white">{activeTab.label}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-textMuted">{activeTab.description}</p></div>{activeTab.key !== 'basics' && activeTab.key !== 'content' ? <div className="flex flex-wrap gap-2">{activeTab.sourceRoutes.map((route) => route === '/product-builder' ? null : <Link key={route} href={route} className="inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/[0.05]">Open tool <ExternalLink size={15}/></Link>)}</div> : null}</div></Card>
+        {activeTab.key === 'overview' ? <OverviewPanel selectedProduct={selectedProduct} readiness={selectedReadiness} progress={progress} /> : null}
+        {activeTab.key === 'basics' && selectedProduct ? <BasicsPanel product={selectedProduct} categories={categories} saving={saving} onSave={saveProduct} /> : null}
+        {activeTab.key === 'content' && selectedProduct ? <ContentPanel product={selectedProduct} saving={saving} onSave={saveProduct} /> : null}
+        {activeTab.key !== 'overview' && activeTab.key !== 'basics' && activeTab.key !== 'content' ? <MigrationPanel tab={activeTab} productId={productParam} isDone={progress[activeTab.key]} /> : null}
+      </div></div></div>;
 }
 
-function OverviewPanel({ selectedProduct, readiness, progress }: { selectedProduct: Product | null; readiness?: ReadinessItem; progress: Record<ProductBuilderTabKey, boolean> }) {
-  return <div className="grid gap-4 lg:grid-cols-2">
-    <Card>
-      <div className="flex items-center gap-2 text-white"><Layers3 size={17}/><h3 className="font-semibold">Unified product data map</h3></div>
-      <div className="mt-4 space-y-3">
-        {PRODUCT_BUILDER_JOURNEY.filter((tab) => tab.key !== 'overview').map((tab) => <div key={tab.key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">{tab.label}</p>
-              <p className="mt-1 text-xs leading-5 text-textMuted">Owns: {tab.owns.join(', ')}</p>
-            </div>
-            {progress[tab.key] ? <CheckCircle2 size={16} className="text-emerald-300"/> : <Circle size={16} className="text-textMuted"/>}
-          </div>
-        </div>)}
-      </div>
-    </Card>
-
-    <div className="space-y-4">
-      <Card>
-        <div className="flex items-center gap-2 text-white"><ShieldCheck size={17}/><h3 className="font-semibold">Publish readiness</h3></div>
-        {readiness ? <div className={`mt-4 rounded-2xl border p-4 ${readiness.ready ? 'border-emerald-400/20 bg-emerald-400/10' : 'border-amber-400/20 bg-amber-400/10'}`}>
-          <p className="text-sm font-semibold text-white">{readiness.ready ? 'Ready for storefront' : 'Needs fixes before publishing'}</p>
-          <p className="mt-1 text-xs text-textMuted">{readiness.errors} errors · {readiness.warnings} warnings</p>
-        </div> : <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">No readiness result for this product yet.</p>}
-        {readiness?.issues?.length ? <div className="mt-4 space-y-2">{readiness.issues.slice(0, 8).map((issue) => <div key={`${issue.code}-${issue.field}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><p className="text-sm font-semibold text-white">{issue.code}</p><p className="mt-1 text-xs text-textMuted">{issue.message}</p></div>)}</div> : null}
-      </Card>
-
-      <Card>
-        <div className="flex items-center gap-2 text-white"><Route size={17}/><h3 className="font-semibold">Migration rule</h3></div>
-        <p className="mt-3 text-sm leading-6 text-textMuted">Old product setup pages remain available while we migrate each tab into this unified builder. Once a tab is fully migrated, the old route should redirect here and be removed from sidebar navigation.</p>
-        <pre className="mt-4 max-h-[300px] overflow-auto rounded-2xl border border-white/8 bg-black/30 p-4 text-[11px] leading-5 text-textMuted">{selectedProduct ? JSON.stringify({ productId: selectedProduct.id, slug: selectedProduct.slug, metadataKeys: Object.keys(selectedProduct.metadataJson || {}) }, null, 2) : 'Select a product'}</pre>
-      </Card>
-    </div>
-  </div>;
+function BasicsPanel({ product, categories, saving, onSave }: { product: Product; categories: Category[]; saving: boolean; onSave: (product: Product, metadata: Record<string, any>, patch?: Partial<Product>) => Promise<void> }) {
+  const meta = product.metadataJson || {}; const [form, setForm] = useState({ name: product.name || '', slug: product.slug || '', categoryId: product.categoryId || '', template: meta.template || product.productType || 'business-cards', priceFrom: minorToPounds(product.priceFromMinor), vatRate: meta.vatRate || 'standard', artworkRequired: meta.artworkRequired === false ? 'no' : 'yes', visible: meta.storefront?.visible ? 'yes' : 'no', paymentEnabled: meta.checkout?.paymentEnabled === false ? 'no' : 'yes', status: product.isActive ? 'published' : 'draft' });
+  useEffect(() => { const m = product.metadataJson || {}; setForm({ name: product.name || '', slug: product.slug || '', categoryId: product.categoryId || '', template: m.template || product.productType || 'business-cards', priceFrom: minorToPounds(product.priceFromMinor), vatRate: m.vatRate || 'standard', artworkRequired: m.artworkRequired === false ? 'no' : 'yes', visible: m.storefront?.visible ? 'yes' : 'no', paymentEnabled: m.checkout?.paymentEnabled === false ? 'no' : 'yes', status: product.isActive ? 'published' : 'draft' }); }, [product.id]);
+  const tpl = templateOptions.find((item) => item.value === form.template) || templateOptions[0]; const patch = (value: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...value }));
+  async function save() { const metadata = { ...(product.metadataJson || {}), status: form.status, template: tpl.value, vatRate: form.vatRate, artworkRequired: form.artworkRequired === 'yes', options: Array.isArray(product.metadataJson?.options) && product.metadataJson?.options.length ? product.metadataJson?.options : optionObjects(tpl.options), pricing: { ...(product.metadataJson?.pricing || {}), source: product.metadataJson?.pricing?.source || 'fixed', priceFromMinor: moneyMinor(form.priceFrom) }, artworkRules: { ...(product.metadataJson?.artworkRules || {}), profile: product.metadataJson?.artworkRules?.profile || tpl.artworkProfile, bleedMm: product.metadataJson?.artworkRules?.bleedMm || 3, fileTypes: product.metadataJson?.artworkRules?.fileTypes || ['application/pdf'] }, storefront: { ...(product.metadataJson?.storefront || {}), visible: form.visible === 'yes' || form.status === 'published' }, checkout: { ...(product.metadataJson?.checkout || {}), paymentEnabled: form.paymentEnabled === 'yes' }, builderVersion: 'v360' }; await onSave(product, metadata, { name: form.name, slug: slugify(form.slug || form.name), categoryId: form.categoryId || null, priceFromMinor: moneyMinor(form.priceFrom), isActive: form.status === 'published', productType: tpl.value }); }
+  return <Card><div className="grid gap-4 md:grid-cols-2"><label className="space-y-2"><span className="text-sm font-medium">Product name</span><Input value={form.name} onChange={(e) => patch({ name: e.target.value, slug: form.slug || slugify(e.target.value) })}/></label><label className="space-y-2"><span className="text-sm font-medium">Slug / URL</span><Input value={form.slug} onChange={(e) => patch({ slug: slugify(e.target.value) })}/></label><label className="space-y-2"><span className="text-sm font-medium">Category</span><Select options={[{ value: '', label: 'Choose category' }, ...categories.map((item) => ({ value: item.id, label: item.name }))]} value={form.categoryId} onChange={(e) => patch({ categoryId: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Template</span><Select options={templateOptions} value={form.template} onChange={(e) => { const next = templateOptions.find((item) => item.value === e.target.value) || templateOptions[0]; patch({ template: next.value, vatRate: next.vatRate }); }}/></label><label className="space-y-2"><span className="text-sm font-medium">Price from (£)</span><Input type="number" value={form.priceFrom} onChange={(e) => patch({ priceFrom: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">VAT</span><Select options={[{ value: 'standard', label: 'Standard VAT' }, { value: 'zero', label: 'Zero VAT' }]} value={form.vatRate} onChange={(e) => patch({ vatRate: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Artwork required</span><Select options={[{ value: 'yes', label: 'Yes' }, { value: 'no', label: 'No' }]} value={form.artworkRequired} onChange={(e) => patch({ artworkRequired: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Storefront visible</span><Select options={[{ value: 'yes', label: 'Visible' }, { value: 'no', label: 'Hidden' }]} value={form.visible} onChange={(e) => patch({ visible: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Payment</span><Select options={[{ value: 'yes', label: 'Enabled' }, { value: 'no', label: 'Disabled' }]} value={form.paymentEnabled} onChange={(e) => patch({ paymentEnabled: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Status</span><Select options={[{ value: 'draft', label: 'Draft' }, { value: 'published', label: 'Published' }]} value={form.status} onChange={(e) => patch({ status: e.target.value })}/></label></div><button onClick={save} disabled={saving} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-950 disabled:opacity-50"><Save size={16}/>Save Basics</button></Card>;
 }
 
-function MigrationPanel({ tab, productId, isDone }: { tab: (typeof PRODUCT_BUILDER_JOURNEY)[number]; productId?: string; isDone: boolean }) {
-  return <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-    <Card>
-      <h3 className="text-lg font-semibold text-white">What this tab will become</h3>
-      <p className="mt-2 text-sm leading-6 text-textMuted">This tab is part of the unified Product Builder. For v359 it links to the existing specialist tools so we keep every feature working while removing duplicate navigation and planning the safe migration.</p>
-      <div className="mt-5 grid gap-3 md:grid-cols-2">
-        {tab.owns.map((item) => <div key={item} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-textMuted">{item}</div>)}
-      </div>
-    </Card>
-
-    <Card>
-      <h3 className="font-semibold text-white">Source tools</h3>
-      <div className="mt-4 space-y-2">
-        {tab.sourceRoutes.map((route) => route === '/product-builder' ? null : <Link key={route} href={route} className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-white hover:bg-white/[0.06]">
-          <span>{route}</span><ExternalLink size={14}/>
-        </Link>)}
-      </div>
-      <div className={`mt-4 rounded-2xl border p-3 text-xs ${isDone ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-400/25 bg-amber-400/10 text-amber-100'}`}>
-        {isDone ? 'This product already has data for this tab.' : 'This product has no/partial data for this tab yet.'}
-      </div>
-      <pre className="mt-4 max-h-[260px] overflow-auto rounded-2xl border border-white/8 bg-black/30 p-4 text-[11px] leading-5 text-textMuted">{JSON.stringify({ tab: tab.key, productId, status: tab.status, dataKeys: tab.dataKeys }, null, 2)}</pre>
-    </Card>
-  </div>;
+function ContentPanel({ product, saving, onSave }: { product: Product; saving: boolean; onSave: (product: Product, metadata: Record<string, any>, patch?: Partial<Product>) => Promise<void> }) {
+  const [form, setForm] = useState(contentFormFromProduct(product)); useEffect(() => setForm(contentFormFromProduct(product)), [product.id]); const patch = (value: Partial<typeof form>) => setForm((prev) => ({ ...prev, ...value }));
+  async function save() { await onSave(product, buildContentMetadata(product, form)); }
+  return <div className="space-y-4"><Card><h3 className="font-semibold text-white">Media and descriptions</h3><div className="mt-4 grid gap-4 md:grid-cols-2"><label className="space-y-2"><span className="text-sm font-medium">Hero image URL</span><Input value={form.heroImageUrl} onChange={(e) => patch({ heroImageUrl: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Gallery image URLs, one per line</span><textarea value={form.galleryUrls} onChange={(e) => patch({ galleryUrls: e.target.value })} className="min-h-[96px] w-full rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/></label><label className="space-y-2 md:col-span-2"><span className="text-sm font-medium">Short description</span><Input value={form.shortDescription} onChange={(e) => patch({ shortDescription: e.target.value })}/></label><label className="space-y-2 md:col-span-2"><span className="text-sm font-medium">Long description</span><textarea value={form.longDescription} onChange={(e) => patch({ longDescription: e.target.value })} className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/></label></div></Card><Card><h3 className="font-semibold text-white">Delivery, design services and artwork files</h3><div className="mt-4 grid gap-4 md:grid-cols-5"><label className="space-y-2"><span className="text-sm font-medium">Same day</span><Select value={form.sameDayEnabled} onChange={(e) => patch({ sameDayEnabled: e.target.value })} options={[{ value: 'yes', label: 'Enabled' }, { value: 'no', label: 'Disabled' }]}/></label><label className="space-y-2"><span className="text-sm font-medium">Cutoff</span><Input value={form.sameDayCutoff} onChange={(e) => patch({ sameDayCutoff: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Saver days</span><Input type="number" value={form.saverDays} onChange={(e) => patch({ saverDays: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Standard</span><Input type="number" value={form.standardDays} onChange={(e) => patch({ standardDays: e.target.value })}/></label><label className="space-y-2"><span className="text-sm font-medium">Express</span><Input type="number" value={form.expressDays} onChange={(e) => patch({ expressDays: e.target.value })}/></label></div><div className="mt-4 grid gap-4 md:grid-cols-3"><label className="space-y-2"><span className="text-sm font-medium">Design services: label|price</span><textarea value={form.designServices} onChange={(e) => patch({ designServices: e.target.value })} className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/></label><label className="space-y-2"><span className="text-sm font-medium">Artwork guides: label|url</span><textarea value={form.artworkGuides} onChange={(e) => patch({ artworkGuides: e.target.value })} className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/></label><label className="space-y-2"><span className="text-sm font-medium">Artwork templates: label|url</span><textarea value={form.artworkTemplates} onChange={(e) => patch({ artworkTemplates: e.target.value })} className="min-h-[120px] w-full rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/></label></div></Card><Card><h3 className="font-semibold text-white">Product information tabs</h3><div className="mt-4 grid gap-4 md:grid-cols-2"><textarea placeholder="Specifications: label: value" value={form.specifications} onChange={(e) => patch({ specifications: e.target.value })} className="min-h-[120px] rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/><textarea placeholder="FAQs: question|answer" value={form.faqs} onChange={(e) => patch({ faqs: e.target.value })} className="min-h-[120px] rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/><textarea placeholder="Design guidelines, one per line" value={form.designGuidelines} onChange={(e) => patch({ designGuidelines: e.target.value })} className="min-h-[120px] rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/><textarea placeholder="Sustainability policy" value={form.sustainabilityPolicy} onChange={(e) => patch({ sustainabilityPolicy: e.target.value })} className="min-h-[120px] rounded-2xl border border-white/10 bg-black/30 p-3 text-sm text-white outline-none"/></div><button onClick={save} disabled={saving} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-950 disabled:opacity-50"><Save size={16}/>Save Storefront Content</button></Card></div>;
 }
+
+function OverviewPanel({ selectedProduct, readiness, progress }: { selectedProduct: Product | null; readiness?: ReadinessItem; progress: Record<ProductBuilderTabKey, boolean> }) { return <div className="grid gap-4 lg:grid-cols-2"><Card><div className="flex items-center gap-2 text-white"><Layers3 size={17}/><h3 className="font-semibold">Unified product data map</h3></div><div className="mt-4 space-y-3">{PRODUCT_BUILDER_JOURNEY.filter((tab) => tab.key !== 'overview').map((tab) => <div key={tab.key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">{tab.label}</p><p className="mt-1 text-xs leading-5 text-textMuted">Owns: {tab.owns.join(', ')}</p></div>{progress[tab.key] ? <CheckCircle2 size={16} className="text-emerald-300"/> : <Circle size={16} className="text-textMuted"/>}</div></div>)}</div></Card><Card><div className="flex items-center gap-2 text-white"><ShieldCheck size={17}/><h3 className="font-semibold">Publish readiness</h3></div>{readiness ? <div className={`mt-4 rounded-2xl border p-4 ${readiness.ready ? 'border-emerald-400/20 bg-emerald-400/10' : 'border-amber-400/20 bg-amber-400/10'}`}><p className="text-sm font-semibold text-white">{readiness.ready ? 'Ready for storefront' : 'Needs fixes before publishing'}</p><p className="mt-1 text-xs text-textMuted">{readiness.errors} errors · {readiness.warnings} warnings</p></div> : <p className="mt-4 rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">No readiness result for this product yet.</p>}</Card></div>; }
+function MigrationPanel({ tab, productId, isDone }: { tab: (typeof PRODUCT_BUILDER_JOURNEY)[number]; productId?: string; isDone: boolean }) { return <div className="grid gap-4 xl:grid-cols-[1fr_360px]"><Card><h3 className="text-lg font-semibold text-white">What this tab will become</h3><p className="mt-2 text-sm leading-6 text-textMuted">This tab still links to the specialist tool until we migrate it into this unified builder.</p><div className="mt-5 grid gap-3 md:grid-cols-2">{tab.owns.map((item) => <div key={item} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-textMuted">{item}</div>)}</div></Card><Card><h3 className="font-semibold text-white">Source tools</h3><div className="mt-4 space-y-2">{tab.sourceRoutes.map((route) => route === '/product-builder' ? null : <Link key={route} href={route} className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-white hover:bg-white/[0.06]"><span>{route}</span><ExternalLink size={14}/></Link>)}</div><div className={`mt-4 rounded-2xl border p-3 text-xs ${isDone ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100' : 'border-amber-400/25 bg-amber-400/10 text-amber-100'}`}>{isDone ? 'This product already has data for this tab.' : 'This product has no/partial data for this tab yet.'}</div><pre className="mt-4 max-h-[260px] overflow-auto rounded-2xl border border-white/8 bg-black/30 p-4 text-[11px] leading-5 text-textMuted">{JSON.stringify({ tab: tab.key, productId, status: tab.status, dataKeys: tab.dataKeys }, null, 2)}</pre></Card></div>; }

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DataTable } from '@/components/data-table/data-table';
 import { Input } from '@/components/forms/input';
 import { Select } from '@/components/forms/select';
@@ -12,274 +13,45 @@ import { operationsService } from '@/services/operations.service';
 import type { QuoteRecord } from '@/data/operations';
 
 const statusOptions: QuoteRecord['status'][] = ['draft', 'sent', 'approved', 'expired'];
-const channelOptions = ['US Main Store', 'B2B Wholesale API', 'Enterprise Portal'];
+const channelOptions = ['US Main Store', 'B2B Wholesale API', 'Enterprise Portal', 'Trade Account', 'Walk-in Customer'];
 
-const emptyQuote: QuoteRecord = {
-  id: '',
-  customer: '',
-  title: '',
-  channel: 'US Main Store',
-  status: 'draft',
-  total: 0,
-  updatedAt: ''
-};
+type Product = { id: string; name: string; slug: string; priceFromMinor?: number; currency?: string; metadataJson?: Record<string, any> };
+type BuilderLine = { id: string; productId: string; productName: string; quantity: number; unitMinor: number; costMinor: number; sellMinor: number; vatRate: string; margin: number };
+type BuilderState = { customer: string; title: string; channel: string; status: QuoteRecord['status']; productId: string; quantity: string; discountPercent: string; approvalRequired: boolean; notes: string };
 
-const statusLabel: Record<QuoteRecord['status'], string> = {
-  draft: 'Draft',
-  sent: 'Sent',
-  approved: 'Approved',
-  expired: 'Expired'
-};
+const emptyQuote: QuoteRecord = { id: '', customer: '', title: '', channel: 'US Main Store', status: 'draft', total: 0, updatedAt: '' };
+const statusLabel: Record<QuoteRecord['status'], string> = { draft: 'Draft', sent: 'Sent', approved: 'Approved', expired: 'Expired' };
+const statusTone: Record<QuoteRecord['status'], string> = { draft: 'border-white/10 bg-white/5 text-text', sent: 'border-sky-400/30 bg-sky-400/10 text-sky-200', approved: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200', expired: 'border-rose-400/30 bg-rose-400/10 text-rose-200' };
+function moneyMinor(minor:number,currency='GBP'){return new Intl.NumberFormat('en-GB',{style:'currency',currency}).format((minor||0)/100)}
+function timestamp(){return new Date().toISOString().slice(0,16).replace('T',' ')}
+function n(v:string|number,f=0){const x=Number(v);return Number.isFinite(x)?x:f}
+function productCost(product:Product, quantity:number){const meta=product.metadataJson||{};const priceFrom=Number(product.priceFromMinor||meta.pricing?.priceFromMinor||0);const cost=meta.manufacturingCost||{};const material=Math.round((Number(meta.printMaths?.materialCostMinor||0)||Math.round(priceFrom*0.28))*Math.max(1,quantity/100));const machine=Math.round(((Number(cost.machineSetupMinutes||10)+Number(cost.machineRunMinutes||20))/60)*Number(cost.machineHourlyRateMinor||3500));const labour=Math.round(((Number(cost.labourSetupMinutes||8)+Number(cost.labourRunMinutes||20))/60)*Number(cost.labourHourlyRateMinor||1800));const prepress=Math.round((Number(cost.prepressMinutes||10)/60)*Number(cost.prepressHourlyRateMinor||2500));const finishing=Array.isArray(meta.finishing)?meta.finishing.reduce((s:any,f:any)=>s+Number(f.setupCostMinor||0)+Number(f.runCostMinor||0)*quantity,0):0;const base=material+machine+labour+prepress+finishing+Number(cost.packingCostMinor||150)+Number(cost.outsourceCostMinor||0);const waste=Math.round(base*Number(meta.pricing?.wastagePercent||5)/100);const overhead=Math.round((base+waste)*Number(cost.overheadPercent||12)/100);return Math.max(base+waste+overhead,Math.round(priceFrom*0.45));}
+function estimateLine(product:Product, quantity:number, discountPercent=0):BuilderLine{const costMinor=productCost(product,quantity);const targetMargin=Number(product.metadataJson?.manufacturingCost?.targetMarginPercent||product.metadataJson?.pricing?.markupPercent||35);const sellBeforeDiscount=Math.round(costMinor/Math.max(0.01,1-targetMargin/100));const sellMinor=Math.round(sellBeforeDiscount*(1-discountPercent/100));const margin=sellMinor?Math.round(((sellMinor-costMinor)/sellMinor)*1000)/10:0;return{id:`line-${Date.now()}`,productId:product.id,productName:product.name,quantity,unitMinor:Math.round(sellMinor/Math.max(1,quantity)),costMinor,sellMinor,vatRate:product.metadataJson?.vatRate||product.metadataJson?.pricing?.vatRate||'standard',margin};}
+async function loadProducts():Promise<Product[]>{try{const r=await fetch('/api/internal/catalog/products?limit=500',{cache:'no-store'});const j=await r.json().catch(()=>({}));return Array.isArray(j.data?.items)?j.data.items:[]}catch{return[]}}
 
-const statusTone: Record<QuoteRecord['status'], string> = {
-  draft: 'border-white/10 bg-white/5 text-text',
-  sent: 'border-sky-400/30 bg-sky-400/10 text-sky-200',
-  approved: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
-  expired: 'border-rose-400/30 bg-rose-400/10 text-rose-200'
-};
-
-function money(value: number) {
-  return `$${value.toLocaleString()}`;
-}
-
-function timestamp() {
-  return new Date().toISOString().slice(0, 16).replace('T', ' ');
-}
-
-export function QuotesPage() {
-  const [quotes, setQuotes] = useState<QuoteRecord[]>([]);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<'all' | QuoteRecord['status']>('all');
-  const [channel, setChannel] = useState<'all' | string>('all');
-  const [editing, setEditing] = useState<QuoteRecord | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  const load = async () => {
-    const items = await operationsService.getQuotes();
-    setQuotes(items);
-    setSelectedId((current) => current ?? items[0]?.id ?? null);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const rows = useMemo(
-    () =>
-      quotes.filter((quote) => {
-        const haystack = `${quote.id} ${quote.customer} ${quote.title} ${quote.channel}`.toLowerCase();
-        const matchesSearch = !search || haystack.includes(search.toLowerCase());
-        const matchesStatus = status === 'all' || quote.status === status;
-        const matchesChannel = channel === 'all' || quote.channel === channel;
-        return matchesSearch && matchesStatus && matchesChannel;
-      }),
-    [quotes, search, status, channel]
-  );
-
-  const selected = rows.find((item) => item.id === selectedId) ?? rows[0] ?? null;
-
-  const grouped = useMemo(
-    () =>
-      statusOptions.map((groupStatus) => ({
-        status: groupStatus,
-        items: rows.filter((item) => item.status === groupStatus)
-      })),
-    [rows]
-  );
-
-  const kpis = useMemo(() => {
-    const draftValue = rows.filter((item) => item.status === 'draft').reduce((sum, item) => sum + item.total, 0);
-    const sentValue = rows.filter((item) => item.status === 'sent').reduce((sum, item) => sum + item.total, 0);
-    const approvedValue = rows.filter((item) => item.status === 'approved').reduce((sum, item) => sum + item.total, 0);
-    return {
-      openCount: rows.filter((item) => item.status === 'draft' || item.status === 'sent').length,
-      draftValue,
-      sentValue,
-      approvedValue,
-      avgValue: rows.length ? Math.round(rows.reduce((sum, item) => sum + item.total, 0) / rows.length) : 0
-    };
-  }, [rows]);
-
-  async function saveQuote(quote: QuoteRecord) {
-    await operationsService.saveQuote({ ...quote, updatedAt: timestamp() });
-    await load();
-  }
-
-  async function patchQuote(id: string, patch: Partial<QuoteRecord>) {
-    const current = quotes.find((item) => item.id === id);
-    if (!current) return;
-    await saveQuote({ ...current, ...patch });
-  }
-
-  async function duplicateQuote(quote: QuoteRecord) {
-    const copy: QuoteRecord = {
-      ...quote,
-      id: `qt-${Date.now()}`,
-      title: `${quote.title} Copy`,
-      status: 'draft',
-      updatedAt: timestamp()
-    };
-    await saveQuote(copy);
-    setSelectedId(copy.id);
-  }
-
-  const exportQuotes = () => {
-    const blob = new Blob([JSON.stringify(quotes, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'quotes-export.json';
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Quote Desk"
-        subtitle="Manage quote pipeline, approvals, and commercial follow-up in one place."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={exportQuotes}>Export JSON</Button>
-            <PrimaryButton
-              onClick={() =>
-                setEditing({
-                  ...emptyQuote,
-                  id: `qt-${Date.now()}`,
-                  updatedAt: timestamp()
-                })
-              }
-            >
-              New Quote
-            </PrimaryButton>
-          </div>
-        }
-      />
-
-      <div className="grid gap-4 md:grid-cols-5">
-        <Card><p className="text-xs text-textMuted">Open quotes</p><p className="mt-2 text-2xl font-semibold">{kpis.openCount}</p></Card>
-        <Card><p className="text-xs text-textMuted">Draft value</p><p className="mt-2 text-2xl font-semibold">{money(kpis.draftValue)}</p></Card>
-        <Card><p className="text-xs text-textMuted">Sent value</p><p className="mt-2 text-2xl font-semibold">{money(kpis.sentValue)}</p></Card>
-        <Card><p className="text-xs text-textMuted">Approved value</p><p className="mt-2 text-2xl font-semibold">{money(kpis.approvedValue)}</p></Card>
-        <Card><p className="text-xs text-textMuted">Average quote</p><p className="mt-2 text-2xl font-semibold">{money(kpis.avgValue)}</p></Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.7fr_1fr]">
-        <Card className="space-y-4">
-          <div className="grid gap-2 md:grid-cols-[2fr_1fr_1fr]">
-            <Input placeholder="Search quotes, customer, || channel..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <Select options={['all', ...statusOptions]} value={status} onChange={(e) => setStatus(e.target.value as 'all' | QuoteRecord['status'])} />
-            <Select options={['all', ...channelOptions]} value={channel} onChange={(e) => setChannel(e.target.value)} />
-          </div>
-
-          <div className="grid gap-3 xl:grid-cols-4">
-            {grouped.map((group) => (
-              <div key={group.status} className="rounded-2xl border border-white/6 bg-white/[0.02] p-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.24em] text-textMuted">{statusLabel[group.status]}</p>
-                    <p className="mt-1 text-lg font-semibold">{group.items.length}</p>
-                  </div>
-                  <span className={`rounded-full border px-2 py-1 text-[11px] ${statusTone[group.status]}`}>{money(group.items.reduce((sum, item) => sum + item.total, 0))}</span>
-                </div>
-                <div className="space-y-2">
-                  {group.items.length ? group.items.map((quote) => (
-                    <button
-                      key={quote.id}
-                      onClick={() => setSelectedId(quote.id)}
-                      className={`w-full rounded-2xl border p-3 text-left transition ${selectedId === quote.id ? 'border-accent bg-accent/10' : 'border-white/6 bg-panel/60 hover:border-white/15'}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-text">{quote.title}</p>
-                          <p className="mt-1 text-xs text-textMuted">{quote.customer}</p>
-                        </div>
-                        <span className={`rounded-full border px-2 py-1 text-[10px] uppercase ${statusTone[quote.status]}`}>{statusLabel[quote.status]}</span>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between text-xs text-textMuted">
-                        <span>{quote.channel}</span>
-                        <span>{money(quote.total)}</span>
-                      </div>
-                    </button>
-                  )) : <p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-textMuted">No quotes in this stage.</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="space-y-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-textMuted">Quote spotlight</p>
-            <h3 className="mt-2 text-xl font-semibold text-text">{selected?.title ?? 'No quote selected'}</h3>
-            <p className="mt-1 text-sm text-textMuted">{selected ? `${selected.customer} · ${selected.channel}` : 'Pick a quote to review pricing, status, and next action.'}</p>
-          </div>
-
-          {selected ? (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Quote ID</p><p className="mt-1 font-medium">{selected.id}</p></div>
-                <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Last updated</p><p className="mt-1 font-medium">{selected.updatedAt}</p></div>
-                <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Commercial value</p><p className="mt-1 font-medium">{money(selected.total)}</p></div>
-                <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">Status</p><p className="mt-1 font-medium">{statusLabel[selected.status]}</p></div>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.24em] text-textMuted">Quick actions</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => setEditing(selected)}>Edit</Button>
-                  <Button onClick={() => duplicateQuote(selected)}>Duplicate</Button>
-                  <Button onClick={() => patchQuote(selected.id, { status: 'sent' })}>Send</Button>
-                  <Button onClick={() => patchQuote(selected.id, { status: 'approved' })}>Approve</Button>
-                  <Button onClick={() => patchQuote(selected.id, { status: 'expired' })}>Expire</Button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">
-                Recommended next step: {selected.status === 'draft' ? 'finalise pricing and send to customer.' : selected.status === 'sent' ? 'follow up and convert to approved order.' : selected.status === 'approved' ? 'handoff to order creation and production.' : 're-open || duplicate for a refreshed quote.'}
-              </div>
-            </>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-white/10 p-6 text-sm text-textMuted">No quote matches the current filters.</div>
-          )}
-        </Card>
-      </div>
-
-      <Card className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-textMuted">Quote register</p>
-            <h3 className="mt-1 text-lg font-semibold text-text">Detailed list view</h3>
-          </div>
-          <p className="text-sm text-textMuted">{rows.length} visible quotes</p>
-        </div>
-        <DataTable
-          columns={[
-            { key: 'id', header: 'Id', render: (row) => row.id },
-            { key: 'customer', header: 'Customer', render: (row) => <div><p className="font-medium">{row.customer}</p><p className="text-xs text-textMuted">{row.channel}</p></div> },
-            { key: 'title', header: 'Quote', render: (row) => row.title },
-            { key: 'status', header: 'Status', render: (row) => <span className={`rounded-full border px-2 py-1 text-xs uppercase ${statusTone[row.status]}`}>{row.status}</span> },
-            { key: 'total', header: 'Total', render: (row) => money(row.total) },
-            { key: 'updatedAt', header: 'Updated', render: (row) => row.updatedAt },
-            { key: 'actions', header: 'Actions', render: (row) => <div className="flex flex-wrap gap-2"><Button onClick={() => setSelectedId(row.id)}>View</Button><Button onClick={() => setEditing(row)}>Edit</Button><Button onClick={() => duplicateQuote(row)}>Duplicate</Button><Button onClick={async () => { await operationsService.deleteQuote(row.id); await load(); }}>Delete</Button></div> }
-          ]}
-          rows={rows}
-          rowKey={(row) => row.id}
-        />
-      </Card>
-
-      <BaseModal open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? 'Quote Editor' : 'New Quote'}>
-        {editing ? (
-          <div className="space-y-3">
-            <Input placeholder="Customer" value={editing.customer} onChange={(e) => setEditing({ ...editing, customer: e.target.value })} />
-            <Input placeholder="Title" value={editing.title} onChange={(e) => setEditing({ ...editing, title: e.target.value })} />
-            <Select options={channelOptions} value={editing.channel} onChange={(e) => setEditing({ ...editing, channel: e.target.value })} />
-            <Select options={statusOptions} value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as QuoteRecord['status'] })} />
-            <Input type="number" placeholder="Total" value={String(editing.total)} onChange={(e) => setEditing({ ...editing, total: Number(e.target.value) || 0 })} />
-            <div className="flex justify-end gap-2"><Button onClick={() => setEditing(null)}>Cancel</Button><PrimaryButton onClick={async () => { await saveQuote(editing); setEditing(null); }}>Save Quote</PrimaryButton></div>
-          </div>
-        ) : null}
-      </BaseModal>
-    </div>
-  );
-}
+export function QuotesPage(){
+const [quotes,setQuotes]=useState<QuoteRecord[]>([]);const [products,setProducts]=useState<Product[]>([]);const [search,setSearch]=useState('');const [status,setStatus]=useState<'all'|QuoteRecord['status']>('all');const [channel,setChannel]=useState<'all'|string>('all');const [editing,setEditing]=useState<QuoteRecord|null>(null);const [selectedId,setSelectedId]=useState<string|null>(null);const [builder,setBuilder]=useState<BuilderState>({customer:'',title:'',channel:'US Main Store',status:'draft',productId:'',quantity:'500',discountPercent:'0',approvalRequired:false,notes:''});const [lines,setLines]=useState<BuilderLine[]>([]);const [notice,setNotice]=useState('');
+const load=useCallback(async()=>{const [items,productRows]=await Promise.all([operationsService.getQuotes(),loadProducts()]);setQuotes(items);setProducts(productRows);setSelectedId(c=>c??items[0]?.id??null);setBuilder(b=>({...b,productId:b.productId||productRows[0]?.id||''}));},[]);
+useEffect(()=>{load()},[load]);
+const rows=useMemo(()=>quotes.filter(q=>{const h=`${q.id} ${q.customer} ${q.title} ${q.channel}`.toLowerCase();return(!search||h.includes(search.toLowerCase()))&&(status==='all'||q.status===status)&&(channel==='all'||q.channel===channel)}),[quotes,search,status,channel]);
+const selected=rows.find(i=>i.id===selectedId)??rows[0]??null;
+const grouped=useMemo(()=>statusOptions.map(s=>({status:s,items:rows.filter(i=>i.status===s)})),[rows]);
+const quoteTotals=useMemo(()=>{const subtotal=lines.reduce((s,l)=>s+l.sellMinor,0);const cost=lines.reduce((s,l)=>s+l.costMinor,0);const vat=lines.reduce((s,l)=>s+(l.vatRate==='zero'?0:Math.round(l.sellMinor*0.2)),0);const profit=subtotal-cost;const margin=subtotal?Math.round((profit/subtotal)*1000)/10:0;return{subtotal,cost,vat,total:subtotal+vat,profit,margin,approval:margin<25||lines.some(l=>l.margin<20)||builder.approvalRequired}},[lines,builder.approvalRequired]);
+const kpis=useMemo(()=>{const draftValue=rows.filter(i=>i.status==='draft').reduce((s,i)=>s+i.total,0);const sentValue=rows.filter(i=>i.status==='sent').reduce((s,i)=>s+i.total,0);const approvedValue=rows.filter(i=>i.status==='approved').reduce((s,i)=>s+i.total,0);return{openCount:rows.filter(i=>i.status==='draft'||i.status==='sent').length,draftValue,sentValue,approvedValue,avgValue:rows.length?Math.round(rows.reduce((s,i)=>s+i.total,0)/rows.length):0}},[rows]);
+async function saveQuote(q:QuoteRecord){await operationsService.saveQuote({...q,updatedAt:timestamp()});await load()}
+async function patchQuote(id:string,patch:Partial<QuoteRecord>){const current=quotes.find(i=>i.id===id);if(current)await saveQuote({...current,...patch})}
+async function duplicateQuote(q:QuoteRecord){const copy={...q,id:`qt-${Date.now()}`,title:`${q.title} Copy`,status:'draft' as const,updatedAt:timestamp()};await saveQuote(copy);setSelectedId(copy.id)}
+function addLine(){const product=products.find(p=>p.id===builder.productId)||products[0];if(!product)return;setLines(prev=>[...prev,estimateLine(product,Math.max(1,n(builder.quantity,1)),n(builder.discountPercent,0))])}
+async function saveBuilderQuote(){const id=editing?.id||`qt-${Date.now()}`;const quote:QuoteRecord={id,customer:builder.customer||'Customer',title:builder.title||`${lines[0]?.productName||'Print'} quotation`,channel:builder.channel,status:builder.status,total:Math.round(quoteTotals.total/100),updatedAt:timestamp()};await saveQuote(quote);setNotice(`Quote ${quote.id} saved with ${moneyMinor(quoteTotals.total)} total and ${quoteTotals.margin}% margin.`);setEditing(null);setLines([])}
+function openBuilder(q?:QuoteRecord){setEditing(q||{...emptyQuote,id:`qt-${Date.now()}`,updatedAt:timestamp()});setBuilder({customer:q?.customer||'',title:q?.title||'',channel:q?.channel||'US Main Store',status:q?.status||'draft',productId:products[0]?.id||'',quantity:'500',discountPercent:'0',approvalRequired:false,notes:''});setLines([])}
+const exportQuotes=()=>{const blob=new Blob([JSON.stringify({quotes,liveBuilder:{builder,lines,quoteTotals}},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='quotes-v375-export.json';a.click();URL.revokeObjectURL(url)};
+return <div className="space-y-5"><PageHeader title="Live Quote Builder" subtitle="Create customer estimates from product pricing, manufacturing cost, VAT, margin and approval rules." actions={<div className="flex flex-wrap gap-2"><Button onClick={exportQuotes}>Export JSON</Button><Link href="/product-builder-pricing" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/[0.05]">Pricing Engine</Link><PrimaryButton onClick={()=>openBuilder()}>New Quote</PrimaryButton></div>}/>
+{notice?<div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">{notice}</div>:null}
+<div className="grid gap-4 md:grid-cols-5"><Metric label="Open quotes" value={String(kpis.openCount)}/><Metric label="Draft value" value={moneyMinor(kpis.draftValue*100)}/><Metric label="Sent value" value={moneyMinor(kpis.sentValue*100)}/><Metric label="Approved value" value={moneyMinor(kpis.approvedValue*100)}/><Metric label="Average quote" value={moneyMinor(kpis.avgValue*100)}/></div>
+<Card className="space-y-4"><div><p className="text-xs uppercase tracking-[0.24em] text-textMuted">v375 customer estimate engine</p><h3 className="mt-2 text-xl font-semibold text-white">Build a live quote from real product costs</h3><p className="mt-1 text-sm text-textMuted">Uses product pricing metadata, manufacturing assumptions, VAT type and margin controls. Low-margin quotes are flagged for approval before sending.</p></div><div className="grid gap-3 md:grid-cols-5"><Input placeholder="Customer" value={builder.customer} onChange={e=>setBuilder({...builder,customer:e.target.value})}/><Input placeholder="Quote title" value={builder.title} onChange={e=>setBuilder({...builder,title:e.target.value})}/><Select options={channelOptions} value={builder.channel} onChange={e=>setBuilder({...builder,channel:e.target.value})}/><Select options={products.map(p=>({value:p.id,label:p.name}))} value={builder.productId} onChange={e=>setBuilder({...builder,productId:e.target.value})}/><Input type="number" placeholder="Qty" value={builder.quantity} onChange={e=>setBuilder({...builder,quantity:e.target.value})}/><Input type="number" placeholder="Discount %" value={builder.discountPercent} onChange={e=>setBuilder({...builder,discountPercent:e.target.value})}/><Select options={statusOptions} value={builder.status} onChange={e=>setBuilder({...builder,status:e.target.value as QuoteRecord['status']})}/><Button onClick={addLine}>Add line</Button><PrimaryButton onClick={saveBuilderQuote} disabled={!lines.length}>Save quote</PrimaryButton></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="text-xs uppercase tracking-[0.16em] text-textMuted"><tr><th className="py-2 pr-4">Product</th><th className="py-2 pr-4">Qty</th><th className="py-2 pr-4">Cost</th><th className="py-2 pr-4">Sell</th><th className="py-2 pr-4">Unit</th><th className="py-2 pr-4">VAT</th><th className="py-2 pr-4">Margin</th><th className="py-2 pr-4">Action</th></tr></thead><tbody className="divide-y divide-white/8">{lines.map(line=><tr key={line.id} className="text-textMuted"><td className="py-3 pr-4 text-white">{line.productName}</td><td className="py-3 pr-4">{line.quantity}</td><td className="py-3 pr-4">{moneyMinor(line.costMinor)}</td><td className="py-3 pr-4">{moneyMinor(line.sellMinor)}</td><td className="py-3 pr-4">{moneyMinor(line.unitMinor)}</td><td className="py-3 pr-4">{line.vatRate}</td><td className={`py-3 pr-4 ${line.margin<20?'text-rose-200':'text-emerald-200'}`}>{line.margin}%</td><td className="py-3 pr-4"><Button onClick={()=>setLines(prev=>prev.filter(i=>i.id!==line.id))}>Remove</Button></td></tr>)}{!lines.length?<tr><td colSpan={8} className="py-5 text-textMuted">No estimate lines yet.</td></tr>:null}</tbody></table></div><div className="grid gap-3 md:grid-cols-5"><Metric label="Subtotal" value={moneyMinor(quoteTotals.subtotal)}/><Metric label="VAT" value={moneyMinor(quoteTotals.vat)}/><Metric label="Total" value={moneyMinor(quoteTotals.total)}/><Metric label="Profit" value={moneyMinor(quoteTotals.profit)}/><Metric label="Margin" value={`${quoteTotals.margin}%`}/></div>{quoteTotals.approval?<div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">Approval recommended: margin is below target or a line is under 20% margin.</div>:null}</Card>
+<div className="grid gap-4 xl:grid-cols-[1.7fr_1fr]"><Card className="space-y-4"><div className="grid gap-2 md:grid-cols-[2fr_1fr_1fr]"><Input placeholder="Search quotes, customer, channel..." value={search} onChange={e=>setSearch(e.target.value)}/><Select options={['all',...statusOptions]} value={status} onChange={e=>setStatus(e.target.value as any)}/><Select options={['all',...channelOptions]} value={channel} onChange={e=>setChannel(e.target.value)}/></div><div className="grid gap-3 xl:grid-cols-4">{grouped.map(g=><div key={g.status} className="rounded-2xl border border-white/6 bg-white/[0.02] p-3"><div className="mb-3 flex items-center justify-between"><div><p className="text-xs uppercase tracking-[0.24em] text-textMuted">{statusLabel[g.status]}</p><p className="mt-1 text-lg font-semibold">{g.items.length}</p></div><span className={`rounded-full border px-2 py-1 text-[11px] ${statusTone[g.status]}`}>{moneyMinor(g.items.reduce((s,i)=>s+i.total,0)*100)}</span></div><div className="space-y-2">{g.items.map(q=><button key={q.id} onClick={()=>setSelectedId(q.id)} className={`w-full rounded-2xl border p-3 text-left ${selectedId===q.id?'border-accent bg-accent/10':'border-white/6 bg-panel/60 hover:border-white/15'}`}><p className="text-sm font-semibold text-text">{q.title}</p><p className="mt-1 text-xs text-textMuted">{q.customer}</p><div className="mt-3 flex items-center justify-between text-xs text-textMuted"><span>{q.channel}</span><span>{moneyMinor(q.total*100)}</span></div></button>)}{!g.items.length?<p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-textMuted">No quotes.</p>:null}</div></div>)}</div></Card><Card className="space-y-4"><p className="text-xs uppercase tracking-[0.24em] text-textMuted">Quote spotlight</p><h3 className="text-xl font-semibold text-text">{selected?.title??'No quote selected'}</h3>{selected?<><div className="grid gap-3 sm:grid-cols-2"><Box label="Quote ID" value={selected.id}/><Box label="Updated" value={selected.updatedAt}/><Box label="Value" value={moneyMinor(selected.total*100)}/><Box label="Status" value={statusLabel[selected.status]}/></div><div className="flex flex-wrap gap-2"><Button onClick={()=>openBuilder(selected)}>Edit in builder</Button><Button onClick={()=>duplicateQuote(selected)}>Duplicate</Button><Button onClick={()=>patchQuote(selected.id,{status:'sent'})}>Send</Button><Button onClick={()=>patchQuote(selected.id,{status:'approved'})}>Approve</Button><Button onClick={()=>patchQuote(selected.id,{status:'expired'})}>Expire</Button></div><div className="rounded-2xl border border-dashed border-white/10 p-4 text-sm text-textMuted">Next step: {selected.status==='approved'?'convert to order and production ticket.':selected.status==='sent'?'follow up with customer.':'finalise pricing and send.'}</div></>:<p className="text-sm text-textMuted">Pick a quote.</p>}</Card></div>
+<Card><DataTable columns={[{key:'id',header:'Id',render:r=>r.id},{key:'customer',header:'Customer',render:r=><div><p className="font-medium">{r.customer}</p><p className="text-xs text-textMuted">{r.channel}</p></div>},{key:'title',header:'Quote',render:r=>r.title},{key:'status',header:'Status',render:r=><span className={`rounded-full border px-2 py-1 text-xs uppercase ${statusTone[r.status]}`}>{r.status}</span>},{key:'total',header:'Total',render:r=>moneyMinor(r.total*100)},{key:'updatedAt',header:'Updated',render:r=>r.updatedAt},{key:'actions',header:'Actions',render:r=><div className="flex flex-wrap gap-2"><Button onClick={()=>setSelectedId(r.id)}>View</Button><Button onClick={()=>openBuilder(r)}>Edit</Button><Button onClick={()=>duplicateQuote(r)}>Duplicate</Button><Button onClick={async()=>{await operationsService.deleteQuote(r.id);await load()}}>Delete</Button></div>}]} rows={rows} rowKey={r=>r.id}/></Card>
+<BaseModal open={!!editing} onClose={()=>setEditing(null)} title="Quote Builder"><div className="space-y-3"><p className="text-sm text-textMuted">Use the live builder above to add quote lines and save this quote.</p><Button onClick={()=>setEditing(null)}>Close</Button></div></BaseModal>
+</div>}
+function Metric({label,value}:{label:string;value:string}){return <Card><p className="text-xs text-textMuted">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></Card>}
+function Box({label,value}:{label:string;value:string}){return <div className="rounded-2xl border border-white/6 bg-white/[0.03] p-3"><p className="text-xs text-textMuted">{label}</p><p className="mt-1 font-medium">{value}</p></div>}

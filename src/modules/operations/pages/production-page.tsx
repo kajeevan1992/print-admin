@@ -47,13 +47,37 @@ type QueueCard = {
   source: 'ticket' | 'production';
 };
 
+type ScheduledCard = QueueCard & {
+  lane: string;
+  estimatedMinutes: number;
+  scheduledShift: string;
+  startMinute: number;
+  finishMinute: number;
+  finishLabel: string;
+  operator: string;
+  breachRisk: 'low' | 'medium' | 'high';
+  scheduleReason: string;
+};
+
 const emptyJob: ProductionJob = { id: '', orderNumber: '', product: '', plant: 'Nevada DC', stage: 'queued', slaRisk: 'low', dueDate: '' };
 const fallbackMachines = ['Unassigned', 'Ricoh Pro C5400S', 'Large Format Printer', 'Guillotine', 'Laminator', 'Booklet Maker', 'Supplier / Outsource'];
+const shifts = [
+  { id: 'morning', label: 'Morning', start: 8 * 60, end: 14 * 60, capacity: 360, operator: 'Operator A' },
+  { id: 'evening', label: 'Evening', start: 14 * 60, end: 20 * 60, capacity: 360, operator: 'Operator B' },
+  { id: 'overflow', label: 'Overflow', start: 20 * 60, end: 23 * 60, capacity: 180, operator: 'Overflow / Owner' },
+];
 
 function daysUntil(date: string) {
   if (!date) return 999;
   const due = new Date(`${date}T23:59:59`).getTime();
   return Math.ceil((due - Date.now()) / 86400000);
+}
+function priorityWeight(card: QueueCard) {
+  const dueWeight = Math.max(0, 8 - daysUntil(card.dueDate));
+  const priority = card.priority === 'urgent' ? 10 : card.priority === 'high' ? 7 : card.priority === 'normal' ? 3 : 1;
+  const blockedPenalty = queueStage(card) === 'blocked' ? -20 : 0;
+  const readyBonus = ['approved', 'preflight-pass'].includes(card.artworkStatus) ? 4 : 0;
+  return dueWeight + priority + readyBonus + blockedPenalty;
 }
 function slaRisk(card: QueueCard) {
   if (card.warnings.length || card.stage === 'blocked' || card.artworkStatus === 'preflight-fail') return 'high';
@@ -79,10 +103,16 @@ function estimateMinutes(card: QueueCard) {
   const qty = Math.max(1, Number(card.quantity || 100));
   const finishExtra = card.route?.includes('finishing') ? 18 : 0;
   const artworkExtra = queueStage(card) === 'artwork' ? 10 : 0;
-  return Math.round(base + qty / 75 + finishExtra + artworkExtra);
+  const supplierExtra = cardMachine(card) === 'Supplier / Outsource' ? 8 : 0;
+  return Math.round(base + qty / 75 + finishExtra + artworkExtra + supplierExtra);
 }
 function batchKey(card: QueueCard) {
   return [cardMachine(card), card.material || 'material-not-set', card.product?.toLowerCase?.() || 'product'].join('|');
+}
+function formatMinute(minute: number) {
+  const hour = Math.floor(minute / 60) % 24;
+  const min = minute % 60;
+  return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
 }
 function readTicketCards(tickets: JobTicket[]): QueueCard[] {
   return tickets.map((ticket) => ({
@@ -133,6 +163,40 @@ function statusClass(risk: string) {
   if (risk === 'medium') return 'border-amber-400/25 bg-amber-400/10 text-amber-100';
   return 'border-emerald-400/25 bg-emerald-400/10 text-emerald-100';
 }
+function scheduleCards(cards: QueueCard[]): ScheduledCard[] {
+  const sorted = [...cards].sort((a, b) => priorityWeight(b) - priorityWeight(a) || daysUntil(a.dueDate) - daysUntil(b.dueDate));
+  const laneShiftCursor = new Map<string, Record<string, number>>();
+  return sorted.map((card) => {
+    const lane = cardMachine(card);
+    const minutes = estimateMinutes(card);
+    if (!laneShiftCursor.has(lane)) laneShiftCursor.set(lane, Object.fromEntries(shifts.map((shift) => [shift.id, shift.start])) as Record<string, number>);
+    const cursor = laneShiftCursor.get(lane)!;
+    let selected = shifts[0];
+    for (const shift of shifts) {
+      if ((cursor[shift.id] || shift.start) + minutes <= shift.end) {
+        selected = shift;
+        break;
+      }
+      selected = shift;
+    }
+    const start = cursor[selected.id] || selected.start;
+    const finish = start + minutes;
+    cursor[selected.id] = finish;
+    const breachRisk = queueStage(card) === 'blocked' || finish > selected.end || slaRisk(card) === 'high' ? 'high' : slaRisk(card) === 'medium' ? 'medium' : 'low';
+    return {
+      ...card,
+      lane,
+      estimatedMinutes: minutes,
+      scheduledShift: selected.label,
+      startMinute: start,
+      finishMinute: finish,
+      finishLabel: finish > selected.end ? `${formatMinute(finish)} overflow` : formatMinute(finish),
+      operator: selected.operator,
+      breachRisk,
+      scheduleReason: queueStage(card) === 'blocked' ? 'Blocked until artwork/preflight issue is fixed.' : `Prioritised by due date, priority and artwork readiness.`,
+    };
+  });
+}
 
 export function ProductionPage() {
   const [jobs, setJobs] = useState<ProductionJob[]>([]);
@@ -158,22 +222,26 @@ export function ProductionPage() {
     const matchesMachine = machine === 'all' || cardMachine(card) === machine;
     return matchesSearch && matchesStage && matchesMachine;
   }), [cards, search, stage, machine]);
-  const laneMap = useMemo(() => machines.reduce((acc, lane) => ({ ...acc, [lane]: filteredCards.filter((card) => cardMachine(card) === lane) }), {} as Record<string, QueueCard[]>), [machines, filteredCards]);
+  const scheduled = useMemo(() => scheduleCards(filteredCards), [filteredCards]);
+  const laneMap = useMemo(() => machines.reduce((acc, lane) => ({ ...acc, [lane]: scheduled.filter((card) => card.lane === lane) }), {} as Record<string, ScheduledCard[]>), [machines, scheduled]);
   const batches = useMemo(() => Object.entries(filteredCards.reduce((acc, card) => { const key = batchKey(card); acc[key] = [...(acc[key] || []), card]; return acc; }, {} as Record<string, QueueCard[]>)).filter(([, group]) => group.length > 1), [filteredCards]);
   const rows = useMemo(() => jobs.filter((job) => {
     const matchesSearch = !search || `${job.orderNumber} ${job.product} ${job.plant}`.toLowerCase().includes(search.toLowerCase());
     const matchesStage = stage === 'all' || job.stage === stage;
     return matchesSearch && matchesStage;
   }), [jobs, search, stage]);
+  const breached = scheduled.filter((card) => card.breachRisk === 'high').length;
+  const assigned = scheduled.filter((card) => card.operator).length;
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Production Planner" subtitle="Machine queues, capacity signals, SLA risk and batch hints reusing production jobs plus v367 job tickets." actions={<div className="flex gap-2"><Button onClick={load}>Refresh</Button><PrimaryButton onClick={() => setEditing({ ...emptyJob, id: `pj-${Date.now()}`, dueDate: new Date().toISOString().slice(0, 10) })}>Add Job</PrimaryButton></div>} />
-      <div className="grid gap-4 md:grid-cols-5">
+      <PageHeader title="Smart Production Scheduler" subtitle="Machine queues, shift assignment, ETA prediction, SLA breach detection and batch hints using the existing production tickets pipeline." actions={<div className="flex gap-2"><Button onClick={load}>Refresh</Button><PrimaryButton onClick={() => setEditing({ ...emptyJob, id: `pj-${Date.now()}`, dueDate: new Date().toISOString().slice(0, 10) })}>Add Job</PrimaryButton></div>} />
+      <div className="grid gap-4 md:grid-cols-6">
         <Card><p className="text-xs text-textMuted">Queue cards</p><p className="mt-2 text-2xl font-semibold">{cards.length}</p></Card>
         <Card><p className="text-xs text-textMuted">Job tickets</p><p className="mt-2 text-2xl font-semibold">{tickets.length}</p></Card>
-        <Card><p className="text-xs text-textMuted">In production</p><p className="mt-2 text-2xl font-semibold">{cards.filter((item) => ['printing', 'finishing', 'print'].includes(item.stage) || queueStage(item) === 'print').length}</p></Card>
-        <Card><p className="text-xs text-textMuted">High SLA risk</p><p className="mt-2 text-2xl font-semibold">{cards.filter((item) => slaRisk(item) === 'high').length}</p></Card>
+        <Card><p className="text-xs text-textMuted">Scheduled</p><p className="mt-2 text-2xl font-semibold">{scheduled.length}</p></Card>
+        <Card><p className="text-xs text-textMuted">Assigned</p><p className="mt-2 text-2xl font-semibold">{assigned}</p></Card>
+        <Card><p className="text-xs text-textMuted">SLA breach risk</p><p className="mt-2 text-2xl font-semibold">{breached}</p></Card>
         <Card><p className="text-xs text-textMuted">Batch hints</p><p className="mt-2 text-2xl font-semibold">{batches.length}</p></Card>
       </div>
       <div className="grid gap-2 md:grid-cols-[1fr_180px_240px]">
@@ -182,12 +250,12 @@ export function ProductionPage() {
         <Select options={[{ value: 'all', label: 'All machines' }, ...machines.map((item) => ({ value: item, label: item }))]} value={machine} onChange={(e) => setMachine(e.target.value)} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_340px]">
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {machines.map((lane) => {
             const laneCards = laneMap[lane] || [];
-            const minutes = laneCards.reduce((sum, card) => sum + estimateMinutes(card), 0);
-            const risk = laneCards.some((card) => slaRisk(card) === 'high') ? 'high' : laneCards.some((card) => slaRisk(card) === 'medium') ? 'medium' : 'low';
+            const minutes = laneCards.reduce((sum, card) => sum + card.estimatedMinutes, 0);
+            const risk = laneCards.some((card) => card.breachRisk === 'high') ? 'high' : laneCards.some((card) => card.breachRisk === 'medium') ? 'medium' : 'low';
             return <Card key={lane} className="min-h-[220px]">
               <div className="flex items-start justify-between gap-3">
                 <div><h3 className="font-semibold text-white">{lane}</h3><p className="mt-1 text-xs text-textMuted">{laneCards.length} jobs · est. {minutes} min</p></div>
@@ -195,9 +263,10 @@ export function ProductionPage() {
               </div>
               <div className="mt-4 space-y-3">
                 {laneCards.map((card) => <div key={`${card.source}-${card.id}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                  <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">{card.orderNumber}</p><p className="mt-1 text-xs text-textMuted">{card.product}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] ${statusClass(slaRisk(card))}`}>{slaRisk(card)}</span></div>
-                  <div className="mt-3 grid gap-1 text-xs text-textMuted"><p>Stage: {queueStage(card)} / {card.stage}</p><p>Qty: {card.quantity} · Due: {card.dueDate || 'not set'}</p><p>Artwork: {card.artworkStatus}</p>{card.material ? <p>Material: {card.material}</p> : null}</div>
-                  {card.warnings.length ? <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-400/10 p-2 text-[11px] text-amber-100">{card.warnings[0]}</div> : null}
+                  <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">{card.orderNumber}</p><p className="mt-1 text-xs text-textMuted">{card.product}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] ${statusClass(card.breachRisk)}`}>{card.breachRisk}</span></div>
+                  <div className="mt-3 grid gap-1 text-xs text-textMuted"><p>Stage: {queueStage(card)} / {card.stage}</p><p>Qty: {card.quantity} · Due: {card.dueDate || 'not set'}</p><p>Shift: {card.scheduledShift} · ETA {card.finishLabel}</p><p>Operator: {card.operator}</p><p>Artwork: {card.artworkStatus}</p>{card.material ? <p>Material: {card.material}</p> : null}</div>
+                  <div className="mt-3 rounded-xl border border-white/8 bg-black/20 p-2 text-[11px] text-textMuted">{card.scheduleReason}</div>
+                  {card.warnings.length ? <div className="mt-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-2 text-[11px] text-amber-100">{card.warnings[0]}</div> : null}
                 </div>)}
                 {!laneCards.length ? <p className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-textMuted">No jobs in this lane.</p> : null}
               </div>
@@ -205,8 +274,9 @@ export function ProductionPage() {
           })}
         </div>
         <div className="space-y-4">
+          <Card><h3 className="font-semibold text-white">Shift assignment</h3><div className="mt-4 space-y-2">{shifts.map((shift) => { const shiftCards = scheduled.filter((card) => card.scheduledShift === shift.label); const used = shiftCards.reduce((sum, card) => sum + card.estimatedMinutes, 0); return <div key={shift.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-white">{shift.label}</span><span className="text-textMuted">{formatMinute(shift.start)}–{formatMinute(shift.end)}</span></div><p className="mt-1 text-xs text-textMuted">{shift.operator} · {used}/{shift.capacity} min · {shiftCards.length} jobs</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, Math.round((used / shift.capacity) * 100))}%` }} /></div></div>; })}</div></Card>
+          <Card><h3 className="font-semibold text-white">SLA breach predictions</h3><div className="mt-4 space-y-2">{scheduled.filter((card) => card.breachRisk === 'high').slice(0, 6).map((card) => <div key={`${card.source}-${card.id}`} className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-3"><p className="text-sm font-semibold text-white">{card.orderNumber}</p><p className="mt-1 text-xs text-rose-100">Due {card.dueDate || 'not set'} · ETA {card.finishLabel} · {card.scheduleReason}</p></div>)}{!scheduled.some((card) => card.breachRisk === 'high') ? <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-xs text-emerald-100">No high-risk schedule breaches detected.</p> : null}</div></Card>
           <Card><h3 className="font-semibold text-white">Batch printing hints</h3><p className="mt-1 text-xs text-textMuted">Groups jobs with same machine/material/product for possible gang run or shared setup.</p><div className="mt-4 space-y-2">{batches.map(([key, group]) => <div key={key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><p className="text-sm font-semibold text-white">{group.length} jobs</p><p className="mt-1 text-xs text-textMuted">{key.replaceAll('|', ' · ')}</p><p className="mt-2 text-xs text-textMuted">Setup saving potential: {Math.max(0, group.length - 1)} shared setup(s)</p></div>)}{!batches.length ? <p className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-textMuted">No batch opportunities in current filter.</p> : null}</div></Card>
-          <Card><h3 className="font-semibold text-white">Shift capacity</h3><div className="mt-4 space-y-2 text-xs text-textMuted"><div className="flex justify-between"><span>Morning shift</span><span>08:00–14:00</span></div><div className="flex justify-between"><span>Evening shift</span><span>14:00–20:00</span></div><div className="flex justify-between"><span>Night shift</span><span>Optional / future</span></div></div><p className="mt-4 rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-xs text-textMuted">v368 estimates queue minutes per lane. Future builds can add exact drag-drop scheduling and shift assignment once job tickets are fully generated from orders.</p></Card>
         </div>
       </div>
 

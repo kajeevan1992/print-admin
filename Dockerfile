@@ -1,11 +1,14 @@
 # Lightweight production Dockerfile for Coolify
-# Uses Next.js standalone output to avoid huge Nixpacks images and export-layer failures.
+# Uses Next.js standalone output and installs pnpm directly.
 
 FROM node:22.13.1-alpine AS deps
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN corepack enable
+ENV PNPM_HOME=/usr/local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN npm install -g pnpm@9.15.9
 
 COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --no-frozen-lockfile --shamefully-hoist
@@ -15,7 +18,10 @@ WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN corepack enable
+ENV PNPM_HOME=/usr/local/share/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN npm install -g pnpm@9.15.9
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -30,10 +36,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-# Create non-root runtime user
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 
-# Public assets and standalone server bundle
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

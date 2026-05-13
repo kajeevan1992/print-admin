@@ -148,15 +148,84 @@ function itemIsActive(pathname: string, href?: string) {
   return Boolean(href && (pathname === href || pathname.startsWith(`${href}/`)));
 }
 
+function groupIsActive(pathname: string, item: AdminSidebarNavigationItem) {
+  return Boolean(item.children?.some((child) => itemIsActive(pathname, child.href)));
+}
+
 function filterSuperAdminNavigation(items: AdminSidebarNavigationItem[]) {
   return items
     .filter((item) => superAdminOrder.has(item.label))
     .sort((a, b) => (superAdminOrder.get(a.label) ?? 999) - (superAdminOrder.get(b.label) ?? 999));
 }
 
+function NavItem({ item, pathname }: { item: AdminSidebarNavigationItem; pathname: string }) {
+  const Icon = getIcon(item.iconKey);
+  const hasChildren = Boolean(item.children?.length);
+  const active = itemIsActive(pathname, item.href) || groupIsActive(pathname, item);
+
+  if (!item.href && hasChildren) {
+    return (
+      <div className="space-y-1">
+        <div
+          className={cn(
+            'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted',
+            active && 'bg-white/[0.04] text-white'
+          )}
+        >
+          <Icon size={16} />
+          <span>{item.label}</span>
+        </div>
+        <div className="ml-5 space-y-1 border-l border-white/8 pl-3">
+          {item.children?.map((child) => {
+            const ChildIcon = getIcon(child.iconKey);
+            const childActive = itemIsActive(pathname, child.href);
+            return (
+              <Link
+                key={`${item.label}-${child.label}`}
+                href={child.href as any}
+                className={cn(
+                  'flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
+                  childActive && 'bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
+                )}
+              >
+                <ChildIcon size={14} />
+                <span>{child.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (!item.href) {
+    return (
+      <div className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted">
+        <Icon size={16} />
+        <span>{item.label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      key={item.label}
+      href={item.href as any}
+      className={cn(
+        'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
+        active && 'bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
+      )}
+    >
+      <Icon size={16} />
+      <span>{item.label}</span>
+    </Link>
+  );
+}
+
 export function Sidebar() {
-  const pathname = usePathname();
-  const { session } = useAuth();
+  const pathname = usePathname() ?? '/';
+  const authContext = useAuth();
+  const session = authContext?.session ?? authContext?.auth?.session ?? null;
 
   const navItems = useMemo(() => {
     const items = getAdminSidebarNavigation(session?.role, [], 'sidebar');
@@ -178,24 +247,7 @@ export function Sidebar() {
       </div>
 
       <nav className="space-y-1 overflow-y-auto pb-10">
-        {navItems.map((item) => {
-          const Icon = getIcon(item.iconKey);
-          const active = itemIsActive(pathname, item.href);
-
-          return (
-            <Link
-              key={item.label}
-              href={item.href as any}
-              className={cn(
-                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
-                active && 'bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
-              )}
-            >
-              <Icon size={16} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+        {navItems.map((item) => <NavItem key={item.label} item={item} pathname={pathname} />)}
       </nav>
 
       <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] p-3">

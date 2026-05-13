@@ -67,19 +67,58 @@ type AuthContextValue = {
   ready: boolean;
   session: AppSession | null;
   accounts: DemoAccount[];
+  auth: {
+    ready: boolean;
+    session: AppSession | null;
+    user: AppSession | null;
+    role: AppRole | null;
+    tenantId: string | null;
+    isAuthenticated: boolean;
+  };
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string; redirectTo?: string }>;
   signOut: () => void;
 };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+const fallbackAuthContext: AuthContextValue = {
+  ready: false,
+  session: null,
+  accounts: demoAccounts,
+  auth: {
+    ready: false,
+    session: null,
+    user: null,
+    role: null,
+    tenantId: null,
+    isAuthenticated: false
+  },
+  signIn: async () => ({ ok: false, error: 'Authentication is not ready yet.' }),
+  signOut: () => {}
+};
+
+const AuthContext = createContext<AuthContextValue>(fallbackAuthContext);
+
+function normaliseSession(value: unknown): AppSession | null {
+  if (!value || typeof value !== 'object') return null;
+  const session = value as Partial<AppSession>;
+  if (!session.id || !session.email || !session.role) return null;
+  return {
+    id: String(session.id),
+    name: String(session.name || session.email),
+    email: String(session.email),
+    role: session.role === 'super_admin' || session.role === 'tenant_admin' || session.role === 'ops_manager' ? session.role : 'tenant_admin',
+    company: String(session.company || 'Print Admin'),
+    tenantId: String(session.tenantId || 'northstar-print')
+  };
+}
 
 function readSession(): AppSession | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as AppSession;
+    return normaliseSession(JSON.parse(raw));
   } catch {
+    safeSessionWrite(null);
     return null;
   }
 }
@@ -118,28 +157,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
   }
 
-  const value = useMemo<AuthContextValue>(() => ({
-    ready,
-    session,
-    accounts: demoAccounts,
-    signIn,
-    signOut
-  }), [ready, session]);
+  const value = useMemo<AuthContextValue>(() => {
+    const auth = {
+      ready,
+      session,
+      user: session,
+      role: session?.role ?? null,
+      tenantId: session?.tenantId ?? null,
+      isAuthenticated: Boolean(session)
+    };
+
+    return {
+      ready,
+      session,
+      accounts: demoAccounts,
+      auth,
+      signIn,
+      signOut
+    };
+  }, [ready, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-
 export function updateSession(patch: Partial<AppSession>) {
   const current = readSession();
   if (!current) return null;
-  const nextSession = { ...current, ...patch } as AppSession;
+  const nextSession = normaliseSession({ ...current, ...patch });
+  if (!nextSession) return null;
   safeSessionWrite(nextSession);
   return nextSession;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
+  return useContext(AuthContext) ?? fallbackAuthContext;
 }

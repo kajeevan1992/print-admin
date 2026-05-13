@@ -1,8 +1,4 @@
-import { ownerFeatureFlagSeed, type OwnerFeatureFlagRecord } from '@/data/owner-feature-flags';
-import { createInternalConfigRecordsService } from '@/services/internal-config-records.service';
+import type { OwnerFeatureFlagRecord } from '@/data/owner-feature-flags';
+import { createOwnerControlRecordsService } from '@/services/owner-control-records.service';
 
-export const ownerFeatureFlagsService = createInternalConfigRecordsService<OwnerFeatureFlagRecord>({
-  configKey: 'owner-feature-flags',
-  storageKey: 'print-admin.owner-feature-flags',
-  seed: ownerFeatureFlagSeed,
-});
+export const ownerFeatureFlagsService = createOwnerControlRecordsService<OwnerFeatureFlagRecord>('owner-feature-flags');

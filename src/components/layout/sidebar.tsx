@@ -1,160 +1,143 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import {
   Activity,
   AlertOctagon,
   AlertTriangle,
   Archive,
-  BadgePoundSterling,
   BarChart3,
-  Bell,
   BellRing,
   BookOpen,
-  Bot,
-  Box,
-  Boxes,
   Building2,
-  Calculator,
   CalendarClock,
   CheckCheck,
-  ChevronDown,
-  ChevronRight,
   ClipboardCheck,
   ClipboardList,
   CreditCard,
   DatabaseBackup,
-  DollarSign,
-  Factory,
   FileText,
   Flag,
-  FolderKanban,
-  FolderTree,
-  FormInput,
-  GitBranch,
+  Gauge,
   Globe2,
-  HardDrive,
-  HeartPulse,
-  Home,
+  History,
   KeyRound,
-  Languages,
-  Layers3,
-  LayoutGrid,
-  LayoutPanelTop,
   LifeBuoy,
   LogOut,
   Mail,
   Map as MapIcon,
-  Package,
-  Palette,
-  PenTool,
   Presentation,
-  Printer,
-  Receipt,
   Rocket,
-  ScrollText,
-  Settings,
   Shield,
   ShieldAlert,
   ShieldCheck,
   ShieldEllipsis,
-  ShoppingCart,
-  SlidersHorizontal,
   Sparkles,
   Store,
-  Tag,
-  Tags,
   Target,
-  TicketPercent,
-  Trash2,
-  Truck,
-  User,
-  UserCircle2,
+  UploadCloud,
   Users,
   Users2,
   Webhook,
   Wrench,
-  Gauge,
   type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { getAdminSidebarNavigation, type AdminSidebarNavigationItem } from '@/config/admin-navigation';
 
+const SUPER_ADMIN_APPROVED_LABELS = [
+  'Super Admin',
+  'Tenant Control',
+  'Owner Onboarding',
+  'Owner Invitations',
+  'Launch Checklist',
+  'Owner Escalations',
+  'Owner Audit Log',
+  'Admin Hardening',
+  'Owner Notifications',
+  'Navigation Registry',
+  'Owner Feature Flags',
+  'Owner API Keys',
+  'System QA Audit',
+  'Live Readiness',
+  'Owner Webhooks',
+  'Owner SSO Config',
+  'Owner Usage Limits',
+  'Owner Billing Plans',
+  'Owner Environments',
+  'Owner Domains',
+  'Owner Backups',
+  'Owner Maintenance Windows',
+  'Owner Incidents',
+  'Owner Runbooks',
+  'Owner Compliance Center',
+  'Owner Release Approvals',
+  'Owner Data Retention',
+  'Owner Customer Health',
+  'Owner Renewals',
+  'Owner QBRs',
+  'Owner Onboarding Pipeline',
+  'Owner Portfolio Risks',
+  'Owner Success Plans',
+  'Owner Customer Journeys',
+  'Owner Account Plans',
+  'Owner Stakeholder Map',
+  'Licensing Center',
+  'Admin Users',
+  'Store Activations',
+  'Billing Ops',
+  'Owner Deployments',
+  'Demo Library',
+  'Reports',
+  'Support Hub',
+  'Knowledge Base',
+  'Logout'
+] as const;
+
+const superAdminOrder = new Map<string, number>(SUPER_ADMIN_APPROVED_LABELS.map((label, index) => [label, index]));
+
 const iconMap: Record<string, LucideIcon> = {
   Activity,
   AlertOctagon,
   AlertTriangle,
   Archive,
-  BadgePoundSterling,
   BarChart3,
-  Bell,
   BellRing,
   BookOpen,
-  Bot,
-  Box,
-  Boxes,
   Building2,
-  Calculator,
   CalendarClock,
   CheckCheck,
   ClipboardCheck,
   ClipboardList,
   CreditCard,
   DatabaseBackup,
-  DollarSign,
-  Factory,
   FileText,
   Flag,
-  FolderKanban,
-  FolderTree,
-  FormInput,
-  GitBranch,
+  Gauge,
   Globe2,
-  HardDrive,
-  HeartPulse,
-  Home,
+  History,
   KeyRound,
-  Languages,
-  Layers3,
-  LayoutGrid,
-  LayoutPanelTop,
   LifeBuoy,
   LogOut,
   Mail,
   Map: MapIcon,
-  Package,
-  Palette,
-  PenTool,
   Presentation,
-  Printer,
-  Receipt,
   Rocket,
-  ScrollText,
-  Settings,
   Shield,
   ShieldAlert,
   ShieldCheck,
   ShieldEllipsis,
-  ShoppingCart,
-  SlidersHorizontal,
   Sparkles,
   Store,
-  Tag,
-  Tags,
   Target,
-  TicketPercent,
-  Trash2,
-  Truck,
-  User,
-  UserCircle2,
+  UploadCloud,
   Users,
   Users2,
   Webhook,
-  Wrench,
-  Gauge
+  Wrench
 };
 
 function getIcon(iconKey?: string): LucideIcon {
@@ -165,36 +148,20 @@ function itemIsActive(pathname: string, href?: string) {
   return Boolean(href && (pathname === href || pathname.startsWith(`${href}/`)));
 }
 
-function itemHasActiveChild(pathname: string, item: AdminSidebarNavigationItem) {
-  return item.children?.some((child) => itemIsActive(pathname, child.href)) ?? false;
+function filterSuperAdminNavigation(items: AdminSidebarNavigationItem[]) {
+  return items
+    .filter((item) => superAdminOrder.has(item.label))
+    .sort((a, b) => (superAdminOrder.get(a.label) ?? 999) - (superAdminOrder.get(b.label) ?? 999));
 }
 
 export function Sidebar() {
   const pathname = usePathname();
   const { session } = useAuth();
 
-  const navItems = useMemo(
-    () => getAdminSidebarNavigation(session?.role, [], 'sidebar'),
-    [session?.role]
-  );
-
-  const defaultOpen = useMemo(() => {
-    const openMap: Record<string, boolean> = {};
-    navItems.forEach((item) => {
-      if (itemHasActiveChild(pathname, item)) openMap[item.label] = true;
-    });
-    return openMap;
-  }, [navItems, pathname]);
-
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(defaultOpen);
-
-  useEffect(() => {
-    setOpenGroups((current) => ({ ...defaultOpen, ...current }));
-  }, [defaultOpen]);
-
-  const toggleGroup = (label: string) => {
-    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
-  };
+  const navItems = useMemo(() => {
+    const items = getAdminSidebarNavigation(session?.role, [], 'sidebar');
+    return session?.role === 'super_admin' ? filterSuperAdminNavigation(items) : items;
+  }, [session?.role]);
 
   return (
     <aside className="hidden h-screen w-[292px] shrink-0 border-r border-white/6 bg-[linear-gradient(180deg,rgba(11,18,32,0.96)_0%,rgba(7,11,22,0.98)_100%)] p-4 lg:block">
@@ -214,64 +181,19 @@ export function Sidebar() {
         {navItems.map((item) => {
           const Icon = getIcon(item.iconKey);
           const active = itemIsActive(pathname, item.href);
-          const hasActiveChild = itemHasActiveChild(pathname, item);
-
-          if (item.href) {
-            return (
-              <Link
-                key={item.label}
-                href={item.href as any}
-                className={cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
-                  (active || hasActiveChild) && 'bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
-                )}
-              >
-                <Icon size={16} />
-                <span>{item.label}</span>
-              </Link>
-            );
-          }
 
           return (
-            <div key={item.label}>
-              <button
-                type="button"
-                onClick={() => toggleGroup(item.label)}
-                className={cn(
-                  'flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
-                  hasActiveChild && 'bg-white/[0.05] text-white'
-                )}
-              >
-                <span className="flex items-center gap-3">
-                  <Icon size={16} />
-                  {item.label}
-                </span>
-                {openGroups[item.label] ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              </button>
-
-              {openGroups[item.label] ? (
-                <div className="ml-4 mt-1 space-y-1 border-l border-white/8 pl-4">
-                  {item.children?.map((child) => {
-                    const ChildIcon = getIcon(child.iconKey);
-                    const childActive = itemIsActive(pathname, child.href);
-
-                    return (
-                      <Link
-                        key={child.label}
-                        href={child.href as any}
-                        className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
-                          childActive && 'bg-white/[0.05] text-white'
-                        )}
-                      >
-                        <ChildIcon size={14} />
-                        <span>{child.label}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
+            <Link
+              key={item.label}
+              href={item.href as any}
+              className={cn(
+                'flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] text-textMuted transition hover:bg-white/[0.04] hover:text-white',
+                active && 'bg-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
+              )}
+            >
+              <Icon size={16} />
+              <span>{item.label}</span>
+            </Link>
           );
         })}
       </nav>

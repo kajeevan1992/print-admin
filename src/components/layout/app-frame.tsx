@@ -5,12 +5,17 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AdminShell } from './admin-shell';
 import { LoginScreen } from '@/components/auth/login-screen';
 import { AccessDenied } from '@/components/auth/access-denied';
+import { AppErrorBoundary } from './app-error-boundary';
 import { useAuth } from '@/lib/auth';
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { ready, session, signOut } = useAuth();
+  const authContext = useAuth();
+
+  const ready = authContext?.ready ?? false;
+  const session = authContext?.session ?? null;
+  const signOut = authContext?.signOut ?? (() => {});
 
   useEffect(() => {
     if (!ready) return;
@@ -33,7 +38,11 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   }
 
   if (!session) {
-    return <LoginScreen />;
+    return (
+      <AppErrorBoundary>
+        <LoginScreen />
+      </AppErrorBoundary>
+    );
   }
 
   if (pathname === '/login' || pathname === '/logout') {
@@ -42,11 +51,17 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
 
   if ((pathname ?? '').startsWith('/super-admin') && session.role !== 'super_admin') {
     return (
-      <AdminShell>
-        <AccessDenied />
-      </AdminShell>
+      <AppErrorBoundary>
+        <AdminShell>
+          <AccessDenied />
+        </AdminShell>
+      </AppErrorBoundary>
     );
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AppErrorBoundary>
+      <AdminShell>{children}</AdminShell>
+    </AppErrorBoundary>
+  );
 }

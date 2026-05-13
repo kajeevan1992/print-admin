@@ -78,6 +78,37 @@ async function remove<T extends { id: string }>(key: string, fallback: T[], id: 
   await writeDbList(key, items.filter((item) => item.id !== id), title);
 }
 
+async function readProductionBoardInternal(): Promise<ProductionJob[] | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const res = await fetch('/api/internal/catalog/production-board', { cache: 'no-store' });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || payload?.ok === false) throw new Error('Internal production board API failed.');
+    const items = payload?.data?.items;
+    if (Array.isArray(items)) {
+      save(KEYS.production, items);
+      return items as ProductionJob[];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeProductionBoardInternal(job: ProductionJob, action: 'upsert' | 'delete' = 'upsert') {
+  if (typeof window === 'undefined') return false;
+  try {
+    const res = await fetch('/api/internal/catalog/production-board', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(action === 'delete' ? { action: 'delete', id: job.id } : { action: 'upsert', job })
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export const operationsService = {
   getQuotes: async (): Promise<QuoteRecord[]> => readDbList(KEYS.quotes, quotesMock),
   saveQuote: async (quote: QuoteRecord) => upsert(KEYS.quotes, quotesMock, quote, 'Quotes'),
@@ -87,9 +118,24 @@ export const operationsService = {
   saveCustomer: async (customer: CustomerRecord) => upsert(KEYS.customers, customersMock, customer, 'Customers'),
   deleteCustomer: async (id: string) => remove(KEYS.customers, customersMock, id, 'Customers'),
 
-  getProductionJobs: async (): Promise<ProductionJob[]> => readDbList(KEYS.production, productionJobsMock),
-  saveProductionJob: async (job: ProductionJob) => upsert(KEYS.production, productionJobsMock, job, 'Production Jobs'),
-  deleteProductionJob: async (id: string) => remove(KEYS.production, productionJobsMock, id, 'Production Jobs'),
+  getProductionJobs: async (): Promise<ProductionJob[]> => {
+    const internal = await readProductionBoardInternal();
+    if (internal?.length) return internal;
+    return readDbList(KEYS.production, productionJobsMock);
+  },
+
+  saveProductionJob: async (job: ProductionJob) => {
+    const ok = await writeProductionBoardInternal(job, 'upsert');
+    if (ok) return job;
+    return upsert(KEYS.production, productionJobsMock, job, 'Production Jobs');
+  },
+
+  deleteProductionJob: async (id: string) => {
+    const job = { id } as ProductionJob;
+    const ok = await writeProductionBoardInternal(job, 'delete');
+    if (ok) return;
+    return remove(KEYS.production, productionJobsMock, id, 'Production Jobs');
+  },
 
   getArtworkProofs: async (): Promise<ArtworkProof[]> => readDbList(KEYS.artworkProofs, artworkProofsMock),
   saveArtworkProof: async (proof: ArtworkProof) => upsert(KEYS.artworkProofs, artworkProofsMock, proof, 'Artwork Proofs'),

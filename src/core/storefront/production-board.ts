@@ -108,6 +108,7 @@ function eventLabel(action: string) {
   if (action === 'dispatch-scan') return 'Dispatch scan';
   if (action === 'dispatch-manifest') return 'Dispatch manifest';
   if (action === 'sla-checkpoint') return 'SLA checkpoint';
+  if (action === 'routing-override') return 'Routing override';
   return action.replace(/-/g, ' ');
 }
 
@@ -178,6 +179,7 @@ function buildMachineStatus(planner: Store, boardItems: ProductionJob[]) {
       queueCount: laneJobs.length + matchingBoardJobs.length,
       workStartHour: lane.workStartHour || 8,
       maxWidthMm: lane.maxWidthMm || 0,
+      supports: Array.isArray(lane.supports) ? lane.supports : [],
       source: 'production-planner-lanes'
     };
   });
@@ -187,7 +189,7 @@ function buildShiftHandover(planner: Store, boardItems: ProductionJob[], actions
   const shifts = Array.isArray(planner.shifts) ? planner.shifts : [];
   const enabledShifts = shifts.filter((shift) => shift.enabled !== false);
   const notes = actions
-    .filter((action) => ['handover-note', 'update', 'machine-downtime', 'dispatch-scan', 'dispatch-manifest'].includes(String(action.action)))
+    .filter((action) => ['handover-note', 'update', 'machine-downtime', 'dispatch-scan', 'dispatch-manifest', 'routing-override'].includes(String(action.action)))
     .slice(0, 30)
     .map((action) => ({
       id: action.id || makeId('handover'),
@@ -305,6 +307,150 @@ function buildProductionKpis(items: ProductionJob[], machineStatus: Store[], act
   };
 }
 
+function stageHeat(machine: Store) {
+  const util = asNumber(machine.utilisationPercent, 0);
+  if (machine.status === 'blocked' || machine.status === 'downtime' || util >= 100) return 'hot';
+  if (util >= 75 || machine.queueCount >= 4) return 'warm';
+  return 'cool';
+}
+
+function productMatchesLane(job: Store, lane: Store) {
+  const text = `${job.productName || ''} ${job.productSlug || ''} ${job.orderNumber || ''}`.toLowerCase();
+  const supports = Array.isArray(lane.supports) ? lane.supports.map((item: string) => item.toLowerCase()) : [];
+  return supports.includes('all') || supports.some((support: string) => text.includes(support));
+}
+
+function buildSmartProductionAnalytics(planner: Store, boardItems: ProductionJob[], machineStatus: Store[], slaCountdowns: Store[]) {
+  const plannerJobs = Array.isArray(planner.jobs) ? planner.jobs : [];
+  const lanes = Array.isArray(planner.lanes) ? planner.lanes : [];
+  const bottlenecks = machineStatus
+    .filter((machine) => machine.utilisationPercent >= 75 || machine.status === 'blocked' || machine.status === 'downtime' || machine.queueCount >= 4)
+    .map((machine) => ({
+      laneId: machine.id,
+      laneName: machine.name,
+      severity: machine.status === 'blocked' || machine.utilisationPercent >= 100 ? 'critical' : machine.utilisationPercent >= 85 ? 'high' : 'watch',
+      reason: machine.status === 'blocked' ? 'Machine has blocked work.' : machine.status === 'downtime' ? 'Machine has active downtime.' : `Utilisation is ${machine.utilisationPercent}% with ${machine.queueCount} queued jobs.`,
+      utilisationPercent: machine.utilisationPercent,
+      queueCount: machine.queueCount,
+      downtimeMinutes: machine.downtimeMinutes
+    }));
+
+  const overloadPredictions = machineStatus.map((machine) => {
+    const projectedOverloadMinutes = Math.max(0, asNumber(machine.usedMinutes, 0) - asNumber(machine.capacityMinutes, 0));
+    return {
+      laneId: machine.id,
+      laneName: machine.name,
+      status: projectedOverloadMinutes > 0 ? 'overloaded' : machine.utilisationPercent >= 85 ? 'near-capacity' : 'stable',
+      projectedOverloadMinutes,
+      capacityMinutes: machine.capacityMinutes,
+      usedMinutes: machine.usedMinutes,
+      recommendation: projectedOverloadMinutes > 0 ? 'Move compatible work to a cooler lane or add overtime capacity.' : machine.utilisationPercent >= 85 ? 'Avoid adding rush work to this lane.' : 'Lane has room for additional compatible jobs.'
+    };
+  });
+
+  const routingRecommendations = plannerJobs
+    .filter((job) => job.stage !== 'completed' && !job.productionBlocked)
+    .flatMap((job) => {
+      const currentLane = machineStatus.find((machine) => machine.id === job.laneId);
+      const alternatives = lanes
+        .filter((lane) => lane.id !== job.laneId && productMatchesLane(job, lane))
+        .map((lane) => machineStatus.find((machine) => machine.id === lane.id))
+        .filter(Boolean)
+        .sort((a, b) => asNumber(a?.utilisationPercent, 999) - asNumber(b?.utilisationPercent, 999));
+      const best = alternatives[0];
+      if (!currentLane || !best) return [];
+      const gain = asNumber(currentLane.utilisationPercent) - asNumber(best.utilisationPercent);
+      if (gain < 20 && currentLane.status !== 'blocked') return [];
+      return [{
+        jobId: job.id,
+        orderNumber: job.orderNumber,
+        fromLaneId: currentLane.id,
+        fromLaneName: currentLane.name,
+        toLaneId: best.id,
+        toLaneName: best.name,
+        reason: currentLane.status === 'blocked' ? 'Current lane is blocked.' : `Move could reduce lane pressure by about ${gain}%.`,
+        estimatedGainPercent: Math.max(0, gain),
+        priority: String(job.priority || '').toLowerCase() === 'rush' ? 'rush' : 'normal'
+      }];
+    })
+    .slice(0, 12);
+
+  const rushPriorityQueue = [...boardItems]
+    .filter((job) => job.stage !== 'shipped' && (job.priority === 'rush' || job.slaRisk === 'high'))
+    .map((job) => ({
+      jobId: job.id,
+      orderNumber: job.orderNumber,
+      customer: job.customer,
+      stage: job.stage,
+      handoffState: job.handoffState,
+      priority: job.priority,
+      slaRisk: job.slaRisk,
+      minutesRemaining: minutesUntilDue(job),
+      blocker: job.preflightStatus === 'fail' || job.handoffState === 'blocked' ? 'preflight/workflow block' : null
+    }))
+    .sort((a, b) => asNumber(a.minutesRemaining, 999999) - asNumber(b.minutesRemaining, 999999));
+
+  const finishingDependencies = boardItems
+    .filter((job) => ['printing', 'finishing'].includes(job.stage) || String(job.productionNotes || '').toLowerCase().includes('laminate') || String(job.product || '').toLowerCase().includes('booklet'))
+    .map((job) => ({
+      jobId: job.id,
+      orderNumber: job.orderNumber,
+      dependency: job.stage === 'printing' ? 'finish after print' : 'dispatch after finishing',
+      nextRequiredStep: job.stage === 'printing' ? 'finishing' : 'dispatch-ready checkpoint',
+      risk: job.slaRisk,
+      note: job.productionNotes || null
+    }));
+
+  const completionForecasts = boardItems
+    .filter((job) => job.stage !== 'shipped')
+    .map((job) => {
+      const machine = machineStatus.find((m) => m.name === job.machineName);
+      const baseMinutes = job.stage === 'queued' ? 180 : job.stage === 'proofing' ? 120 : job.stage === 'printing' ? 90 : job.stage === 'finishing' ? 60 : 30;
+      const queuePenalty = machine ? asNumber(machine.queueCount, 0) * 20 : 30;
+      const blockPenalty = job.handoffState === 'blocked' || job.preflightStatus === 'fail' ? 240 : 0;
+      const etaMinutes = baseMinutes + queuePenalty + blockPenalty;
+      return {
+        jobId: job.id,
+        orderNumber: job.orderNumber,
+        estimatedCompletionAt: new Date(Date.now() + etaMinutes * 60000).toISOString(),
+        etaMinutes,
+        confidence: blockPenalty ? 'low' : queuePenalty > 80 ? 'medium' : 'high',
+        reason: blockPenalty ? 'Blocked job needs intervention before reliable ETA.' : machine ? `Based on ${machine.name} queue and current stage.` : 'Based on current workflow stage.'
+      };
+    })
+    .sort((a, b) => a.etaMinutes - b.etaMinutes)
+    .slice(0, 30);
+
+  const heatmap = machineStatus.map((machine) => ({
+    laneId: machine.id,
+    laneName: machine.name,
+    heat: stageHeat(machine),
+    utilisationPercent: machine.utilisationPercent,
+    queueCount: machine.queueCount,
+    downtimeMinutes: machine.downtimeMinutes
+  }));
+
+  return {
+    bottlenecks,
+    overloadPredictions,
+    routingRecommendations,
+    rushPriorityQueue,
+    finishingDependencies,
+    completionForecasts,
+    heatmap,
+    summary: {
+      bottlenecks: bottlenecks.length,
+      criticalBottlenecks: bottlenecks.filter((item) => item.severity === 'critical').length,
+      routingMoves: routingRecommendations.length,
+      rushJobs: rushPriorityQueue.length,
+      finishingDependencies: finishingDependencies.length,
+      forecastedJobs: completionForecasts.length,
+      overdueJobs: slaCountdowns.filter((item) => item.overdue).length
+    },
+    source: 'internal-production-smart-analytics'
+  };
+}
+
 async function readPlannerSnapshot(request: Request) {
   try {
     return await readPlannerStore(request);
@@ -325,7 +471,7 @@ async function buildUnifiedTimeline(request: Request, items: ProductionJob[], ac
   const boardEvents = actions.map((action) => ({
     id: action.id || makeId('board-event'),
     type: 'board',
-    severity: ['delete', 'machine-downtime'].includes(String(action.action)) ? 'warning' : action.action === 'dispatch-scan' ? 'success' : 'info',
+    severity: ['delete', 'machine-downtime'].includes(String(action.action)) ? 'warning' : action.action === 'dispatch-scan' ? 'success' : action.action === 'routing-override' ? 'info' : 'info',
     jobId: action.jobId || null,
     orderNumber: action.orderNumber || null,
     title: eventLabel(String(action.action || 'update')),
@@ -387,6 +533,7 @@ async function buildBoardResponse(request: Request, store: BoardStore) {
   const dispatchCenter = buildDispatchCenter(store.items, store.actions);
   const slaCountdowns = buildSlaCountdowns(store.items);
   const productionKpis = buildProductionKpis(store.items, machineStatus, store.actions, dispatchCenter, slaCountdowns);
+  const smartAnalytics = buildSmartProductionAnalytics(planner, store.items, machineStatus, slaCountdowns);
   return {
     items: store.items,
     actions: store.actions,
@@ -396,6 +543,7 @@ async function buildBoardResponse(request: Request, store: BoardStore) {
     dispatchCenter,
     slaCountdowns,
     productionKpis,
+    smartAnalytics,
     summary: {
       ...summarizeProductionBoard(store.items),
       machinesRunning: machineStatus.filter((machine) => machine.status === 'running').length,
@@ -404,7 +552,10 @@ async function buildBoardResponse(request: Request, store: BoardStore) {
       pendingDispatchScan: dispatchCenter.pendingScan,
       dispatchScannedToday: dispatchCenter.scannedToday,
       overdueJobs: productionKpis.overdueJobs,
-      averageMachineUtilisation: productionKpis.averageMachineUtilisation
+      averageMachineUtilisation: productionKpis.averageMachineUtilisation,
+      bottlenecks: smartAnalytics.summary.bottlenecks,
+      routingMoves: smartAnalytics.summary.routingMoves,
+      forecastedJobs: smartAnalytics.summary.forecastedJobs
     },
     source: 'internal-production-board-core',
     storageKey: PRODUCTION_BOARD_KEY
@@ -430,8 +581,8 @@ export async function updateProductionBoard(request: Request, input: Store) {
     return buildBoardResponse(request, nextStore);
   }
 
-  if (action === 'handover-note' || action === 'machine-downtime' || action === 'dispatch-manifest' || action === 'sla-checkpoint') {
-    const actions = [{ id: makeId('board-action'), action, jobId: input.jobId || null, orderNumber: input.orderNumber || null, at: nowIso(), note: input.note || input.reason || 'Production operations update.', laneId: input.laneId || null, dispatchMethod: input.dispatchMethod || null, operator: input.operator || null, checkpoint: input.checkpoint || null }, ...store.actions].slice(0, 400);
+  if (['handover-note', 'machine-downtime', 'dispatch-manifest', 'sla-checkpoint', 'routing-override'].includes(action)) {
+    const actions = [{ id: makeId('board-action'), action, jobId: input.jobId || null, orderNumber: input.orderNumber || null, at: nowIso(), note: input.note || input.reason || 'Production operations update.', laneId: input.laneId || null, dispatchMethod: input.dispatchMethod || null, operator: input.operator || null, checkpoint: input.checkpoint || null, fromLaneId: input.fromLaneId || null, toLaneId: input.toLaneId || null }, ...store.actions].slice(0, 400);
     const nextStore = { items: store.items, actions };
     await saveProductionBoardStore(request, nextStore);
     return buildBoardResponse(request, nextStore);

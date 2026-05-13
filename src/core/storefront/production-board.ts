@@ -85,6 +85,73 @@ async function fallbackFromPlannerOrSeed(request: Request): Promise<ProductionJo
   return productionJobsMock;
 }
 
+function eventLabel(action: string) {
+  if (action === 'create') return 'Job created';
+  if (action === 'update') return 'Job updated';
+  if (action === 'delete') return 'Job deleted';
+  if (action === 'advance') return 'Job advanced';
+  if (action === 'sync-planner') return 'Planner sync';
+  return action.replace(/-/g, ' ');
+}
+
+function buildSystemEvents(items: ProductionJob[]) {
+  return items.flatMap((job) => {
+    const events: Store[] = [];
+    if (job.preflightStatus === 'fail') {
+      events.push({ id: `system-preflight-${job.id}`, type: 'preflight', severity: 'critical', jobId: job.id, orderNumber: job.orderNumber, title: 'Preflight failed', message: `${job.orderNumber} is blocked until artwork/preflight is fixed.`, at: nowIso(), source: 'production-board' });
+    }
+    if (job.handoffState === 'ready-to-dispatch' || job.stage === 'shipped') {
+      events.push({ id: `system-dispatch-${job.id}`, type: 'dispatch', severity: 'success', jobId: job.id, orderNumber: job.orderNumber, title: 'Dispatch checkpoint ready', message: `${job.orderNumber} is ready for ${String(job.dispatchMethod || 'dispatch').replace(/-/g, ' ')}.`, at: nowIso(), source: 'production-board' });
+    }
+    if (job.priority === 'rush' || job.slaRisk === 'high') {
+      events.push({ id: `system-risk-${job.id}`, type: 'sla', severity: job.slaRisk === 'high' ? 'warning' : 'info', jobId: job.id, orderNumber: job.orderNumber, title: 'SLA attention needed', message: `${job.orderNumber} is ${job.priority === 'rush' ? 'rush priority' : 'high risk'}.`, at: nowIso(), source: 'production-board' });
+    }
+    return events;
+  });
+}
+
+function buildPlannerEvents(planner: Store) {
+  const actions = Array.isArray(planner.actions) ? planner.actions : [];
+  const liveEvents = Array.isArray(planner.liveEvents) ? planner.liveEvents : [];
+  return [...liveEvents, ...actions].slice(0, 80).map((event) => ({
+    id: `planner-${event.id || makeId('event')}`,
+    type: 'planner',
+    severity: event.action === 'hold' || event.liveStatus === 'blocked' ? 'warning' : 'info',
+    jobId: event.jobId || null,
+    orderNumber: event.orderNumber || null,
+    title: event.action ? eventLabel(String(event.action)) : 'Planner live event',
+    message: event.note || event.liveStatus || event.orderNumber || 'Planner event recorded.',
+    at: event.at || nowIso(),
+    source: 'production-planner'
+  }));
+}
+
+async function buildUnifiedTimeline(request: Request, items: ProductionJob[], actions: Store[]) {
+  let plannerEvents: Store[] = [];
+  try {
+    const planner = await readPlannerStore(request);
+    plannerEvents = buildPlannerEvents(planner);
+  } catch {
+    plannerEvents = [];
+  }
+
+  const boardEvents = actions.map((action) => ({
+    id: action.id || makeId('board-event'),
+    type: 'board',
+    severity: action.action === 'delete' ? 'warning' : 'info',
+    jobId: action.jobId || null,
+    orderNumber: action.orderNumber || null,
+    title: eventLabel(String(action.action || 'update')),
+    message: action.note || `${action.orderNumber || action.jobId || 'Job'} changed on production board.`,
+    at: action.at || nowIso(),
+    source: 'production-board'
+  }));
+
+  return [...buildSystemEvents(items), ...boardEvents, ...plannerEvents]
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .slice(0, 120);
+}
+
 export function summarizeProductionBoard(items: ProductionJob[]) {
   return {
     total: items.length,
@@ -95,7 +162,8 @@ export function summarizeProductionBoard(items: ProductionJob[]) {
     shipped: items.filter((job) => job.stage === 'shipped').length,
     blocked: items.filter((job) => job.handoffState === 'blocked' || job.preflightStatus === 'fail').length,
     readyToDispatch: items.filter((job) => job.handoffState === 'ready-to-dispatch' || job.stage === 'shipped').length,
-    highRisk: items.filter((job) => job.slaRisk === 'high').length
+    highRisk: items.filter((job) => job.slaRisk === 'high').length,
+    liveEvents: items.filter((job) => job.handoffState === 'blocked' || job.preflightStatus === 'fail' || job.handoffState === 'ready-to-dispatch' || job.stage === 'shipped').length
   };
 }
 
@@ -126,9 +194,11 @@ export async function saveProductionBoardStore(request: Request, store: BoardSto
 
 export async function getProductionBoard(request: Request) {
   const store = await readProductionBoardStore(request);
+  const timeline = await buildUnifiedTimeline(request, store.items, store.actions);
   return {
     items: store.items,
     actions: store.actions,
+    timeline,
     summary: summarizeProductionBoard(store.items),
     source: 'internal-production-board-core',
     storageKey: PRODUCTION_BOARD_KEY
@@ -143,9 +213,10 @@ export async function updateProductionBoard(request: Request, input: Store) {
   if (action === 'delete') {
     if (!id) throw new Error('Production job id is required.');
     const items = store.items.filter((job) => job.id !== id);
-    const actions = [{ id: makeId('board-action'), action, jobId: id, at: nowIso() }, ...store.actions].slice(0, 400);
+    const actions = [{ id: makeId('board-action'), action, jobId: id, at: nowIso(), note: input.note || 'Deleted from production board.' }, ...store.actions].slice(0, 400);
     await saveProductionBoardStore(request, { items, actions });
-    return { items, actions, summary: summarizeProductionBoard(items), source: 'internal-production-board-core' };
+    const timeline = await buildUnifiedTimeline(request, items, actions);
+    return { items, actions, timeline, summary: summarizeProductionBoard(items), source: 'internal-production-board-core' };
   }
 
   const incoming = (input.job || input) as ProductionJob;
@@ -166,8 +237,9 @@ export async function updateProductionBoard(request: Request, input: Store) {
 
   const exists = store.items.some((job) => job.id === normalized.id);
   const items = exists ? store.items.map((job) => job.id === normalized.id ? normalized : job) : [normalized, ...store.items];
-  const actions = [{ id: makeId('board-action'), action: exists ? 'update' : 'create', jobId: normalized.id, orderNumber: normalized.orderNumber, at: nowIso() }, ...store.actions].slice(0, 400);
+  const actions = [{ id: makeId('board-action'), action: exists ? 'update' : 'create', jobId: normalized.id, orderNumber: normalized.orderNumber, at: nowIso(), note: input.note || normalized.productionNotes || null }, ...store.actions].slice(0, 400);
 
   await saveProductionBoardStore(request, { items, actions });
-  return { items, actions, summary: summarizeProductionBoard(items), source: 'internal-production-board-core' };
+  const timeline = await buildUnifiedTimeline(request, items, actions);
+  return { items, actions, timeline, summary: summarizeProductionBoard(items), source: 'internal-production-board-core' };
 }

@@ -20,6 +20,11 @@ function makeId(prefix: string) {
   return `${prefix}-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function asNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 async function readRecord(request: Request) {
   try {
     return await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, PRODUCTION_BOARD_KEY);
@@ -91,6 +96,8 @@ function eventLabel(action: string) {
   if (action === 'delete') return 'Job deleted';
   if (action === 'advance') return 'Job advanced';
   if (action === 'sync-planner') return 'Planner sync';
+  if (action === 'handover-note') return 'Shift handover note';
+  if (action === 'machine-downtime') return 'Machine downtime';
   return action.replace(/-/g, ' ');
 }
 
@@ -126,10 +133,85 @@ function buildPlannerEvents(planner: Store) {
   }));
 }
 
-async function buildUnifiedTimeline(request: Request, items: ProductionJob[], actions: Store[]) {
+function downtimeMinutesForLane(planner: Store, laneId: string) {
+  const downtime = Array.isArray(planner.downtime) ? planner.downtime : [];
+  return downtime
+    .filter((item) => String(item.laneId) === laneId && item.active !== false)
+    .reduce((sum, item) => sum + asNumber(item.minutes, 0), 0);
+}
+
+function buildMachineStatus(planner: Store, boardItems: ProductionJob[]) {
+  const lanes = Array.isArray(planner.lanes) ? planner.lanes : [];
+  const jobs = Array.isArray(planner.jobs) ? planner.jobs : [];
+  return lanes.map((lane) => {
+    const laneJobs = jobs.filter((job) => String(job.laneId) === String(lane.id) && job.stage !== 'completed');
+    const running = laneJobs.find((job) => ['prepress', 'print', 'finish', 'dispatch'].includes(String(job.stage)) && !job.productionBlocked);
+    const blocked = laneJobs.find((job) => job.productionBlocked || job.stage === 'blocked');
+    const usedMinutes = laneJobs.reduce((sum, job) => sum + asNumber(job.estimatedMinutes, 0), 0);
+    const downtimeMinutes = downtimeMinutesForLane(planner, String(lane.id));
+    const capacityMinutes = Math.max(30, asNumber(lane.minutesPerDay, 420) - downtimeMinutes);
+    const matchingBoardJobs = boardItems.filter((job) => job.machineName === lane.name || job.plant === lane.name);
+    const status = blocked ? 'blocked' : running ? 'running' : downtimeMinutes > 0 ? 'downtime' : 'idle';
+    return {
+      id: lane.id,
+      name: lane.name,
+      type: lane.type || 'machine',
+      status,
+      liveStatus: status,
+      activeJobId: running?.id || blocked?.id || null,
+      activeOrderNumber: running?.orderNumber || blocked?.orderNumber || null,
+      usedMinutes,
+      capacityMinutes,
+      downtimeMinutes,
+      remainingMinutes: Math.max(0, capacityMinutes - usedMinutes),
+      utilisationPercent: Math.min(180, Math.round((usedMinutes / Math.max(1, capacityMinutes)) * 100)),
+      queueCount: laneJobs.length + matchingBoardJobs.length,
+      workStartHour: lane.workStartHour || 8,
+      maxWidthMm: lane.maxWidthMm || 0,
+      source: 'production-planner-lanes'
+    };
+  });
+}
+
+function buildShiftHandover(planner: Store, boardItems: ProductionJob[], actions: Store[]) {
+  const shifts = Array.isArray(planner.shifts) ? planner.shifts : [];
+  const enabledShifts = shifts.filter((shift) => shift.enabled !== false);
+  const notes = actions
+    .filter((action) => ['handover-note', 'update', 'machine-downtime'].includes(String(action.action)))
+    .slice(0, 30)
+    .map((action) => ({
+      id: action.id || makeId('handover'),
+      at: action.at || nowIso(),
+      title: eventLabel(String(action.action || 'update')),
+      note: action.note || action.orderNumber || action.jobId || 'Production handover update.',
+      orderNumber: action.orderNumber || null,
+      jobId: action.jobId || null,
+      source: 'production-board-actions'
+    }));
+
+  return {
+    currentShift: enabledShifts[0] || null,
+    nextShift: enabledShifts[1] || null,
+    openBlockedJobs: boardItems.filter((job) => job.handoffState === 'blocked' || job.preflightStatus === 'fail').length,
+    readyForDispatch: boardItems.filter((job) => job.handoffState === 'ready-to-dispatch' || job.stage === 'shipped').length,
+    rushJobs: boardItems.filter((job) => job.priority === 'rush').length,
+    notes,
+    source: 'production-board-actions-and-planner-shifts'
+  };
+}
+
+async function readPlannerSnapshot(request: Request) {
+  try {
+    return await readPlannerStore(request);
+  } catch {
+    return { lanes: [], jobs: [], actions: [], liveEvents: [], downtime: [], shifts: [] } as Store;
+  }
+}
+
+async function buildUnifiedTimeline(request: Request, items: ProductionJob[], actions: Store[], plannerSnapshot?: Store) {
   let plannerEvents: Store[] = [];
   try {
-    const planner = await readPlannerStore(request);
+    const planner = plannerSnapshot || await readPlannerStore(request);
     plannerEvents = buildPlannerEvents(planner);
   } catch {
     plannerEvents = [];
@@ -138,7 +220,7 @@ async function buildUnifiedTimeline(request: Request, items: ProductionJob[], ac
   const boardEvents = actions.map((action) => ({
     id: action.id || makeId('board-event'),
     type: 'board',
-    severity: action.action === 'delete' ? 'warning' : 'info',
+    severity: action.action === 'delete' || action.action === 'machine-downtime' ? 'warning' : 'info',
     jobId: action.jobId || null,
     orderNumber: action.orderNumber || null,
     title: eventLabel(String(action.action || 'update')),
@@ -192,17 +274,31 @@ export async function saveProductionBoardStore(request: Request, store: BoardSto
   } as any);
 }
 
-export async function getProductionBoard(request: Request) {
-  const store = await readProductionBoardStore(request);
-  const timeline = await buildUnifiedTimeline(request, store.items, store.actions);
+async function buildBoardResponse(request: Request, store: BoardStore) {
+  const planner = await readPlannerSnapshot(request);
+  const timeline = await buildUnifiedTimeline(request, store.items, store.actions, planner);
+  const machineStatus = buildMachineStatus(planner, store.items);
+  const shiftHandover = buildShiftHandover(planner, store.items, store.actions);
   return {
     items: store.items,
     actions: store.actions,
     timeline,
-    summary: summarizeProductionBoard(store.items),
+    machineStatus,
+    shiftHandover,
+    summary: {
+      ...summarizeProductionBoard(store.items),
+      machinesRunning: machineStatus.filter((machine) => machine.status === 'running').length,
+      machinesBlocked: machineStatus.filter((machine) => machine.status === 'blocked' || machine.status === 'downtime').length,
+      handoverNotes: shiftHandover.notes.length
+    },
     source: 'internal-production-board-core',
     storageKey: PRODUCTION_BOARD_KEY
   };
+}
+
+export async function getProductionBoard(request: Request) {
+  const store = await readProductionBoardStore(request);
+  return buildBoardResponse(request, store);
 }
 
 export async function updateProductionBoard(request: Request, input: Store) {
@@ -214,9 +310,16 @@ export async function updateProductionBoard(request: Request, input: Store) {
     if (!id) throw new Error('Production job id is required.');
     const items = store.items.filter((job) => job.id !== id);
     const actions = [{ id: makeId('board-action'), action, jobId: id, at: nowIso(), note: input.note || 'Deleted from production board.' }, ...store.actions].slice(0, 400);
-    await saveProductionBoardStore(request, { items, actions });
-    const timeline = await buildUnifiedTimeline(request, items, actions);
-    return { items, actions, timeline, summary: summarizeProductionBoard(items), source: 'internal-production-board-core' };
+    const nextStore = { items, actions };
+    await saveProductionBoardStore(request, nextStore);
+    return buildBoardResponse(request, nextStore);
+  }
+
+  if (action === 'handover-note' || action === 'machine-downtime') {
+    const actions = [{ id: makeId('board-action'), action, jobId: input.jobId || null, orderNumber: input.orderNumber || null, at: nowIso(), note: input.note || input.reason || 'Production handover update.', laneId: input.laneId || null }, ...store.actions].slice(0, 400);
+    const nextStore = { items: store.items, actions };
+    await saveProductionBoardStore(request, nextStore);
+    return buildBoardResponse(request, nextStore);
   }
 
   const incoming = (input.job || input) as ProductionJob;
@@ -238,8 +341,8 @@ export async function updateProductionBoard(request: Request, input: Store) {
   const exists = store.items.some((job) => job.id === normalized.id);
   const items = exists ? store.items.map((job) => job.id === normalized.id ? normalized : job) : [normalized, ...store.items];
   const actions = [{ id: makeId('board-action'), action: exists ? 'update' : 'create', jobId: normalized.id, orderNumber: normalized.orderNumber, at: nowIso(), note: input.note || normalized.productionNotes || null }, ...store.actions].slice(0, 400);
+  const nextStore = { items, actions };
 
-  await saveProductionBoardStore(request, { items, actions });
-  const timeline = await buildUnifiedTimeline(request, items, actions);
-  return { items, actions, timeline, summary: summarizeProductionBoard(items), source: 'internal-production-board-core' };
+  await saveProductionBoardStore(request, nextStore);
+  return buildBoardResponse(request, nextStore);
 }

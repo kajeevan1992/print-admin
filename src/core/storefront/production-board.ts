@@ -25,6 +25,13 @@ function asNumber(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function isToday(value?: string) {
+  if (!value) return false;
+  const a = new Date(value);
+  const b = new Date();
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 async function readRecord(request: Request) {
   try {
     return await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, PRODUCTION_BOARD_KEY);
@@ -98,6 +105,9 @@ function eventLabel(action: string) {
   if (action === 'sync-planner') return 'Planner sync';
   if (action === 'handover-note') return 'Shift handover note';
   if (action === 'machine-downtime') return 'Machine downtime';
+  if (action === 'dispatch-scan') return 'Dispatch scan';
+  if (action === 'dispatch-manifest') return 'Dispatch manifest';
+  if (action === 'sla-checkpoint') return 'SLA checkpoint';
   return action.replace(/-/g, ' ');
 }
 
@@ -177,7 +187,7 @@ function buildShiftHandover(planner: Store, boardItems: ProductionJob[], actions
   const shifts = Array.isArray(planner.shifts) ? planner.shifts : [];
   const enabledShifts = shifts.filter((shift) => shift.enabled !== false);
   const notes = actions
-    .filter((action) => ['handover-note', 'update', 'machine-downtime'].includes(String(action.action)))
+    .filter((action) => ['handover-note', 'update', 'machine-downtime', 'dispatch-scan', 'dispatch-manifest'].includes(String(action.action)))
     .slice(0, 30)
     .map((action) => ({
       id: action.id || makeId('handover'),
@@ -197,6 +207,101 @@ function buildShiftHandover(planner: Store, boardItems: ProductionJob[], actions
     rushJobs: boardItems.filter((job) => job.priority === 'rush').length,
     notes,
     source: 'production-board-actions-and-planner-shifts'
+  };
+}
+
+function minutesUntilDue(job: ProductionJob) {
+  if (!job.dueDate) return null;
+  const due = new Date(job.dueDate);
+  due.setHours(17, 0, 0, 0);
+  return Math.round((due.getTime() - Date.now()) / 60000);
+}
+
+function buildSlaCountdowns(items: ProductionJob[]) {
+  return items
+    .filter((job) => job.stage !== 'shipped')
+    .map((job) => {
+      const minutes = minutesUntilDue(job);
+      return {
+        jobId: job.id,
+        orderNumber: job.orderNumber,
+        customer: job.customer || 'Customer not set',
+        priority: job.priority || 'standard',
+        slaRisk: job.slaRisk,
+        dueDate: job.dueDate,
+        minutesRemaining: minutes,
+        overdue: typeof minutes === 'number' ? minutes < 0 : false,
+        status: typeof minutes !== 'number' ? 'unknown' : minutes < 0 ? 'overdue' : minutes <= 240 ? 'critical' : minutes <= 1440 ? 'watch' : 'healthy'
+      };
+    })
+    .sort((a, b) => asNumber(a.minutesRemaining, 999999) - asNumber(b.minutesRemaining, 999999))
+    .slice(0, 20);
+}
+
+function buildDispatchCenter(items: ProductionJob[], actions: Store[]) {
+  const scanEvents = actions.filter((action) => action.action === 'dispatch-scan');
+  const manifestEvents = actions.filter((action) => action.action === 'dispatch-manifest');
+  const readyJobs = items.filter((job) => job.handoffState === 'ready-to-dispatch' || job.stage === 'shipped');
+  const scannedOrders = new Set(scanEvents.map((event) => String(event.orderNumber || '').toLowerCase()).filter(Boolean));
+  const methods = Array.from(new Set(items.map((job) => job.dispatchMethod || 'collection')));
+  const manifests = methods.map((method) => {
+    const jobs = readyJobs.filter((job) => (job.dispatchMethod || 'collection') === method);
+    return {
+      id: `manifest-${method}`,
+      method,
+      jobCount: jobs.length,
+      scannedCount: jobs.filter((job) => scannedOrders.has(job.orderNumber.toLowerCase())).length,
+      orders: jobs.map((job) => job.orderNumber),
+      lastGeneratedAt: manifestEvents.find((event) => event.dispatchMethod === method)?.at || null
+    };
+  });
+
+  return {
+    readyJobs: readyJobs.length,
+    pendingScan: readyJobs.filter((job) => !scannedOrders.has(job.orderNumber.toLowerCase())).length,
+    scannedToday: scanEvents.filter((event) => isToday(event.at)).length,
+    totalScanned: scanEvents.length,
+    manifests,
+    recentScans: scanEvents.slice(0, 20).map((event) => ({
+      id: event.id,
+      at: event.at,
+      orderNumber: event.orderNumber,
+      jobId: event.jobId,
+      operator: event.operator || 'Unknown operator',
+      checkpoint: event.checkpoint || 'dispatch',
+      dispatchMethod: event.dispatchMethod || null,
+      note: event.note || 'Dispatch scan recorded.'
+    })),
+    source: 'production-board-dispatch-actions'
+  };
+}
+
+function buildProductionKpis(items: ProductionJob[], machineStatus: Store[], actions: Store[], dispatchCenter: Store, slaCountdowns: Store[]) {
+  const complete = items.filter((job) => job.stage === 'shipped').length;
+  const blocked = items.filter((job) => job.handoffState === 'blocked' || job.preflightStatus === 'fail').length;
+  const overdue = slaCountdowns.filter((job) => job.overdue).length;
+  const avgUtilisation = machineStatus.length ? Math.round(machineStatus.reduce((sum, machine) => sum + asNumber(machine.utilisationPercent, 0), 0) / machineStatus.length) : 0;
+  const totalDowntime = machineStatus.reduce((sum, machine) => sum + asNumber(machine.downtimeMinutes, 0), 0);
+  const dispatchCompletionPercent = dispatchCenter.readyJobs ? Math.round((asNumber(dispatchCenter.totalScanned, 0) / Math.max(1, asNumber(dispatchCenter.readyJobs, 0))) * 100) : 0;
+  return {
+    totalJobs: items.length,
+    completedJobs: complete,
+    completionPercent: Math.round((complete / Math.max(1, items.length)) * 100),
+    blockedJobs: blocked,
+    blockedPercent: Math.round((blocked / Math.max(1, items.length)) * 100),
+    overdueJobs: overdue,
+    rushJobs: items.filter((job) => job.priority === 'rush').length,
+    highRiskJobs: items.filter((job) => job.slaRisk === 'high').length,
+    readyToDispatch: asNumber(dispatchCenter.readyJobs, 0),
+    pendingDispatchScan: asNumber(dispatchCenter.pendingScan, 0),
+    dispatchScannedToday: asNumber(dispatchCenter.scannedToday, 0),
+    dispatchCompletionPercent,
+    averageMachineUtilisation: avgUtilisation,
+    machinesRunning: machineStatus.filter((machine) => machine.status === 'running').length,
+    machinesBlocked: machineStatus.filter((machine) => machine.status === 'blocked' || machine.status === 'downtime').length,
+    totalDowntimeMinutes: totalDowntime,
+    actionsToday: actions.filter((action) => isToday(action.at)).length,
+    source: 'internal-production-kpi-engine'
   };
 }
 
@@ -220,7 +325,7 @@ async function buildUnifiedTimeline(request: Request, items: ProductionJob[], ac
   const boardEvents = actions.map((action) => ({
     id: action.id || makeId('board-event'),
     type: 'board',
-    severity: action.action === 'delete' || action.action === 'machine-downtime' ? 'warning' : 'info',
+    severity: ['delete', 'machine-downtime'].includes(String(action.action)) ? 'warning' : action.action === 'dispatch-scan' ? 'success' : 'info',
     jobId: action.jobId || null,
     orderNumber: action.orderNumber || null,
     title: eventLabel(String(action.action || 'update')),
@@ -279,17 +384,27 @@ async function buildBoardResponse(request: Request, store: BoardStore) {
   const timeline = await buildUnifiedTimeline(request, store.items, store.actions, planner);
   const machineStatus = buildMachineStatus(planner, store.items);
   const shiftHandover = buildShiftHandover(planner, store.items, store.actions);
+  const dispatchCenter = buildDispatchCenter(store.items, store.actions);
+  const slaCountdowns = buildSlaCountdowns(store.items);
+  const productionKpis = buildProductionKpis(store.items, machineStatus, store.actions, dispatchCenter, slaCountdowns);
   return {
     items: store.items,
     actions: store.actions,
     timeline,
     machineStatus,
     shiftHandover,
+    dispatchCenter,
+    slaCountdowns,
+    productionKpis,
     summary: {
       ...summarizeProductionBoard(store.items),
       machinesRunning: machineStatus.filter((machine) => machine.status === 'running').length,
       machinesBlocked: machineStatus.filter((machine) => machine.status === 'blocked' || machine.status === 'downtime').length,
-      handoverNotes: shiftHandover.notes.length
+      handoverNotes: shiftHandover.notes.length,
+      pendingDispatchScan: dispatchCenter.pendingScan,
+      dispatchScannedToday: dispatchCenter.scannedToday,
+      overdueJobs: productionKpis.overdueJobs,
+      averageMachineUtilisation: productionKpis.averageMachineUtilisation
     },
     source: 'internal-production-board-core',
     storageKey: PRODUCTION_BOARD_KEY
@@ -315,9 +430,24 @@ export async function updateProductionBoard(request: Request, input: Store) {
     return buildBoardResponse(request, nextStore);
   }
 
-  if (action === 'handover-note' || action === 'machine-downtime') {
-    const actions = [{ id: makeId('board-action'), action, jobId: input.jobId || null, orderNumber: input.orderNumber || null, at: nowIso(), note: input.note || input.reason || 'Production handover update.', laneId: input.laneId || null }, ...store.actions].slice(0, 400);
+  if (action === 'handover-note' || action === 'machine-downtime' || action === 'dispatch-manifest' || action === 'sla-checkpoint') {
+    const actions = [{ id: makeId('board-action'), action, jobId: input.jobId || null, orderNumber: input.orderNumber || null, at: nowIso(), note: input.note || input.reason || 'Production operations update.', laneId: input.laneId || null, dispatchMethod: input.dispatchMethod || null, operator: input.operator || null, checkpoint: input.checkpoint || null }, ...store.actions].slice(0, 400);
     const nextStore = { items: store.items, actions };
+    await saveProductionBoardStore(request, nextStore);
+    return buildBoardResponse(request, nextStore);
+  }
+
+  if (action === 'dispatch-scan') {
+    const scanCode = String(input.scanCode || input.orderNumber || input.jobId || '').trim().toLowerCase();
+    if (!scanCode) throw new Error('Dispatch scan code, order number, or job id is required.');
+    const index = store.items.findIndex((job) => job.id.toLowerCase() === scanCode || job.orderNumber.toLowerCase() === scanCode);
+    if (index < 0) throw new Error('No production job matched this dispatch scan.');
+    const matched = store.items[index];
+    const updated: ProductionJob = { ...matched, stage: 'shipped', handoffState: 'dispatched', productionNotes: input.note || matched.productionNotes || 'Dispatch scan completed.' };
+    const items = [...store.items];
+    items[index] = updated;
+    const actions = [{ id: makeId('board-action'), action, jobId: updated.id, orderNumber: updated.orderNumber, at: nowIso(), note: input.note || 'Dispatch scan completed.', operator: input.operator || null, checkpoint: input.checkpoint || 'dispatch', dispatchMethod: updated.dispatchMethod || input.dispatchMethod || null }, ...store.actions].slice(0, 400);
+    const nextStore = { items, actions };
     await saveProductionBoardStore(request, nextStore);
     return buildBoardResponse(request, nextStore);
   }

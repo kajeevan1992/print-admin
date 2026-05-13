@@ -27,6 +27,15 @@ export type ProductionJob = {
   stage: 'queued' | 'proofing' | 'printing' | 'finishing' | 'shipped';
   slaRisk: 'low' | 'medium' | 'high';
   dueDate: string;
+  customer?: string;
+  artworkStatus?: 'missing' | 'uploaded' | 'preflight-review' | 'changes-requested' | 'approved';
+  preflightStatus?: 'pending' | 'pass' | 'warning' | 'fail' | 'override';
+  assignedOperator?: string;
+  machineName?: string;
+  priority?: 'standard' | 'priority' | 'rush';
+  productionNotes?: string;
+  dispatchMethod?: 'collection' | 'local-delivery' | 'courier' | 'royal-mail';
+  handoffState?: 'needs-artwork' | 'ready-for-print' | 'printing' | 'finishing' | 'ready-to-dispatch' | 'dispatched' | 'blocked';
 };
 
 export type ArtworkProof = {
@@ -62,11 +71,79 @@ export const customersMock: CustomerRecord[] = [
 ];
 
 export const productionJobsMock: ProductionJob[] = [
-  { id: 'pj-1001', orderNumber: 'ORD-32018', product: 'Premium Catalog A4', plant: 'Nevada DC', stage: 'printing', slaRisk: 'medium', dueDate: '2026-04-07' },
-  { id: 'pj-1002', orderNumber: 'ORD-32024', product: 'Matte Business Card', plant: 'Texas Plant', stage: 'queued', slaRisk: 'low', dueDate: '2026-04-08' },
-  { id: 'pj-1003', orderNumber: 'ORD-32031', product: 'Direct Mail Letter Pack', plant: 'New Jersey Hub', stage: 'proofing', slaRisk: 'high', dueDate: '2026-04-06' }
+  {
+    id: 'pj-1001',
+    orderNumber: 'ORD-32018',
+    customer: 'Northwind Office',
+    product: 'Premium Catalog A4',
+    plant: 'Nevada DC',
+    stage: 'printing',
+    slaRisk: 'medium',
+    dueDate: '2026-04-07',
+    artworkStatus: 'approved',
+    preflightStatus: 'pass',
+    assignedOperator: 'Prepress Team',
+    machineName: 'Ricoh Pro C5400s',
+    priority: 'priority',
+    productionNotes: 'Inside spreads approved. Watch colour density on cover stock.',
+    dispatchMethod: 'courier',
+    handoffState: 'printing'
+  },
+  {
+    id: 'pj-1002',
+    orderNumber: 'ORD-32024',
+    customer: 'Acme Office',
+    product: 'Matte Business Card',
+    plant: 'Texas Plant',
+    stage: 'queued',
+    slaRisk: 'low',
+    dueDate: '2026-04-08',
+    artworkStatus: 'uploaded',
+    preflightStatus: 'pending',
+    assignedOperator: 'Studio Desk',
+    machineName: 'Digital Press 01',
+    priority: 'standard',
+    productionNotes: 'Awaiting final internal artwork check before print release.',
+    dispatchMethod: 'collection',
+    handoffState: 'needs-artwork'
+  },
+  {
+    id: 'pj-1003',
+    orderNumber: 'ORD-32031',
+    customer: 'Bright Dental',
+    product: 'Direct Mail Letter Pack',
+    plant: 'New Jersey Hub',
+    stage: 'proofing',
+    slaRisk: 'high',
+    dueDate: '2026-04-06',
+    artworkStatus: 'changes-requested',
+    preflightStatus: 'fail',
+    assignedOperator: 'Prepress Team',
+    machineName: 'Mail Pack Cell',
+    priority: 'rush',
+    productionNotes: 'Bleed issue on folded panel and missing postage zone margin.',
+    dispatchMethod: 'royal-mail',
+    handoffState: 'blocked'
+  },
+  {
+    id: 'pj-1004',
+    orderNumber: 'ORD-32044',
+    customer: 'Nova Retail',
+    product: 'Window Vinyl Kit',
+    plant: 'Nevada DC',
+    stage: 'finishing',
+    slaRisk: 'medium',
+    dueDate: '2026-04-10',
+    artworkStatus: 'approved',
+    preflightStatus: 'override',
+    assignedOperator: 'Large Format Team',
+    machineName: 'Roll-to-roll Latex',
+    priority: 'priority',
+    productionNotes: 'Laminate before trimming. Customer collecting from front counter.',
+    dispatchMethod: 'collection',
+    handoffState: 'finishing'
+  }
 ];
-
 
 export const artworkProofsMock: ArtworkProof[] = [
   { id: 'ap-1001', orderNumber: 'ORD-32018', customer: 'Northwind Office', product: 'Premium Catalog A4', owner: 'Prepress Team', status: 'customer-approval', risk: 'medium', dueDate: '2026-04-08', notes: 'Customer requested final colour confirmation on inside spreads.' },

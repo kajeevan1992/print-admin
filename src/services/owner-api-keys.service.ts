@@ -1,8 +1,4 @@
-import { ownerApiKeySeed, type OwnerApiKeyRecord } from '@/data/owner-api-keys';
-import { createInternalConfigRecordsService } from '@/services/internal-config-records.service';
+import type { OwnerApiKeyRecord } from '@/data/owner-api-keys';
+import { createOwnerControlRecordsService } from '@/services/owner-control-records.service';
 
-export const ownerApiKeysService = createInternalConfigRecordsService<OwnerApiKeyRecord>({
-  configKey: 'owner-api-keys',
-  storageKey: 'print-admin.owner-api-keys',
-  seed: ownerApiKeySeed,
-});
+export const ownerApiKeysService = createOwnerControlRecordsService<OwnerApiKeyRecord>('owner-api-keys');

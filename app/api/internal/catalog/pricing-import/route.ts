@@ -20,6 +20,32 @@ function slugify(value: string) {
     .replace(/^-+|-+$/g, '') || 'imported-product';
 }
 
+function uniqueKey(base: string, used: Set<string>) {
+  const root = slugify(base);
+  let next = root;
+  let index = 2;
+  while (used.has(next)) {
+    next = `${root}-${index}`;
+    index += 1;
+  }
+  used.add(next);
+  return next;
+}
+
+function storefrontDisplayType(header: string) {
+  const key = header.toLowerCase();
+  if (key.includes('quantity') || key.includes('sets')) return 'quantity-grid';
+  if (key.includes('paper') || key.includes('material') || key.includes('lamination') || key.includes('finish') || key.includes('cover')) return 'cards';
+  if (key.includes('turnaround') || key.includes('size') || key.includes('print type') || key.includes('orientation')) return 'buttons';
+  return 'dropdown';
+}
+
+function optionType(header: string) {
+  const key = header.toLowerCase();
+  if (key.includes('quantity') || key.includes('sets') || key.includes('page number')) return 'quantity';
+  return 'select';
+}
+
 function parseCsvLine(line: string) {
   const cells: string[] = [];
   let current = '';
@@ -87,28 +113,50 @@ function titleFromSlug(slug: string) {
 }
 
 function buildOptionGroups(headers: string[], rows: CsvRow[]) {
+  const usedKeys = new Set<string>();
+
   return headers
     .filter((header) => !SYSTEM_COLUMNS.has(header))
     .map((header, index) => {
-      const values = Array.from(new Set(rows.map((row) => row[header]).filter(Boolean))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      const key = uniqueKey(header, usedKeys);
+      const values = Array.from(new Set(rows.map((row) => row[header]).filter((value) => String(value || '').trim().length > 0)))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+      if (!values.length) return null;
+
       return {
-        id: slugify(header),
+        id: key,
+        key,
+        name: header,
         label: header,
-        type: header.toLowerCase().includes('quantity') ? 'quantity' : 'select',
+        type: optionType(header),
+        inputType: optionType(header),
+        storefrontDisplayType: storefrontDisplayType(header),
+        displayType: storefrontDisplayType(header),
         required: true,
         sortOrder: index + 1,
-        values: values.map((value) => ({ label: value, value })),
+        values: values.map((value, valueIndex) => ({
+          id: `${key}-${slugify(value)}`,
+          key: slugify(value),
+          label: value,
+          value,
+          sortOrder: valueIndex + 1,
+        })),
       };
-    });
+    })
+    .filter(Boolean);
 }
 
 function buildPriceRows(headers: string[], rows: CsvRow[], markupPercent: number) {
-  const optionColumns = headers.filter((header) => !SYSTEM_COLUMNS.has(header));
+  const usedKeys = new Set<string>();
+  const optionColumns = headers
+    .filter((header) => !SYSTEM_COLUMNS.has(header))
+    .map((header) => ({ header, key: uniqueKey(header, usedKeys) }));
 
   return rows.map((row) => {
     const supplierPriceMinor = moneyToMinor(row[PRICE_COLUMN]);
     const priceMinor = Math.round(supplierPriceMinor * (1 + Math.max(0, markupPercent) / 100));
-    const options = Object.fromEntries(optionColumns.map((column) => [slugify(column), row[column] || '']));
+    const options = Object.fromEntries(optionColumns.map(({ header, key }) => [key, row[header] || '']).filter(([, value]) => String(value || '').trim().length > 0));
 
     return {
       sku: row.SKU,

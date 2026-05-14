@@ -15,9 +15,17 @@ function visible(product: Store) {
   return Boolean(product.isActive) || m.status === 'published' || m.storefront?.visible === true;
 }
 
+function hasCsvMatrix(product: Store) {
+  const m = meta(product);
+  const optionGroups = Array.isArray(m.optionGroups) ? m.optionGroups : [];
+  const rows = Array.isArray(m.pricingMatrix?.rows) ? m.pricingMatrix.rows : [];
+  return m.pricingSource === 'csv-matrix' && optionGroups.length > 0 && rows.length > 0;
+}
+
 function toStorefrontProduct(product: Store) {
   const m = meta(product);
   const readiness = checkProductReadiness(product);
+  const csvMatrixReady = hasCsvMatrix(product);
   return {
     id: product.id,
     name: product.name || product.title,
@@ -36,17 +44,24 @@ function toStorefrontProduct(product: Store) {
     editor: m.editor || {},
     relatedProducts: Array.isArray(m.relatedProducts) ? m.relatedProducts : [],
     options: Array.isArray(m.options) ? m.options : [],
+    optionGroups: Array.isArray(m.optionGroups) ? m.optionGroups : [],
     rules: Array.isArray(m.rules) ? m.rules : [],
     quantities: Array.isArray(m.quantities) ? m.quantities : [],
     turnaroundOptions: Array.isArray(m.turnaroundOptions) ? m.turnaroundOptions : [],
-    pricing: m.pricing || { source: 'fixed' },
+    pricing: m.pricing || { source: m.pricingSource || 'fixed' },
+    pricingMatrix: m.pricingMatrix || null,
     artworkRequired: m.artworkRequired !== false,
     artwork: m.artwork || {},
     artworkRules: m.artworkRules || {},
     storefront: { ...(m.storefront || {}), visible: visible(product) },
     checkout: m.checkout || { paymentEnabled: true },
     metadataJson: m,
-    readiness: { ready: readiness.ready, errors: readiness.errors, warnings: readiness.warnings },
+    readiness: {
+      ready: readiness.ready || csvMatrixReady,
+      csvMatrixReady,
+      errors: csvMatrixReady ? [] : readiness.errors,
+      warnings: readiness.warnings,
+    },
   };
 }
 
@@ -56,8 +71,8 @@ export async function listStorefrontProducts(request: Request) {
   const categoryId = url.searchParams.get('categoryId');
   const includeDrafts = url.searchParams.get('includeDrafts') === 'true';
   const items = ((all as any).items || [])
-    .map((product: Store) => ({ raw: product, view: toStorefrontProduct(product), readiness: checkProductReadiness(product) }))
-    .filter((entry: Store) => includeDrafts || (visible(entry.raw) && entry.readiness.ready))
+    .map((product: Store) => ({ raw: product, view: toStorefrontProduct(product), readiness: checkProductReadiness(product), csvMatrixReady: hasCsvMatrix(product) }))
+    .filter((entry: Store) => includeDrafts || (visible(entry.raw) && (entry.readiness.ready || entry.csvMatrixReady)))
     .filter((entry: Store) => !categoryId || entry.view.categoryId === categoryId)
     .map((entry: Store) => entry.view);
   return { items, count: items.length, source: 'internal-storefront-products' };

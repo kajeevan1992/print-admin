@@ -15,6 +15,7 @@ import { CatalogPageDiagnostics } from '@/components/catalog/catalog-page-diagno
 import { productsService } from '@/services/products.service';
 import { categoriesService } from '@/services/categories.service';
 import { vendorsService } from '@/services/vendors.service';
+import { pricingImportService } from '@/services/pricing-import.service';
 import type { Product, ProductFormValues, ProductListQuery } from '@/modules/products/types';
 
 const emptyForm: ProductFormValues = {
@@ -48,6 +49,12 @@ export function ProductsListPage() {
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
   const [vendorOptions, setVendorOptions] = useState<SelectOption[]>([]);
   const [open, setOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [importSlug, setImportSlug] = useState('standard-business-cards');
+  const [importName, setImportName] = useState('Standard Business Cards');
+  const [importMarkup, setImportMarkup] = useState('35');
+  const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ProductFormValues>(emptyForm);
   const [creationSuccess, setCreationSuccess] = useState(false);
   const [createdProductId, setCreatedProductId] = useState('');
@@ -94,6 +101,36 @@ export function ProductsListPage() {
 
   const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
 
+  async function handleCsvImport() {
+    if (!csvFile || !importSlug.trim() || !importName.trim()) {
+      setError('CSV file, product slug and product name are required.');
+      return;
+    }
+
+    setImporting(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const result = await pricingImportService.importCsvPricing({
+        file: csvFile,
+        productSlug: importSlug.trim(),
+        productName: importName.trim(),
+        categoryId: form.categoryId || undefined,
+        markupPercent: Number(importMarkup || 0),
+      });
+
+      setNotice(`Imported CSV pricing for ${result.productName || importName}.`);
+      setImportOpen(false);
+      setCsvFile(null);
+      await loadProducts(params);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'CSV pricing import failed.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const handleToggle = async (id: string, key: 'published' | 'isGlobal', value: boolean) => {
     setError(null);
     setNotice(null);
@@ -126,7 +163,6 @@ export function ProductsListPage() {
       setError(err instanceof Error ? err.message : 'Product action failed');
     }
   };
-
 
   const confirmDeleteProduct = async () => {
     if (!pendingDeleteProduct) return;
@@ -174,7 +210,7 @@ export function ProductsListPage() {
       <PageHeader
         title="Products"
         subtitle={subtitle}
-        actions={<><Button>Import</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
+        actions={<><Button onClick={() => setImportOpen(true)}>Import CSV Pricing</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
       />
 
       <CatalogPageDiagnostics resourceLabel="Products" loading={loading} error={error} itemCount={products.length} />
@@ -186,48 +222,25 @@ export function ProductsListPage() {
         <Select options={[{ value: '', label: 'All vendors' }, ...vendorOptions]} value={params.vendorId ?? ''} onChange={(e) => setParams((prev) => ({ ...prev, vendorId: e.target.value || undefined }))} />
       </FilterBar>
 
-      {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading products...</div> : null}
-      {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
-
-      {!loading && !error && products.length === 0 ? (
-        <EmptyModuleState title="No products yet" description="Create your first product with template upload, blank setup, || parametric standard generation." action={<PrimaryButton onClick={() => setOpen(true)}>Add Product</PrimaryButton>} />
-      ) : null}
-
       {!loading && !error && products.length > 0 ? <ProductTable products={products} onToggle={handleToggle} onAction={handleAction} /> : null}
 
-      <BaseModal open={open} onClose={() => { setOpen(false); setCreationSuccess(false); }} title="Add Product">
-        <ProductForm
-          values={form}
-          categoryOptions={categoryOptions}
-          onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))}
-          onCancel={() => setOpen(false)}
-          onSubmit={handleCreate}
-          success={creationSuccess}
-          onReset={resetCreation}
-        />
-        {creationSuccess && createdProductId ? (
-          <div className="mt-3 flex justify-end gap-2">
-            <Button onClick={() => router.push(`/products/${createdProductId}`)}>Edit Product</Button>
-            <Button onClick={() => setOpen(false)}>Return to Products</Button>
-          </div>
-        ) : null}
-      </BaseModal>
-
-      <BaseModal open={Boolean(pendingDeleteProduct)} onClose={() => setPendingDeleteProduct(null)} title="Delete Product">
+      <BaseModal open={importOpen} onClose={() => setImportOpen(false)} title="Import CSV Pricing">
         <div className="space-y-4">
-          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
-            <p className="font-semibold">Delete {pendingDeleteProduct?.name}?</p>
-            <p className="mt-2 text-red-100/80">This removes the product from the tenant catalog database. This action cannot be undone from the dashboard.</p>
+          <Input label="Product Slug" value={importSlug} onChange={(e) => setImportSlug(e.target.value)} placeholder="standard-business-cards" />
+          <Input label="Product Name" value={importName} onChange={(e) => setImportName(e.target.value)} placeholder="Standard Business Cards" />
+          <Input label="Markup %" value={importMarkup} onChange={(e) => setImportMarkup(e.target.value)} placeholder="35" />
+          <div className="space-y-2">
+            <label className="text-sm font-medium">CSV File</label>
+            <input type="file" accept=".csv,text/csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="w-full rounded-xl border border-border bg-panel px-3 py-2 text-sm" />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button onClick={() => setPendingDeleteProduct(null)} disabled={saving}>Cancel</Button>
-            <Button className="border-red-500/40 text-red-200 hover:bg-red-500/10" onClick={confirmDeleteProduct} disabled={saving}>
-              {saving ? 'Deleting...' : 'Delete Product'}
-            </Button>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button onClick={() => setImportOpen(false)} disabled={importing}>Cancel</Button>
+            <PrimaryButton onClick={handleCsvImport} disabled={importing || !csvFile}>
+              {importing ? 'Importing…' : 'Import Pricing CSV'}
+            </PrimaryButton>
           </div>
         </div>
       </BaseModal>
-
     </div>
   );
 }

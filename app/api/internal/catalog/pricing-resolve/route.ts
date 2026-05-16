@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
+import { resolveProductConfig, rowPriceMinor } from '@/core/storefront/product-config-engine';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -8,7 +9,7 @@ export const runtime = 'nodejs';
 type PricingRow = {
   sku?: string;
   oldSku?: string;
-  quantity?: number | null;
+  quantity?: number | string | null;
   options?: Record<string, string>;
   vatRate?: number;
   supplierPriceMinor?: number;
@@ -17,11 +18,7 @@ type PricingRow = {
 };
 
 function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  return value.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 function normalizeValue(value: unknown) {
@@ -31,7 +28,9 @@ function normalizeValue(value: unknown) {
 function normalizeSelections(input: Record<string, unknown>) {
   const raw = input.options && typeof input.options === 'object' && !Array.isArray(input.options)
     ? input.options as Record<string, unknown>
-    : input;
+    : input.selections && typeof input.selections === 'object' && !Array.isArray(input.selections)
+      ? input.selections as Record<string, unknown>
+      : input;
 
   const next: Record<string, string> = {};
 
@@ -90,7 +89,7 @@ function findAlternatives(rows: PricingRow[], selections: Record<string, string>
   return rows
     .map((row) => ({ row, ...scorePartialMatch(row, selections) }))
     .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.misses - b.misses || (a.row.priceMinor || 0) - (b.row.priceMinor || 0))
+    .sort((a, b) => b.score - a.score || a.misses - b.misses || (Number(a.row.priceMinor || 0) - Number(b.row.priceMinor || 0)))
     .slice(0, 10)
     .map((item) => item.row);
 }
@@ -111,7 +110,12 @@ export async function POST(request: Request) {
     if (!rows.length) throw new Error(`Product ${productId} does not have an imported CSV pricing matrix.`);
 
     const selections = normalizeSelections(body);
-    const match = rows.find((row) => exactMatch(row, selections));
+    const resolvedConfig = resolveProductConfig(product, {
+      selections,
+      quantity: body.quantity as string | number | null | undefined,
+      delivery: body.delivery as string | null | undefined,
+    });
+    const match = (resolvedConfig.matchedRow as PricingRow | null) || rows.find((row) => exactMatch(row, resolvedConfig.selections));
 
     if (!match) {
       return NextResponse.json({
@@ -120,14 +124,17 @@ export async function POST(request: Request) {
         error: 'No exact price match found for the selected options.',
         data: {
           productId,
-          selections,
+          selections: resolvedConfig.selections,
           optionGroups: optionGroupsFromProduct(product),
-          alternatives: findAlternatives(rows, selections),
+          resolvedConfig,
+          quantityRows: resolvedConfig.quantityRows,
+          deliveryRows: resolvedConfig.deliveryRows,
+          alternatives: findAlternatives(rows, resolvedConfig.selections),
         },
       }, { status: 404 });
     }
 
-    const priceMinor = Number(match.priceMinor || 0);
+    const priceMinor = Number(rowPriceMinor(match) || 0);
     const vatRate = Number(match.vatRate ?? 20);
     const vatMinor = Math.round(priceMinor * (vatRate / 100));
     const totalMinor = priceMinor + vatMinor;
@@ -143,8 +150,10 @@ export async function POST(request: Request) {
         },
         sku: match.sku,
         oldSku: match.oldSku,
-        quantity: match.quantity,
+        quantity: resolvedConfig.selectedQuantity || match.quantity,
+        delivery: resolvedConfig.selectedDelivery,
         options: match.options,
+        selections: resolvedConfig.selections,
         currency: match.currency || 'GBP',
         netMinor: priceMinor,
         vatRate,
@@ -152,6 +161,9 @@ export async function POST(request: Request) {
         grossMinor: totalMinor,
         supplierPriceMinor: match.supplierPriceMinor || null,
         matchedRow: match,
+        resolvedConfig,
+        quantityRows: resolvedConfig.quantityRows,
+        deliveryRows: resolvedConfig.deliveryRows,
       },
     });
   } catch (error) {

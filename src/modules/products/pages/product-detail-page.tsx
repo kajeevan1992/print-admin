@@ -13,6 +13,7 @@ import { PrintEditorForm } from '@/modules/products/components/print-editor-form
 import { ProductRightSidebar } from '@/modules/products/components/product-right-sidebar';
 import { ProductOptionGroupsBuilder } from '@/modules/products/components/product-option-groups-builder';
 import { ProductTemplateRulesBuilder } from '@/modules/products/components/product-template-rules-builder';
+import { ProductModeSettingsBuilder } from '@/modules/products/components/product-mode-settings-builder';
 import { productsService } from '@/services/products.service';
 import { categoriesService } from '@/services/categories.service';
 import { calculateProductEstimate, getArtworkProfile, getCompatibleFinishes, getCompatibleMaterials, getCompatiblePrinters, getRuleWarnings } from '@/lib/product-system';
@@ -143,6 +144,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
 
           {active === 'Option Groups' && <ProductOptionGroupsBuilder product={product} onUpdate={persistProduct} />}
           {active === 'Templates & Rules' && <ProductTemplateRulesBuilder product={product} onUpdate={persistProduct} />}
+          {active === 'Product Modes' && <ProductModeSettingsBuilder product={product} onUpdate={persistProduct} />}
 
           {active === 'Print Editor' && <PrintEditorForm product={product} onUpdate={persistProduct} />}
 
@@ -154,18 +156,11 @@ export function ProductDetailPage({ productId }: { productId: string }) {
                 <Button
                   onClick={() => {
                     if (!attributeType.trim() || !attributeValue.trim()) return;
-                    void persistProduct({
-                      attributes: [
-                        ...product.attributes,
-                        { id: `attr-${Date.now()}`, type: attributeType.trim(), value: attributeValue.trim() }
-                      ]
-                    });
+                    void persistProduct({ attributes: [ ...product.attributes, { id: `attr-${Date.now()}`, type: attributeType.trim(), value: attributeValue.trim() } ] });
                     setAttributeType('');
                     setAttributeValue('');
                   }}
-                >
-                  Add Attribute
-                </Button>
+                >Add Attribute</Button>
               </div>
               <div className="space-y-2">
                 {product.attributes.map((attribute) => (
@@ -182,36 +177,16 @@ export function ProductDetailPage({ productId }: { productId: string }) {
           {active === 'Related Products' && (
             <ProductSectionCard title="Related Products">
               <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <select
-                  value={relatedInput}
-                  onChange={(e) => setRelatedInput(e.target.value)}
-                  className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm"
-                >
+                <select value={relatedInput} onChange={(e) => setRelatedInput(e.target.value)} className="w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm">
                   <option value="">Select related product</option>
-                  {relatedCandidates.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name}</option>
-                  ))}
+                  {relatedCandidates.map((item) => (<option key={item.id} value={item.id}>{item.name}</option>))}
                 </select>
-                <Button
-                  onClick={() => {
-                    const related = relatedCandidates.find((item) => item.id === relatedInput);
-                    if (!related) return;
-                    void persistProduct({
-                      relatedProducts: [
-                        ...product.relatedProducts,
-                        {
-                          id: related.id,
-                          name: related.name,
-                          slug: related.slug,
-                          thumbnail: related.thumbnail
-                        }
-                      ]
-                    });
-                    setRelatedInput('');
-                  }}
-                >
-                  Add
-                </Button>
+                <Button onClick={() => {
+                  const related = relatedCandidates.find((item) => item.id === relatedInput);
+                  if (!related) return;
+                  void persistProduct({ relatedProducts: [ ...product.relatedProducts, { id: related.id, name: related.name, slug: related.slug, thumbnail: related.thumbnail } ] });
+                  setRelatedInput('');
+                }}>Add</Button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {product.relatedProducts.map((item) => (
@@ -230,21 +205,12 @@ export function ProductDetailPage({ productId }: { productId: string }) {
               <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
                 <Input placeholder="Label" value={alternateLabel} onChange={(e) => setAlternateLabel(e.target.value)} />
                 <Input placeholder="Image URL" value={alternateUrl} onChange={(e) => setAlternateUrl(e.target.value)} />
-                <Button
-                  onClick={() => {
-                    if (!alternateLabel.trim() || !alternateUrl.trim()) return;
-                    void persistProduct({
-                      alternateViews: [
-                        ...product.alternateViews,
-                        { id: `alt-${Date.now()}`, label: alternateLabel.trim(), url: alternateUrl.trim() }
-                      ]
-                    });
-                    setAlternateLabel('');
-                    setAlternateUrl('');
-                  }}
-                >
-                  Add View
-                </Button>
+                <Button onClick={() => {
+                  if (!alternateLabel.trim() || !alternateUrl.trim()) return;
+                  void persistProduct({ alternateViews: [ ...product.alternateViews, { id: `alt-${Date.now()}`, label: alternateLabel.trim(), url: alternateUrl.trim() } ] });
+                  setAlternateLabel('');
+                  setAlternateUrl('');
+                }}>Add View</Button>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {product.alternateViews.map((view) => (
@@ -262,18 +228,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
             <CommentsPanel
               comments={product.comments}
               onAdd={(message) => {
-                void persistProduct({
-                  comments: [
-                    ...product.comments,
-                    {
-                      id: `comment-${Date.now()}`,
-                      author: 'Admin User',
-                      timestamp: new Date().toLocaleString(),
-                      label: 'internal',
-                      message
-                    }
-                  ]
-                });
+                void persistProduct({ comments: [ ...product.comments, { id: `comment-${Date.now()}`, author: 'Admin User', timestamp: new Date().toLocaleString(), label: 'internal', message } ] });
               }}
             />
           )}

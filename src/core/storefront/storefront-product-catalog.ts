@@ -1,6 +1,7 @@
 import { listInternalCatalog } from '@/core/catalog/internal-catalog.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { checkProductReadiness } from '@/core/storefront/product-publish-readiness';
+import { applyProductConfigDefaults } from '@/core/storefront/product-config-engine';
 
 const PRODUCT_RESOURCE = 'products' as const;
 
@@ -26,7 +27,7 @@ function toStorefrontProduct(product: Store) {
   const m = meta(product);
   const readiness = checkProductReadiness(product);
   const csvMatrixReady = hasCsvMatrix(product);
-  return {
+  const baseProduct = {
     id: product.id,
     name: product.name || product.title,
     slug: product.slug,
@@ -63,6 +64,8 @@ function toStorefrontProduct(product: Store) {
       warnings: readiness.warnings,
     },
   };
+
+  return applyProductConfigDefaults(baseProduct);
 }
 
 export async function listStorefrontProducts(request: Request) {

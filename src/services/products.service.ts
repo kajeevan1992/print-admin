@@ -20,6 +20,13 @@ let productsStore: Product[] = [...productsMock];
 const STORAGE_KEY = 'print-admin-products-store';
 const wait = async () => new Promise((resolve) => setTimeout(resolve, 80));
 
+type ProductMetadataJson = {
+  optionGroups?: ProductOptionGroup[];
+  productSystem?: Product['productSystem'];
+  templateRules?: Product['templateRules'];
+  productModeSettings?: Product['productModeSettings'];
+};
+
 type InternalCatalogProduct = {
   id: string;
   slug?: string;
@@ -36,10 +43,11 @@ type InternalCatalogProduct = {
   currency?: string;
   createdAt?: string;
   updatedAt?: string;
-  metadataJson?: { optionGroups?: ProductOptionGroup[]; productSystem?: Product['productSystem']; templateRules?: Product['templateRules'] } | null;
+  metadataJson?: ProductMetadataJson | null;
   optionGroups?: ProductOptionGroup[];
   productSystem?: Product['productSystem'];
   templateRules?: Product['templateRules'];
+  productModeSettings?: Product['productModeSettings'];
 };
 
 type InternalCatalogList<T> = { items: T[]; pagination?: { page: number; limit: number; total: number; totalPages: number } };
@@ -138,6 +146,7 @@ function mapInternalProduct(item: InternalCatalogProduct, index = 0): Product {
     productSystem: item.productSystem || item.metadataJson?.productSystem,
     templateRules: item.templateRules || item.metadataJson?.templateRules,
     optionGroups: item.optionGroups || item.metadataJson?.optionGroups || [],
+    productModeSettings: item.productModeSettings || item.metadataJson?.productModeSettings,
   };
 }
 
@@ -176,6 +185,7 @@ function productToCatalogPayload(product: Partial<Product>) {
   if (Object.prototype.hasOwnProperty.call(product, 'optionGroups')) metadataJson.optionGroups = product.optionGroups || [];
   if (Object.prototype.hasOwnProperty.call(product, 'productSystem')) metadataJson.productSystem = product.productSystem;
   if (Object.prototype.hasOwnProperty.call(product, 'templateRules')) metadataJson.templateRules = product.templateRules;
+  if (Object.prototype.hasOwnProperty.call(product, 'productModeSettings')) metadataJson.productModeSettings = product.productModeSettings;
   if (Object.keys(metadataJson).length) payload.metadataJson = metadataJson;
 
   if (Object.prototype.hasOwnProperty.call(product, 'categoryId')) {

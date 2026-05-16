@@ -26,6 +26,7 @@ export type StorefrontOptionGroup = Record<string, any> & {
   renderLocation: string;
   displayType: string;
   visible: boolean;
+  disabled?: boolean;
   sortOrder: number;
   options: StorefrontOptionValue[];
 };
@@ -44,6 +45,30 @@ export type ProductConfigResolveInput = {
   selections?: Record<string, any>;
   quantity?: string | number | null;
   delivery?: string | null;
+};
+
+export type ProductConfigRuleAction = Record<string, any> & {
+  action?: string;
+  type?: string;
+  target?: string;
+  groupKey?: string;
+  optionValue?: string;
+  value?: any;
+  message?: string;
+  text?: string;
+};
+
+export type ProductConfigRule = Record<string, any> & {
+  id?: string;
+  name?: string;
+  enabled?: boolean;
+  when?: any;
+  if?: any;
+  conditions?: any[];
+  all?: any[];
+  any?: any[];
+  then?: ProductConfigRuleAction | ProductConfigRuleAction[];
+  actions?: ProductConfigRuleAction[];
 };
 
 function asArray<T = any>(...values: any[]): T[] {
@@ -67,6 +92,14 @@ function normaliseRole(value: unknown) {
 
 function metaOf(item: Record<string, any> = {}) {
   return item.storefrontMeta || item.metadata || item.meta || item.settings || {};
+}
+
+function sameValue(left: unknown, right: unknown) {
+  return clean(left) === clean(right);
+}
+
+function readSelection(selections: Record<string, any>, key: string) {
+  return selections[key] ?? selections[slugify(key)] ?? selections[key.replace(/[-_]/g, ' ')] ?? selections[key.replace(/\s+/g, '')];
 }
 
 export function groupRole(group: Record<string, any> = {}): ProductConfigRole | string {
@@ -138,6 +171,7 @@ export function normaliseOptionGroups(product: Record<string, any> = {}): Storef
         renderLocation: renderLocation(group || {}),
         displayType: displayType(group || {}),
         visible: group?.visible !== false && group?.hidden !== true && meta.visible !== false && meta.hidden !== true,
+        disabled: Boolean(group?.disabled || group?.isDisabled || meta.disabled),
         sortOrder: Number(group?.sortOrder ?? group?.order ?? meta.sortOrder ?? index),
         options: values,
         values,
@@ -195,6 +229,149 @@ export function rowMatchesSelections(row: PricingMatrixRow = {}, selections: Rec
   });
 }
 
+function rulesFromProduct(product: Record<string, any> = {}): ProductConfigRule[] {
+  return asArray(
+    product.rules,
+    product.configRules,
+    product.productConfigRules,
+    product.metadataJson?.rules,
+    product.metadataJson?.configRules,
+    product.metadataJson?.productConfigRules,
+    product.metadataJson?.visibilityRules,
+    product.metadataJson?.autoSelectRules
+  );
+}
+
+function conditionField(condition: Record<string, any>) {
+  return String(condition.field || condition.key || condition.groupKey || condition.source || condition.target || '');
+}
+
+function evaluateCondition(condition: any, selections: Record<string, any>) {
+  if (!condition || typeof condition !== 'object') return true;
+  if (Array.isArray(condition.all)) return condition.all.every((item) => evaluateCondition(item, selections));
+  if (Array.isArray(condition.any)) return condition.any.some((item) => evaluateCondition(item, selections));
+
+  const key = conditionField(condition);
+  const selected = readSelection(selections, key);
+  const operator = slugify(condition.operator || condition.op || condition.match || 'equals');
+  const expected = condition.value ?? condition.equals ?? condition.is ?? condition.selectedValue;
+  const values = asArray(condition.values, condition.in, condition.oneOf).map((item) => String(item));
+
+  if (operator === 'exists' || operator === 'is-set') return selected !== undefined && selected !== null && selected !== '';
+  if (operator === 'not-exists' || operator === 'missing' || operator === 'is-empty') return selected === undefined || selected === null || selected === '';
+  if (operator === 'not-equals' || operator === 'not' || operator === 'neq') return !sameValue(selected, expected);
+  if (operator === 'in' || operator === 'one-of') return values.some((item) => sameValue(selected, item));
+  if (operator === 'not-in') return !values.some((item) => sameValue(selected, item));
+  if (operator === 'contains') return clean(selected).includes(clean(expected));
+
+  const selectedNumber = Number(selected);
+  const expectedNumber = Number(expected);
+  if (Number.isFinite(selectedNumber) && Number.isFinite(expectedNumber)) {
+    if (operator === 'gt' || operator === 'greater-than') return selectedNumber > expectedNumber;
+    if (operator === 'gte' || operator === 'greater-than-or-equal') return selectedNumber >= expectedNumber;
+    if (operator === 'lt' || operator === 'less-than') return selectedNumber < expectedNumber;
+    if (operator === 'lte' || operator === 'less-than-or-equal') return selectedNumber <= expectedNumber;
+  }
+
+  return sameValue(selected, expected);
+}
+
+function ruleMatches(rule: ProductConfigRule, selections: Record<string, any>) {
+  if (rule.enabled === false) return false;
+  if (Array.isArray(rule.all)) return rule.all.every((condition) => evaluateCondition(condition, selections));
+  if (Array.isArray(rule.any)) return rule.any.some((condition) => evaluateCondition(condition, selections));
+  if (Array.isArray(rule.conditions)) return rule.conditions.every((condition) => evaluateCondition(condition, selections));
+  if (rule.when) return evaluateCondition(rule.when, selections);
+  if (rule.if) return evaluateCondition(rule.if, selections);
+  return true;
+}
+
+function ruleActions(rule: ProductConfigRule): ProductConfigRuleAction[] {
+  return asArray(rule.actions, Array.isArray(rule.then) ? rule.then : rule.then ? [rule.then] : [], rule.action ? [rule as ProductConfigRuleAction] : []);
+}
+
+function findGroup(groups: StorefrontOptionGroup[], key: string) {
+  const normalised = slugify(key);
+  return groups.find((group) => group.key === key || slugify(group.key) === normalised || slugify(group.label) === normalised || slugify(group.adminLabel) === normalised);
+}
+
+function applyAction(action: ProductConfigRuleAction, groups: StorefrontOptionGroup[], selections: Record<string, any>, messages: any[], appliedActions: any[]) {
+  const type = slugify(action.action || action.type || 'message');
+  const target = String(action.target || action.groupKey || action.key || '');
+  const group = target ? findGroup(groups, target) : undefined;
+  appliedActions.push({ type, target, value: action.value ?? action.optionValue ?? null });
+
+  if (['set-value', 'setvalue', 'auto-select', 'select-option', 'update-selection'].includes(type)) {
+    if (target) selections[group?.key || target] = String(action.value ?? action.optionValue ?? '');
+    return;
+  }
+
+  if (['show-group', 'show', 'visible'].includes(type)) {
+    if (group) group.visible = true;
+    return;
+  }
+
+  if (['hide-group', 'hide', 'hidden'].includes(type)) {
+    if (group) group.visible = false;
+    return;
+  }
+
+  if (['disable-group', 'disable'].includes(type)) {
+    if (group) group.disabled = true;
+    return;
+  }
+
+  if (['enable-group', 'enable'].includes(type)) {
+    if (group) group.disabled = false;
+    return;
+  }
+
+  if (['set-role', 'role'].includes(type)) {
+    if (group && action.value) group.role = normaliseRole(action.value);
+    return;
+  }
+
+  if (['set-render-location', 'render-location'].includes(type)) {
+    if (group && action.value) group.renderLocation = normaliseRole(action.value);
+    return;
+  }
+
+  if (['set-label', 'customer-label', 'label'].includes(type)) {
+    if (group && action.value) group.label = String(action.value);
+    return;
+  }
+
+  if (['disable-option', 'enable-option'].includes(type)) {
+    if (group) {
+      const optionValue = String(action.optionValue ?? action.value ?? '');
+      group.options = group.options.map((option) => sameValue(option.value, optionValue) || sameValue(option.label, optionValue) ? { ...option, disabled: type === 'disable-option' } : option);
+      group.values = group.options;
+    }
+    return;
+  }
+
+  if (['message', 'info', 'warning', 'error'].includes(type)) {
+    messages.push({ type: type === 'message' ? (action.level || action.severity || 'info') : type, text: action.text || action.message || String(action.value || '') });
+  }
+}
+
+export function applyProductRules(product: Record<string, any>, groups: StorefrontOptionGroup[], inputSelections: Record<string, any>) {
+  const selections = { ...inputSelections };
+  const resolvedGroups = groups.map((group) => ({ ...group, options: group.options.map((option) => ({ ...option })), values: group.options.map((option) => ({ ...option })) }));
+  const messages: any[] = [];
+  const appliedActions: any[] = [];
+  const rules = rulesFromProduct(product);
+
+  for (let pass = 0; pass < 2; pass += 1) {
+    rules.forEach((rule) => {
+      if (!ruleMatches(rule, selections)) return;
+      ruleActions(rule).forEach((action) => applyAction(action, resolvedGroups, selections, messages, appliedActions));
+    });
+  }
+
+  return { groups: resolvedGroups, selections, messages, appliedActions, ruleCount: rules.length };
+}
+
 export function buildInitialSelections(groups: StorefrontOptionGroup[]) {
   const selections: Record<string, string> = {};
   groups.forEach((group) => {
@@ -214,7 +391,7 @@ export function isCustomerVisibleGroup(group: StorefrontOptionGroup) {
   const location = normaliseRole(group.renderLocation);
   if (['quantity', 'delivery-turnaround', 'turnaround', 'hidden-auto', 'pricing-only', 'production-only', 'info-only'].includes(role)) return false;
   if (['delivery', 'delivery-section', 'hidden', 'pricing', 'production'].includes(location)) return false;
-  return group.visible !== false;
+  return group.visible !== false && group.disabled !== true;
 }
 
 export function isQuantityGroup(group: StorefrontOptionGroup) {
@@ -272,8 +449,11 @@ export function buildDeliveryRows(product: Record<string, any>, deliveryGroup: S
 }
 
 export function resolveProductConfig(product: Record<string, any> = {}, input: ProductConfigResolveInput = {}) {
-  const groups = normaliseOptionGroups(product);
-  const baseSelections = { ...buildInitialSelections(groups), ...(input.selections || {}) };
+  const rawGroups = normaliseOptionGroups(product);
+  const initialSelections = { ...buildInitialSelections(rawGroups), ...(input.selections || {}) };
+  const ruleState = applyProductRules(product, rawGroups, initialSelections);
+  const groups = ruleState.groups;
+  const baseSelections = ruleState.selections;
   const quantityGroup = groups.find(isQuantityGroup);
   const deliveryGroup = groups.find(isDeliveryGroup);
   const customerGroups = groups.filter(isCustomerVisibleGroup);
@@ -285,12 +465,38 @@ export function resolveProductConfig(product: Record<string, any> = {}, input: P
   const selections = { ...baseSelections };
   if (quantityGroup && selectedQuantity) selections[quantityGroup.key] = String(selectedQuantity);
   if (deliveryGroup && selectedDelivery) selections[deliveryGroup.key] = String(selectedDelivery);
-  const validRows = pricingMatrixRows(product).filter((row) => rowMatchesSelections(row, selections, selectedQuantity));
+  const finalRuleState = applyProductRules(product, groups, selections);
+  const finalGroups = finalRuleState.groups;
+  const finalSelections = finalRuleState.selections;
+  const finalQuantityGroup = finalGroups.find(isQuantityGroup);
+  const finalDeliveryGroup = finalGroups.find(isDeliveryGroup);
+  const finalQuantityRows = buildQuantityRows(product, finalQuantityGroup, finalSelections);
+  const finalDeliveryRows = buildDeliveryRows(product, finalDeliveryGroup, finalSelections, selectedQuantity);
+  const validRows = pricingMatrixRows(product).filter((row) => rowMatchesSelections(row, finalSelections, selectedQuantity));
   const matchedRow = validRows.find((row) => Number(rowPriceMinor(row) || 0) > 0) || validRows[0] || null;
-  return { groups, customerGroups, hiddenGroups, quantityGroup, deliveryGroup, quantityRows, deliveryRows, selections, selectedQuantity, selectedDelivery, matchedRow, priceMinor: rowPriceMinor(matchedRow), pricingMatrixRowCount: pricingMatrixRows(product).length, capabilities: { roles: true, deliveryMapping: true, matrixAvailability: true, hiddenPricingSelections: true, backendControlledLabels: true } };
+
+  return {
+    groups: finalGroups,
+    customerGroups: finalGroups.filter(isCustomerVisibleGroup),
+    hiddenGroups: finalGroups.filter((group) => !isCustomerVisibleGroup(group) && !isQuantityGroup(group) && !isDeliveryGroup(group)),
+    quantityGroup: finalQuantityGroup,
+    deliveryGroup: finalDeliveryGroup,
+    quantityRows: finalQuantityRows,
+    deliveryRows: finalDeliveryRows,
+    selections: finalSelections,
+    selectedQuantity,
+    selectedDelivery,
+    matchedRow,
+    priceMinor: rowPriceMinor(matchedRow),
+    pricingMatrixRowCount: pricingMatrixRows(product).length,
+    messages: [...ruleState.messages, ...finalRuleState.messages].filter((message) => message?.text),
+    appliedActions: [...ruleState.appliedActions, ...finalRuleState.appliedActions],
+    ruleCount: Math.max(ruleState.ruleCount, finalRuleState.ruleCount),
+    capabilities: { roles: true, deliveryMapping: true, matrixAvailability: true, hiddenPricingSelections: true, backendControlledLabels: true, conditionRules: true, autoSelectRules: true, ruleMessages: true },
+  };
 }
 
 export function applyProductConfigDefaults(product: Record<string, any> = {}) {
   const resolved = resolveProductConfig(product);
-  return { ...product, optionGroups: resolved.groups, pricingMatrix: product.pricingMatrix || product.metadataJson?.pricingMatrix || null, deliveryOptions: resolved.deliveryRows, resolvedConfig: resolved, storefrontConfig: { groups: resolved.groups, customerGroups: resolved.customerGroups, hiddenGroups: resolved.hiddenGroups, quantityGroup: resolved.quantityGroup, deliveryGroup: resolved.deliveryGroup, capabilities: resolved.capabilities } };
+  return { ...product, optionGroups: resolved.groups, pricingMatrix: product.pricingMatrix || product.metadataJson?.pricingMatrix || null, deliveryOptions: resolved.deliveryRows, resolvedConfig: resolved, storefrontConfig: { groups: resolved.groups, customerGroups: resolved.customerGroups, hiddenGroups: resolved.hiddenGroups, quantityGroup: resolved.quantityGroup, deliveryGroup: resolved.deliveryGroup, messages: resolved.messages, appliedActions: resolved.appliedActions, capabilities: resolved.capabilities } };
 }

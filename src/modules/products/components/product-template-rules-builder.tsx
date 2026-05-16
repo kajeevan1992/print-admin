@@ -3,7 +3,10 @@
 import { Button } from '@/components/ui/buttons';
 import { Input } from '@/components/forms/input';
 import { ProductSectionCard } from './product-section-card';
+import { ProductAdminRuleBuilder, type ProductAdminRule } from './product-admin-rule-builder';
 import type { Product, ProductTemplateRuleConfig } from '@/modules/products/types';
+
+type RulesWithAdminRules = ProductTemplateRuleConfig & { adminRules?: ProductAdminRule[] };
 
 const templatePresets: Record<string, ProductTemplateRuleConfig> = {
   'business-cards': {
@@ -64,8 +67,8 @@ const templatePresets: Record<string, ProductTemplateRuleConfig> = {
   },
 };
 
-function defaultRules(product: Product): ProductTemplateRuleConfig {
-  return product.templateRules || templatePresets[product.productSystem?.templateId || 'business-cards'] || templatePresets['business-cards'];
+function defaultRules(product: Product): RulesWithAdminRules {
+  return (product.templateRules || templatePresets[product.productSystem?.templateId || 'business-cards'] || templatePresets['business-cards']) as RulesWithAdminRules;
 }
 
 function csvToList(value: string) {
@@ -74,7 +77,7 @@ function csvToList(value: string) {
 
 export function ProductTemplateRulesBuilder({ product, onUpdate }: { product: Product; onUpdate: (changes: Partial<Product>) => void }) {
   const rules = defaultRules(product);
-  const setRules = (patch: Partial<ProductTemplateRuleConfig>) => onUpdate({ templateRules: { ...rules, ...patch, artworkRules: { ...rules.artworkRules, ...(patch.artworkRules || {}) } } });
+  const setRules = (patch: Partial<RulesWithAdminRules>) => onUpdate({ templateRules: { ...rules, ...patch, artworkRules: { ...rules.artworkRules, ...(patch.artworkRules || {}) } } as ProductTemplateRuleConfig });
   const applyPreset = (key: string) => onUpdate({ templateRules: templatePresets[key] });
 
   return (
@@ -128,6 +131,12 @@ export function ProductTemplateRulesBuilder({ product, onUpdate }: { product: Pr
         </div>
         <label className="mt-3 block space-y-1 text-sm"><span className="text-textMuted">Customer artwork instructions</span><textarea value={rules.artworkRules.customerInstructions || ''} onChange={(e) => setRules({ artworkRules: { ...rules.artworkRules, customerInstructions: e.target.value } })} className="min-h-[92px] w-full rounded-lg border border-border bg-panelMuted px-3 py-2 text-sm" /></label>
       </ProductSectionCard>
+
+      <ProductAdminRuleBuilder
+        optionGroups={product.optionGroups || []}
+        rules={rules}
+        onChange={(adminRules) => setRules({ adminRules })}
+      />
     </div>
   );
 }

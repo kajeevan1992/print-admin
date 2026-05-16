@@ -50,7 +50,6 @@ export type ParametricStandardConfig = {
   material: string;
 };
 
-
 export type ProductOptionDisplayType = 'dropdown' | 'radio' | 'image-cards' | 'checkboxes' | 'swatches' | 'quantity-grid' | 'custom-size' | 'info-cards';
 export type ProductOptionSource = 'size' | 'material' | 'finish' | 'quantity' | 'turnaround' | 'custom';
 export type PricingInputRole = 'none' | 'size' | 'material' | 'finish' | 'quantity' | 'sides' | 'turnaround' | 'width' | 'height' | 'area' | 'pages' | 'artwork' | 'custom';
@@ -221,6 +220,60 @@ export type ProductTemplateRuleConfig = {
   adminRules?: ProductAdminRuleConfig[];
 };
 
+export type ProductPricingMode = 'formula' | 'supplier' | 'quote' | 'hybrid-formula-supplier' | 'hybrid-supplier-quote';
+export type ProductPricingRoutePriority = 'formula-first' | 'supplier-first' | 'quote-first';
+export type ProductCostingBasis = 'sheet' | 'area' | 'linear-metre' | 'matrix' | 'supplier-api' | 'manual-quote';
+
+export type ProductModeSettings = {
+  mode: ProductPricingMode;
+  active: boolean;
+  customerPriceVisibility: 'show-price' | 'from-price' | 'request-quote' | 'hide-price-until-configured';
+  formula: {
+    enabled: boolean;
+    profileKey: string;
+    formulaKey: string;
+    costingBasis: ProductCostingBasis;
+    matrixKey?: string;
+    minimumChargeMinor: number;
+    marginPercent: number;
+    roundingMinor: number;
+    requireResolvedConfig: boolean;
+    allowMatrixFallback: boolean;
+  };
+  supplier: {
+    enabled: boolean;
+    vendorId: string;
+    vendorName: string;
+    supplierProductId: string;
+    supplierSku: string;
+    pricingEndpointKey: string;
+    supplierLeadTimeDays: number;
+    markupPercent: number;
+    cloneSupplierOptions: boolean;
+    useSupplierArtworkSpec: boolean;
+    blockedOptionKeys: string;
+    syncStatus: 'not-connected' | 'ready' | 'needs-mapping' | 'paused';
+  };
+  quote: {
+    enabled: boolean;
+    quoteReason: string;
+    hideInstantPrice: boolean;
+    showRequestQuoteButton: boolean;
+    allowArtworkUploadBeforeQuote: boolean;
+    requireManualApproval: boolean;
+    minimumQuoteQuantity: number;
+    quoteSlaHours: number;
+    internalOwner: string;
+  };
+  routing: {
+    priority: ProductPricingRoutePriority;
+    fallbackToQuote: boolean;
+    fallbackMessage: string;
+    blockCheckoutWhenUnpriced: boolean;
+    notes: string;
+  };
+};
+
 export type ProductSystemConfig = {
   templateId: string;
   materialId: string;
@@ -319,6 +372,7 @@ export type Product = {
   productSystem?: ProductSystemConfig;
   optionGroups?: ProductOptionGroup[];
   templateRules?: ProductTemplateRuleConfig;
+  productModeSettings?: ProductModeSettings;
 };
 
 export type ProductFormValues = {

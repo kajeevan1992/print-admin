@@ -157,6 +157,54 @@ export type ProductArtworkRuleConfig = {
   customerInstructions?: string;
 };
 
+export type ProductAdminRuleScope = 'storefront' | 'pricing' | 'artwork' | 'production' | 'compatibility';
+export type ProductAdminRuleConditionOperator = 'equals' | 'not-equals' | 'is-selected' | 'is-empty' | 'greater-than' | 'less-than' | 'between';
+export type ProductAdminRuleActionType =
+  | 'show-group'
+  | 'hide-group'
+  | 'require-group'
+  | 'show-value'
+  | 'hide-value'
+  | 'set-default-value'
+  | 'add-price'
+  | 'multiply-price'
+  | 'set-lead-time'
+  | 'block-checkout'
+  | 'show-message'
+  | 'set-artwork-mode'
+  | 'assign-production-method';
+
+export type ProductAdminRuleCondition = {
+  id: Id;
+  groupKey: string;
+  operator: ProductAdminRuleConditionOperator;
+  value?: string;
+  secondaryValue?: string;
+};
+
+export type ProductAdminRuleAction = {
+  id: Id;
+  type: ProductAdminRuleActionType;
+  targetGroupKey?: string;
+  targetValueId?: string;
+  amountMinor?: number;
+  multiplier?: number;
+  leadTimeDays?: number;
+  message?: string;
+};
+
+export type ProductAdminRuleConfig = {
+  id: Id;
+  name: string;
+  enabled: boolean;
+  priority: number;
+  scope: ProductAdminRuleScope;
+  stopProcessing?: boolean;
+  conditions: ProductAdminRuleCondition[];
+  actions: ProductAdminRuleAction[];
+  adminNote?: string;
+};
+
 export type ProductTemplateRuleConfig = {
   templateKey: string;
   templateName: string;
@@ -170,6 +218,7 @@ export type ProductTemplateRuleConfig = {
   maxPrintableLength?: number;
   notes?: string;
   artworkRules: ProductArtworkRuleConfig;
+  adminRules?: ProductAdminRuleConfig[];
 };
 
 export type ProductSystemConfig = {

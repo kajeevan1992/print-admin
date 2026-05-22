@@ -40,6 +40,16 @@ export type PdfPreflightHints = {
   pdfVersion?: string;
 };
 
+export type ArtworkReviewStatus = 'pending-review' | 'approved' | 'rejected' | 'replacement-requested';
+
+export type ArtworkReviewEvent = {
+  id: string;
+  action: ArtworkReviewStatus;
+  actor: string;
+  note?: string;
+  createdAt: string;
+};
+
 export type StoredArtworkUpload = {
   id: string;
   tenantId: string;
@@ -59,6 +69,12 @@ export type StoredArtworkUpload = {
   fileUrl: string;
   downloadUrl: string;
   preflight?: unknown;
+  reviewStatus: ArtworkReviewStatus;
+  reviewNote?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  replacementRequestedAt?: string;
+  approvalHistory: ArtworkReviewEvent[];
   createdAt: string;
 };
 
@@ -69,6 +85,14 @@ function rootDir() {
 function safeName(value: string) {
   const name = value || 'artwork.pdf';
   return name.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'artwork.pdf';
+}
+
+function uploadDir(id: string) {
+  return path.join(rootDir(), safeName(id));
+}
+
+function metadataPath(id: string) {
+  return path.join(uploadDir(id), 'metadata.json');
 }
 
 function extensionFromName(name: string) {
@@ -208,6 +232,12 @@ export function extractPdfHints(buffer: Buffer): PdfPreflightHints {
   };
 }
 
+function initialReviewStatus(preflight: unknown): ArtworkReviewStatus {
+  const status = (preflight as any)?.preflight?.status;
+  if (status === 'blocked') return 'replacement-requested';
+  return 'pending-review';
+}
+
 export async function saveArtworkUpload(ctx: TenantContext, formData: FormData) {
   const file = formData.get('file');
   if (!(file instanceof File)) throw new Error('Artwork upload requires a file field.');
@@ -227,14 +257,10 @@ export async function saveArtworkUpload(ctx: TenantContext, formData: FormData) 
   await writeFile(filePath, buffer);
 
   const pdfHints = extractPdfHints(buffer);
-  const fileMeta = {
-    name: originalName,
-    type: file.type,
-    size: file.size,
-    sizeBytes: file.size,
-    ...pdfHints,
-  };
+  const fileMeta = { name: originalName, type: file.type, size: file.size, sizeBytes: file.size, ...pdfHints };
   const preflight = await resolveArtworkPreflight(ctx, { productId, files: [fileMeta], artworkMode: 'upload' }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Preflight failed' }));
+  const reviewStatus = initialReviewStatus(preflight);
+  const now = new Date().toISOString();
 
   const meta: StoredArtworkUpload = {
     id,
@@ -255,9 +281,13 @@ export async function saveArtworkUpload(ctx: TenantContext, formData: FormData) 
     fileUrl: `/api/internal/storefront/artwork/uploads/${id}/file`,
     downloadUrl: `/api/internal/storefront/artwork/uploads/${id}/file?download=1`,
     preflight,
-    createdAt: new Date().toISOString(),
+    reviewStatus,
+    reviewNote: reviewStatus === 'replacement-requested' ? 'Initial preflight found blocking issues. Replacement artwork is required.' : undefined,
+    replacementRequestedAt: reviewStatus === 'replacement-requested' ? now : undefined,
+    approvalHistory: [{ id: `review_${Date.now()}`, action: reviewStatus, actor: 'system-preflight', note: reviewStatus === 'replacement-requested' ? 'Blocking preflight result.' : 'Upload received and awaiting artwork approval.', createdAt: now }],
+    createdAt: now,
   };
-  await writeFile(path.join(dir, 'metadata.json'), JSON.stringify(meta, null, 2));
+  await writeFile(metadataPath(id), JSON.stringify(meta, null, 2));
   return meta;
 }
 
@@ -267,18 +297,46 @@ export async function listArtworkUploads() {
   const uploads: StoredArtworkUpload[] = [];
   for (const entry of entries) {
     try {
-      const meta = JSON.parse(await readFile(path.join(rootDir(), entry, 'metadata.json'), 'utf8')) as StoredArtworkUpload;
-      uploads.push(meta);
+      const meta = JSON.parse(await readFile(metadataPath(entry), 'utf8')) as StoredArtworkUpload;
+      uploads.push({ reviewStatus: 'pending-review', approvalHistory: [], ...meta });
     } catch {}
   }
   return uploads.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
+export async function readArtworkUploadMetadata(id: string) {
+  const meta = JSON.parse(await readFile(metadataPath(id), 'utf8')) as StoredArtworkUpload;
+  return { reviewStatus: 'pending-review' as ArtworkReviewStatus, approvalHistory: [], ...meta };
+}
+
+export async function writeArtworkUploadMetadata(meta: StoredArtworkUpload) {
+  await writeFile(metadataPath(meta.id), JSON.stringify(meta, null, 2));
+  return meta;
+}
+
+export async function updateArtworkReview(id: string, input: { action: ArtworkReviewStatus; actor?: string; note?: string; orderId?: string; quoteId?: string }) {
+  const meta = await readArtworkUploadMetadata(id);
+  const now = new Date().toISOString();
+  const next: StoredArtworkUpload = {
+    ...meta,
+    orderId: input.orderId || meta.orderId,
+    quoteId: input.quoteId || meta.quoteId,
+    reviewStatus: input.action,
+    reviewNote: input.note || meta.reviewNote,
+    reviewedBy: input.actor || 'admin',
+    reviewedAt: input.action === 'approved' || input.action === 'rejected' ? now : meta.reviewedAt,
+    replacementRequestedAt: input.action === 'replacement-requested' ? now : meta.replacementRequestedAt,
+    approvalHistory: [
+      ...(meta.approvalHistory || []),
+      { id: `review_${Date.now()}`, action: input.action, actor: input.actor || 'admin', note: input.note, createdAt: now },
+    ],
+  };
+  return writeArtworkUploadMetadata(next);
+}
+
 export async function readArtworkUploadFile(id: string) {
-  const safeId = safeName(id);
-  const dir = path.join(rootDir(), safeId);
-  const meta = JSON.parse(await readFile(path.join(dir, 'metadata.json'), 'utf8')) as StoredArtworkUpload;
-  const filePath = path.join(dir, meta.storedName);
+  const meta = await readArtworkUploadMetadata(id);
+  const filePath = path.join(uploadDir(id), meta.storedName);
   await stat(filePath);
   const buffer = await readFile(filePath);
   return { meta, buffer };

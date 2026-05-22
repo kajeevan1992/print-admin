@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { ExternalLink } from 'lucide-react';
 import { DataTable } from '@/components/data-table/data-table';
 import { Input } from '@/components/forms/input';
 import { Select } from '@/components/forms/select';
@@ -13,6 +14,7 @@ import type { ProductionJob } from '@/data/operations';
 
 type JobTicket = {
   id: string;
+  orderId?: string;
   orderNumber: string;
   customerName?: string;
   productId?: string;
@@ -33,6 +35,7 @@ type JobTicket = {
 
 type QueueCard = {
   id: string;
+  orderId?: string;
   orderNumber: string;
   product: string;
   quantity: number;
@@ -95,7 +98,7 @@ function queueStage(card: QueueCard) {
   return 'queued';
 }
 function cardMachine(card: QueueCard) {
-  if (card.source === 'ticket') return card.supplier === 'supplier-api' ? 'Supplier / Outsource' : card.machine || 'Unassigned';
+  if (card.source === 'ticket') return card.machine || (card.supplier === 'supplier-api' ? 'Supplier / Outsource' : 'Unassigned');
   return card.machine || 'Unassigned';
 }
 function estimateMinutes(card: QueueCard) {
@@ -117,6 +120,7 @@ function formatMinute(minute: number) {
 function readTicketCards(tickets: JobTicket[]): QueueCard[] {
   return tickets.map((ticket) => ({
     id: ticket.id,
+    orderId: ticket.orderId,
     orderNumber: ticket.orderNumber,
     product: ticket.productName,
     quantity: Number(ticket.quantity || 1),
@@ -173,28 +177,14 @@ function scheduleCards(cards: QueueCard[]): ScheduledCard[] {
     const cursor = laneShiftCursor.get(lane)!;
     let selected = shifts[0];
     for (const shift of shifts) {
-      if ((cursor[shift.id] || shift.start) + minutes <= shift.end) {
-        selected = shift;
-        break;
-      }
+      if ((cursor[shift.id] || shift.start) + minutes <= shift.end) { selected = shift; break; }
       selected = shift;
     }
     const start = cursor[selected.id] || selected.start;
     const finish = start + minutes;
     cursor[selected.id] = finish;
     const breachRisk = queueStage(card) === 'blocked' || finish > selected.end || slaRisk(card) === 'high' ? 'high' : slaRisk(card) === 'medium' ? 'medium' : 'low';
-    return {
-      ...card,
-      lane,
-      estimatedMinutes: minutes,
-      scheduledShift: selected.label,
-      startMinute: start,
-      finishMinute: finish,
-      finishLabel: finish > selected.end ? `${formatMinute(finish)} overflow` : formatMinute(finish),
-      operator: selected.operator,
-      breachRisk,
-      scheduleReason: queueStage(card) === 'blocked' ? 'Blocked until artwork/preflight issue is fixed.' : `Prioritised by due date, priority and artwork readiness.`,
-    };
+    return { ...card, lane, estimatedMinutes: minutes, scheduledShift: selected.label, startMinute: start, finishMinute: finish, finishLabel: finish > selected.end ? `${formatMinute(finish)} overflow` : formatMinute(finish), operator: selected.operator, breachRisk, scheduleReason: queueStage(card) === 'blocked' ? 'Blocked until artwork/preflight issue is fixed.' : 'Prioritised by due date, priority and artwork readiness.' };
   });
 }
 
@@ -211,44 +201,26 @@ export function ProductionPage() {
     setJobs(legacyJobs);
     setTickets(ticketRows);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
 
   const cards = useMemo(() => [...readTicketCards(tickets), ...readProductionCards(jobs)], [tickets, jobs]);
   const machines = useMemo(() => Array.from(new Set([...fallbackMachines, ...cards.map(cardMachine).filter(Boolean)])), [cards]);
   const filteredCards = useMemo(() => cards.filter((card) => {
     const text = `${card.orderNumber} ${card.product} ${card.material} ${card.machine}`.toLowerCase();
-    const matchesSearch = !search || text.includes(search.toLowerCase());
-    const matchesStage = stage === 'all' || queueStage(card) === stage || card.stage === stage;
-    const matchesMachine = machine === 'all' || cardMachine(card) === machine;
-    return matchesSearch && matchesStage && matchesMachine;
+    return (!search || text.includes(search.toLowerCase())) && (stage === 'all' || queueStage(card) === stage || card.stage === stage) && (machine === 'all' || cardMachine(card) === machine);
   }), [cards, search, stage, machine]);
   const scheduled = useMemo(() => scheduleCards(filteredCards), [filteredCards]);
   const laneMap = useMemo(() => machines.reduce((acc, lane) => ({ ...acc, [lane]: scheduled.filter((card) => card.lane === lane) }), {} as Record<string, ScheduledCard[]>), [machines, scheduled]);
   const batches = useMemo(() => Object.entries(filteredCards.reduce((acc, card) => { const key = batchKey(card); acc[key] = [...(acc[key] || []), card]; return acc; }, {} as Record<string, QueueCard[]>)).filter(([, group]) => group.length > 1), [filteredCards]);
-  const rows = useMemo(() => jobs.filter((job) => {
-    const matchesSearch = !search || `${job.orderNumber} ${job.product} ${job.plant}`.toLowerCase().includes(search.toLowerCase());
-    const matchesStage = stage === 'all' || job.stage === stage;
-    return matchesSearch && matchesStage;
-  }), [jobs, search, stage]);
+  const rows = useMemo(() => jobs.filter((job) => (!search || `${job.orderNumber} ${job.product} ${job.plant}`.toLowerCase().includes(search.toLowerCase())) && (stage === 'all' || job.stage === stage)), [jobs, search, stage]);
   const breached = scheduled.filter((card) => card.breachRisk === 'high').length;
   const assigned = scheduled.filter((card) => card.operator).length;
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Smart Production Scheduler" subtitle="Machine queues, shift assignment, ETA prediction, SLA breach detection and batch hints using the existing production tickets pipeline." actions={<div className="flex gap-2"><Button onClick={load}>Refresh</Button><PrimaryButton onClick={() => setEditing({ ...emptyJob, id: `pj-${Date.now()}`, dueDate: new Date().toISOString().slice(0, 10) })}>Add Job</PrimaryButton></div>} />
-      <div className="grid gap-4 md:grid-cols-6">
-        <Card><p className="text-xs text-textMuted">Queue cards</p><p className="mt-2 text-2xl font-semibold">{cards.length}</p></Card>
-        <Card><p className="text-xs text-textMuted">Job tickets</p><p className="mt-2 text-2xl font-semibold">{tickets.length}</p></Card>
-        <Card><p className="text-xs text-textMuted">Scheduled</p><p className="mt-2 text-2xl font-semibold">{scheduled.length}</p></Card>
-        <Card><p className="text-xs text-textMuted">Assigned</p><p className="mt-2 text-2xl font-semibold">{assigned}</p></Card>
-        <Card><p className="text-xs text-textMuted">SLA breach risk</p><p className="mt-2 text-2xl font-semibold">{breached}</p></Card>
-        <Card><p className="text-xs text-textMuted">Batch hints</p><p className="mt-2 text-2xl font-semibold">{batches.length}</p></Card>
-      </div>
-      <div className="grid gap-2 md:grid-cols-[1fr_180px_240px]">
-        <Input placeholder="Search production queue..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <Select options={['all', 'queued', 'artwork', 'print', 'finishing', 'packing', 'blocked', 'dispatched']} value={stage} onChange={(e) => setStage(e.target.value)} />
-        <Select options={[{ value: 'all', label: 'All machines' }, ...machines.map((item) => ({ value: item, label: item }))]} value={machine} onChange={(e) => setMachine(e.target.value)} />
-      </div>
+      <PageHeader title="Smart Production Scheduler" subtitle="Machine queues, shift assignment, ETA prediction, SLA breach detection and batch hints using the existing production tickets pipeline." actions={<div className="flex gap-2"><Button onClick={() => void load()}>Refresh</Button><PrimaryButton onClick={() => setEditing({ ...emptyJob, id: `pj-${Date.now()}`, dueDate: new Date().toISOString().slice(0, 10) })}>Add Job</PrimaryButton></div>} />
+      <div className="grid gap-4 md:grid-cols-6"><Card><p className="text-xs text-textMuted">Queue cards</p><p className="mt-2 text-2xl font-semibold">{cards.length}</p></Card><Card><p className="text-xs text-textMuted">Job tickets</p><p className="mt-2 text-2xl font-semibold">{tickets.length}</p></Card><Card><p className="text-xs text-textMuted">Scheduled</p><p className="mt-2 text-2xl font-semibold">{scheduled.length}</p></Card><Card><p className="text-xs text-textMuted">Assigned</p><p className="mt-2 text-2xl font-semibold">{assigned}</p></Card><Card><p className="text-xs text-textMuted">SLA breach risk</p><p className="mt-2 text-2xl font-semibold">{breached}</p></Card><Card><p className="text-xs text-textMuted">Batch hints</p><p className="mt-2 text-2xl font-semibold">{batches.length}</p></Card></div>
+      <div className="grid gap-2 md:grid-cols-[1fr_180px_240px]"><Input placeholder="Search production queue..." value={search} onChange={(e) => setSearch(e.target.value)} /><Select options={['all', 'queued', 'artwork', 'print', 'finishing', 'packing', 'blocked', 'dispatched']} value={stage} onChange={(e) => setStage(e.target.value)} /><Select options={[{ value: 'all', label: 'All machines' }, ...machines.map((item) => ({ value: item, label: item }))]} value={machine} onChange={(e) => setMachine(e.target.value)} /></div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
@@ -257,16 +229,18 @@ export function ProductionPage() {
             const minutes = laneCards.reduce((sum, card) => sum + card.estimatedMinutes, 0);
             const risk = laneCards.some((card) => card.breachRisk === 'high') ? 'high' : laneCards.some((card) => card.breachRisk === 'medium') ? 'medium' : 'low';
             return <Card key={lane} className="min-h-[220px]">
-              <div className="flex items-start justify-between gap-3">
-                <div><h3 className="font-semibold text-white">{lane}</h3><p className="mt-1 text-xs text-textMuted">{laneCards.length} jobs · est. {minutes} min</p></div>
-                <span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${statusClass(risk)}`}>{risk}</span>
-              </div>
+              <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-white">{lane}</h3><p className="mt-1 text-xs text-textMuted">{laneCards.length} jobs · est. {minutes} min</p></div><span className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em] ${statusClass(risk)}`}>{risk}</span></div>
               <div className="mt-4 space-y-3">
                 {laneCards.map((card) => <div key={`${card.source}-${card.id}`} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3">
                   <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-semibold text-white">{card.orderNumber}</p><p className="mt-1 text-xs text-textMuted">{card.product}</p></div><span className={`rounded-full border px-2 py-1 text-[10px] ${statusClass(card.breachRisk)}`}>{card.breachRisk}</span></div>
                   <div className="mt-3 grid gap-1 text-xs text-textMuted"><p>Stage: {queueStage(card)} / {card.stage}</p><p>Qty: {card.quantity} · Due: {card.dueDate || 'not set'}</p><p>Shift: {card.scheduledShift} · ETA {card.finishLabel}</p><p>Operator: {card.operator}</p><p>Artwork: {card.artworkStatus}</p>{card.material ? <p>Material: {card.material}</p> : null}</div>
                   <div className="mt-3 rounded-xl border border-white/8 bg-black/20 p-2 text-[11px] text-textMuted">{card.scheduleReason}</div>
                   {card.warnings.length ? <div className="mt-2 rounded-xl border border-amber-400/20 bg-amber-400/10 p-2 text-[11px] text-amber-100">{card.warnings[0]}</div> : null}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {card.source === 'ticket' ? <a href={`/production/jobs/${card.id}`}><PrimaryButton><ExternalLink size={14} /> Job detail</PrimaryButton></a> : <Button onClick={() => setEditing(jobs.find((job) => job.id === card.id) || null)}>Edit legacy job</Button>}
+                    {card.orderId ? <a href={`/orders/${card.orderId}`}><Button>Order</Button></a> : null}
+                    {card.source === 'ticket' ? <a href="/dispatch-center"><Button>Dispatch</Button></a> : null}
+                  </div>
                 </div>)}
                 {!laneCards.length ? <p className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-textMuted">No jobs in this lane.</p> : null}
               </div>
@@ -275,40 +249,18 @@ export function ProductionPage() {
         </div>
         <div className="space-y-4">
           <Card><h3 className="font-semibold text-white">Shift assignment</h3><div className="mt-4 space-y-2">{shifts.map((shift) => { const shiftCards = scheduled.filter((card) => card.scheduledShift === shift.label); const used = shiftCards.reduce((sum, card) => sum + card.estimatedMinutes, 0); return <div key={shift.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><div className="flex justify-between gap-3 text-sm"><span className="font-semibold text-white">{shift.label}</span><span className="text-textMuted">{formatMinute(shift.start)}–{formatMinute(shift.end)}</span></div><p className="mt-1 text-xs text-textMuted">{shift.operator} · {used}/{shift.capacity} min · {shiftCards.length} jobs</p><div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, Math.round((used / shift.capacity) * 100))}%` }} /></div></div>; })}</div></Card>
-          <Card><h3 className="font-semibold text-white">SLA breach predictions</h3><div className="mt-4 space-y-2">{scheduled.filter((card) => card.breachRisk === 'high').slice(0, 6).map((card) => <div key={`${card.source}-${card.id}`} className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-3"><p className="text-sm font-semibold text-white">{card.orderNumber}</p><p className="mt-1 text-xs text-rose-100">Due {card.dueDate || 'not set'} · ETA {card.finishLabel} · {card.scheduleReason}</p></div>)}{!scheduled.some((card) => card.breachRisk === 'high') ? <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-xs text-emerald-100">No high-risk schedule breaches detected.</p> : null}</div></Card>
-          <Card><h3 className="font-semibold text-white">Batch printing hints</h3><p className="mt-1 text-xs text-textMuted">Groups jobs with same machine/material/product for possible gang run or shared setup.</p><div className="mt-4 space-y-2">{batches.map(([key, group]) => <div key={key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><p className="text-sm font-semibold text-white">{group.length} jobs</p><p className="mt-1 text-xs text-textMuted">{key.replaceAll('|', ' · ')}</p><p className="mt-2 text-xs text-textMuted">Setup saving potential: {Math.max(0, group.length - 1)} shared setup(s)</p></div>)}{!batches.length ? <p className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-textMuted">No batch opportunities in current filter.</p> : null}</div></Card>
+          <Card><h3 className="font-semibold text-white">SLA breach predictions</h3><div className="mt-4 space-y-2">{scheduled.filter((card) => card.breachRisk === 'high').slice(0, 6).map((card) => <div key={`${card.source}-${card.id}`} className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-3"><p className="text-sm font-semibold text-white">{card.orderNumber}</p><p className="mt-1 text-xs text-rose-100">Due {card.dueDate || 'not set'} · ETA {card.finishLabel} · {card.scheduleReason}</p>{card.source === 'ticket' ? <a href={`/production/jobs/${card.id}`} className="mt-2 inline-block text-xs text-white underline">Open job detail</a> : null}</div>)}{!scheduled.some((card) => card.breachRisk === 'high') ? <p className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-xs text-emerald-100">No high-risk schedule breaches detected.</p> : null}</div></Card>
+          <Card><h3 className="font-semibold text-white">Batch printing hints</h3><p className="mt-1 text-xs text-textMuted">Groups jobs with same machine/material/product for possible gang run or shared setup.</p><div className="mt-4 space-y-2">{batches.map(([key, group]) => <div key={key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-3"><p className="text-sm font-semibold text-white">{group.length} jobs</p><p className="mt-1 text-xs text-textMuted">{key.replaceAll('|', ' · ')}</p><p className="mt-2 text-xs text-textMuted">Setup saving potential: {Math.max(0, group.length - 1)} shared setup(s)</p><div className="mt-2 flex flex-wrap gap-2">{group.filter((item) => item.source === 'ticket').slice(0, 3).map((item) => <a key={item.id} href={`/production/jobs/${item.id}`} className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-white">{item.orderNumber}</a>)}</div></div>)}{!batches.length ? <p className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-textMuted">No batch opportunities in current filter.</p> : null}</div></Card>
         </div>
       </div>
 
       <Card>
         <h3 className="mb-3 font-semibold text-white">Legacy production jobs table</h3>
-        <DataTable
-          columns={[
-            { key: 'order', header: 'Order', render: (row) => row.orderNumber },
-            { key: 'product', header: 'Product', render: (row) => row.product },
-            { key: 'plant', header: 'Plant', render: (row) => row.plant },
-            { key: 'stage', header: 'Stage', render: (row) => row.stage },
-            { key: 'risk', header: 'SLA Risk', render: (row) => row.slaRisk },
-            { key: 'dueDate', header: 'Due Date', render: (row) => row.dueDate },
-            { key: 'actions', header: 'Actions', render: (row) => <div className="flex gap-2"><Button onClick={() => setEditing(row)}>Edit</Button><Button onClick={async () => { await operationsService.deleteProductionJob(row.id); await load(); }}>Delete</Button></div> }
-          ]}
-          rows={rows}
-          rowKey={(row) => row.id}
-        />
+        <DataTable columns={[{ key: 'order', header: 'Order', render: (row) => row.orderNumber }, { key: 'product', header: 'Product', render: (row) => row.product }, { key: 'plant', header: 'Plant', render: (row) => row.plant }, { key: 'stage', header: 'Stage', render: (row) => row.stage }, { key: 'risk', header: 'SLA Risk', render: (row) => row.slaRisk }, { key: 'dueDate', header: 'Due Date', render: (row) => row.dueDate }, { key: 'actions', header: 'Actions', render: (row) => <div className="flex gap-2"><Button onClick={() => setEditing(row)}>Edit</Button><Button onClick={async () => { await operationsService.deleteProductionJob(row.id); await load(); }}>Delete</Button></div> }]} rows={rows} rowKey={(row) => row.id} />
       </Card>
 
       <BaseModal open={!!editing} onClose={() => setEditing(null)} title={editing?.id ? 'Production Job' : 'Add Production Job'}>
-        {editing ? (
-          <div className="space-y-3">
-            <Input placeholder="Order Number" value={editing.orderNumber} onChange={(e) => setEditing({ ...editing, orderNumber: e.target.value })} />
-            <Input placeholder="Product" value={editing.product} onChange={(e) => setEditing({ ...editing, product: e.target.value })} />
-            <Select options={['Nevada DC', 'Texas Plant', 'New Jersey Hub', 'Ricoh Pro C5400S', 'Large Format Printer', 'Supplier / Outsource']} value={editing.plant} onChange={(e) => setEditing({ ...editing, plant: e.target.value })} />
-            <Select options={['queued', 'proofing', 'printing', 'finishing', 'shipped']} value={editing.stage} onChange={(e) => setEditing({ ...editing, stage: e.target.value as ProductionJob['stage'] })} />
-            <Select options={['low', 'medium', 'high']} value={editing.slaRisk} onChange={(e) => setEditing({ ...editing, slaRisk: e.target.value as ProductionJob['slaRisk'] })} />
-            <Input type="date" value={editing.dueDate} onChange={(e) => setEditing({ ...editing, dueDate: e.target.value })} />
-            <div className="flex justify-end gap-2"><Button onClick={() => setEditing(null)}>Cancel</Button><PrimaryButton onClick={async () => { await operationsService.saveProductionJob(editing); setEditing(null); await load(); }}>Save Job</PrimaryButton></div>
-          </div>
-        ) : null}
+        {editing ? <div className="space-y-3"><Input placeholder="Order Number" value={editing.orderNumber} onChange={(e) => setEditing({ ...editing, orderNumber: e.target.value })} /><Input placeholder="Product" value={editing.product} onChange={(e) => setEditing({ ...editing, product: e.target.value })} /><Select options={['Nevada DC', 'Texas Plant', 'New Jersey Hub', 'Ricoh Pro C5400S', 'Large Format Printer', 'Supplier / Outsource']} value={editing.plant} onChange={(e) => setEditing({ ...editing, plant: e.target.value })} /><Select options={['queued', 'proofing', 'printing', 'finishing', 'shipped']} value={editing.stage} onChange={(e) => setEditing({ ...editing, stage: e.target.value as ProductionJob['stage'] })} /><Select options={['low', 'medium', 'high']} value={editing.slaRisk} onChange={(e) => setEditing({ ...editing, slaRisk: e.target.value as ProductionJob['slaRisk'] })} /><Input type="date" value={editing.dueDate} onChange={(e) => setEditing({ ...editing, dueDate: e.target.value })} /><div className="flex justify-end gap-2"><Button onClick={() => setEditing(null)}>Cancel</Button><PrimaryButton onClick={async () => { await operationsService.saveProductionJob(editing); setEditing(null); await load(); }}>Save Job</PrimaryButton></div></div> : null}
       </BaseModal>
     </div>
   );

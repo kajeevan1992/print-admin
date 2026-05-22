@@ -1,0 +1,35 @@
+import { NextResponse } from 'next/server';
+import { listProductionJobTickets, saveProductionJobTicket } from '@/core/production/internal-production-jobs';
+
+export const dynamic = 'force-dynamic';
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Tenant-Id, X-Site-Id, X-Database-Connection-Id',
+  };
+}
+
+function json(data: unknown, init?: ResponseInit) {
+  return NextResponse.json(data, { ...init, headers: { ...corsHeaders(), ...(init?.headers || {}) } });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders() });
+}
+
+export async function GET() {
+  const items = await listProductionJobTickets();
+  return json({ ok: true, source: 'internal-production-job-tickets', data: { items, count: items.length } });
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json().catch(() => ({}));
+    const item = await saveProductionJobTicket(body || {});
+    return json({ ok: true, source: 'internal-production-job-tickets', data: item, item });
+  } catch (error) {
+    return json({ ok: false, source: 'internal-production-job-tickets', error: error instanceof Error ? error.message : 'Failed to save production job ticket.' }, { status: 500 });
+  }
+}

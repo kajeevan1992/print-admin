@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
 import nodemailer from 'nodemailer';
+import { smtpSettingsFromTenant } from './email-settings.service';
 
 export type InternalEmailStatus = 'queued' | 'sent' | 'failed' | 'needs-email-address' | 'smtp-not-configured';
 
@@ -39,12 +40,16 @@ function outboxPath() {
   return path.join(dataDir(), 'email-outbox.json');
 }
 
+function settings() {
+  return smtpSettingsFromTenant();
+}
+
 function smtpConfigured() {
-  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
+  return settings().configured;
 }
 
 function fromAddress() {
-  return process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || 'no-reply@holoprint.local';
+  return settings().from || process.env.SMTP_FROM || process.env.EMAIL_FROM || process.env.SMTP_USER || 'no-reply@holoprint.local';
 }
 
 async function readOutbox(): Promise<InternalEmailRecord[]> {
@@ -90,14 +95,15 @@ export async function upsertInternalEmail(record: InternalEmailRecord) {
 }
 
 function createTransport() {
-  if (!smtpConfigured()) return null;
+  const s = settings();
+  if (!s.configured) return null;
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || Number(process.env.SMTP_PORT) === 465,
+    host: s.host,
+    port: Number(s.port || 587),
+    secure: Boolean(s.secure) || Number(s.port) === 465,
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user: s.user,
+      pass: s.pass,
     },
   });
 }
@@ -116,14 +122,16 @@ export async function sendInternalEmail(emailId: string) {
 
   const transport = createTransport();
   if (!transport) {
-    const next = { ...email, status: 'smtp-not-configured' as InternalEmailStatus, failedAt: now, lastError: 'SMTP env is not configured.', attempts: (email.attempts || 0) + 1 };
+    const next = { ...email, status: 'smtp-not-configured' as InternalEmailStatus, failedAt: now, lastError: 'SMTP is not configured in Email Settings or env.', attempts: (email.attempts || 0) + 1 };
     await upsertInternalEmail(next);
     return next;
   }
 
   try {
+    const s = settings();
     const result = await transport.sendMail({
       from: fromAddress(),
+      replyTo: s.replyTo || undefined,
       to: email.to,
       subject: email.subject,
       text: email.body,
@@ -150,10 +158,13 @@ export async function sendQueuedInternalEmails() {
 }
 
 export function smtpStatus() {
+  const s = settings();
   return {
     configured: smtpConfigured(),
-    host: process.env.SMTP_HOST || '',
-    port: process.env.SMTP_PORT || '',
+    host: s.host || '',
+    port: s.port || '',
     from: fromAddress(),
+    replyTo: s.replyTo || '',
+    source: s.configured ? 'tenant-email-settings' : 'env-or-empty',
   };
 }

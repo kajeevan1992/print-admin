@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { listProductionJobTickets, saveProductionJobTicket } from '@/core/production/internal-production-jobs';
+import { listProductionJobTickets, productionJobStorageStatus, saveProductionJobTicket } from '@/core/production/internal-production-jobs';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,16 +19,17 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
 
-export async function GET() {
-  const items = await listProductionJobTickets();
-  return json({ ok: true, source: 'internal-production-job-tickets', data: { items, count: items.length } });
+export async function GET(request: Request) {
+  const [items, storage] = await Promise.all([listProductionJobTickets(request), productionJobStorageStatus(request)]);
+  return json({ ok: true, source: 'internal-production-job-tickets', storage, data: { items, count: items.length } });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
-    const item = await saveProductionJobTicket(body || {});
-    return json({ ok: true, source: 'internal-production-job-tickets', data: item, item });
+    const item = await saveProductionJobTicket(body || {}, request);
+    const storage = await productionJobStorageStatus(request);
+    return json({ ok: true, source: 'internal-production-job-tickets', storage, data: item, item });
   } catch (error) {
     return json({ ok: false, source: 'internal-production-job-tickets', error: error instanceof Error ? error.message : 'Failed to save production job ticket.' }, { status: 500 });
   }

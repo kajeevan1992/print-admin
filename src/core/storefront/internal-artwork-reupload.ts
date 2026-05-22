@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import { mkdir, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import { tenantContextFromRequest } from '@/core/tenant/context';
-import { queueInternalEmail, listInternalEmails } from '@/core/email/internal-email.service';
+import { queueInternalEmail, listInternalEmails, sendInternalEmail } from '@/core/email/internal-email.service';
 import { extractPdfHints, listArtworkUploads, readArtworkUploadMetadata, writeArtworkUploadMetadata, type ArtworkReviewStatus, type StoredArtworkUpload } from './internal-artwork-storage';
 import { resolveArtworkPreflight } from './internal-artwork-preflight';
 
@@ -102,7 +102,7 @@ export async function requestArtworkReupload(uploadId: string, input: ReuploadEm
 
   await writeArtworkUploadMetadata(next);
 
-  const email = await queueInternalEmail({
+  let email = await queueInternalEmail({
     type: 'artwork-reupload-request',
     to: input.customerEmail || '',
     subject,
@@ -112,6 +112,9 @@ export async function requestArtworkReupload(uploadId: string, input: ReuploadEm
     orderId: upload.orderId,
     quoteId: upload.quoteId,
   });
+  if (process.env.ARTWORK_EMAIL_AUTO_SEND === 'true') {
+    email = await sendInternalEmail(email.id);
+  }
 
   return { upload: next, email, reuploadLink: link };
 }

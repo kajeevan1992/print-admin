@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, stat, writeFile } from 'fs/promises';
+import { mkdir, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import { tenantContextFromRequest } from '@/core/tenant/context';
+import { queueInternalEmail, listInternalEmails } from '@/core/email/internal-email.service';
 import { extractPdfHints, listArtworkUploads, readArtworkUploadMetadata, writeArtworkUploadMetadata, type ArtworkReviewStatus, type StoredArtworkUpload } from './internal-artwork-storage';
 import { resolveArtworkPreflight } from './internal-artwork-preflight';
 
@@ -20,10 +21,6 @@ type ReplacementFormResult = {
   previousFile?: unknown;
 };
 
-function dataDir() {
-  return path.join(process.cwd(), '.data');
-}
-
 function uploadDir(id: string) {
   return path.join(process.cwd(), '.data', 'artwork-uploads', id.replace(/[^a-zA-Z0-9._-]+/g, '-'));
 }
@@ -31,26 +28,6 @@ function uploadDir(id: string) {
 function safeName(value: string) {
   const name = value || 'replacement-artwork.pdf';
   return name.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'replacement-artwork.pdf';
-}
-
-function emailOutboxPath() {
-  return path.join(dataDir(), 'email-outbox.json');
-}
-
-async function readEmailOutbox() {
-  await mkdir(dataDir(), { recursive: true });
-  try {
-    const parsed = JSON.parse(await readFile(emailOutboxPath(), 'utf8'));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeEmailOutbox(items: unknown[]) {
-  await mkdir(dataDir(), { recursive: true });
-  await writeFile(emailOutboxPath(), JSON.stringify(items, null, 2));
-  return items;
 }
 
 function makeStorefrontLink(baseUrl: string | undefined, token: string, adminBaseUrl?: string) {
@@ -83,7 +60,7 @@ function publicUpload(upload: StoredArtworkUpload) {
 }
 
 export async function listEmailOutbox() {
-  return readEmailOutbox();
+  return listInternalEmails();
 }
 
 export async function requestArtworkReupload(uploadId: string, input: ReuploadEmailInput = {}) {
@@ -125,11 +102,8 @@ export async function requestArtworkReupload(uploadId: string, input: ReuploadEm
 
   await writeArtworkUploadMetadata(next);
 
-  const outbox = await readEmailOutbox();
-  const email = {
-    id: `email_${Date.now()}_${randomUUID().slice(0, 8)}`,
+  const email = await queueInternalEmail({
     type: 'artwork-reupload-request',
-    status: input.customerEmail ? 'queued' : 'needs-email-address',
     to: input.customerEmail || '',
     subject,
     body,
@@ -137,9 +111,7 @@ export async function requestArtworkReupload(uploadId: string, input: ReuploadEm
     uploadId,
     orderId: upload.orderId,
     quoteId: upload.quoteId,
-    createdAt: now,
-  };
-  await writeEmailOutbox([email, ...outbox]);
+  });
 
   return { upload: next, email, reuploadLink: link };
 }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { updateArtworkReview } from '@/core/storefront/internal-artwork-storage';
 import { requestArtworkReupload } from '@/core/storefront/internal-artwork-reupload';
 import { queueArtworkStatusEmail } from '@/core/storefront/internal-artwork-notifications';
+import { createProductionJobFromApprovedArtwork } from '@/core/production/internal-production-jobs';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,22 @@ async function handle(request: Request, context: RouteContext) {
       quoteId: body.quoteId,
     });
     let email = null;
+    let productionJob = null;
+    if (action === 'approved') {
+      productionJob = await createProductionJobFromApprovedArtwork(request, upload, {
+        orderId: body.orderId,
+        orderNumber: body.orderNumber,
+        customerName: body.customerName,
+        customerEmail: body.customerEmail,
+        productName: body.productName,
+        quantity: body.quantity,
+        dueDate: body.dueDate,
+        machine: body.machine,
+        material: body.material,
+        supplier: body.supplier,
+        note: body.note,
+      }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to create production job.' }));
+    }
     if (action === 'approved' || action === 'rejected' || action === 'pending-review') {
       email = await queueArtworkStatusEmail({
         action: action as any,
@@ -59,11 +76,12 @@ async function handle(request: Request, context: RouteContext) {
         customerEmail: body.customerEmail || '',
         customerName: body.customerName || '',
         orderNumber: body.orderNumber || '',
+        productName: body.productName || '',
         note: body.note || '',
         sendNow: body.sendEmailNow === true,
       }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to queue customer notification.' }));
     }
-    return json({ ok: true, source: 'internal-storefront-artwork-status', upload, email });
+    return json({ ok: true, source: 'internal-storefront-artwork-status', upload, email, productionJob });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : 'Failed to update artwork status.' }, { status: 500 });
   }

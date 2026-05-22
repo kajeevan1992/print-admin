@@ -4,6 +4,34 @@ import type { StoredArtworkUpload } from '@/core/storefront/internal-artwork-sto
 import { readArtworkUploadMetadata, writeArtworkUploadMetadata } from '@/core/storefront/internal-artwork-storage';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 
+export type ProductionTicketStatus = 'queued' | 'artwork-check' | 'proofing' | 'ready-to-print' | 'printing' | 'finishing' | 'packing' | 'dispatched' | 'blocked';
+export type ProductionTicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type ProductionTicketAction = 'queue' | 'start-printing' | 'finish-printing' | 'start-packing' | 'mark-dispatched' | 'block' | 'unblock';
+
+export type ProductionStageHistoryEvent = {
+  id: string;
+  from?: ProductionTicketStatus;
+  to: ProductionTicketStatus;
+  action: ProductionTicketAction | 'created' | 'updated';
+  actor: string;
+  note?: string;
+  createdAt: string;
+};
+
+export type ProductionDispatchInfo = {
+  carrier?: 'DHL' | 'DPD' | 'Royal Mail' | 'UPS' | 'Other';
+  service?: 'next-day' | 'tracked-24' | 'tracked-48' | 'economy' | 'same-day' | 'collection';
+  trackingNumber?: string;
+  dispatchBatchId?: string;
+  manifestNumber?: string;
+  dock?: 'North Dock' | 'South Dock' | 'Express Cage' | 'Front Counter';
+  destinationZone?: 'UK' | 'EU' | 'US' | 'ROW';
+  scanStatus?: 'complete' | 'partial' | 'missing';
+  packedAt?: string;
+  dispatchedAt?: string;
+  dispatchedBy?: string;
+};
+
 export type ProductionJobTicket = {
   id: string;
   orderId?: string;
@@ -15,8 +43,8 @@ export type ProductionJobTicket = {
   productName: string;
   quantity: number;
   dueDate: string;
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  status: 'queued' | 'artwork-check' | 'proofing' | 'ready-to-print' | 'printing' | 'finishing' | 'packing' | 'dispatched' | 'blocked';
+  priority: ProductionTicketPriority;
+  status: ProductionTicketStatus;
   artworkStatus: string;
   machine: string;
   material: string;
@@ -24,30 +52,33 @@ export type ProductionJobTicket = {
   finishing: string[];
   supplier: string;
   notes?: string;
+  operatorNotes?: string;
   warnings: string[];
   createdAt: string;
   updatedAt: string;
+  startedAt?: string;
+  printCompletedAt?: string;
+  packedAt?: string;
+  dispatchedAt?: string;
+  blockedAt?: string;
+  blockedReason?: string;
+  currentOperator?: string;
+  dispatch?: ProductionDispatchInfo;
+  stageHistory: ProductionStageHistoryEvent[];
   source: 'approved-artwork' | 'manual' | 'order';
 };
 
 type ProductionJobInput = Partial<ProductionJobTicket> & Record<string, any>;
 
-function dataDir() {
-  return path.join(process.cwd(), '.data');
-}
-
-function storePath() {
-  return path.join(dataDir(), 'production-job-tickets.json');
-}
+function dataDir() { return path.join(process.cwd(), '.data'); }
+function storePath() { return path.join(dataDir(), 'production-job-tickets.json'); }
 
 async function readStore(): Promise<ProductionJobTicket[]> {
   await mkdir(dataDir(), { recursive: true });
   try {
     const parsed = JSON.parse(await readFile(storePath(), 'utf8'));
     return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 async function writeStore(items: ProductionJobTicket[]) {
@@ -105,6 +136,21 @@ function makeTicketId(uploadId?: string, orderId?: string) {
   return `pjt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function nextStatusFor(action: ProductionTicketAction, current: ProductionTicketStatus): ProductionTicketStatus {
+  if (action === 'queue') return 'ready-to-print';
+  if (action === 'start-printing') return 'printing';
+  if (action === 'finish-printing') return 'finishing';
+  if (action === 'start-packing') return 'packing';
+  if (action === 'mark-dispatched') return 'dispatched';
+  if (action === 'block') return 'blocked';
+  if (action === 'unblock') return current === 'blocked' ? 'ready-to-print' : current;
+  return current;
+}
+
+function historyEvent(from: ProductionTicketStatus | undefined, to: ProductionTicketStatus, action: ProductionStageHistoryEvent['action'], actor = 'admin', note = ''): ProductionStageHistoryEvent {
+  return { id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, from, to, action, actor, note, createdAt: new Date().toISOString() };
+}
+
 export async function listProductionJobTickets() {
   const items = await readStore();
   return items.sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
@@ -120,6 +166,7 @@ export async function saveProductionJobTicket(input: ProductionJobInput) {
   const now = new Date().toISOString();
   const id = String(input.id || makeTicketId(input.artworkUploadId, input.orderId));
   const existing = items.find((item) => item.id === id);
+  const status = (input.status || existing?.status || 'queued') as ProductionTicketStatus;
   const next: ProductionJobTicket = {
     id,
     orderId: input.orderId || existing?.orderId,
@@ -131,16 +178,26 @@ export async function saveProductionJobTicket(input: ProductionJobInput) {
     productName: String(input.productName || existing?.productName || 'Production job'),
     quantity: Number(input.quantity || existing?.quantity || 1),
     dueDate: safeDate(input.dueDate || existing?.dueDate),
-    priority: (input.priority || existing?.priority || 'normal') as ProductionJobTicket['priority'],
-    status: (input.status || existing?.status || 'queued') as ProductionJobTicket['status'],
+    priority: (input.priority || existing?.priority || 'normal') as ProductionTicketPriority,
+    status,
     artworkStatus: input.artworkStatus || existing?.artworkStatus || 'approved',
     machine: input.machine || existing?.machine || inferMachine(String(input.productName || existing?.productName || '')),
     material: input.material || existing?.material || '',
     route: Array.isArray(input.route) ? input.route : existing?.route || inferRoute(String(input.productName || existing?.productName || ''), input.supplier || existing?.supplier || 'internal'),
     finishing: Array.isArray(input.finishing) ? input.finishing : existing?.finishing || inferFinishing(String(input.productName || existing?.productName || '')),
     supplier: input.supplier || existing?.supplier || 'internal',
-    notes: input.notes || existing?.notes || '',
+    notes: input.notes ?? existing?.notes ?? '',
+    operatorNotes: input.operatorNotes ?? existing?.operatorNotes ?? '',
     warnings: Array.isArray(input.warnings) ? input.warnings : existing?.warnings || [],
+    startedAt: input.startedAt || existing?.startedAt,
+    printCompletedAt: input.printCompletedAt || existing?.printCompletedAt,
+    packedAt: input.packedAt || existing?.packedAt,
+    dispatchedAt: input.dispatchedAt || existing?.dispatchedAt,
+    blockedAt: input.blockedAt || existing?.blockedAt,
+    blockedReason: input.blockedReason || existing?.blockedReason,
+    currentOperator: input.currentOperator || existing?.currentOperator || '',
+    dispatch: { ...(existing?.dispatch || {}), ...(input.dispatch || {}) },
+    stageHistory: Array.isArray(input.stageHistory) ? input.stageHistory : existing?.stageHistory || [historyEvent(undefined, status, 'created', 'system', 'Production ticket created.')],
     source: (input.source || existing?.source || 'manual') as ProductionJobTicket['source'],
     createdAt: existing?.createdAt || now,
     updatedAt: now,
@@ -148,6 +205,37 @@ export async function saveProductionJobTicket(input: ProductionJobInput) {
   const updated = existing ? items.map((item) => item.id === id ? next : item) : [next, ...items];
   await writeStore(updated);
   return next;
+}
+
+export async function transitionProductionJobTicket(id: string, action: ProductionTicketAction, input: Record<string, any> = {}) {
+  const existing = await getProductionJobTicket(id);
+  if (!existing) throw new Error('Production job ticket not found.');
+  const now = new Date().toISOString();
+  const nextStatus = nextStatusFor(action, existing.status);
+  const dispatchPatch: ProductionDispatchInfo = input.dispatch || {};
+  if (action === 'mark-dispatched') {
+    dispatchPatch.dispatchedAt = dispatchPatch.dispatchedAt || now;
+    dispatchPatch.dispatchedBy = input.actor || 'admin';
+    dispatchPatch.scanStatus = dispatchPatch.scanStatus || 'complete';
+    dispatchPatch.dispatchBatchId = dispatchPatch.dispatchBatchId || `DISP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${existing.orderNumber}`;
+  }
+  if (action === 'start-packing') dispatchPatch.packedAt = dispatchPatch.packedAt || now;
+  const patch: ProductionJobInput = {
+    ...existing,
+    ...input,
+    id: existing.id,
+    status: nextStatus,
+    startedAt: action === 'start-printing' ? now : existing.startedAt,
+    printCompletedAt: action === 'finish-printing' ? now : existing.printCompletedAt,
+    packedAt: action === 'start-packing' ? now : existing.packedAt,
+    dispatchedAt: action === 'mark-dispatched' ? now : existing.dispatchedAt,
+    blockedAt: action === 'block' ? now : existing.blockedAt,
+    blockedReason: action === 'block' ? input.note || input.blockedReason || existing.blockedReason : action === 'unblock' ? '' : existing.blockedReason,
+    currentOperator: input.operator || input.currentOperator || existing.currentOperator,
+    dispatch: { ...(existing.dispatch || {}), ...dispatchPatch },
+    stageHistory: [...(existing.stageHistory || []), historyEvent(existing.status, nextStatus, action, input.actor || 'admin', input.note || '')],
+  };
+  return saveProductionJobTicket(patch);
 }
 
 export async function createProductionJobFromApprovedArtwork(request: Request, uploadInput: StoredArtworkUpload, options: Record<string, any> = {}) {
@@ -183,6 +271,7 @@ export async function createProductionJobFromApprovedArtwork(request: Request, u
     notes: options.note || `Created automatically when artwork ${upload.id} was approved.`,
     warnings,
     source: 'approved-artwork',
+    stageHistory: [historyEvent(undefined, 'ready-to-print', 'created', 'artwork-approval', `Production job created from approved artwork ${upload.id}.`)],
   });
 
   const nextUpload = {

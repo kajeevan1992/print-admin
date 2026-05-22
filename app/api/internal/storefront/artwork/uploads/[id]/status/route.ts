@@ -36,6 +36,7 @@ async function handle(request: Request, context: RouteContext) {
         customerEmail: body.customerEmail || '',
         customerName: body.customerName || '',
         storefrontBaseUrl: body.storefrontBaseUrl || body.storefrontUrl || '',
+        adminBaseUrl: body.adminBaseUrl || body.adminUrl || '',
         orderNumber: body.orderNumber || '',
         productName: body.productName || '',
       });

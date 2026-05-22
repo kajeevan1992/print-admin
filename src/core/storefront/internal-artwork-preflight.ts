@@ -22,10 +22,27 @@ type ArtworkFileMeta = {
   pageCount?: number;
   width?: number;
   height?: number;
+  widthMm?: number;
+  heightMm?: number;
   dpi?: number;
   hasBleed?: boolean;
   hasCutline?: boolean;
   cutlineLayerName?: string;
+  isPdf?: boolean;
+  pdfVersion?: string;
+  hasBleedBox?: boolean;
+  detectedBleedMm?: number;
+  mixedPageSizes?: boolean;
+  encrypted?: boolean;
+  hasRgb?: boolean;
+  hasCmyk?: boolean;
+  hasSpotColours?: boolean;
+  hasTransparency?: boolean;
+  hasEmbeddedFonts?: boolean;
+  hasUnembeddedFonts?: boolean;
+  fontNames?: string[];
+  colourSpaces?: string[];
+  pages?: Array<{ page: number; widthMm?: number; heightMm?: number; blankLikely?: boolean; detectedBleedMm?: number }>;
 };
 
 const defaultArtworkRules: ProductArtworkRuleConfig = {
@@ -92,16 +109,27 @@ function modeMessages(product: CatalogProduct | null) {
   const mode = product?.productModeSettings;
   const warnings: string[] = [];
   const blockers: string[] = [];
-  if (mode?.quote?.enabled && mode.quote.allowArtworkUploadBeforeQuote === false) {
-    blockers.push('Artwork upload before quote approval is disabled for this product.');
-  }
-  if (mode?.supplier?.enabled && mode.supplier.useSupplierArtworkSpec) {
-    warnings.push('Supplier artwork specification is enabled. Check supplier-specific artwork requirements before production.');
-  }
-  if (mode?.quote?.enabled && mode.quote.requireManualApproval) {
-    warnings.push('This product requires manual quote/artwork approval before production.');
-  }
+  if (mode?.quote?.enabled && mode.quote.allowArtworkUploadBeforeQuote === false) blockers.push('Artwork upload before quote approval is disabled for this product.');
+  if (mode?.supplier?.enabled && mode.supplier.useSupplierArtworkSpec) warnings.push('Supplier artwork specification is enabled. Check supplier-specific artwork requirements before production.');
+  if (mode?.quote?.enabled && mode.quote.requireManualApproval) warnings.push('This product requires manual quote/artwork approval before production.');
   return { warnings, blockers };
+}
+
+function validatePrintReadyPdf(file: ArtworkFileMeta, label: string, rules: ProductArtworkRuleConfig) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  if (file.encrypted) errors.push(`${label}: PDF appears to be encrypted/password protected.`);
+  if (file.hasUnembeddedFonts) errors.push(`${label}: PDF may contain unembedded fonts.`);
+  if (file.mixedPageSizes) warnings.push(`${label}: PDF appears to contain mixed page sizes.`);
+  if (file.hasRgb) warnings.push(`${label}: RGB/ICC colour spaces detected. CMYK is preferred for predictable print output.`);
+  if (!file.hasCmyk && fileExt(file) === 'pdf') warnings.push(`${label}: CMYK colour space was not detected in the first PDF scan.`);
+  if (file.hasSpotColours) warnings.push(`${label}: spot/separation colours detected. Check if these are intentional.`);
+  if (file.hasTransparency) warnings.push(`${label}: transparency/ExtGState markers detected. Flattening may be required for some workflows.`);
+  if (rules.bleedMm && file.detectedBleedMm !== undefined && file.detectedBleedMm < Number(rules.bleedMm)) warnings.push(`${label}: detected bleed is around ${file.detectedBleedMm}mm; expected ${rules.bleedMm}mm.`);
+  if (rules.bleedMm && !file.hasBleedBox && file.hasBleed !== true) warnings.push(`${label}: no PDF BleedBox was detected. Add ${rules.bleedMm}mm bleed to avoid white edges after trimming.`);
+  if (file.pages?.some((page) => page.blankLikely)) warnings.push(`${label}: one or more pages may be blank or missing visible page resources.`);
+  if ((rules.separateFilesMode === 'multi-page-pdf' || rules.separateFilesMode === 'cover-inner-files') && file.pageCount && file.pageCount % 4 !== 0) warnings.push(`${label}: booklet-style products usually need a page count divisible by 4. Detected ${file.pageCount} pages.`);
+  return { errors, warnings };
 }
 
 function validateFiles(files: ArtworkFileMeta[], rules: ProductArtworkRuleConfig) {
@@ -124,6 +152,9 @@ function validateFiles(files: ArtworkFileMeta[], rules: ProductArtworkRuleConfig
     if (rules.bleedMm && file.hasBleed === false) warnings.push(`${label}: ${rules.bleedMm}mm bleed is recommended/required.`);
     if (rules.requireCutline && !file.hasCutline) errors.push(`${label}: cutline layer is required${rules.cutlineLayerName ? ` (${rules.cutlineLayerName})` : ''}.`);
     if (rules.requireCutline && file.cutlineLayerName && rules.cutlineLayerName && file.cutlineLayerName !== rules.cutlineLayerName) warnings.push(`${label}: expected cutline layer name ${rules.cutlineLayerName}.`);
+    const pdf = validatePrintReadyPdf(file, label, rules);
+    errors.push(...pdf.errors);
+    warnings.push(...pdf.warnings);
   });
 
   return { errors, warnings };
@@ -144,11 +175,7 @@ export async function resolveArtworkPreflight(ctx: TenantContext, input: Record<
   return {
     ok: true,
     source: 'internal-storefront-artwork-preflight',
-    product: product ? {
-      id: product.id,
-      slug: product.slug,
-      name: product.name || product.title,
-    } : null,
+    product: product ? { id: product.id, slug: product.slug, name: product.name || product.title } : null,
     artworkRules: rules,
     preflight: {
       status,
@@ -173,7 +200,17 @@ export async function resolveArtworkPreflight(ctx: TenantContext, input: Record<
       extension: fileExt(file),
       sizeMb: Number(sizeMb(file).toFixed(2)),
       pageCount: file.pageCount,
+      widthMm: file.widthMm,
+      heightMm: file.heightMm,
       dpi: file.dpi,
+      colourSpaces: file.colourSpaces,
+      pdfVersion: file.pdfVersion,
+      detectedBleedMm: file.detectedBleedMm,
+      hasBleedBox: file.hasBleedBox,
+      hasEmbeddedFonts: file.hasEmbeddedFonts,
+      hasUnembeddedFonts: file.hasUnembeddedFonts,
+      encrypted: file.encrypted,
+      mixedPageSizes: file.mixedPageSizes,
     })),
   };
 }

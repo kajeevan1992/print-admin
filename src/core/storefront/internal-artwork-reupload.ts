@@ -3,6 +3,7 @@ import { mkdir, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { queueInternalEmail, listInternalEmails, sendInternalEmail } from '@/core/email/internal-email.service';
+import { getEmailSettings, renderArtworkEmailTemplate } from '@/core/email/email-settings.service';
 import { extractPdfHints, listArtworkUploads, readArtworkUploadMetadata, writeArtworkUploadMetadata, type ArtworkReviewStatus, type StoredArtworkUpload } from './internal-artwork-storage';
 import { resolveArtworkPreflight } from './internal-artwork-preflight';
 
@@ -65,23 +66,19 @@ export async function listEmailOutbox() {
 
 export async function requestArtworkReupload(uploadId: string, input: ReuploadEmailInput = {}) {
   const upload = await readArtworkUploadMetadata(uploadId) as any;
+  const settings = await getEmailSettings();
   const token = `aru_${randomUUID().replace(/-/g, '')}`;
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const link = makeStorefrontLink(input.storefrontBaseUrl, token, input.adminBaseUrl);
-  const subject = `New artwork required${input.orderNumber ? ` for order ${input.orderNumber}` : ''}`;
-  const body = [
-    `Hello${input.customerName ? ` ${input.customerName}` : ''},`,
-    '',
-    'We have checked your artwork and need a replacement file before production can continue.',
-    input.note ? `Reason: ${input.note}` : '',
-    '',
-    `Please upload your corrected artwork here: ${link}`,
-    '',
-    'Recommended artwork: print-ready PDF, correct size, embedded fonts and 3mm bleed where required.',
-    '',
-    'Thank you.',
-  ].filter((line) => line !== '').join('\n');
+  const link = makeStorefrontLink(input.storefrontBaseUrl || settings.storefrontUrl, token, input.adminBaseUrl || settings.adminUrl);
+  const rendered = renderArtworkEmailTemplate('artwork-reupload-request', {
+    customerName: input.customerName || upload.customerName || 'Customer',
+    orderNumber: input.orderNumber || upload.orderId || '',
+    productName: input.productName || upload.productId || '',
+    fileName: upload.originalName || '',
+    note: input.note || upload.reviewNote || '',
+    reuploadLink: link,
+  }, settings);
 
   const next = {
     ...upload,
@@ -102,18 +99,21 @@ export async function requestArtworkReupload(uploadId: string, input: ReuploadEm
 
   await writeArtworkUploadMetadata(next);
 
-  let email = await queueInternalEmail({
-    type: 'artwork-reupload-request',
-    to: input.customerEmail || '',
-    subject,
-    body,
-    reuploadLink: link,
-    uploadId,
-    orderId: upload.orderId,
-    quoteId: upload.quoteId,
-  });
-  if (process.env.ARTWORK_EMAIL_AUTO_SEND === 'true') {
-    email = await sendInternalEmail(email.id);
+  let email: any = { id: `template-disabled-artwork-reupload-request`, status: 'template-disabled', to: input.customerEmail || '', subject: rendered.subject, body: rendered.body };
+  if (rendered.enabled) {
+    email = await queueInternalEmail({
+      type: 'artwork-reupload-request',
+      to: input.customerEmail || '',
+      subject: rendered.subject,
+      body: rendered.body,
+      reuploadLink: link,
+      uploadId,
+      orderId: upload.orderId,
+      quoteId: upload.quoteId,
+    });
+    if (settings.autoSendArtworkEmails || process.env.ARTWORK_EMAIL_AUTO_SEND === 'true') {
+      email = await sendInternalEmail(email.id);
+    }
   }
 
   return { upload: next, email, reuploadLink: link };

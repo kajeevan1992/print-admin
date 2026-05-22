@@ -89,6 +89,7 @@ model Tenant {
   categories       Category[]
   orders           Order[]
   artworks         Artwork[]
+  productionJobTickets ProductionJobTicket[]
   platformDeployments PlatformDeployment[]
   platformDemoUploads PlatformDemoUpload[]
   billingSubscriptions PlatformBillingSubscription[]
@@ -276,6 +277,53 @@ model ArtworkVersion {
 
   @@unique([artworkId, versionNumber])
   @@index([artworkId])
+}
+
+model ProductionJobTicket {
+  id              String   @id
+  tenantId        String
+  orderId         String?
+  orderNumber     String
+  artworkUploadId String?
+  customerName    String?
+  customerEmail   String?
+  productId       String?
+  productName     String
+  quantity        Int      @default(1)
+  dueDate         String
+  priority        String   @default("normal")
+  status          String   @default("queued")
+  artworkStatus   String   @default("approved")
+  machine         String   @default("Unassigned")
+  material        String   @default("")
+  routeJson       Json?
+  finishingJson   Json?
+  supplier        String   @default("internal")
+  notes           String?
+  operatorNotes   String?
+  warningsJson    Json?
+  startedAt       DateTime?
+  printCompletedAt DateTime?
+  packedAt        DateTime?
+  dispatchedAt    DateTime?
+  blockedAt       DateTime?
+  blockedReason   String?
+  currentOperator String?
+  dispatchJson    Json?
+  stageHistoryJson Json?
+  source          String   @default("manual")
+  metadataJson    Json?
+  migratedFromFile Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, artworkUploadId])
+  @@index([tenantId, status])
+  @@index([tenantId, orderId])
+  @@index([tenantId, orderNumber])
+  @@index([tenantId, artworkUploadId])
 }
 
 model TenantDatabaseConnection {

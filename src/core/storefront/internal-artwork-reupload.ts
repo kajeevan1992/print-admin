@@ -10,6 +10,7 @@ type ReuploadEmailInput = {
   customerEmail?: string;
   customerName?: string;
   storefrontBaseUrl?: string;
+  adminBaseUrl?: string;
   orderNumber?: string;
   productName?: string;
 };
@@ -52,10 +53,13 @@ async function writeEmailOutbox(items: unknown[]) {
   return items;
 }
 
-function makeStorefrontLink(baseUrl: string | undefined, token: string) {
+function makeStorefrontLink(baseUrl: string | undefined, token: string, adminBaseUrl?: string) {
   const base = String(baseUrl || process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || '').replace(/\/$/, '');
-  if (!base) return `/artwork-reupload?token=${encodeURIComponent(token)}`;
-  return `${base}/artwork-reupload?token=${encodeURIComponent(token)}`;
+  const adminBase = String(adminBaseUrl || process.env.NEXT_PUBLIC_ADMIN_URL || process.env.ADMIN_URL || '').replace(/\/$/, '');
+  const params = new URLSearchParams({ token });
+  if (adminBase) params.set('adminBase', adminBase);
+  if (!base) return `/artwork-reupload/?${params.toString()}`;
+  return `${base}/artwork-reupload/?${params.toString()}`;
 }
 
 function publicUpload(upload: StoredArtworkUpload) {
@@ -87,7 +91,7 @@ export async function requestArtworkReupload(uploadId: string, input: ReuploadEm
   const token = `aru_${randomUUID().replace(/-/g, '')}`;
   const now = new Date().toISOString();
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-  const link = makeStorefrontLink(input.storefrontBaseUrl, token);
+  const link = makeStorefrontLink(input.storefrontBaseUrl, token, input.adminBaseUrl);
   const subject = `New artwork required${input.orderNumber ? ` for order ${input.orderNumber}` : ''}`;
   const body = [
     `Hello${input.customerName ? ` ${input.customerName}` : ''},`,

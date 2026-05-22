@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { updateArtworkReview } from '@/core/storefront/internal-artwork-storage';
 import { requestArtworkReupload } from '@/core/storefront/internal-artwork-reupload';
+import { queueArtworkStatusEmail } from '@/core/storefront/internal-artwork-notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,19 @@ async function handle(request: Request, context: RouteContext) {
       orderId: body.orderId,
       quoteId: body.quoteId,
     });
-    return json({ ok: true, source: 'internal-storefront-artwork-status', upload });
+    let email = null;
+    if (action === 'approved' || action === 'rejected' || action === 'pending-review') {
+      email = await queueArtworkStatusEmail({
+        action: action as any,
+        upload,
+        customerEmail: body.customerEmail || '',
+        customerName: body.customerName || '',
+        orderNumber: body.orderNumber || '',
+        note: body.note || '',
+        sendNow: body.sendEmailNow === true,
+      }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to queue customer notification.' }));
+    }
+    return json({ ok: true, source: 'internal-storefront-artwork-status', upload, email });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : 'Failed to update artwork status.' }, { status: 500 });
   }

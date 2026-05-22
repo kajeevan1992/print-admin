@@ -49,6 +49,7 @@ function toShipment(ticket: any) {
     trackingNumber: dispatch.trackingNumber || '',
     manifestNumber: dispatch.manifestNumber || '',
     status: ticket.status,
+    storageSource: ticket.storageSource,
     notes: ticket.operatorNotes || ticket.notes || '',
     updatedAt: ticket.updatedAt,
   };
@@ -58,8 +59,8 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
 
-export async function GET() {
-  const tickets = await listProductionJobTickets();
+export async function GET(request: Request) {
+  const tickets = await listProductionJobTickets(request);
   const dispatchable = tickets.filter((ticket) => ['packing', 'dispatched'].includes(ticket.status));
   const items = dispatchable.map(toShipment);
   return json({ ok: true, source: 'internal-dispatch-production-tickets', data: { items, count: items.length } });
@@ -72,8 +73,8 @@ export async function POST(request: Request) {
     if (!id) return json({ ok: false, error: 'productionJobId is required.' }, { status: 400 });
     const action = body.action || (body.stage === 'handover' || body.status === 'dispatched' ? 'mark-dispatched' : null);
     const item = action
-      ? await transitionProductionJobTicket(id, action, body)
-      : await saveProductionJobTicket({ id, dispatch: body.dispatch || body, status: body.status });
+      ? await transitionProductionJobTicket(id, action, body, request)
+      : await saveProductionJobTicket({ id, dispatch: body.dispatch || body, status: body.status }, request);
     return json({ ok: true, source: 'internal-dispatch-production-tickets', item, shipment: toShipment(item) });
   } catch (error) {
     return json({ ok: false, source: 'internal-dispatch-production-tickets', error: error instanceof Error ? error.message : 'Failed to update dispatch shipment.' }, { status: 500 });

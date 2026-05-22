@@ -3,8 +3,8 @@ import { getEmailSettings, maskEmailSettings, resetAllEmailTemplates, resetEmail
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const settings = await getEmailSettings();
+export async function GET(request: Request) {
+  const settings = await getEmailSettings(request);
   return NextResponse.json({ ok: true, source: 'internal-email-settings', data: maskEmailSettings(settings) });
 }
 
@@ -13,11 +13,11 @@ export async function PUT(request: Request) {
     const body = await request.json().catch(() => ({}));
     let settings;
     if (body?.action === 'reset-template' && body?.key) {
-      settings = await resetEmailTemplate(body.key);
+      settings = await resetEmailTemplate(body.key, request);
     } else if (body?.action === 'reset-all-templates') {
-      settings = await resetAllEmailTemplates();
+      settings = await resetAllEmailTemplates(request);
     } else {
-      settings = await saveEmailSettings(body || {});
+      settings = await saveEmailSettings(body || {}, request);
     }
     return NextResponse.json({ ok: true, source: 'internal-email-settings', data: maskEmailSettings(settings) });
   } catch (error) {

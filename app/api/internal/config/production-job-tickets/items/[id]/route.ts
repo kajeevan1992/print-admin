@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProductionJobTicket, saveProductionJobTicket } from '@/core/production/internal-production-jobs';
+import { getProductionJobTicket, saveProductionJobTicket, transitionProductionJobTicket } from '@/core/production/internal-production-jobs';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,7 @@ type RouteContext = { params: { id: string } };
 function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, PATCH, PUT, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, PATCH, PUT, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Tenant-Id, X-Site-Id, X-Database-Connection-Id',
   };
 }
@@ -30,7 +30,9 @@ export async function GET(_request: Request, context: RouteContext) {
 async function update(request: Request, context: RouteContext) {
   try {
     const body = await request.json().catch(() => ({}));
-    const item = await saveProductionJobTicket({ ...body, id: context.params.id });
+    const item = body?.action
+      ? await transitionProductionJobTicket(context.params.id, body.action, body)
+      : await saveProductionJobTicket({ ...body, id: context.params.id });
     return json({ ok: true, source: 'internal-production-job-tickets', data: item, item });
   } catch (error) {
     return json({ ok: false, source: 'internal-production-job-tickets', error: error instanceof Error ? error.message : 'Failed to update production job ticket.' }, { status: 500 });
@@ -42,5 +44,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function PUT(request: Request, context: RouteContext) {
+  return update(request, context);
+}
+
+export async function POST(request: Request, context: RouteContext) {
   return update(request, context);
 }

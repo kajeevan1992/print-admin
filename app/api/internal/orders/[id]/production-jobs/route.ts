@@ -21,9 +21,9 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const id = context.params.id;
-  const tickets = await listProductionJobTickets();
+  const tickets = await listProductionJobTickets(request);
   const items = tickets.filter((ticket) =>
     String(ticket.orderId || '') === id ||
     String(ticket.orderNumber || '') === id ||

@@ -4,6 +4,42 @@ import path from 'path';
 import type { TenantContext } from '@/core/tenant/types';
 import { resolveArtworkPreflight } from './internal-artwork-preflight';
 
+export type PdfPageAnalysis = {
+  page: number;
+  widthMm?: number;
+  heightMm?: number;
+  mediaBox?: number[];
+  cropBox?: number[];
+  trimBox?: number[];
+  bleedBox?: number[];
+  hasBleedBox: boolean;
+  detectedBleedMm?: number;
+  orientation?: 'portrait' | 'landscape' | 'square';
+  blankLikely?: boolean;
+};
+
+export type PdfPreflightHints = {
+  isPdf?: boolean;
+  pageCount?: number;
+  widthMm?: number;
+  heightMm?: number;
+  pages?: PdfPageAnalysis[];
+  hasBleedBox?: boolean;
+  detectedBleedMm?: number;
+  mixedPageSizes?: boolean;
+  encrypted?: boolean;
+  hasRgb?: boolean;
+  hasCmyk?: boolean;
+  hasSpotColours?: boolean;
+  hasTransparency?: boolean;
+  hasImages?: boolean;
+  hasEmbeddedFonts?: boolean;
+  hasUnembeddedFonts?: boolean;
+  fontNames?: string[];
+  colourSpaces?: string[];
+  pdfVersion?: string;
+};
+
 export type StoredArtworkUpload = {
   id: string;
   tenantId: string;
@@ -19,6 +55,7 @@ export type StoredArtworkUpload = {
   pageCount?: number;
   widthMm?: number;
   heightMm?: number;
+  pdfHints?: PdfPreflightHints;
   fileUrl: string;
   downloadUrl: string;
   preflight?: unknown;
@@ -38,27 +75,136 @@ function extensionFromName(name: string) {
   return (name.includes('.') ? name.split('.').pop() : '')?.toLowerCase() || '';
 }
 
-function countPdfPages(text: string) {
+function unique(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function ptToMm(value: number) {
+  return Math.round(value * 0.3527777778 * 10) / 10;
+}
+
+function parseBox(text: string, name: 'MediaBox' | 'CropBox' | 'TrimBox' | 'BleedBox') {
+  const regex = new RegExp(`/${name}\\s*\\[\\s*([-0-9.]+)\\s+([-0-9.]+)\\s+([-0-9.]+)\\s+([-0-9.]+)\\s*\\]`);
+  const match = text.match(regex);
+  if (!match) return undefined;
+  const values = match.slice(1).map(Number);
+  return values.every(Number.isFinite) ? values : undefined;
+}
+
+function boxWidthMm(box?: number[]) {
+  return box ? ptToMm(Math.abs(box[2] - box[0])) : undefined;
+}
+
+function boxHeightMm(box?: number[]) {
+  return box ? ptToMm(Math.abs(box[3] - box[1])) : undefined;
+}
+
+function bleedFromBoxes(trim?: number[], bleed?: number[], media?: number[]) {
+  const outer = bleed || media;
+  if (!trim || !outer) return undefined;
+  const left = Math.abs(trim[0] - outer[0]);
+  const bottom = Math.abs(trim[1] - outer[1]);
+  const right = Math.abs(outer[2] - trim[2]);
+  const top = Math.abs(outer[3] - trim[3]);
+  const minPt = Math.min(left, bottom, right, top);
+  return Math.round(ptToMm(minPt) * 10) / 10;
+}
+
+function pageObjectChunks(text: string) {
+  const chunks: string[] = [];
+  const regex = /(\d+\s+\d+\s+obj[\s\S]{0,12000}?\/Type\s*\/Page\b[\s\S]{0,12000}?endobj)/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) && chunks.length < 2000) chunks.push(match[1]);
+  return chunks;
+}
+
+function analysePages(text: string): PdfPageAnalysis[] {
+  const chunks = pageObjectChunks(text);
+  const fallbackBox = parseBox(text, 'MediaBox');
+  const source = chunks.length ? chunks : [text];
+  return source.map((chunk, index) => {
+    const mediaBox = parseBox(chunk, 'MediaBox') || fallbackBox;
+    const cropBox = parseBox(chunk, 'CropBox');
+    const trimBox = parseBox(chunk, 'TrimBox');
+    const bleedBox = parseBox(chunk, 'BleedBox');
+    const widthMm = boxWidthMm(trimBox || cropBox || mediaBox);
+    const heightMm = boxHeightMm(trimBox || cropBox || mediaBox);
+    const detectedBleedMm = bleedFromBoxes(trimBox, bleedBox, mediaBox);
+    return {
+      page: index + 1,
+      widthMm,
+      heightMm,
+      mediaBox,
+      cropBox,
+      trimBox,
+      bleedBox,
+      hasBleedBox: Boolean(bleedBox),
+      detectedBleedMm,
+      orientation: widthMm && heightMm ? widthMm > heightMm ? 'landscape' : widthMm < heightMm ? 'portrait' : 'square' : undefined,
+      blankLikely: !/\/(Image|XObject|Font|Contents)\b/.test(chunk),
+    };
+  });
+}
+
+function countPdfPages(text: string, pages: PdfPageAnalysis[]) {
+  if (pages.length && !(pages.length === 1 && pages[0].page === 1 && !pages[0].widthMm && !pages[0].heightMm)) return pages.length;
   const matches = text.match(/\/Type\s*\/Page\b/g);
   return matches?.length || undefined;
 }
 
-function firstMediaBoxMm(text: string) {
-  const match = text.match(/\/MediaBox\s*\[\s*[-0-9.]+\s+[-0-9.]+\s+([0-9.]+)\s+([0-9.]+)\s*\]/);
-  if (!match) return {};
-  const widthPt = Number(match[1]);
-  const heightPt = Number(match[2]);
-  if (!Number.isFinite(widthPt) || !Number.isFinite(heightPt)) return {};
-  const mm = 0.3527777778;
-  return { widthMm: Math.round(widthPt * mm * 10) / 10, heightMm: Math.round(heightPt * mm * 10) / 10 };
+function detectFonts(text: string) {
+  const fontNames = unique([...text.matchAll(/\/(?:BaseFont|FontName)\s*\/([^\s\/>\[]+)/g)].map((match) => match[1].replace(/^\+/, ''))).slice(0, 100);
+  const hasFontRefs = /\/Font\b|\/BaseFont\b|\/FontDescriptor\b/.test(text);
+  const hasEmbeddedFonts = /\/FontFile\b|\/FontFile2\b|\/FontFile3\b/.test(text);
+  return {
+    fontNames,
+    hasEmbeddedFonts: hasFontRefs ? hasEmbeddedFonts : undefined,
+    hasUnembeddedFonts: hasFontRefs ? !hasEmbeddedFonts : undefined,
+  };
 }
 
-export function extractPdfHints(buffer: Buffer) {
-  const headAndBody = buffer.toString('latin1', 0, Math.min(buffer.length, 1024 * 1024 * 8));
-  if (!headAndBody.includes('%PDF')) return {};
+function detectColourSpaces(text: string) {
+  const colourSpaces: string[] = [];
+  const hasRgb = /\/DeviceRGB\b|\/CalRGB\b|\/ICCBased\b/.test(text);
+  const hasCmyk = /\/DeviceCMYK\b/.test(text);
+  const hasGray = /\/DeviceGray\b|\/CalGray\b/.test(text);
+  const hasSpotColours = /\/Separation\b|\/DeviceN\b/.test(text);
+  if (hasCmyk) colourSpaces.push('CMYK');
+  if (hasRgb) colourSpaces.push('RGB/ICC');
+  if (hasGray) colourSpaces.push('Gray');
+  if (hasSpotColours) colourSpaces.push('Spot/Separation');
+  return { colourSpaces, hasRgb, hasCmyk, hasSpotColours };
+}
+
+function mixedPageSizes(pages: PdfPageAnalysis[]) {
+  const sizes = unique(pages.map((page) => page.widthMm && page.heightMm ? `${Math.round(page.widthMm)}x${Math.round(page.heightMm)}` : ''));
+  return sizes.length > 1;
+}
+
+export function extractPdfHints(buffer: Buffer): PdfPreflightHints {
+  const text = buffer.toString('latin1', 0, Math.min(buffer.length, 1024 * 1024 * 20));
+  if (!text.includes('%PDF')) return { isPdf: false };
+  const pages = analysePages(text);
+  const first = pages[0] || {};
+  const fonts = detectFonts(text);
+  const colours = detectColourSpaces(text);
+  const version = text.match(/%PDF-([0-9.]+)/)?.[1];
+  const detectedBleeds = pages.map((page) => page.detectedBleedMm).filter((value): value is number => typeof value === 'number');
   return {
-    pageCount: countPdfPages(headAndBody),
-    ...firstMediaBoxMm(headAndBody),
+    isPdf: true,
+    pdfVersion: version,
+    pageCount: countPdfPages(text, pages),
+    widthMm: first.widthMm,
+    heightMm: first.heightMm,
+    pages,
+    hasBleedBox: pages.some((page) => page.hasBleedBox),
+    detectedBleedMm: detectedBleeds.length ? Math.min(...detectedBleeds) : undefined,
+    mixedPageSizes: mixedPageSizes(pages),
+    encrypted: /\/Encrypt\b/.test(text),
+    hasImages: /\/Subtype\s*\/Image\b/.test(text),
+    hasTransparency: /\/Transparency\b|\/ExtGState\b|\/ca\s+[0-9.]+|\/CA\s+[0-9.]+|\/SMask\b/.test(text),
+    ...colours,
+    ...fonts,
   };
 }
 
@@ -102,7 +248,10 @@ export async function saveArtworkUpload(ctx: TenantContext, formData: FormData) 
     mimeType: file.type || 'application/octet-stream',
     sizeBytes: file.size,
     extension,
-    ...pdfHints,
+    pageCount: pdfHints.pageCount,
+    widthMm: pdfHints.widthMm,
+    heightMm: pdfHints.heightMm,
+    pdfHints,
     fileUrl: `/api/internal/storefront/artwork/uploads/${id}/file`,
     downloadUrl: `/api/internal/storefront/artwork/uploads/${id}/file?download=1`,
     preflight,

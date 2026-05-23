@@ -1,7 +1,7 @@
 import type { Id } from '@/types/common';
 
 export type OrderStatus = 'draft' | 'pending' | 'approved' | 'in-production' | 'shipped' | 'completed' | 'cancelled';
-export type PaymentStatus = 'unpaid' | 'authorized' | 'paid' | 'refunded';
+export type PaymentStatus = 'unpaid' | 'authorized' | 'paid' | 'failed' | 'refunded';
 export type ProductionStage = 'prepress' | 'proofing' | 'queued' | 'printing' | 'finishing' | 'dispatch';
 
 export type OrderLineItem = {
@@ -34,6 +34,15 @@ export type Order = {
   dueDate: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  paymentProvider?: string;
+  paymentReference?: string;
+  stripeCheckoutSessionId?: string;
+  stripePaymentIntentId?: string;
+  paidAt?: string;
+  refundedAt?: string;
+  refundAmountMinor?: number | string;
+  refundNote?: string;
+  paymentFailureReason?: string;
   productionStage: ProductionStage;
   total: number;
   currency: string;

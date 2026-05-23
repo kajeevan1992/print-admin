@@ -22,6 +22,8 @@ type ReplacementFormResult = {
   previousFile?: unknown;
 };
 
+const HOSTED_REUPLOAD_PATH = '/artwork-upload';
+
 function uploadDir(id: string) {
   return path.join(process.cwd(), '.data', 'artwork-uploads', id.replace(/[^a-zA-Z0-9._-]+/g, '-'));
 }
@@ -36,8 +38,9 @@ function makeStorefrontLink(baseUrl: string | undefined, token: string, adminBas
   const adminBase = String(adminBaseUrl || process.env.NEXT_PUBLIC_ADMIN_URL || process.env.ADMIN_URL || '').replace(/\/$/, '');
   const params = new URLSearchParams({ token });
   if (adminBase) params.set('adminBase', adminBase);
-  if (!base) return `/artwork-reupload/?${params.toString()}`;
-  return `${base}/artwork-reupload/?${params.toString()}`;
+  const query = params.toString();
+  if (!base) return `${HOSTED_REUPLOAD_PATH}?${query}`;
+  return `${base}${HOSTED_REUPLOAD_PATH}?${query}`;
 }
 
 function publicUpload(upload: StoredArtworkUpload) {

@@ -3,6 +3,7 @@ import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 
 type StripeSessionInput = { orderId: string; successUrl?: string; cancelUrl?: string; customerEmail?: string };
+type StripeRefundInput = { orderId: string; amountMinor?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer'; note?: string; actor?: string };
 type StripeEvent = { id?: string; type?: string; data?: { object?: any } };
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
@@ -47,6 +48,38 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
 }
 
 export async function getStripeCheckoutSession(sessionId: string) { return stripeGet(`/checkout/sessions/${encodeURIComponent(sessionId)}`); }
+
+async function resolvePaymentIntentForOrder(request: Request, order: any) {
+  if (order.stripePaymentIntentId) return String(order.stripePaymentIntentId);
+  if (order.stripeCheckoutSessionId) {
+    const session = await getStripeCheckoutSession(String(order.stripeCheckoutSessionId));
+    if (session?.payment_intent) {
+      await updateOrder(request, order.id, { stripePaymentIntentId: session.payment_intent, paymentProvider: 'stripe', internalNotes: [...(order.internalNotes || []), `Stripe payment intent resolved from session ${session.id}: ${session.payment_intent}`] });
+      return String(session.payment_intent);
+    }
+  }
+  return '';
+}
+
+export async function createStripeRefundForOrder(request: Request, input: StripeRefundInput) {
+  const order = await getOrder(request, input.orderId);
+  if (!order) throw new Error('Order not found.');
+  const paymentIntentId = await resolvePaymentIntentForOrder(request, order);
+  if (!paymentIntentId) throw new Error('No Stripe payment intent is linked to this order, so a real Stripe refund cannot be created. Use refund note for manual/offline refunds.');
+  const amountMinor = Number(input.amountMinor || 0);
+  if (amountMinor < 0) throw new Error('Refund amount cannot be negative.');
+  const refund = await stripePost('/refunds', {
+    payment_intent: paymentIntentId,
+    amount: amountMinor > 0 ? Math.round(amountMinor) : undefined,
+    reason: input.reason || 'requested_by_customer',
+    'metadata[orderId]': order.id,
+    'metadata[orderNumber]': order.orderNumber,
+    'metadata[actor]': input.actor || 'admin',
+    'metadata[note]': input.note || '',
+  });
+  return { refund, order, paymentIntentId };
+}
+
 export async function applyStripeCheckoutSessionToOrder(request: Request, session: any, eventType = 'manual') {
   const orderId = session?.metadata?.orderId || session?.client_reference_id;
   if (!orderId) return { ok: false, skipped: true, reason: 'Stripe session has no order metadata.' };
@@ -60,9 +93,7 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   return { ok: true, order: updated, paid, failed, eventType };
 }
 
-function parseStripeSignature(header: string) {
-  return header.split(',').reduce((acc, part) => { const [key, value] = part.split('='); if (key && value) { if (!acc[key]) acc[key] = []; acc[key].push(value); } return acc; }, {} as Record<string, string[]>);
-}
+function parseStripeSignature(header: string) { return header.split(',').reduce((acc, part) => { const [key, value] = part.split('='); if (key && value) { if (!acc[key]) acc[key] = []; acc[key].push(value); } return acc; }, {} as Record<string, string[]>); }
 function verifyStripeSignature(raw: string, header: string, secret: string) {
   const parsed = parseStripeSignature(header);
   const timestamp = Number(parsed.t?.[0] || 0);

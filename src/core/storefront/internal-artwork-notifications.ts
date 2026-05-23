@@ -20,8 +20,8 @@ function templateKey(action: ArtworkReviewStatus): ArtworkEmailTemplateKey {
   return 'artwork-pending-review';
 }
 
-export async function queueArtworkStatusEmail(input: ArtworkNotificationInput) {
-  const settings = await getEmailSettings();
+export async function queueArtworkStatusEmail(input: ArtworkNotificationInput, request?: Request) {
+  const settings = await getEmailSettings(request);
   const to = input.customerEmail || (input.upload as any).customerEmail || '';
   const rendered = renderArtworkEmailTemplate(templateKey(input.action), {
     customerName: input.customerName || (input.upload as any).customerName || 'Customer',
@@ -44,9 +44,11 @@ export async function queueArtworkStatusEmail(input: ArtworkNotificationInput) {
     uploadId: input.upload.id,
     orderId: input.upload.orderId,
     quoteId: input.upload.quoteId,
-  });
+  }, request);
+
   if (input.sendNow || settings.autoSendArtworkEmails || process.env.ARTWORK_EMAIL_AUTO_SEND === 'true') {
-    return sendInternalEmail(email.id);
+    return sendInternalEmail(email.id, request);
   }
+
   return email;
 }

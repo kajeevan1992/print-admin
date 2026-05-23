@@ -5,6 +5,7 @@ import { tenantContextFromRequest } from '@/core/tenant/context';
 import type { StoredArtworkUpload } from '@/core/storefront/internal-artwork-storage';
 import { readArtworkUploadMetadata, writeArtworkUploadMetadata } from '@/core/storefront/internal-artwork-storage';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
+import { applyOrderProductionAutomation } from '@/core/workflows/order-production-automation';
 
 export type ProductionTicketStatus = 'queued' | 'artwork-check' | 'proofing' | 'ready-to-print' | 'printing' | 'finishing' | 'packing' | 'dispatched' | 'blocked';
 export type ProductionTicketPriority = 'low' | 'normal' | 'high' | 'urgent';
@@ -46,43 +47,23 @@ export type ProductionJobTicket = {
   currentOperator?: string;
   dispatch?: ProductionDispatchInfo;
   stageHistory: ProductionStageHistoryEvent[];
+  workflowAutomation?: unknown;
   source: 'approved-artwork' | 'manual' | 'order';
   storageSource?: 'db' | 'file-fallback';
   migratedFromFile?: boolean;
 };
 
 type ProductionJobInput = Partial<ProductionJobTicket> & Record<string, any>;
-
 function dataDir() { return path.join(process.cwd(), '.data'); }
 function storePath() { return path.join(dataDir(), 'production-job-tickets.json'); }
-
-async function readStore(): Promise<ProductionJobTicket[]> {
-  await mkdir(dataDir(), { recursive: true });
-  try { const parsed = JSON.parse(await readFile(storePath(), 'utf8')); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
-}
+async function readStore(): Promise<ProductionJobTicket[]> { await mkdir(dataDir(), { recursive: true }); try { const parsed = JSON.parse(await readFile(storePath(), 'utf8')); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
 async function writeStore(items: ProductionJobTicket[]) { await mkdir(dataDir(), { recursive: true }); await writeFile(storePath(), JSON.stringify(items, null, 2)); return items; }
-
-async function tenantIdFromRequest(request?: Request) {
-  if (!request) return null;
-  const context = tenantContextFromRequest(request);
-  const value = String(context.tenantId || '').trim();
-  const tenant =
-    (value && (await prisma.tenant.findUnique({ where: { id: value }, select: { id: true } }))) ||
-    (value && (await prisma.tenant.findUnique({ where: { slug: value }, select: { id: true } }))) ||
-    (await prisma.tenant.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } }));
-  return tenant?.id || null;
-}
-
-function dateIn(value: unknown) {
-  if (!value) return undefined;
-  const date = value instanceof Date ? value : new Date(String(value));
-  return Number.isFinite(date.getTime()) ? date : undefined;
-}
+async function tenantIdFromRequest(request?: Request) { if (!request) return null; const context = tenantContextFromRequest(request); const value = String(context.tenantId || '').trim(); const tenant = (value && (await prisma.tenant.findUnique({ where: { id: value }, select: { id: true } }))) || (value && (await prisma.tenant.findUnique({ where: { slug: value }, select: { id: true } }))) || (await prisma.tenant.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })); return tenant?.id || null; }
+function dateIn(value: unknown) { if (!value) return undefined; const date = value instanceof Date ? value : new Date(String(value)); return Number.isFinite(date.getTime()) ? date : undefined; }
 function dateOut(value: unknown) { return value ? new Date(String(value)).toISOString() : undefined; }
 function asArray(value: unknown): string[] { return Array.isArray(value) ? value.map(String) : []; }
 function asHistory(value: unknown): ProductionStageHistoryEvent[] { return Array.isArray(value) ? value as ProductionStageHistoryEvent[] : []; }
 function asDispatch(value: unknown): ProductionDispatchInfo { return value && typeof value === 'object' ? value as ProductionDispatchInfo : {}; }
-
 function safeDate(value?: string) { if (value && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10); return new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10); }
 function inferMachine(productName = '') { const name = productName.toLowerCase(); if (name.includes('banner') || name.includes('poster') || name.includes('board') || name.includes('sign')) return 'Large Format Printer'; if (name.includes('booklet') || name.includes('brochure')) return 'Ricoh Pro C5400S'; if (name.includes('business card') || name.includes('flyer') || name.includes('leaflet')) return 'Ricoh Pro C5400S'; return 'Unassigned'; }
 function inferFinishing(productName = '') { const name = productName.toLowerCase(); const steps: string[] = ['trim']; if (name.includes('booklet') || name.includes('brochure')) steps.push('fold', 'stitch'); if (name.includes('fold')) steps.push('fold'); if (name.includes('business card')) steps.push('stack-cut'); if (name.includes('banner')) steps.push('eyelets/hem check'); if (name.includes('board') || name.includes('sign')) steps.push('mount/trim check'); return [...new Set(steps)]; }
@@ -93,188 +74,14 @@ function makeTicketId(uploadId?: string, orderId?: string) { if (uploadId) retur
 function nextStatusFor(action: ProductionTicketAction, current: ProductionTicketStatus): ProductionTicketStatus { if (action === 'queue') return 'ready-to-print'; if (action === 'start-printing') return 'printing'; if (action === 'finish-printing') return 'finishing'; if (action === 'start-packing') return 'packing'; if (action === 'mark-dispatched') return 'dispatched'; if (action === 'block') return 'blocked'; if (action === 'unblock') return current === 'blocked' ? 'ready-to-print' : current; return current; }
 function historyEvent(from: ProductionTicketStatus | undefined, to: ProductionTicketStatus, action: ProductionStageHistoryEvent['action'], actor = 'admin', note = ''): ProductionStageHistoryEvent { return { id: `hist_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, from, to, action, actor, note, createdAt: new Date().toISOString() }; }
 
-function normalizeInput(input: ProductionJobInput, existing?: ProductionJobTicket): ProductionJobTicket {
-  const now = new Date().toISOString();
-  const id = String(input.id || makeTicketId(input.artworkUploadId, input.orderId));
-  const status = (input.status || existing?.status || 'queued') as ProductionTicketStatus;
-  return {
-    id,
-    orderId: input.orderId || existing?.orderId,
-    orderNumber: String(input.orderNumber || existing?.orderNumber || input.orderId || 'Manual job'),
-    artworkUploadId: input.artworkUploadId || existing?.artworkUploadId,
-    customerName: input.customerName || existing?.customerName || '',
-    customerEmail: input.customerEmail || existing?.customerEmail || '',
-    productId: input.productId || existing?.productId || '',
-    productName: String(input.productName || existing?.productName || 'Production job'),
-    quantity: Number(input.quantity || existing?.quantity || 1),
-    dueDate: safeDate(input.dueDate || existing?.dueDate),
-    priority: (input.priority || existing?.priority || 'normal') as ProductionTicketPriority,
-    status,
-    artworkStatus: input.artworkStatus || existing?.artworkStatus || 'approved',
-    machine: input.machine || existing?.machine || inferMachine(String(input.productName || existing?.productName || '')),
-    material: input.material || existing?.material || '',
-    route: Array.isArray(input.route) ? input.route : existing?.route || inferRoute(String(input.productName || existing?.productName || ''), input.supplier || existing?.supplier || 'internal'),
-    finishing: Array.isArray(input.finishing) ? input.finishing : existing?.finishing || inferFinishing(String(input.productName || existing?.productName || '')),
-    supplier: input.supplier || existing?.supplier || 'internal',
-    notes: input.notes ?? existing?.notes ?? '',
-    operatorNotes: input.operatorNotes ?? existing?.operatorNotes ?? '',
-    warnings: Array.isArray(input.warnings) ? input.warnings : existing?.warnings || [],
-    startedAt: input.startedAt || existing?.startedAt,
-    printCompletedAt: input.printCompletedAt || existing?.printCompletedAt,
-    packedAt: input.packedAt || existing?.packedAt,
-    dispatchedAt: input.dispatchedAt || existing?.dispatchedAt,
-    blockedAt: input.blockedAt || existing?.blockedAt,
-    blockedReason: input.blockedReason || existing?.blockedReason,
-    currentOperator: input.currentOperator || existing?.currentOperator || '',
-    dispatch: { ...(existing?.dispatch || {}), ...(input.dispatch || {}) },
-    stageHistory: Array.isArray(input.stageHistory) ? input.stageHistory : existing?.stageHistory || [historyEvent(undefined, status, 'created', 'system', 'Production ticket created.')],
-    source: (input.source || existing?.source || 'manual') as ProductionJobTicket['source'],
-    createdAt: existing?.createdAt || now,
-    updatedAt: now,
-    storageSource: input.storageSource || existing?.storageSource,
-    migratedFromFile: Boolean(input.migratedFromFile ?? existing?.migratedFromFile),
-  };
-}
-
-function rowToTicket(row: any): ProductionJobTicket {
-  return {
-    id: row.id,
-    orderId: row.orderId || undefined,
-    orderNumber: row.orderNumber,
-    artworkUploadId: row.artworkUploadId || undefined,
-    customerName: row.customerName || '',
-    customerEmail: row.customerEmail || '',
-    productId: row.productId || '',
-    productName: row.productName,
-    quantity: row.quantity || 1,
-    dueDate: row.dueDate,
-    priority: row.priority || 'normal',
-    status: row.status || 'queued',
-    artworkStatus: row.artworkStatus || 'approved',
-    machine: row.machine || 'Unassigned',
-    material: row.material || '',
-    route: asArray(row.routeJson),
-    finishing: asArray(row.finishingJson),
-    supplier: row.supplier || 'internal',
-    notes: row.notes || '',
-    operatorNotes: row.operatorNotes || '',
-    warnings: asArray(row.warningsJson),
-    createdAt: dateOut(row.createdAt) || new Date().toISOString(),
-    updatedAt: dateOut(row.updatedAt) || new Date().toISOString(),
-    startedAt: dateOut(row.startedAt),
-    printCompletedAt: dateOut(row.printCompletedAt),
-    packedAt: dateOut(row.packedAt),
-    dispatchedAt: dateOut(row.dispatchedAt),
-    blockedAt: dateOut(row.blockedAt),
-    blockedReason: row.blockedReason || '',
-    currentOperator: row.currentOperator || '',
-    dispatch: asDispatch(row.dispatchJson),
-    stageHistory: asHistory(row.stageHistoryJson),
-    source: row.source || 'manual',
-    storageSource: 'db',
-    migratedFromFile: Boolean(row.migratedFromFile),
-  };
-}
-
-async function upsertDbTicket(tenantId: string, ticket: ProductionJobTicket, migratedFromFile = false) {
-  const data = {
-    tenantId,
-    orderId: ticket.orderId || null,
-    orderNumber: ticket.orderNumber,
-    artworkUploadId: ticket.artworkUploadId || null,
-    customerName: ticket.customerName || '',
-    customerEmail: ticket.customerEmail || '',
-    productId: ticket.productId || '',
-    productName: ticket.productName,
-    quantity: ticket.quantity || 1,
-    dueDate: ticket.dueDate,
-    priority: ticket.priority,
-    status: ticket.status,
-    artworkStatus: ticket.artworkStatus,
-    machine: ticket.machine || 'Unassigned',
-    material: ticket.material || '',
-    routeJson: ticket.route || [],
-    finishingJson: ticket.finishing || [],
-    supplier: ticket.supplier || 'internal',
-    notes: ticket.notes || '',
-    operatorNotes: ticket.operatorNotes || '',
-    warningsJson: ticket.warnings || [],
-    startedAt: dateIn(ticket.startedAt),
-    printCompletedAt: dateIn(ticket.printCompletedAt),
-    packedAt: dateIn(ticket.packedAt),
-    dispatchedAt: dateIn(ticket.dispatchedAt),
-    blockedAt: dateIn(ticket.blockedAt),
-    blockedReason: ticket.blockedReason || '',
-    currentOperator: ticket.currentOperator || '',
-    dispatchJson: ticket.dispatch || {},
-    stageHistoryJson: ticket.stageHistory || [],
-    source: ticket.source || 'manual',
-    metadataJson: { storageSource: 'db' },
-    migratedFromFile,
-  } as any;
-  const row = await (prisma as any).productionJobTicket.upsert({ where: { id: ticket.id }, update: data, create: { id: ticket.id, ...data } });
-  return rowToTicket(row);
-}
-
-async function migrateFileTicketsToDb(tenantId: string) {
-  const fileTickets = await readStore();
-  if (!fileTickets.length) return 0;
-  let count = 0;
-  for (const ticket of fileTickets) {
-    await upsertDbTicket(tenantId, normalizeInput(ticket), true).catch(() => null);
-    count += 1;
-  }
-  return count;
-}
-
-async function dbEnabled(request?: Request) {
-  const tenantId = await tenantIdFromRequest(request).catch(() => null);
-  if (!tenantId) return null;
-  const model = (prisma as any).productionJobTicket;
-  if (!model) return null;
-  return tenantId;
-}
-
-export async function listProductionJobTickets(request?: Request) {
-  const tenantId = await dbEnabled(request);
-  if (tenantId) {
-    try {
-      await migrateFileTicketsToDb(tenantId);
-      const rows = await (prisma as any).productionJobTicket.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' } });
-      return rows.map(rowToTicket);
-    } catch {}
-  }
-  const items = await readStore();
-  return items.map((item) => ({ ...item, storageSource: 'file-fallback' as const })).sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt)));
-}
-
-export async function getProductionJobTicket(id: string, request?: Request) {
-  const tenantId = await dbEnabled(request);
-  if (tenantId) {
-    try {
-      await migrateFileTicketsToDb(tenantId);
-      const row = await (prisma as any).productionJobTicket.findFirst({ where: { tenantId, OR: [{ id }, { artworkUploadId: id }, { orderId: id }, { orderNumber: id }] } });
-      if (row) return rowToTicket(row);
-    } catch {}
-  }
-  const items = await readStore();
-  const item = items.find((ticket) => ticket.id === id || ticket.artworkUploadId === id || ticket.orderId === id || ticket.orderNumber === id) || null;
-  return item ? { ...item, storageSource: 'file-fallback' as const } : null;
-}
-
-export async function saveProductionJobTicket(input: ProductionJobInput, request?: Request) {
-  const existing = input.id ? await getProductionJobTicket(String(input.id), request) : null;
-  const next = normalizeInput(input, existing || undefined);
-  const tenantId = await dbEnabled(request);
-  if (tenantId) {
-    try { return await upsertDbTicket(tenantId, next, false); } catch {}
-  }
-  const items = await readStore();
-  const current = items.find((item) => item.id === next.id);
-  const updated = current ? items.map((item) => item.id === next.id ? next : item) : [next, ...items];
-  await writeStore(updated);
-  return { ...next, storageSource: 'file-fallback' as const };
-}
+function normalizeInput(input: ProductionJobInput, existing?: ProductionJobTicket): ProductionJobTicket { const now = new Date().toISOString(); const id = String(input.id || makeTicketId(input.artworkUploadId, input.orderId)); const status = (input.status || existing?.status || 'queued') as ProductionTicketStatus; return { id, orderId: input.orderId || existing?.orderId, orderNumber: String(input.orderNumber || existing?.orderNumber || input.orderId || 'Manual job'), artworkUploadId: input.artworkUploadId || existing?.artworkUploadId, customerName: input.customerName || existing?.customerName || '', customerEmail: input.customerEmail || existing?.customerEmail || '', productId: input.productId || existing?.productId || '', productName: String(input.productName || existing?.productName || 'Production job'), quantity: Number(input.quantity || existing?.quantity || 1), dueDate: safeDate(input.dueDate || existing?.dueDate), priority: (input.priority || existing?.priority || 'normal') as ProductionTicketPriority, status, artworkStatus: input.artworkStatus || existing?.artworkStatus || 'approved', machine: input.machine || existing?.machine || inferMachine(String(input.productName || existing?.productName || '')), material: input.material || existing?.material || '', route: Array.isArray(input.route) ? input.route : existing?.route || inferRoute(String(input.productName || existing?.productName || ''), input.supplier || existing?.supplier || 'internal'), finishing: Array.isArray(input.finishing) ? input.finishing : existing?.finishing || inferFinishing(String(input.productName || existing?.productName || '')), supplier: input.supplier || existing?.supplier || 'internal', notes: input.notes ?? existing?.notes ?? '', operatorNotes: input.operatorNotes ?? existing?.operatorNotes ?? '', warnings: Array.isArray(input.warnings) ? input.warnings : existing?.warnings || [], startedAt: input.startedAt || existing?.startedAt, printCompletedAt: input.printCompletedAt || existing?.printCompletedAt, packedAt: input.packedAt || existing?.packedAt, dispatchedAt: input.dispatchedAt || existing?.dispatchedAt, blockedAt: input.blockedAt || existing?.blockedAt, blockedReason: input.blockedReason || existing?.blockedReason, currentOperator: input.currentOperator || existing?.currentOperator || '', dispatch: { ...(existing?.dispatch || {}), ...(input.dispatch || {}) }, stageHistory: Array.isArray(input.stageHistory) ? input.stageHistory : existing?.stageHistory || [historyEvent(undefined, status, 'created', 'system', 'Production ticket created.')], workflowAutomation: input.workflowAutomation || existing?.workflowAutomation, source: (input.source || existing?.source || 'manual') as ProductionJobTicket['source'], createdAt: existing?.createdAt || now, updatedAt: now, storageSource: input.storageSource || existing?.storageSource, migratedFromFile: Boolean(input.migratedFromFile ?? existing?.migratedFromFile) }; }
+function rowToTicket(row: any): ProductionJobTicket { return { id: row.id, orderId: row.orderId || undefined, orderNumber: row.orderNumber, artworkUploadId: row.artworkUploadId || undefined, customerName: row.customerName || '', customerEmail: row.customerEmail || '', productId: row.productId || '', productName: row.productName, quantity: row.quantity || 1, dueDate: row.dueDate, priority: row.priority || 'normal', status: row.status || 'queued', artworkStatus: row.artworkStatus || 'approved', machine: row.machine || 'Unassigned', material: row.material || '', route: asArray(row.routeJson), finishing: asArray(row.finishingJson), supplier: row.supplier || 'internal', notes: row.notes || '', operatorNotes: row.operatorNotes || '', warnings: asArray(row.warningsJson), createdAt: dateOut(row.createdAt) || new Date().toISOString(), updatedAt: dateOut(row.updatedAt) || new Date().toISOString(), startedAt: dateOut(row.startedAt), printCompletedAt: dateOut(row.printCompletedAt), packedAt: dateOut(row.packedAt), dispatchedAt: dateOut(row.dispatchedAt), blockedAt: dateOut(row.blockedAt), blockedReason: row.blockedReason || '', currentOperator: row.currentOperator || '', dispatch: asDispatch(row.dispatchJson), stageHistory: asHistory(row.stageHistoryJson), workflowAutomation: (row.metadataJson || {}).workflowAutomation, source: row.source || 'manual', storageSource: 'db', migratedFromFile: Boolean(row.migratedFromFile) }; }
+async function upsertDbTicket(tenantId: string, ticket: ProductionJobTicket, migratedFromFile = false) { const data = { tenantId, orderId: ticket.orderId || null, orderNumber: ticket.orderNumber, artworkUploadId: ticket.artworkUploadId || null, customerName: ticket.customerName || '', customerEmail: ticket.customerEmail || '', productId: ticket.productId || '', productName: ticket.productName, quantity: ticket.quantity || 1, dueDate: ticket.dueDate, priority: ticket.priority, status: ticket.status, artworkStatus: ticket.artworkStatus, machine: ticket.machine || 'Unassigned', material: ticket.material || '', routeJson: ticket.route || [], finishingJson: ticket.finishing || [], supplier: ticket.supplier || 'internal', notes: ticket.notes || '', operatorNotes: ticket.operatorNotes || '', warningsJson: ticket.warnings || [], startedAt: dateIn(ticket.startedAt), printCompletedAt: dateIn(ticket.printCompletedAt), packedAt: dateIn(ticket.packedAt), dispatchedAt: dateIn(ticket.dispatchedAt), blockedAt: dateIn(ticket.blockedAt), blockedReason: ticket.blockedReason || '', currentOperator: ticket.currentOperator || '', dispatchJson: ticket.dispatch || {}, stageHistoryJson: ticket.stageHistory || [], source: ticket.source || 'manual', metadataJson: { storageSource: 'db', workflowAutomation: ticket.workflowAutomation || null }, migratedFromFile } as any; const row = await (prisma as any).productionJobTicket.upsert({ where: { id: ticket.id }, update: data, create: { id: ticket.id, ...data } }); return rowToTicket(row); }
+async function migrateFileTicketsToDb(tenantId: string) { const fileTickets = await readStore(); if (!fileTickets.length) return 0; let count = 0; for (const ticket of fileTickets) { await upsertDbTicket(tenantId, normalizeInput(ticket), true).catch(() => null); count += 1; } return count; }
+async function dbEnabled(request?: Request) { const tenantId = await tenantIdFromRequest(request).catch(() => null); if (!tenantId) return null; const model = (prisma as any).productionJobTicket; if (!model) return null; return tenantId; }
+export async function listProductionJobTickets(request?: Request) { const tenantId = await dbEnabled(request); if (tenantId) { try { await migrateFileTicketsToDb(tenantId); const rows = await (prisma as any).productionJobTicket.findMany({ where: { tenantId }, orderBy: { updatedAt: 'desc' } }); return rows.map(rowToTicket); } catch {} } const items = await readStore(); return items.map((item) => ({ ...item, storageSource: 'file-fallback' as const })).sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt))); }
+export async function getProductionJobTicket(id: string, request?: Request) { const tenantId = await dbEnabled(request); if (tenantId) { try { await migrateFileTicketsToDb(tenantId); const row = await (prisma as any).productionJobTicket.findFirst({ where: { tenantId, OR: [{ id }, { artworkUploadId: id }, { orderId: id }, { orderNumber: id }] } }); if (row) return rowToTicket(row); } catch {} } const items = await readStore(); const item = items.find((ticket) => ticket.id === id || ticket.artworkUploadId === id || ticket.orderId === id || ticket.orderNumber === id) || null; return item ? { ...item, storageSource: 'file-fallback' as const } : null; }
+export async function saveProductionJobTicket(input: ProductionJobInput, request?: Request) { const existing = input.id ? await getProductionJobTicket(String(input.id), request) : null; const next = normalizeInput(input, existing || undefined); const tenantId = await dbEnabled(request); if (tenantId) { try { return await upsertDbTicket(tenantId, next, false); } catch {} } const items = await readStore(); const current = items.find((item) => item.id === next.id); const updated = current ? items.map((item) => item.id === next.id ? next : item) : [next, ...items]; await writeStore(updated); return { ...next, storageSource: 'file-fallback' as const }; }
 
 export async function transitionProductionJobTicket(id: string, action: ProductionTicketAction, input: Record<string, any> = {}, request?: Request) {
   const existing = await getProductionJobTicket(id, request);
@@ -285,29 +92,10 @@ export async function transitionProductionJobTicket(id: string, action: Producti
   if (action === 'mark-dispatched') { dispatchPatch.dispatchedAt = dispatchPatch.dispatchedAt || now; dispatchPatch.dispatchedBy = input.actor || 'admin'; dispatchPatch.scanStatus = dispatchPatch.scanStatus || 'complete'; dispatchPatch.dispatchBatchId = dispatchPatch.dispatchBatchId || `DISP-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${existing.orderNumber}`; }
   if (action === 'start-packing') dispatchPatch.packedAt = dispatchPatch.packedAt || now;
   const patch: ProductionJobInput = { ...existing, ...input, id: existing.id, status: nextStatus, startedAt: action === 'start-printing' ? now : existing.startedAt, printCompletedAt: action === 'finish-printing' ? now : existing.printCompletedAt, packedAt: action === 'start-packing' ? now : existing.packedAt, dispatchedAt: action === 'mark-dispatched' ? now : existing.dispatchedAt, blockedAt: action === 'block' ? now : existing.blockedAt, blockedReason: action === 'block' ? input.note || input.blockedReason || existing.blockedReason : action === 'unblock' ? '' : existing.blockedReason, currentOperator: input.operator || input.currentOperator || existing.currentOperator, dispatch: { ...(existing.dispatch || {}), ...dispatchPatch }, stageHistory: [...(existing.stageHistory || []), historyEvent(existing.status, nextStatus, action, input.actor || 'admin', input.note || '')] };
-  return saveProductionJobTicket(patch, request);
+  const saved = await saveProductionJobTicket(patch, request);
+  const automation = await applyOrderProductionAutomation(request, saved, action).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Order workflow automation failed.' }));
+  return saveProductionJobTicket({ ...saved, workflowAutomation: automation }, request);
 }
 
-export async function createProductionJobFromApprovedArtwork(request: Request, uploadInput: StoredArtworkUpload, options: Record<string, any> = {}) {
-  const upload = await readArtworkUploadMetadata(uploadInput.id).catch(() => uploadInput);
-  const existing = await getProductionJobTicket(upload.id, request);
-  if (existing) return existing;
-  const orderId = String(options.orderId || upload.orderId || '').trim();
-  const order = orderId ? await getOrder(request, orderId).catch(() => null) : null;
-  const orderItem = orderItemForUpload(order, upload);
-  const productName = String(options.productName || orderItem?.productName || upload.productId || 'Approved artwork job');
-  const quantity = Number(options.quantity || orderItem?.quantity || 1);
-  const warnings = preflightWarnings(upload).filter(Boolean);
-  const ticket = await saveProductionJobTicket({ id: makeTicketId(upload.id, orderId), orderId: order?.id || orderId || upload.orderId, orderNumber: options.orderNumber || order?.orderNumber || orderId || upload.quoteId || upload.id, artworkUploadId: upload.id, customerName: options.customerName || order?.customerName || '', customerEmail: options.customerEmail || order?.customerEmail || '', productId: upload.productId || orderItem?.productId || '', productName, quantity, dueDate: safeDate(options.dueDate || order?.dueDate), priority: warnings.length ? 'high' : 'normal', status: 'ready-to-print', artworkStatus: 'approved', machine: options.machine || inferMachine(productName), material: options.material || orderItem?.metadataJson?.material || '', route: inferRoute(productName, options.supplier || 'internal'), finishing: inferFinishing(productName), supplier: options.supplier || 'internal', notes: options.note || `Created automatically when artwork ${upload.id} was approved.`, warnings, source: 'approved-artwork', stageHistory: [historyEvent(undefined, 'ready-to-print', 'created', 'artwork-approval', `Production job created from approved artwork ${upload.id}.`)] }, request);
-  const nextUpload = { ...(upload as any), productionJobId: ticket.id, productionJobCreatedAt: ticket.createdAt, approvalHistory: [...((upload as any).approvalHistory || []), { id: `production_${Date.now()}`, action: 'approved', actor: 'production-job-generator', note: `Production job ${ticket.id} created.`, createdAt: new Date().toISOString() }] } as StoredArtworkUpload;
-  await writeArtworkUploadMetadata(nextUpload).catch(() => null);
-  if (orderId) { const currentNotes = Array.isArray(order?.internalNotes) ? order.internalNotes : []; await updateOrder(request, orderId, { status: 'IN_PRODUCTION', internalNotes: [...currentNotes, `Production job ${ticket.id} created from approved artwork ${upload.id}.`] }).catch(() => null); }
-  return ticket;
-}
-
-export async function productionJobStorageStatus(request?: Request) {
-  const tenantId = await dbEnabled(request);
-  if (!tenantId) return { mode: 'file-fallback', tenantId: null, dbReady: false, migratedFileTickets: 0 };
-  const migratedFileTickets = await migrateFileTicketsToDb(tenantId).catch(() => 0);
-  return { mode: 'db-primary', tenantId, dbReady: true, migratedFileTickets };
-}
+export async function createProductionJobFromApprovedArtwork(request: Request, uploadInput: StoredArtworkUpload, options: Record<string, any> = {}) { const upload = await readArtworkUploadMetadata(uploadInput.id).catch(() => uploadInput); const existing = await getProductionJobTicket(upload.id, request); if (existing) return existing; const orderId = String(options.orderId || upload.orderId || '').trim(); const order = orderId ? await getOrder(request, orderId).catch(() => null) : null; const orderItem = orderItemForUpload(order, upload); const productName = String(options.productName || orderItem?.productName || upload.productId || 'Approved artwork job'); const quantity = Number(options.quantity || orderItem?.quantity || 1); const warnings = preflightWarnings(upload).filter(Boolean); const ticket = await saveProductionJobTicket({ id: makeTicketId(upload.id, orderId), orderId: order?.id || orderId || upload.orderId, orderNumber: options.orderNumber || order?.orderNumber || orderId || upload.quoteId || upload.id, artworkUploadId: upload.id, customerName: options.customerName || order?.customerName || '', customerEmail: options.customerEmail || order?.customerEmail || '', productId: upload.productId || orderItem?.productId || '', productName, quantity, dueDate: safeDate(options.dueDate || order?.dueDate), priority: warnings.length ? 'high' : 'normal', status: 'ready-to-print', artworkStatus: 'approved', machine: options.machine || inferMachine(productName), material: options.material || orderItem?.metadataJson?.material || '', route: inferRoute(productName, options.supplier || 'internal'), finishing: inferFinishing(productName), supplier: options.supplier || 'internal', notes: options.note || `Created automatically when artwork ${upload.id} was approved.`, warnings, source: 'approved-artwork', stageHistory: [historyEvent(undefined, 'ready-to-print', 'created', 'artwork-approval', `Production job created from approved artwork ${upload.id}.`)] }, request); const nextUpload = { ...(upload as any), productionJobId: ticket.id, productionJobCreatedAt: ticket.createdAt, approvalHistory: [...((upload as any).approvalHistory || []), { id: `production_${Date.now()}`, action: 'approved', actor: 'production-job-generator', note: `Production job ${ticket.id} created.`, createdAt: new Date().toISOString() }] } as StoredArtworkUpload; await writeArtworkUploadMetadata(nextUpload).catch(() => null); if (orderId) { const currentNotes = Array.isArray(order?.internalNotes) ? order.internalNotes : []; await updateOrder(request, orderId, { status: 'IN_PRODUCTION', internalNotes: [...currentNotes, `Production job ${ticket.id} created from approved artwork ${upload.id}.`] }).catch(() => null); } return ticket; }
+export async function productionJobStorageStatus(request?: Request) { const tenantId = await dbEnabled(request); if (!tenantId) return { mode: 'file-fallback', tenantId: null, dbReady: false, migratedFileTickets: 0 }; const migratedFileTickets = await migrateFileTicketsToDb(tenantId).catch(() => 0); return { mode: 'db-primary', tenantId, dbReady: true, migratedFileTickets }; }

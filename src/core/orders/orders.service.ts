@@ -23,45 +23,39 @@ function lineTotalMinor(item: Record<string, any>, quantity: number) { return mi
 function itemsFrom(input: OrderInput) { const items = Array.isArray(input.items) ? input.items : Array.isArray(input.payload?.items) ? input.payload.items : []; return items.map((item: Record<string, any>) => { const quantity = qty(item.quantity ?? item.qty); const totalPriceMinor = lineTotalMinor(item, quantity); const unitPriceMinor = minor(item.unitPriceMinor ?? item.unitNetMinor) || moneyToMinor(item.unitPrice ?? item.price) || Math.round(totalPriceMinor / quantity); return { productId: typeof item.productId === 'string' && item.productId.startsWith('c') ? item.productId : null, titleSnapshot: String(item.titleSnapshot || item.productName || item.name || item.title || 'Storefront order item'), quantity, unitPriceMinor, totalPriceMinor, metadataJson: item }; }); }
 function extractArtworkUploadIds(input: OrderInput) { const values = [input.artworkUploadId, input.artwork_upload_id, input.artwork_reference?.id, input.artwork_reference?.upload?.id, input.artwork?.id, input.artwork?.upload?.id, ...(Array.isArray(input.artworkUploadIds) ? input.artworkUploadIds : [])]; return [...new Set(values.filter(Boolean).map(String))]; }
 function addressToText(address: any) { if (!address) return ''; if (typeof address === 'string') return address; return compact([address.address1, address.address2, address.city, address.postcode, address.country]).join(', '); }
-function paymentFrom(input: OrderInput, existing: Record<string, any> = {}) { return { paymentStatus: String(input.paymentStatus || existing.paymentStatus || 'unpaid'), paymentProvider: String(input.paymentProvider || existing.paymentProvider || ''), stripeCheckoutSessionId: String(input.stripeCheckoutSessionId || existing.stripeCheckoutSessionId || ''), stripePaymentIntentId: String(input.stripePaymentIntentId || existing.stripePaymentIntentId || ''), paidAt: input.paidAt || existing.paidAt || '', paymentFailureReason: input.paymentFailureReason || existing.paymentFailureReason || '' }; }
+function paymentFrom(input: OrderInput, existing: Record<string, any> = {}) {
+  return {
+    paymentStatus: String(input.paymentStatus || existing.paymentStatus || 'unpaid'),
+    paymentProvider: String(input.paymentProvider || existing.paymentProvider || ''),
+    paymentReference: String(input.paymentReference || existing.paymentReference || ''),
+    stripeCheckoutSessionId: String(input.stripeCheckoutSessionId || existing.stripeCheckoutSessionId || ''),
+    stripePaymentIntentId: String(input.stripePaymentIntentId || existing.stripePaymentIntentId || ''),
+    stripeRefundId: String(input.stripeRefundId || existing.stripeRefundId || ''),
+    stripeRefundStatus: String(input.stripeRefundStatus || existing.stripeRefundStatus || ''),
+    paidAt: input.paidAt || existing.paidAt || '',
+    refundedAt: input.refundedAt || existing.refundedAt || '',
+    refundAmountMinor: input.refundAmountMinor || existing.refundAmountMinor || '',
+    refundNote: input.refundNote || existing.refundNote || '',
+    paymentFailureReason: input.paymentFailureReason || existing.paymentFailureReason || '',
+  };
+}
 
 function normalize(order: Record<string, any>) {
   const noteData = parseNotes(order.notes);
   const items = Array.isArray(order.items) ? order.items : [];
   const payment = paymentFrom({}, noteData.payment || noteData);
   return {
-    id: order.id,
-    orderNumber: order.orderNumber,
-    status: order.status,
-    currency: order.currency,
-    subtotalMinor: order.subtotalMinor,
-    shippingMinor: order.shippingMinor,
-    taxMinor: order.taxMinor,
-    totalMinor: order.totalMinor,
+    id: order.id, orderNumber: order.orderNumber, status: order.status, currency: order.currency,
+    subtotalMinor: order.subtotalMinor, shippingMinor: order.shippingMinor, taxMinor: order.taxMinor, totalMinor: order.totalMinor,
     total: Number(order.totalMinor || 0) / 100,
-    notes: noteData.note || '',
-    internalNotes: noteData.internalNotes || [],
-    quoteReference: noteData.quoteReference || '',
-    customerName: order.customer?.name || noteData.customer?.name || '',
-    customerEmail: order.customer?.email || noteData.customer?.email || '',
-    customerPhone: noteData.customer?.phone || '',
-    customerCompany: noteData.customer?.company || '',
-    shippingAddress: noteData.shippingAddress || '',
-    billingAddress: noteData.billingAddress || '',
-    shippingMethod: noteData.shippingMethod || '',
-    artworkUploadIds: noteData.artworkUploadIds || [],
-    resolver: noteData.resolver || {},
-    payment,
-    paymentStatus: payment.paymentStatus,
-    paymentProvider: payment.paymentProvider,
-    stripeCheckoutSessionId: payment.stripeCheckoutSessionId,
-    stripePaymentIntentId: payment.stripePaymentIntentId,
-    paidAt: payment.paidAt,
-    paymentFailureReason: payment.paymentFailureReason,
+    notes: noteData.note || '', internalNotes: noteData.internalNotes || [], quoteReference: noteData.quoteReference || '',
+    customerName: order.customer?.name || noteData.customer?.name || '', customerEmail: order.customer?.email || noteData.customer?.email || '', customerPhone: noteData.customer?.phone || '', customerCompany: noteData.customer?.company || '',
+    shippingAddress: noteData.shippingAddress || '', billingAddress: noteData.billingAddress || '', shippingMethod: noteData.shippingMethod || '', artworkUploadIds: noteData.artworkUploadIds || [], resolver: noteData.resolver || {},
+    payment, paymentStatus: payment.paymentStatus, paymentProvider: payment.paymentProvider, paymentReference: payment.paymentReference,
+    stripeCheckoutSessionId: payment.stripeCheckoutSessionId, stripePaymentIntentId: payment.stripePaymentIntentId, stripeRefundId: payment.stripeRefundId, stripeRefundStatus: payment.stripeRefundStatus,
+    paidAt: payment.paidAt, refundedAt: payment.refundedAt, refundAmountMinor: payment.refundAmountMinor, refundNote: payment.refundNote, paymentFailureReason: payment.paymentFailureReason,
     items: items.map((item: any) => ({ id: item.id, productId: item.productId || item.metadataJson?.productId || item.metadataJson?.slug || item.id, productName: item.titleSnapshot || item.metadataJson?.name || 'Order item', sku: item.metadataJson?.sku || item.metadataJson?.productId || '', quantity: item.quantity || 1, unitPrice: Number(item.unitPriceMinor || 0) / 100, totalPrice: Number(item.totalPriceMinor || 0) / 100, thumbnail: item.metadataJson?.thumbnail || '', metadataJson: item.metadataJson || {} })),
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-    source: 'internal-orders-db',
+    createdAt: order.createdAt, updatedAt: order.updatedAt, source: 'internal-orders-db',
   };
 }
 

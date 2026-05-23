@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { tenantContextFromRequest } from '@/core/tenant/context';
 import { updateArtworkReview } from '@/core/storefront/internal-artwork-storage';
+import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 import { requestArtworkReupload } from '@/core/storefront/internal-artwork-reupload';
 import { queueArtworkStatusEmail } from '@/core/storefront/internal-artwork-notifications';
 import { createProductionJobFromApprovedArtwork } from '@/core/production/internal-production-jobs';
@@ -22,12 +24,11 @@ function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, { ...init, headers: { ...corsHeaders(), ...(init?.headers || {}) } });
 }
 
-export async function OPTIONS() {
-  return new NextResponse(null, { status: 204, headers: corsHeaders() });
-}
+export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: corsHeaders() }); }
 
 async function handle(request: Request, context: RouteContext) {
   try {
+    const ctx = tenantContextFromRequest(request);
     const body = await request.json().catch(() => ({}));
     const action = String(body.action || '').trim();
     if (!allowed.includes(action)) return json({ ok: false, error: 'Invalid artwork status.' }, { status: 400 });
@@ -38,12 +39,15 @@ async function handle(request: Request, context: RouteContext) {
         storefrontBaseUrl: body.storefrontBaseUrl || body.storefrontUrl || '', adminBaseUrl: body.adminBaseUrl || body.adminUrl || '',
         orderNumber: body.orderNumber || '', productName: body.productName || '',
       });
-      return json({ ok: true, source: 'internal-storefront-artwork-reupload-request', upload: result.upload, email: result.email, reuploadLink: result.reuploadLink });
+      const upload = await saveArtworkMetadataDb(result.upload, ctx).catch(() => null) || result.upload;
+      const storage = await artworkStorageStatus(ctx).catch(() => ({ mode: 'file-fallback', dbReady: false }));
+      return json({ ok: true, source: 'internal-storefront-artwork-reupload-request', storage, upload, email: result.email, reuploadLink: result.reuploadLink });
     }
 
-    const upload = await updateArtworkReview(context.params.id, {
+    const uploadRaw = await updateArtworkReview(context.params.id, {
       action: action as any, actor: body.actor || 'admin', note: body.note || '', orderId: body.orderId, quoteId: body.quoteId,
     });
+    const upload = await saveArtworkMetadataDb(uploadRaw, ctx).catch(() => null) || uploadRaw;
 
     let email = null;
     let productionJob = null;
@@ -62,7 +66,8 @@ async function handle(request: Request, context: RouteContext) {
       }, request).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to queue customer notification.' }));
     }
 
-    return json({ ok: true, source: 'internal-storefront-artwork-status', upload, email, productionJob });
+    const storage = await artworkStorageStatus(ctx).catch(() => ({ mode: 'file-fallback', dbReady: false }));
+    return json({ ok: true, source: 'internal-storefront-artwork-status', storage, upload, email, productionJob });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : 'Failed to update artwork status.' }, { status: 500 });
   }

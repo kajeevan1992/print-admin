@@ -34,63 +34,39 @@ async function handle(request: Request, context: RouteContext) {
 
     if (action === 'replacement-requested') {
       const result = await requestArtworkReupload(context.params.id, {
-        note: body.note || '',
-        customerEmail: body.customerEmail || '',
-        customerName: body.customerName || '',
-        storefrontBaseUrl: body.storefrontBaseUrl || body.storefrontUrl || '',
-        adminBaseUrl: body.adminBaseUrl || body.adminUrl || '',
-        orderNumber: body.orderNumber || '',
-        productName: body.productName || '',
+        note: body.note || '', customerEmail: body.customerEmail || '', customerName: body.customerName || '',
+        storefrontBaseUrl: body.storefrontBaseUrl || body.storefrontUrl || '', adminBaseUrl: body.adminBaseUrl || body.adminUrl || '',
+        orderNumber: body.orderNumber || '', productName: body.productName || '',
       });
       return json({ ok: true, source: 'internal-storefront-artwork-reupload-request', upload: result.upload, email: result.email, reuploadLink: result.reuploadLink });
     }
 
     const upload = await updateArtworkReview(context.params.id, {
-      action: action as any,
-      actor: body.actor || 'admin',
-      note: body.note || '',
-      orderId: body.orderId,
-      quoteId: body.quoteId,
+      action: action as any, actor: body.actor || 'admin', note: body.note || '', orderId: body.orderId, quoteId: body.quoteId,
     });
+
     let email = null;
     let productionJob = null;
     if (action === 'approved') {
       productionJob = await createProductionJobFromApprovedArtwork(request, upload, {
-        orderId: body.orderId,
-        orderNumber: body.orderNumber,
-        customerName: body.customerName,
-        customerEmail: body.customerEmail,
-        productName: body.productName,
-        quantity: body.quantity,
-        dueDate: body.dueDate,
-        machine: body.machine,
-        material: body.material,
-        supplier: body.supplier,
-        note: body.note,
+        orderId: body.orderId, orderNumber: body.orderNumber, customerName: body.customerName, customerEmail: body.customerEmail,
+        productName: body.productName, quantity: body.quantity, dueDate: body.dueDate, machine: body.machine, material: body.material,
+        supplier: body.supplier, note: body.note,
       }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to create production job.' }));
     }
+
     if (action === 'approved' || action === 'rejected' || action === 'pending-review') {
       email = await queueArtworkStatusEmail({
-        action: action as any,
-        upload,
-        customerEmail: body.customerEmail || '',
-        customerName: body.customerName || '',
-        orderNumber: body.orderNumber || '',
-        productName: body.productName || '',
-        note: body.note || '',
-        sendNow: body.sendEmailNow === true,
-      }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to queue customer notification.' }));
+        action: action as any, upload, customerEmail: body.customerEmail || '', customerName: body.customerName || '',
+        orderNumber: body.orderNumber || '', productName: body.productName || '', note: body.note || '', sendNow: body.sendEmailNow === true,
+      }, request).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Failed to queue customer notification.' }));
     }
+
     return json({ ok: true, source: 'internal-storefront-artwork-status', upload, email, productionJob });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : 'Failed to update artwork status.' }, { status: 500 });
   }
 }
 
-export async function PATCH(request: Request, context: RouteContext) {
-  return handle(request, context);
-}
-
-export async function POST(request: Request, context: RouteContext) {
-  return handle(request, context);
-}
+export async function PATCH(request: Request, context: RouteContext) { return handle(request, context); }
+export async function POST(request: Request, context: RouteContext) { return handle(request, context); }

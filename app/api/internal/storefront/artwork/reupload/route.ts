@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getCustomerReuploadContext, saveReplacementArtwork } from '@/core/storefront/internal-artwork-reupload';
+import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,18 +22,23 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: Request) {
+  const ctx = tenantContextFromRequest(request);
   const token = new URL(request.url).searchParams.get('token') || '';
   const upload = await getCustomerReuploadContext(token);
-  if (!upload) return json({ ok: false, error: 'This artwork upload link is invalid or expired.' }, { status: 404 });
-  return json({ ok: true, source: 'internal-storefront-artwork-reupload', upload });
+  const storage = await artworkStorageStatus(ctx).catch(() => ({ mode: 'file-fallback', dbReady: false }));
+  if (!upload) return json({ ok: false, source: 'internal-storefront-artwork-reupload', storage, error: 'This artwork upload link is invalid or expired.' }, { status: 404 });
+  return json({ ok: true, source: 'internal-storefront-artwork-reupload', storage, upload });
 }
 
 export async function POST(request: Request) {
   try {
+    const ctx = tenantContextFromRequest(request);
     const token = new URL(request.url).searchParams.get('token') || '';
     const result = await saveReplacementArtwork(request, token);
-    return json({ ok: true, source: 'internal-storefront-artwork-reupload', upload: result.upload });
+    const upload = await saveArtworkMetadataDb(result.upload, ctx).catch(() => null) || result.upload;
+    const storage = await artworkStorageStatus(ctx).catch(() => ({ mode: 'file-fallback', dbReady: false }));
+    return json({ ok: true, source: 'internal-storefront-artwork-reupload', storage, upload });
   } catch (error) {
-    return json({ ok: false, error: error instanceof Error ? error.message : 'Replacement artwork upload failed.' }, { status: 500 });
+    return json({ ok: false, source: 'internal-storefront-artwork-reupload', error: error instanceof Error ? error.message : 'Replacement artwork upload failed.' }, { status: 500 });
   }
 }

@@ -1,7 +1,30 @@
 import { prisma } from '@/lib/prisma';
 import { tenantContextFromRequest } from '@/core/tenant/context';
+import { calculateDeliveryVat, calculateVatLine } from '@/core/tax/vat-rules';
 
 type OrderInput = Record<string, any>;
+
+type EnforcedOrderLine = {
+  productId: string | null;
+  titleSnapshot: string;
+  quantity: number;
+  unitPriceMinor: number;
+  totalPriceMinor: number;
+  metadataJson: Record<string, any>;
+};
+
+type EnforcedTotals = {
+  currency: string;
+  subtotalMinor: number;
+  shippingMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  itemGrossMinor: number;
+  itemVatMinor: number;
+  deliveryNetMinor: number;
+  deliveryVatMinor: number;
+  vatBreakdown: Array<{ rate: number; vatClass: string; netMinor: number; vatMinor: number; grossMinor: number; reasons: string[] }>;
+};
 
 function minor(value: unknown) { const next = Number(value); return Number.isFinite(next) && next >= 0 ? Math.round(next) : 0; }
 function moneyToMinor(value: unknown) { const next = Number(value); if (!Number.isFinite(next) || next < 0) return 0; return next > 10000 ? Math.round(next) : Math.round(next * 100); }
@@ -17,10 +40,77 @@ async function tenantIdFromRequest(request: Request) {
   return tenant.id;
 }
 function customerFrom(input: OrderInput) { const customer = input.customer || input.payload?.customer || {}; const splitName = `${customer.firstName || customer.first_name || ''} ${customer.lastName || customer.last_name || ''}`.trim(); return { name: String(input.customerName || customer.name || splitName || 'Customer'), email: String(input.customerEmail || customer.email || ''), phone: String(input.customerPhone || customer.phone || ''), company: String(input.customerCompany || customer.company || customer.companyName || customer.company_name || '') }; }
-function totalsFrom(input: OrderInput) { const totals = input.totals || input.payload?.totals || {}; const subtotalMinor = minor(input.subtotalMinor ?? input.netTotalMinor ?? totals.subtotalMinor ?? totals.netTotalMinor) || moneyToMinor(totals.subtotal ?? input.subtotal); const taxMinor = minor(input.taxMinor ?? input.vatTotalMinor ?? totals.taxMinor ?? totals.vatTotalMinor) || moneyToMinor(totals.vat ?? totals.tax ?? input.vat); const shippingMinor = minor(input.shippingMinor ?? totals.shippingMinor ?? totals.deliveryMinor) || moneyToMinor(totals.delivery ?? input.deliveryFee); const totalMinor = minor(input.totalMinor ?? input.grossTotalMinor ?? totals.totalMinor ?? totals.grossTotalMinor) || moneyToMinor(totals.total ?? input.total) || subtotalMinor + taxMinor + shippingMinor; return { currency: String(input.currency || totals.currency || 'GBP'), subtotalMinor, taxMinor, shippingMinor, totalMinor }; }
+function rawTotals(input: OrderInput) { return input.totals || input.payload?.totals || {}; }
+function currencyFrom(input: OrderInput) { const totals = rawTotals(input); return String(input.currency || totals.currency || 'GBP'); }
 function statusFrom(input: OrderInput) { if (input?.resolver?.checkoutBlocked || input.checkoutBlocked) return 'ARTWORK_CHECK'; if (input?.resolver?.quoteRequired || input.quoteRequired || input.payment_method === 'Quote request') return 'AWAITING_APPROVAL'; const raw = String(input.status || input.payload?.status || 'AWAITING_PAYMENT').toUpperCase().replace(/-/g, '_'); return ['DRAFT','AWAITING_PAYMENT','ARTWORK_CHECK','AWAITING_APPROVAL','APPROVED','IN_PRODUCTION','QUALITY_CHECK','DISPATCHED','DELIVERED','CANCELLED'].includes(raw) ? raw : 'AWAITING_PAYMENT'; }
 function lineTotalMinor(item: Record<string, any>, quantity: number) { return minor(item.totalPriceMinor ?? item.lineTotalMinor ?? item.grossTotalMinor ?? item.netTotalMinor ?? item.priceMinor) || moneyToMinor(item.totalPrice ?? item.total ?? item.lineTotal) || moneyToMinor(item.price) * quantity; }
-function itemsFrom(input: OrderInput) { const items = Array.isArray(input.items) ? input.items : Array.isArray(input.payload?.items) ? input.payload.items : []; return items.map((item: Record<string, any>) => { const quantity = qty(item.quantity ?? item.qty); const totalPriceMinor = lineTotalMinor(item, quantity); const unitPriceMinor = minor(item.unitPriceMinor ?? item.unitNetMinor) || moneyToMinor(item.unitPrice ?? item.price) || Math.round(totalPriceMinor / quantity); return { productId: typeof item.productId === 'string' && item.productId.startsWith('c') ? item.productId : null, titleSnapshot: String(item.titleSnapshot || item.productName || item.name || item.title || 'Storefront order item'), quantity, unitPriceMinor, totalPriceMinor, metadataJson: item }; }); }
+function rawItems(input: OrderInput) { return Array.isArray(input.items) ? input.items : Array.isArray(input.payload?.items) ? input.payload.items : []; }
+function productIdFrom(item: Record<string, any>) { const id = item.productId || item.product_id || item.slug || item.productSlug || item.metadataJson?.productId || ''; return typeof id === 'string' && id.startsWith('c') ? id : null; }
+function titleFrom(item: Record<string, any>) { return String(item.titleSnapshot || item.productName || item.name || item.title || 'Storefront order item'); }
+function addVatBucket(map: Map<number, any>, line: { vatRate: number; vatClass: string; netMinor: number; vatMinor: number; grossMinor: number; vatReason?: string }) {
+  const current = map.get(line.vatRate) || { rate: line.vatRate, vatClass: line.vatClass, netMinor: 0, vatMinor: 0, grossMinor: 0, reasons: [] as string[] };
+  current.netMinor += line.netMinor;
+  current.vatMinor += line.vatMinor;
+  current.grossMinor += line.grossMinor;
+  if (line.vatReason && !current.reasons.includes(line.vatReason)) current.reasons.push(line.vatReason);
+  map.set(line.vatRate, current);
+}
+
+function enforceVatAndBuildItems(input: OrderInput): { items: EnforcedOrderLine[]; totals: EnforcedTotals } {
+  const currency = currencyFrom(input);
+  const raw = rawItems(input);
+  const buckets = new Map<number, any>();
+  const items: EnforcedOrderLine[] = raw.map((item: Record<string, any>) => {
+    const quantity = qty(item.quantity ?? item.qty);
+    const grossMinor = lineTotalMinor(item, quantity);
+    const vat = calculateVatLine(item, quantity, grossMinor);
+    addVatBucket(buckets, { ...vat, vatReason: vat.vatReason });
+    return {
+      productId: productIdFrom(item),
+      titleSnapshot: titleFrom(item),
+      quantity,
+      unitPriceMinor: vat.unitGrossMinor,
+      totalPriceMinor: vat.grossMinor,
+      metadataJson: {
+        ...item,
+        vatRate: vat.vatRate,
+        vatClass: vat.vatClass,
+        vatReason: vat.vatReason,
+        vatMinor: vat.vatMinor,
+        netTotalMinor: vat.netMinor,
+        grossTotalMinor: vat.grossMinor,
+        unitNetMinor: vat.unitNetMinor,
+        unitGrossMinor: vat.unitGrossMinor,
+        taxEnforcedAt: new Date().toISOString(),
+      },
+    };
+  });
+  const totals = rawTotals(input);
+  const itemGrossMinor = items.reduce((sum, item) => sum + item.totalPriceMinor, 0);
+  const itemVatMinor = items.reduce((sum, item) => sum + minor(item.metadataJson.vatMinor), 0);
+  const itemNetMinor = Math.max(0, itemGrossMinor - itemVatMinor);
+  const shippingMinor = minor(input.shippingMinor ?? totals.shippingMinor ?? totals.deliveryMinor) || moneyToMinor(totals.delivery ?? input.deliveryFee);
+  const deliveryVat = calculateDeliveryVat(input.delivery || input.shipping || input.deliveryMethod, shippingMinor);
+  if (shippingMinor > 0) addVatBucket(buckets, { ...deliveryVat, vatReason: deliveryVat.vatReason });
+  const subtotalMinor = itemNetMinor + deliveryVat.netMinor;
+  const taxMinor = itemVatMinor + deliveryVat.vatMinor;
+  const totalMinor = itemGrossMinor + shippingMinor;
+  return {
+    items,
+    totals: {
+      currency,
+      subtotalMinor,
+      shippingMinor,
+      taxMinor,
+      totalMinor,
+      itemGrossMinor,
+      itemVatMinor,
+      deliveryNetMinor: deliveryVat.netMinor,
+      deliveryVatMinor: deliveryVat.vatMinor,
+      vatBreakdown: [...buckets.values()].sort((a, b) => a.rate - b.rate),
+    },
+  };
+}
 function extractArtworkUploadIds(input: OrderInput) { const values = [input.artworkUploadId, input.artwork_upload_id, input.artwork_reference?.id, input.artwork_reference?.upload?.id, input.artwork?.id, input.artwork?.upload?.id, ...(Array.isArray(input.artworkUploadIds) ? input.artworkUploadIds : [])]; return [...new Set(values.filter(Boolean).map(String))]; }
 function addressToText(address: any) { if (!address) return ''; if (typeof address === 'string') return address; return compact([address.address1, address.address2, address.city, address.postcode, address.country]).join(', '); }
 function paymentFrom(input: OrderInput, existing: Record<string, any> = {}) {
@@ -48,13 +138,14 @@ function normalize(order: Record<string, any>) {
     id: order.id, orderNumber: order.orderNumber, status: order.status, currency: order.currency,
     subtotalMinor: order.subtotalMinor, shippingMinor: order.shippingMinor, taxMinor: order.taxMinor, totalMinor: order.totalMinor,
     total: Number(order.totalMinor || 0) / 100,
+    vatBreakdown: noteData.vatBreakdown || [], taxEnforcedAt: noteData.taxEnforcedAt || '',
     notes: noteData.note || '', internalNotes: noteData.internalNotes || [], quoteReference: noteData.quoteReference || '',
     customerName: order.customer?.name || noteData.customer?.name || '', customerEmail: order.customer?.email || noteData.customer?.email || '', customerPhone: noteData.customer?.phone || '', customerCompany: noteData.customer?.company || '',
     shippingAddress: noteData.shippingAddress || '', billingAddress: noteData.billingAddress || '', shippingMethod: noteData.shippingMethod || '', artworkUploadIds: noteData.artworkUploadIds || [], resolver: noteData.resolver || {},
     payment, paymentStatus: payment.paymentStatus, paymentProvider: payment.paymentProvider, paymentReference: payment.paymentReference,
     stripeCheckoutSessionId: payment.stripeCheckoutSessionId, stripePaymentIntentId: payment.stripePaymentIntentId, stripeRefundId: payment.stripeRefundId, stripeRefundStatus: payment.stripeRefundStatus,
     paidAt: payment.paidAt, refundedAt: payment.refundedAt, refundAmountMinor: payment.refundAmountMinor, refundNote: payment.refundNote, paymentFailureReason: payment.paymentFailureReason,
-    items: items.map((item: any) => ({ id: item.id, productId: item.productId || item.metadataJson?.productId || item.metadataJson?.slug || item.id, productName: item.titleSnapshot || item.metadataJson?.name || 'Order item', sku: item.metadataJson?.sku || item.metadataJson?.productId || '', quantity: item.quantity || 1, unitPrice: Number(item.unitPriceMinor || 0) / 100, totalPrice: Number(item.totalPriceMinor || 0) / 100, thumbnail: item.metadataJson?.thumbnail || '', metadataJson: item.metadataJson || {} })),
+    items: items.map((item: any) => ({ id: item.id, productId: item.productId || item.metadataJson?.productId || item.metadataJson?.slug || item.id, productName: item.titleSnapshot || item.metadataJson?.name || 'Order item', sku: item.metadataJson?.sku || item.metadataJson?.productId || '', quantity: item.quantity || 1, unitPrice: Number(item.unitPriceMinor || 0) / 100, totalPrice: Number(item.totalPriceMinor || 0) / 100, thumbnail: item.metadataJson?.thumbnail || '', vatRate: item.metadataJson?.vatRate, vatClass: item.metadataJson?.vatClass, vatReason: item.metadataJson?.vatReason, vatMinor: item.metadataJson?.vatMinor, netTotalMinor: item.metadataJson?.netTotalMinor, grossTotalMinor: item.metadataJson?.grossTotalMinor, metadataJson: item.metadataJson || {} })),
     createdAt: order.createdAt, updatedAt: order.updatedAt, source: 'internal-orders-db',
   };
 }
@@ -62,8 +153,9 @@ function normalize(order: Record<string, any>) {
 export async function saveOrder(request: Request, input: OrderInput) {
   const tenantId = await tenantIdFromRequest(request);
   const customer = customerFrom(input);
-  const totals = totalsFrom(input);
-  const items = itemsFrom(input);
+  const enforced = enforceVatAndBuildItems(input);
+  const totals = enforced.totals;
+  const items = enforced.items;
   const artworkUploadIds = extractArtworkUploadIds(input);
   const orderNumber = String(input.orderNumber || input.quoteReference || input.payload?.quoteReference || `ORD-${Date.now()}`);
   const orderId = String(input.id || input.orderId || '').trim();
@@ -71,7 +163,7 @@ export async function saveOrder(request: Request, input: OrderInput) {
   const existingRow = orderId ? await prisma.order.findFirst({ where: { tenantId, OR: [{ id: orderId }, { orderNumber: orderId }] }, include: { items: true, customer: true } }) : await prisma.order.findFirst({ where: { tenantId, orderNumber }, include: { items: true, customer: true } });
   const existingNotes = existingRow ? parseNotes(existingRow.notes) : {};
   const payment = paymentFrom(input, existingNotes.payment || existingNotes);
-  const notes = JSON.stringify({ note: input.notes || existingNotes.note || '', internalNotes: input.internalNotes || existingNotes.internalNotes || [], customer, quoteReference: input.quoteReference || input.payload?.quoteReference || existingNotes.quoteReference || '', totals, artworkUploadIds: artworkUploadIds.length ? artworkUploadIds : existingNotes.artworkUploadIds || [], resolver: input.resolver || existingNotes.resolver || {}, artworkPreflight: input.artwork_preflight || input.artworkPreflight || existingNotes.artworkPreflight || null, shippingAddress: addressToText(input.delivery_address || input.shippingAddress) || existingNotes.shippingAddress || '', billingAddress: addressToText(input.billing_address || input.billingAddress) || existingNotes.billingAddress || '', shippingMethod: input.delivery?.publicLabel || input.delivery?.label || input.shippingMethod || existingNotes.shippingMethod || '', payment, rawCheckout: input.rawCheckout || existingNotes.rawCheckout || input });
+  const notes = JSON.stringify({ note: input.notes || existingNotes.note || '', internalNotes: input.internalNotes || existingNotes.internalNotes || [], customer, quoteReference: input.quoteReference || input.payload?.quoteReference || existingNotes.quoteReference || '', totals, vatBreakdown: totals.vatBreakdown, taxEnforcedAt: new Date().toISOString(), artworkUploadIds: artworkUploadIds.length ? artworkUploadIds : existingNotes.artworkUploadIds || [], resolver: input.resolver || existingNotes.resolver || {}, artworkPreflight: input.artwork_preflight || input.artworkPreflight || existingNotes.artworkPreflight || null, shippingAddress: addressToText(input.delivery_address || input.shippingAddress) || existingNotes.shippingAddress || '', billingAddress: addressToText(input.billing_address || input.billingAddress) || existingNotes.billingAddress || '', shippingMethod: input.delivery?.publicLabel || input.delivery?.label || input.shippingMethod || existingNotes.shippingMethod || '', payment, rawCheckout: input.rawCheckout || existingNotes.rawCheckout || input });
   const existing = existingRow ? { id: existingRow.id } : null;
   const data = { tenantId, customerId: user?.id || null, orderNumber, status: statusFrom(input) as any, currency: totals.currency, subtotalMinor: totals.subtotalMinor, shippingMinor: totals.shippingMinor, taxMinor: totals.taxMinor, totalMinor: totals.totalMinor, notes };
   const order = existing ? await prisma.order.update({ where: { id: existing.id }, data: { ...data, items: { deleteMany: {}, create: items } } as any, include: { items: true, customer: true } }) : await prisma.order.create({ data: { ...data, items: { create: items } } as any, include: { items: true, customer: true } });

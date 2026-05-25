@@ -158,20 +158,7 @@ export type ProductArtworkRuleConfig = {
 
 export type ProductAdminRuleScope = 'storefront' | 'pricing' | 'artwork' | 'production' | 'compatibility';
 export type ProductAdminRuleConditionOperator = 'equals' | 'not-equals' | 'is-selected' | 'is-empty' | 'greater-than' | 'less-than' | 'between';
-export type ProductAdminRuleActionType =
-  | 'show-group'
-  | 'hide-group'
-  | 'require-group'
-  | 'show-value'
-  | 'hide-value'
-  | 'set-default-value'
-  | 'add-price'
-  | 'multiply-price'
-  | 'set-lead-time'
-  | 'block-checkout'
-  | 'show-message'
-  | 'set-artwork-mode'
-  | 'assign-production-method';
+export type ProductAdminRuleActionType = 'show-group' | 'hide-group' | 'require-group' | 'show-value' | 'hide-value' | 'set-default-value' | 'add-price' | 'multiply-price' | 'set-lead-time' | 'block-checkout' | 'show-message' | 'set-artwork-mode' | 'assign-production-method';
 
 export type ProductAdminRuleCondition = {
   id: Id;
@@ -228,50 +215,21 @@ export type ProductModeSettings = {
   mode: ProductPricingMode;
   active: boolean;
   customerPriceVisibility: 'show-price' | 'from-price' | 'request-quote' | 'hide-price-until-configured';
-  formula: {
-    enabled: boolean;
-    profileKey: string;
-    formulaKey: string;
-    costingBasis: ProductCostingBasis;
-    matrixKey?: string;
-    minimumChargeMinor: number;
-    marginPercent: number;
-    roundingMinor: number;
-    requireResolvedConfig: boolean;
-    allowMatrixFallback: boolean;
-  };
-  supplier: {
-    enabled: boolean;
-    vendorId: string;
-    vendorName: string;
-    supplierProductId: string;
-    supplierSku: string;
-    pricingEndpointKey: string;
-    supplierLeadTimeDays: number;
-    markupPercent: number;
-    cloneSupplierOptions: boolean;
-    useSupplierArtworkSpec: boolean;
-    blockedOptionKeys: string;
-    syncStatus: 'not-connected' | 'ready' | 'needs-mapping' | 'paused';
-  };
-  quote: {
-    enabled: boolean;
-    quoteReason: string;
-    hideInstantPrice: boolean;
-    showRequestQuoteButton: boolean;
-    allowArtworkUploadBeforeQuote: boolean;
-    requireManualApproval: boolean;
-    minimumQuoteQuantity: number;
-    quoteSlaHours: number;
-    internalOwner: string;
-  };
-  routing: {
-    priority: ProductPricingRoutePriority;
-    fallbackToQuote: boolean;
-    fallbackMessage: string;
-    blockCheckoutWhenUnpriced: boolean;
-    notes: string;
-  };
+  formula: { enabled: boolean; profileKey: string; formulaKey: string; costingBasis: ProductCostingBasis; matrixKey?: string; minimumChargeMinor: number; marginPercent: number; roundingMinor: number; requireResolvedConfig: boolean; allowMatrixFallback: boolean };
+  supplier: { enabled: boolean; vendorId: string; vendorName: string; supplierProductId: string; supplierSku: string; pricingEndpointKey: string; supplierLeadTimeDays: number; markupPercent: number; cloneSupplierOptions: boolean; useSupplierArtworkSpec: boolean; blockedOptionKeys: string; syncStatus: 'not-connected' | 'ready' | 'needs-mapping' | 'paused' };
+  quote: { enabled: boolean; quoteReason: string; hideInstantPrice: boolean; showRequestQuoteButton: boolean; allowArtworkUploadBeforeQuote: boolean; requireManualApproval: boolean; minimumQuoteQuantity: number; quoteSlaHours: number; internalOwner: string };
+  routing: { priority: ProductPricingRoutePriority; fallbackToQuote: boolean; fallbackMessage: string; blockCheckoutWhenUnpriced: boolean; notes: string };
+};
+
+export type ProductTaxSettings = {
+  taxClass: 'auto' | 'zero' | 'standard' | 'exempt' | 'custom';
+  vatRate?: number;
+  vatLabel?: string;
+  preset?: 'auto' | 'leaflets-flyers' | 'booklets-brochures' | 'business-cards' | 'signage-banners' | 'stickers-labels' | 'design-service';
+  appliesToAddons?: boolean;
+  forceVatOnDesignServices?: boolean;
+  invoiceDescription?: string;
+  internalNote?: string;
 };
 
 export type ProductSystemConfig = {
@@ -284,51 +242,13 @@ export type ProductSystemConfig = {
   fieldValues: Record<string, string>;
 };
 
-export type ProductPriceMapping = {
-  basePrice: number;
-  sizeLabel: string;
-  dielineMapping: string;
-  currency: 'USD';
-  parametricStandard?: ParametricStandardConfig;
-};
-
-export type ProductComment = {
-  id: Id;
-  author: string;
-  timestamp: string;
-  label: 'internal' | 'qa' | 'vendor';
-  message: string;
-};
-
-export type ProductTag = {
-  id: Id;
-  label: string;
-  color: 'blue' | 'violet' | 'emerald' | 'amber';
-};
-
-export type ProductInventory = {
-  onHandQuantity: number;
-  reorderQuantity: number;
-};
-
-export type ProductAttribute = {
-  id: Id;
-  type: string;
-  value: string;
-};
-
-export type RelatedProduct = {
-  id: Id;
-  name: string;
-  slug: string;
-  thumbnail: string;
-};
-
-export type AlternateView = {
-  id: Id;
-  label: string;
-  url: string;
-};
+export type ProductPriceMapping = { basePrice: number; sizeLabel: string; dielineMapping: string; currency: 'USD'; parametricStandard?: ParametricStandardConfig };
+export type ProductComment = { id: Id; author: string; timestamp: string; label: 'internal' | 'qa' | 'vendor'; message: string };
+export type ProductTag = { id: Id; label: string; color: 'blue' | 'violet' | 'emerald' | 'amber' };
+export type ProductInventory = { onHandQuantity: number; reorderQuantity: number };
+export type ProductAttribute = { id: Id; type: string; value: string };
+export type RelatedProduct = { id: Id; name: string; slug: string; thumbnail: string };
+export type AlternateView = { id: Id; label: string; url: string };
 
 export type Product = {
   id: Id;
@@ -373,6 +293,7 @@ export type Product = {
   optionGroups?: ProductOptionGroup[];
   templateRules?: ProductTemplateRuleConfig;
   productModeSettings?: ProductModeSettings;
+  taxSettings?: ProductTaxSettings;
 };
 
 export type ProductFormValues = {
@@ -398,15 +319,11 @@ export type ProductFormValues = {
   quantity: string;
   turnaround: 'standard' | 'priority' | 'rush';
   configValues: Record<string, string>;
+  taxClass?: ProductTaxSettings['taxClass'];
+  vatRate?: string;
+  vatPreset?: ProductTaxSettings['preset'];
 };
 
-export type ProductListFilters = {
-  search?: string;
-  categoryId?: string;
-  vendorId?: string;
-  uncategorized?: boolean;
-};
-
+export type ProductListFilters = { search?: string; categoryId?: string; vendorId?: string; uncategorized?: boolean };
 export type ProductSortBy = 'name' | 'updatedAt' | 'sortOrder' | 'lastSavedAt';
-
 export type ProductListQuery = ListQueryParams<ProductSortBy, ProductListFilters>;

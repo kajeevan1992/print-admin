@@ -115,6 +115,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'Merchant Accounts', href: '/merchant-accounts', iconKey: 'CreditCard', order: 100 },
     { label: 'Shipping Methods', href: '/shipping-methods', iconKey: 'Package', order: 110 },
     { label: 'Tax / VAT Settings', href: '/tax-vat-settings', iconKey: 'Receipt', order: 120 },
+    { label: 'Invoice Settings', href: '/settings/invoice', iconKey: 'FileText', order: 125 },
     { label: 'Email Account', href: '/email-account', iconKey: 'Mail', order: 130 },
     { label: 'Email Settings', href: '/email-settings', iconKey: 'Mail', order: 135 },
     { label: 'Email Outbox', href: '/email-outbox', iconKey: 'Mail', order: 136 },

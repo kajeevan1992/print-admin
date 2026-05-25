@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrder } from '@/core/orders/orders.service';
+import { getInvoiceSettings } from '@/core/documents/invoice-settings';
 import { buildOrderDocumentPdf, orderDocumentFilename, type OrderPdfType } from '@/core/documents/order-pdf';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
     if (!isDocType(type)) return NextResponse.json({ ok: false, error: 'Document type must be invoice or receipt.' }, { status: 400 });
     const order = await getOrder(request, context.params.id);
     if (!order) return NextResponse.json({ ok: false, error: 'Order not found.' }, { status: 404 });
-    const pdf = buildOrderDocumentPdf(order, type);
+    const settings = await getInvoiceSettings();
+    const pdf = buildOrderDocumentPdf(order, type, settings);
     return new NextResponse(pdf, {
       status: 200,
       headers: {

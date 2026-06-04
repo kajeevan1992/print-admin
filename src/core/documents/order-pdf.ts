@@ -1,4 +1,5 @@
 import { defaultInvoiceSettings, type InvoiceBrandSettings } from './invoice-settings';
+import { buildOrderVatSummary } from '@/core/tax/order-vat-summary';
 
 type OrderPdfType = 'invoice' | 'receipt';
 type VatBucket = { rate: number; netMinor: number; vatMinor: number; grossMinor: number };
@@ -11,10 +12,6 @@ function pdfEscape(value: unknown) {
 }
 function moneyMinor(value: unknown, currency = 'GBP') {
   const amount = Number(value || 0) / 100;
-  try { return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(amount); } catch { return `GBP ${amount.toFixed(2)}`; }
-}
-function moneyPounds(value: unknown, currency = 'GBP') {
-  const amount = Number(value || 0);
   try { return new Intl.NumberFormat('en-GB', { style: 'currency', currency }).format(amount); } catch { return `GBP ${amount.toFixed(2)}`; }
 }
 function date(value: unknown) {
@@ -52,28 +49,20 @@ function itemGrossMinor(item: any) { if (typeof item.totalPriceMinor === 'number
 function itemNetMinor(item: any) { if (typeof item.netTotalMinor === 'number') return item.netTotalMinor; if (typeof item.unitNetMinor === 'number') return item.unitNetMinor * Number(item.quantity || 1); const gross = itemGrossMinor(item); const rate = safeRate(item.vatRate ?? item.metadataJson?.vatRate ?? item.metadataJson?.taxRate); return rate ? Math.round(gross / (1 + rate / 100)) : gross; }
 function itemVatMinor(item: any) { if (typeof item.vatMinor === 'number') return item.vatMinor; if (typeof item.vatTotalMinor === 'number') return item.vatTotalMinor; return Math.max(0, itemGrossMinor(item) - itemNetMinor(item)); }
 function vatBreakdown(order: any) {
-  const buckets = new Map<number, VatBucket>();
-  for (const item of orderItems(order)) {
-    const rate = safeRate(item.vatRate ?? item.metadataJson?.vatRate ?? item.metadataJson?.taxRate ?? (itemVatMinor(item) ? 20 : 0));
-    const existing = buckets.get(rate) || { rate, netMinor: 0, vatMinor: 0, grossMinor: 0 };
-    existing.netMinor += itemNetMinor(item);
-    existing.vatMinor += itemVatMinor(item);
-    existing.grossMinor += itemGrossMinor(item);
-    buckets.set(rate, existing);
-  }
-  if (!buckets.size) {
-    const gross = Number(order?.totalMinor || Math.round(Number(order?.total || 0) * 100));
-    const vat = Number(order?.taxMinor || 0);
-    const net = Math.max(0, gross - vat);
-    buckets.set(vat ? 20 : 0, { rate: vat ? 20 : 0, netMinor: net, vatMinor: vat, grossMinor: gross });
-  }
-  return [...buckets.values()].sort((a, b) => a.rate - b.rate);
+  const summary = buildOrderVatSummary(order);
+  const rows = summary.vatBreakdown.map((row) => ({ rate: row.rate, netMinor: row.netMinor, vatMinor: row.vatMinor, grossMinor: row.grossMinor }));
+  if (rows.length) return rows;
+  const gross = Number(order?.totalMinor || Math.round(Number(order?.total || 0) * 100));
+  const vat = Number(order?.taxMinor || 0);
+  const net = Math.max(0, gross - vat);
+  return [{ rate: vat ? 20 : 0, netMinor: net, vatMinor: vat, grossMinor: gross }];
 }
 function settingsOrDefault(settings?: Partial<InvoiceBrandSettings>) { return { ...defaultInvoiceSettings(), ...(settings || {}) }; }
 
 export function buildOrderDocumentPdf(order: any, type: OrderPdfType = 'invoice', settings?: Partial<InvoiceBrandSettings>) {
   const brand = settingsOrDefault(settings);
-  const currency = clean(order?.currency || 'GBP');
+  const taxSummary = buildOrderVatSummary(order);
+  const currency = clean(order?.currency || taxSummary.currency || 'GBP');
   const title = documentTitle(type, order);
   const docNo = documentNumber(type, order);
   const items = orderItems(order);
@@ -132,7 +121,7 @@ export function buildOrderDocumentPdf(order: any, type: OrderPdfType = 'invoice'
   y -= 8;
   commands.push(rule(50, y, 545));
   y -= 18;
-  commands.push(boldLine(50, y, 10, 'VAT Breakdown'));
+  commands.push(boldLine(50, y, 10, taxSummary.isMixedVat ? 'Mixed VAT Breakdown' : 'VAT Breakdown'));
   commands.push(boldLine(180, y, 9, 'Rate'));
   commands.push(boldLine(245, y, 9, 'Net'));
   commands.push(boldLine(330, y, 9, 'VAT'));
@@ -151,19 +140,19 @@ export function buildOrderDocumentPdf(order: any, type: OrderPdfType = 'invoice'
   commands.push(rule(320, y, 545));
   y -= 18;
   commands.push(line(360, y, 10, 'Subtotal / Net'));
-  commands.push(line(455, y, 10, moneyMinor(order?.subtotalMinor || buckets.reduce((s, b) => s + b.netMinor, 0), currency))); y -= 16;
+  commands.push(line(455, y, 10, moneyMinor(taxSummary.netMinor || buckets.reduce((s, b) => s + b.netMinor, 0), currency))); y -= 16;
   commands.push(line(360, y, 10, 'Delivery'));
-  commands.push(line(455, y, 10, moneyMinor(order?.shippingMinor || 0, currency))); y -= 16;
+  commands.push(line(455, y, 10, moneyMinor(taxSummary.deliveryMinor || 0, currency))); y -= 16;
   commands.push(line(360, y, 10, 'VAT'));
-  commands.push(line(455, y, 10, moneyMinor(order?.taxMinor || buckets.reduce((s, b) => s + b.vatMinor, 0), currency))); y -= 18;
+  commands.push(line(455, y, 10, moneyMinor(taxSummary.vatMinor || buckets.reduce((s, b) => s + b.vatMinor, 0), currency))); y -= 18;
   commands.push(boldLine(360, y, 13, 'Total'));
-  commands.push(boldLine(455, y, 13, moneyMinor(order?.totalMinor || Math.round(Number(order?.total || 0) * 100), currency)));
+  commands.push(boldLine(455, y, 13, moneyMinor(taxSummary.grossMinor || Math.round(Number(order?.total || 0) * 100), currency)));
 
   commands.push(rule(50, 104, 545));
   if (brand.bankDetails) commands.push(line(50, 88, 8, `Bank: ${brand.bankDetails}`));
   commands.push(line(50, brand.bankDetails ? 74 : 88, 8, brand.paymentTerms || 'Payment due on receipt unless agreed otherwise.'));
   commands.push(line(50, brand.bankDetails ? 61 : 74, 8, brand.footerNote || 'Thank you for your business.'));
-  commands.push(line(50, 48, 7, `${title} generated from internal order record. Quote ${clean(order?.orderNumber || order?.id || '')} for any questions.`));
+  commands.push(line(50, 48, 7, `${title} generated from internal order VAT summary. Quote ${clean(order?.orderNumber || order?.id || '')} for any questions.`));
 
   const stream = commands.join('\n');
   const objects = [

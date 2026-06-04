@@ -5,6 +5,7 @@ import { cleanCustomer, estimateDelivery, readCartItems, saveCartItems, summariz
 import { buildStorefrontReadinessReport, recalculateCartSnapshot, readStorefrontBody, StorefrontHttpError, storefrontError, storefrontSuccess, validateCheckoutReadiness } from '@/core/storefront/storefront-integrity';
 import { runPreflightForCart } from '@/core/storefront/artwork-preflight-bridge';
 import { listOrders, saveOrder } from '@/core/orders/orders.service';
+import { decideCheckoutPayment } from '@/core/payments/payment-rules';
 
 const SOURCE = 'internal-storefront-checkout-db';
 
@@ -44,8 +45,7 @@ function requestItems(body: Record<string, any>) {
 }
 
 function isQuoteRequest(body: Record<string, any>) {
-  const method = String(body.payment_method || body.paymentMethod || '').toLowerCase();
-  return method.includes('quote') || Boolean(body.quoteRequired || body.resolver?.quoteRequired || body.checkoutBlocked || body.resolver?.checkoutBlocked);
+  return decideCheckoutPayment(body).requiresApproval;
 }
 
 function isArtworkLater(body: Record<string, any>) {
@@ -80,7 +80,8 @@ export async function POST(request: NextRequest) {
     const items = payloadItems.length ? payloadItems : await recalculateCartSnapshot(request, storedItems);
     if (!items.length) throw new StorefrontHttpError('CART_EMPTY', 'Cart is empty. Add an item before checkout.', 400, 'cart');
 
-    const quoteRequest = isQuoteRequest(body);
+    const paymentDecision = decideCheckoutPayment(body);
+    const quoteRequest = paymentDecision.requiresApproval;
     const artworkLater = isArtworkLater(body);
     if (!payloadItems.length && !quoteRequest && !artworkLater) {
       await runPreflightForCart(request);
@@ -92,13 +93,14 @@ export async function POST(request: NextRequest) {
     const id = String(body.id || body.orderId || makeId('checkout-order'));
     const quoteReference = String(body.quoteReference || `CHECKOUT-${Date.now()}`);
     const deliveryEstimate = body.deliveryEstimate || estimateDelivery(items[0]?.turnaround);
-    const status = quoteRequest ? 'AWAITING_APPROVAL' : 'AWAITING_PAYMENT';
+    const status = paymentDecision.orderStatus;
 
     const payload = {
       ...body,
       id,
       quoteReference,
       status,
+      paymentDecision,
       source: 'HostedThemeCheckoutDB',
       customer,
       items,
@@ -115,6 +117,8 @@ export async function POST(request: NextRequest) {
       orderNumber: quoteReference,
       quoteReference,
       status,
+      paymentStatus: paymentDecision.paymentStatus,
+      paymentProvider: paymentDecision.canPayNow ? 'stripe' : body.paymentProvider || '',
       customerName: customer.name,
       customerEmail: customer.email,
       customerPhone: customer.phone,
@@ -130,6 +134,10 @@ export async function POST(request: NextRequest) {
       createdAt: now,
       updatedAt: now,
       source: 'HostedThemeCheckoutDB',
+      internalNotes: [
+        `Checkout payment decision: ${paymentDecision.mode}.`,
+        `Next action: ${paymentDecision.nextAction}.`,
+      ],
     });
 
     if (body.clearCart !== false) {
@@ -141,6 +149,13 @@ export async function POST(request: NextRequest) {
       totals,
       deliveryEstimate,
       quoteRequired: quoteRequest,
+      paymentDecision,
+      payment: {
+        mode: paymentDecision.mode,
+        canPayNow: paymentDecision.canPayNow,
+        requiresApproval: paymentDecision.requiresApproval,
+        nextAction: paymentDecision.nextAction,
+      },
       artworkMode: artworkLater ? 'later' : body.artwork_mode || body.artworkMode || '',
     });
   } catch (error) {

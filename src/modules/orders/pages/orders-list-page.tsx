@@ -13,6 +13,15 @@ import { ordersService } from '@/services/orders.service';
 import type { Order, OrderStatus } from '@/modules/orders/types';
 
 const statusOptions: Array<OrderStatus | 'all'> = ['all', 'draft', 'pending', 'approved', 'in-production', 'shipped', 'completed', 'cancelled'];
+type WorkflowFilter = 'all' | 'quote-review' | 'payment-needed' | 'artwork-production' | 'dispatch';
+
+const workflowOptions: Array<{ value: WorkflowFilter; label: string }> = [
+  { value: 'all', label: 'All workflows' },
+  { value: 'quote-review', label: 'Quote review' },
+  { value: 'payment-needed', label: 'Payment needed' },
+  { value: 'artwork-production', label: 'Artwork / production' },
+  { value: 'dispatch', label: 'Dispatch / collection' },
+];
 
 type ProductRecord = { id: string; name: string; slug: string; metadataJson?: Record<string, any> };
 type JobTicket = Record<string, any>;
@@ -34,6 +43,38 @@ function dueDate(order: Order) {
 }
 function orderCanAutomate(order: Order) {
   return ['paid', 'authorized', 'captured'].includes(order.paymentStatus) || ['approved', 'in-production'].includes(order.status);
+}
+function needsQuoteReview(order: Order) {
+  return order.status === 'pending' && order.paymentStatus === 'unpaid' && !order.stripeCheckoutSessionId;
+}
+function needsPayment(order: Order) {
+  return ['unpaid', 'failed', 'authorized'].includes(order.paymentStatus) && !['cancelled', 'completed'].includes(order.status);
+}
+function needsArtworkOrProduction(order: Order) {
+  return ['paid', 'authorized'].includes(order.paymentStatus) && ['pending', 'approved'].includes(order.status);
+}
+function needsDispatch(order: Order) {
+  return ['in-production', 'shipped'].includes(order.status) || ['finishing', 'dispatch'].includes(order.productionStage);
+}
+function workflowFor(order: Order) {
+  if (needsQuoteReview(order)) return { label: 'Review quote', tone: 'amber', helper: 'Approve and send payment link' };
+  if (needsPayment(order)) return { label: order.paymentStatus === 'authorized' ? 'Payment link sent' : 'Payment needed', tone: 'red', helper: 'Send/retry payment link' };
+  if (needsArtworkOrProduction(order)) return { label: 'Artwork / production', tone: 'blue', helper: 'Check artwork then produce' };
+  if (needsDispatch(order)) return { label: 'Dispatch / collection', tone: 'green', helper: 'Pack, dispatch or mark complete' };
+  if (order.status === 'completed') return { label: 'Completed', tone: 'green', helper: 'Finished order' };
+  if (order.status === 'cancelled') return { label: 'Cancelled', tone: 'red', helper: 'No action' };
+  return { label: 'Monitor', tone: 'blue', helper: 'Open order for details' };
+}
+function matchesWorkflow(order: Order, workflow: WorkflowFilter) {
+  if (workflow === 'all') return true;
+  if (workflow === 'quote-review') return needsQuoteReview(order);
+  if (workflow === 'payment-needed') return needsPayment(order);
+  if (workflow === 'artwork-production') return needsArtworkOrProduction(order);
+  if (workflow === 'dispatch') return needsDispatch(order);
+  return true;
+}
+function formatMoney(value: number) {
+  return `£${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 async function loadProducts(): Promise<ProductRecord[]> {
   const response = await fetch('/api/internal/catalog/products?limit=500', { cache: 'no-store' });
@@ -98,6 +139,7 @@ export function OrdersListPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<OrderStatus | 'all'>('all');
+  const [workflow, setWorkflow] = useState<WorkflowFilter>('all');
   const [loading, setLoading] = useState(true);
   const [automating, setAutomating] = useState(false);
   const [automationMessage, setAutomationMessage] = useState('');
@@ -120,13 +162,19 @@ export function OrdersListPage() {
     void load();
   }, [load]);
 
+  const visibleOrders = useMemo(() => orders.filter((order) => matchesWorkflow(order, workflow)), [orders, workflow]);
+
   const stats = useMemo(() => ({
-    total: orders.length,
-    production: orders.filter((item) => item.status === 'in-production').length,
-    shipping: orders.filter((item) => item.status === 'shipped').length,
-    value: orders.reduce((sum, item) => sum + item.total, 0),
-    automatable: orders.filter(orderCanAutomate).length
-  }), [orders]);
+    total: visibleOrders.length,
+    quoteReview: visibleOrders.filter(needsQuoteReview).length,
+    paymentNeeded: visibleOrders.filter(needsPayment).length,
+    artworkProduction: visibleOrders.filter(needsArtworkOrProduction).length,
+    dispatch: visibleOrders.filter(needsDispatch).length,
+    value: visibleOrders.reduce((sum, item) => sum + item.total, 0),
+    automatable: visibleOrders.filter(orderCanAutomate).length
+  }), [visibleOrders]);
+
+  const urgentOrders = useMemo(() => visibleOrders.filter((order) => daysUntil(dueDate(order)) <= 1 && order.status !== 'completed' && order.status !== 'cancelled').slice(0, 5), [visibleOrders]);
 
   async function automateProductionTickets() {
     setAutomating(true);
@@ -137,7 +185,7 @@ export function OrdersListPage() {
       const existingIds = new Set(existingTickets.map((ticket) => ticket.id));
       const productById = new Map(products.map((product) => [product.id, product]));
       const created: JobTicket[] = [];
-      for (const order of orders) {
+      for (const order of visibleOrders) {
         if (!orderCanAutomate(order)) continue;
         for (const item of order.items || []) {
           const product = productById.get(item.productId) || products.find((entry) => entry.name === item.productName || entry.slug === item.productId);
@@ -149,7 +197,7 @@ export function OrdersListPage() {
         }
       }
       if (created.length) await saveTickets([...created, ...existingTickets]);
-      setAutomationMessage(created.length ? `${created.length} production ticket(s) created from paid/approved orders.` : 'No new tickets needed. Existing tickets are already up to date.');
+      setAutomationMessage(created.length ? `${created.length} production ticket(s) created from visible paid/approved orders.` : 'No new tickets needed. Existing tickets are already up to date.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Production automation failed');
     } finally {
@@ -161,48 +209,58 @@ export function OrdersListPage() {
     <div>
       <PageHeader
         title="Orders"
-        subtitle="Track storefront orders from payment approval through prepress, production, and dispatch."
-        actions={<><Button>Export</Button><Button onClick={automateProductionTickets} disabled={automating}>{automating ? 'Creating tickets…' : 'Auto-create production tickets'}</Button><Link href="/production" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/[0.05]">Production Board</Link></>}
+        subtitle="Daily Holo Print order board for quote approval, payment collection, artwork checks, production and dispatch."
+        actions={<><Button onClick={() => void load()}>Refresh</Button><Button>Export</Button><Button onClick={automateProductionTickets} disabled={automating}>{automating ? 'Creating tickets…' : 'Auto-create production tickets'}</Button><Link href="/production" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white hover:bg-white/[0.05]">Production Board</Link></>}
       />
 
-      <div className="mb-4 grid gap-4 md:grid-cols-5">
+      <div className="mb-4 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <MetricCard label="Visible Orders" value={String(stats.total)} />
-        <MetricCard label="Ready for Automation" value={String(stats.automatable)} />
-        <MetricCard label="In Production" value={String(stats.production)} />
-        <MetricCard label="In Shipping" value={String(stats.shipping)} />
-        <MetricCard label="Order Value" value={`£${stats.value.toLocaleString()}`} />
+        <MetricCard label="Quote Review" value={String(stats.quoteReview)} tone={stats.quoteReview ? 'amber' : 'default'} />
+        <MetricCard label="Payment Needed" value={String(stats.paymentNeeded)} tone={stats.paymentNeeded ? 'red' : 'default'} />
+        <MetricCard label="Artwork / Production" value={String(stats.artworkProduction)} tone={stats.artworkProduction ? 'blue' : 'default'} />
+        <MetricCard label="Dispatch" value={String(stats.dispatch)} tone={stats.dispatch ? 'green' : 'default'} />
+        <MetricCard label="Order Value" value={formatMoney(stats.value)} />
       </div>
 
       {automationMessage ? <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-100">{automationMessage}</div> : null}
 
       <Card className="mb-4 p-4">
-        <p className="text-sm font-semibold text-white">v369 Live Order → Production Automation</p>
-        <p className="mt-1 text-xs text-textMuted">Paid/approved orders can now generate v367 production job tickets. Tickets inherit product artwork rules, machine/material constraints, finishing routes, supplier mode and due-date risk.</p>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-white">Shop workflow</p>
+            <p className="mt-1 text-xs text-textMuted">Use this board first each morning: approve quote orders, create/send payment links, check paid artwork, then move jobs into production and dispatch.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs">
+            <StatusPill value={`${stats.automatable} production ready`} subtle />
+            <StatusPill value={`${urgentOrders.length} due soon`} subtle />
+          </div>
+        </div>
+        {urgentOrders.length ? <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">{urgentOrders.map((order) => <Link key={order.id} href={`/orders/${order.id}`} className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-xs text-textMuted hover:bg-white/[0.06]"><span className="block font-semibold text-white">{order.orderNumber}</span><span>{workflowFor(order).label}</span><span className="mt-1 block">Due {dueDate(order)}</span></Link>)}</div> : null}
       </Card>
 
-      <div className="mb-4 grid gap-2 md:grid-cols-[1.5fr_220px]">
-        <Input placeholder="Search by order number, customer, organisation || email..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      <div className="mb-4 grid gap-2 md:grid-cols-[1.5fr_220px_240px]">
+        <Input placeholder="Search by order number, customer, organisation or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select options={statusOptions.map((item) => ({ value: item, label: item === 'all' ? 'All statuses' : item }))} value={status} onChange={(e) => setStatus(e.target.value as OrderStatus | 'all')} />
+        <Select options={workflowOptions} value={workflow} onChange={(e) => setWorkflow(e.target.value as WorkflowFilter)} />
       </div>
 
       {loading ? <div className="rounded-xl border border-border bg-panel p-6 text-sm">Loading orders...</div> : null}
       {error ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-6 text-sm text-red-200">{error}</div> : null}
-      {!loading && !error && orders.length === 0 ? <EmptyModuleState title="No orders found" description="Adjust filters || wait for new storefront orders to arrive." /> : null}
+      {!loading && !error && visibleOrders.length === 0 ? <EmptyModuleState title="No orders found" description="Adjust filters or wait for new storefront orders to arrive." /> : null}
 
-      {!loading && !error && orders.length > 0 ? (
+      {!loading && !error && visibleOrders.length > 0 ? (
         <DataTable
           columns={[
-            { key: 'number', header: 'Order', render: (row) => <div><div className="font-medium">{row.orderNumber}</div><div className="text-xs text-textMuted">{row.createdAt}</div></div> },
-            { key: 'customer', header: 'Customer', render: (row) => <div><div>{row.customerName}</div><div className="text-xs text-textMuted">{row.organizationName}</div></div> },
-            { key: 'store', header: 'Store', render: (row) => row.storeName },
-            { key: 'status', header: 'Status', render: (row) => <StatusPill value={row.status} /> },
-            { key: 'automation', header: 'Automation', render: (row) => <StatusPill value={orderCanAutomate(row) ? 'production-ready' : 'waiting-payment'} subtle /> },
-            { key: 'production', header: 'Production', render: (row) => <StatusPill value={row.productionStage} subtle /> },
-            { key: 'payment', header: 'Payment', render: (row) => <StatusPill value={row.paymentStatus} subtle /> },
-            { key: 'total', header: 'Total', render: (row) => `${row.currency} ${row.total.toLocaleString()}` },
-            { key: 'action', header: 'Action', render: (row) => <Link href={`/orders/${row.id}`} className="text-accent">Open</Link> }
+            { key: 'number', header: 'Order', render: (row) => <div><div className="font-medium">{row.orderNumber}</div><div className="text-xs text-textMuted">{new Date(row.createdAt).toLocaleString()}</div></div> },
+            { key: 'customer', header: 'Customer', render: (row) => <div><div>{row.customerName}</div><div className="text-xs text-textMuted">{row.customerEmail || row.organizationName || 'No email shown'}</div></div> },
+            { key: 'workflow', header: 'Workflow', render: (row) => <WorkflowBadge order={row} /> },
+            { key: 'status', header: 'Status', render: (row) => <div className="flex flex-col gap-1"><StatusPill value={row.status} /><StatusPill value={row.productionStage} subtle /></div> },
+            { key: 'payment', header: 'Payment', render: (row) => <div className="flex flex-col gap-1"><StatusPill value={row.paymentStatus} subtle />{row.stripeCheckoutSessionId ? <span className="text-[11px] text-textMuted">Stripe link created</span> : null}</div> },
+            { key: 'items', header: 'Items', render: (row) => <div><div>{row.itemCount} item(s)</div><div className="text-xs text-textMuted">{row.items?.[0]?.productName || row.storeName}</div></div> },
+            { key: 'total', header: 'Total', render: (row) => `${row.currency} ${row.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+            { key: 'action', header: 'Action', render: (row) => <div className="flex flex-col gap-1"><Link href={`/orders/${row.id}`} className="text-accent">Open order</Link><span className="text-[11px] text-textMuted">{workflowFor(row).helper}</span></div> }
           ]}
-          rows={orders}
+          rows={visibleOrders}
           rowKey={(row) => row.id}
         />
       ) : null}
@@ -210,21 +268,31 @@ export function OrdersListPage() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value, tone = 'default' }: { label: string; value: string; tone?: 'default' | 'amber' | 'red' | 'green' | 'blue' }) {
+  const toneClass = tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10' : tone === 'red' ? 'border-red-500/30 bg-red-500/10' : tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10' : tone === 'blue' ? 'border-sky-500/30 bg-sky-500/10' : '';
   return (
-    <Card>
+    <Card className={toneClass}>
       <p className="text-xs uppercase tracking-wide text-textMuted">{label}</p>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
     </Card>
   );
 }
 
-function StatusPill({ value, subtle = false }: { value: string; subtle?: boolean }) {
-  const tone = value.includes('paid') || value.includes('completed') || value.includes('shipped') || value.includes('dispatch') || value.includes('ready')
-    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-    : value.includes('cancel') || value.includes('refund') || value.includes('waiting')
-      ? 'border-red-500/30 bg-red-500/10 text-red-200'
-      : 'border-amber-500/30 bg-amber-500/10 text-amber-200';
+function WorkflowBadge({ order }: { order: Order }) {
+  const workflow = workflowFor(order);
+  return <div className="space-y-1"><StatusPill value={workflow.label} tone={workflow.tone as any} /><p className="text-xs text-textMuted">{workflow.helper}</p></div>;
+}
 
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs capitalize ${subtle ? tone : tone}`}>{value.replace(/-/g, ' ')}</span>;
+function StatusPill({ value, subtle = false, tone }: { value: string; subtle?: boolean; tone?: 'amber' | 'red' | 'green' | 'blue' }) {
+  const normalised = String(value || '').toLowerCase();
+  const resolvedTone = tone || (normalised.includes('paid') || normalised.includes('completed') || normalised.includes('shipped') || normalised.includes('dispatch') || normalised.includes('ready') || normalised.includes('production ready')
+    ? 'green'
+    : normalised.includes('cancel') || normalised.includes('refund') || normalised.includes('waiting') || normalised.includes('needed') || normalised.includes('failed')
+      ? 'red'
+      : normalised.includes('quote') || normalised.includes('pending') || normalised.includes('review')
+        ? 'amber'
+        : 'blue');
+  const toneClass = resolvedTone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : resolvedTone === 'red' ? 'border-red-500/30 bg-red-500/10 text-red-200' : resolvedTone === 'amber' ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-sky-500/30 bg-sky-500/10 text-sky-200';
+
+  return <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs capitalize ${subtle ? toneClass : toneClass}`}>{value.replace(/-/g, ' ')}</span>;
 }

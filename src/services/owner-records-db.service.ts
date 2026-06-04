@@ -1,5 +1,13 @@
 export type OwnerDbRecord = Record<string, unknown> & { id: string };
 
+export type OwnerDbListResult<T extends OwnerDbRecord> = {
+  items: T[];
+  persistedCount: number;
+  seedCount: number;
+  hasPersistedRows: boolean;
+  resource: string;
+};
+
 const RESOURCE_ALIASES: Record<string, string> = {
   'owner-sso-config': 'owner-sso-configs',
   'owner-compliance-center': 'owner-compliance-controls',
@@ -22,15 +30,7 @@ async function parseResponse(response: Response) {
 }
 
 function titleFromRecord(record: OwnerDbRecord) {
-  return String(
-    (record as any).title ||
-    (record as any).label ||
-    (record as any).name ||
-    (record as any).domain ||
-    (record as any).providerName ||
-    (record as any).tenant ||
-    record.id
-  );
+  return String((record as any).title || (record as any).label || (record as any).name || (record as any).domain || (record as any).providerName || (record as any).tenant || record.id);
 }
 
 function statusFromRecord(record: OwnerDbRecord) {
@@ -55,16 +55,21 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
   const resource = canonicalResource(resourceOverride || resourceFromStorageKey(storageKey));
   const endpoint = `/api/internal/platform/owner-control-records?resource=${encodeURIComponent(resource)}`;
 
+  async function listWithMeta(): Promise<OwnerDbListResult<T>> {
+    const response = await fetch(endpoint, { cache: 'no-store' });
+    const payload = await parseResponse(response);
+    const rows = payload?.data?.items;
+    const items = Array.isArray(rows) ? rows.map(toClientRecord<T>) : [];
+    return { items, persistedCount: items.length, seedCount: seed.length, hasPersistedRows: items.length > 0, resource };
+  }
+
   return {
     async list(): Promise<T[]> {
-      const response = await fetch(endpoint, { cache: 'no-store' });
-      const payload = await parseResponse(response);
-      const rows = payload?.data?.items;
-
-      if (!Array.isArray(rows)) return [];
-
-      return rows.map(toClientRecord<T>);
+      const result = await listWithMeta();
+      return result.items;
     },
+
+    async listWithMeta,
 
     async save(record: T): Promise<T> {
       const response = await fetch('/api/internal/platform/owner-control-records', {
@@ -87,9 +92,7 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
 
     async delete(id: string): Promise<void> {
       const params = new URLSearchParams({ resource, recordId: id, id: `${resource}-${id}` });
-      const response = await fetch(`/api/internal/platform/owner-control-records?${params.toString()}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(`/api/internal/platform/owner-control-records?${params.toString()}`, { method: 'DELETE' });
       await parseResponse(response);
     },
 

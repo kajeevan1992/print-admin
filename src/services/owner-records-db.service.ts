@@ -1,7 +1,16 @@
 export type OwnerDbRecord = Record<string, unknown> & { id: string };
 
+const RESOURCE_ALIASES: Record<string, string> = {
+  'owner-sso-config': 'owner-sso-configs',
+  'owner-compliance-center': 'owner-compliance-controls',
+};
+
+function canonicalResource(resource: string) {
+  return RESOURCE_ALIASES[resource] || resource;
+}
+
 function resourceFromStorageKey(storageKey: string) {
-  return storageKey.replace(/^print-admin\./, '').replace(/\./g, '-');
+  return canonicalResource(storageKey.replace(/^print-admin\./, '').replace(/\./g, '-'));
 }
 
 async function parseResponse(response: Response) {
@@ -17,6 +26,8 @@ function titleFromRecord(record: OwnerDbRecord) {
     (record as any).title ||
     (record as any).label ||
     (record as any).name ||
+    (record as any).domain ||
+    (record as any).providerName ||
     (record as any).tenant ||
     record.id
   );
@@ -26,8 +37,22 @@ function statusFromRecord(record: OwnerDbRecord) {
   return String((record as any).status || (record as any).state || 'active');
 }
 
-export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: string, seed: T[]) {
-  const resource = resourceFromStorageKey(storageKey);
+function tenantFromRecord(record: OwnerDbRecord) {
+  return String((record as any).tenantId || (record as any).tenant || '').trim() || null;
+}
+
+function toClientRecord<T extends OwnerDbRecord>(item: any) {
+  return {
+    id: item.recordId,
+    ...(item.metadataJson || {}),
+    ownerControlResource: item.resource,
+    ownerControlStatus: item.status,
+    ownerControlUpdatedAt: item.updatedAt,
+  } as T;
+}
+
+export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: string, seed: T[], resourceOverride?: string) {
+  const resource = canonicalResource(resourceOverride || resourceFromStorageKey(storageKey));
   const endpoint = `/api/internal/platform/owner-control-records?resource=${encodeURIComponent(resource)}`;
 
   return {
@@ -38,10 +63,7 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
 
       if (!Array.isArray(rows)) return [];
 
-      return rows.map((item: any) => ({
-        id: item.recordId,
-        ...(item.metadataJson || {}),
-      })) as T[];
+      return rows.map(toClientRecord<T>);
     },
 
     async save(record: T): Promise<T> {
@@ -55,7 +77,7 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
           title: titleFromRecord(record),
           status: statusFromRecord(record),
           scope: (record as any).scope || null,
-          tenantId: (record as any).tenantId || null,
+          tenantId: tenantFromRecord(record),
           metadataJson: record,
         }),
       });
@@ -64,7 +86,8 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
     },
 
     async delete(id: string): Promise<void> {
-      const response = await fetch(`/api/internal/platform/owner-control-records?id=${encodeURIComponent(`${resource}-${id}`)}`, {
+      const params = new URLSearchParams({ resource, recordId: id, id: `${resource}-${id}` });
+      const response = await fetch(`/api/internal/platform/owner-control-records?${params.toString()}`, {
         method: 'DELETE',
       });
       await parseResponse(response);

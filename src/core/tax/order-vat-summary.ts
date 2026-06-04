@@ -86,27 +86,28 @@ function itemQuantity(item: any) {
   return Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : 1;
 }
 
-function itemGrossMinor(item: any) {
+function getItemGrossMinor(item: any) {
   const meta = item?.metadataJson || item?.metadata || {};
   return minor(item?.totalPriceMinor ?? item?.grossTotalMinor ?? meta.grossTotalMinor ?? meta.totalPriceMinor ?? meta.lineTotalMinor)
     || moneyToMinor(item?.totalPrice ?? item?.grossTotal ?? item?.lineTotal ?? item?.total)
     || moneyToMinor(item?.price ?? item?.unitPrice) * itemQuantity(item);
 }
 
-function itemNetMinor(item: any) {
+function getItemNetMinor(item: any) {
   const meta = item?.metadataJson || item?.metadata || {};
   const direct = minor(item?.netTotalMinor ?? meta.netTotalMinor);
   if (direct) return direct;
-  const gross = itemGrossMinor(item);
-  const rate = safeRate(item?.vatRate ?? item?.taxRate ?? meta.vatRate ?? meta.taxRate ?? (itemVatMinor(item) ? 20 : 0), 20);
+  const gross = getItemGrossMinor(item);
+  const explicitVat = minor(item?.vatMinor ?? item?.vatTotalMinor ?? meta.vatMinor ?? meta.vatTotalMinor ?? meta.taxMinor);
+  const rate = safeRate(item?.vatRate ?? item?.taxRate ?? meta.vatRate ?? meta.taxRate ?? (explicitVat ? 20 : 0), explicitVat ? 20 : 0);
   return rate ? Math.round(gross / (1 + rate / 100)) : gross;
 }
 
-function itemVatMinor(item: any) {
+function getItemVatMinor(item: any) {
   const meta = item?.metadataJson || item?.metadata || {};
   const direct = minor(item?.vatMinor ?? item?.vatTotalMinor ?? meta.vatMinor ?? meta.vatTotalMinor ?? meta.taxMinor);
   if (direct) return direct;
-  return Math.max(0, itemGrossMinor(item) - itemNetMinor(item));
+  return Math.max(0, getItemGrossMinor(item) - getItemNetMinor(item));
 }
 
 function addBucket(map: Map<number, OrderVatBreakdownRow>, rateInput: unknown, netMinorInput: number, vatMinorInput: number, grossMinorInput: number, vatClassInput?: unknown, reason?: unknown) {
@@ -124,9 +125,9 @@ function deriveBreakdown(order: Record<string, any>, notes: Record<string, any>)
   const buckets = new Map<number, OrderVatBreakdownRow>();
   for (const item of asArray(order.items)) {
     const meta = item?.metadataJson || item?.metadata || {};
-    const gross = itemGrossMinor(item);
-    const net = itemNetMinor(item);
-    const vat = itemVatMinor(item);
+    const gross = getItemGrossMinor(item);
+    const net = getItemNetMinor(item);
+    const vat = getItemVatMinor(item);
     const rate = safeRate(item?.vatRate ?? item?.taxRate ?? meta.vatRate ?? meta.taxRate ?? (vat ? 20 : 0), vat ? 20 : 0);
     addBucket(buckets, rate, net, vat, gross, item?.vatClass ?? meta.vatClass ?? meta.taxClass, item?.vatReason ?? meta.vatReason ?? meta.taxReason ?? 'order-line-vat-metadata');
   }
@@ -152,8 +153,8 @@ export function buildOrderVatSummary(order: Record<string, any> = {}): OrderVatS
   const breakdownNetMinor = vatBreakdown.reduce((sum, row) => sum + minor(row.netMinor), 0);
   const breakdownVatMinor = vatBreakdown.reduce((sum, row) => sum + minor(row.vatMinor), 0);
   const breakdownGrossMinor = vatBreakdown.reduce((sum, row) => sum + minor(row.grossMinor), 0);
-  const itemGrossMinor = asArray(order.items).reduce((sum, item) => sum + itemGrossMinor(item), 0);
-  const itemVatMinor = asArray(order.items).reduce((sum, item) => sum + itemVatMinor(item), 0);
+  const orderItemGrossMinor = asArray(order.items).reduce((sum, item) => sum + getItemGrossMinor(item), 0);
+  const orderItemVatMinor = asArray(order.items).reduce((sum, item) => sum + getItemVatMinor(item), 0);
   const deliveryMinor = minor(existingTax.deliveryMinor ?? totals.deliveryMinor ?? order.shippingMinor ?? order.deliveryMinor) || moneyToMinor(existingTax.delivery ?? totals.delivery ?? order.shipping ?? order.deliveryFee);
   const deliveryVatMinor = minor(existingTax.deliveryVatMinor ?? totals.deliveryVatMinor);
   const deliveryNetMinor = minor(existingTax.deliveryNetMinor ?? totals.deliveryNetMinor) || Math.max(0, deliveryMinor - deliveryVatMinor);
@@ -168,8 +169,8 @@ export function buildOrderVatSummary(order: Record<string, any> = {}): OrderVatS
     vatMinor,
     deliveryMinor,
     grossMinor,
-    itemGrossMinor: itemGrossMinor || Math.max(0, grossMinor - deliveryMinor),
-    itemVatMinor: itemVatMinor || Math.max(0, vatMinor - deliveryVatMinor),
+    itemGrossMinor: orderItemGrossMinor || Math.max(0, grossMinor - deliveryMinor),
+    itemVatMinor: orderItemVatMinor || Math.max(0, vatMinor - deliveryVatMinor),
     deliveryNetMinor,
     deliveryVatMinor,
     net: minorToMoney(netMinor),

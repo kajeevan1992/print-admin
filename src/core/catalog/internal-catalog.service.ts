@@ -56,6 +56,15 @@ function slugFromInput(input: InternalCatalogWriteInput) {
   return normalizeSlugValue(input.slug);
 }
 
+function prismaProductType(value?: string) {
+  const key = String(value || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  if (['quote', 'quote_led', 'quote-led', 'request_quote', 'manual_quote'].includes(key)) return 'QUOTE_LED';
+  if (['template', 'template_led', 'template-led', 'editor', 'design_online'].includes(key)) return 'TEMPLATE_LED';
+  if (['upload', 'upload_led', 'upload-led', 'artwork_upload'].includes(key)) return 'UPLOAD_LED';
+  if (['standard', 'online', 'static', 'parametric', 'parametric_standard'].includes(key)) return 'STANDARD';
+  return 'STANDARD';
+}
+
 function paginate<T>(items: T[], page = 1, limit = 50) {
   const safePage = Math.max(1, Number(page) || 1);
   const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
@@ -293,7 +302,7 @@ async function createProduct(client: Client, ctx: TenantContext, input: Internal
     `INSERT INTO "Product" ("id", "tenantId", "slug", "title", "subtitle", "categoryId", "isActive", "isGlobal", "priceFromMinor", "currency", "productType", "updatedAt")
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CURRENT_TIMESTAMP)
      RETURNING "id"`,
-    [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.isGlobal ?? false, input.priceFromMinor ?? null, input.currency || 'GBP', input.productType || 'online']
+    [id, ctx.tenantId, slug, input.title || input.name || slug, input.description || null, categoryId ?? null, input.isActive ?? true, input.isGlobal ?? false, input.priceFromMinor ?? null, input.currency || 'GBP', prismaProductType(input.productType)]
   );
   const product = await readProductByIdOrSlug(client, ctx.tenantId, result.rows[0].id);
   await saveProductOptionConfig(client, ctx, product, input.metadataJson);
@@ -334,7 +343,7 @@ async function updateProduct(client: Client, ctx: TenantContext, input: Internal
       input.priceFromMinor !== undefined,
       input.priceFromMinor ?? null,
       input.currency || null,
-      input.productType || null,
+      input.productType ? prismaProductType(input.productType) : null,
     ]
   );
   const product = await readProductByIdOrSlug(client, ctx.tenantId, current.id);

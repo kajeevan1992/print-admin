@@ -24,12 +24,13 @@ export function OwnerPersistenceRouteBanner() {
   const [status, setStatus] = useState<Status>({ count: 0, loading: false, error: null });
 
   useEffect(() => {
-    if (!config) return;
+    const current = config;
+    if (!current) return;
     let cancelled = false;
     async function load() {
       setStatus({ count: 0, loading: true, error: null });
       try {
-        const response = await fetch(`/api/internal/platform/owner-control-records?resource=${encodeURIComponent(config.resource)}`, { cache: 'no-store' });
+        const response = await fetch(`/api/internal/platform/owner-control-records?resource=${encodeURIComponent(current.resource)}`, { cache: 'no-store' });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok || payload?.ok === false) throw new Error(payload?.error?.message || 'Could not load owner persistence status.');
         const rows = Array.isArray(payload?.data?.items) ? payload.data.items : [];

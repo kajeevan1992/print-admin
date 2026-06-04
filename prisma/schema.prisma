@@ -523,3 +523,20 @@ model PlatformBillingPayment {
   @@index([invoiceId])
   @@index([status])
 }
+
+model OwnerControlRecord {
+  id String @id
+  resource String
+  recordId String
+  title String
+  status String @default("active")
+  scope String?
+  tenantId String?
+  metadataJson Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([resource, recordId])
+  @@index([resource])
+  @@index([tenantId])
+  @@index([status])
+}

@@ -45,11 +45,27 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
     'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[tenantId]': tenant.tenantId || '',
     'payment_intent_data[metadata][orderId]': order.id, 'payment_intent_data[metadata][orderNumber]': order.orderNumber, 'payment_intent_data[metadata][tenantId]': tenant.tenantId || '',
   });
-  await updateOrder(request, order.id, { paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', internalNotes: [...(order.internalNotes || []), `Stripe checkout session created: ${session.id}`] });
+  await updateOrder(request, order.id, { paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paymentFailureReason: '', internalNotes: [...(order.internalNotes || []), `Stripe checkout session created: ${session.id}`] });
   return { session, order };
 }
 
 export async function getStripeCheckoutSession(sessionId: string) { return stripeGet(`/checkout/sessions/${encodeURIComponent(sessionId)}`); }
+
+export async function markStripeCheckoutCancelled(request: Request, input: { orderId: string; sessionId?: string; actor?: string }) {
+  const order = await getOrder(request, input.orderId);
+  if (!order) throw new Error('Order not found.');
+  if (String(order.paymentStatus || '').toLowerCase() === 'paid') return { ok: true, order, skipped: true, reason: 'Order is already paid.' };
+  const note = `Stripe checkout cancelled by ${input.actor || 'customer'}.${input.sessionId ? ` Session: ${input.sessionId}.` : ''}`;
+  const updated = await updateOrder(request, order.id, {
+    status: order.status === 'AWAITING_PAYMENT' ? 'AWAITING_PAYMENT' : order.status,
+    paymentStatus: 'cancelled',
+    paymentProvider: order.paymentProvider || 'stripe',
+    stripeCheckoutSessionId: input.sessionId || order.stripeCheckoutSessionId || '',
+    paymentFailureReason: 'customer-cancelled-checkout',
+    internalNotes: [...(order.internalNotes || []), note],
+  });
+  return { ok: true, order: updated, cancelled: true };
+}
 
 async function resolvePaymentIntentForOrder(request: Request, order: any) {
   if (order.stripePaymentIntentId) return String(order.stripePaymentIntentId);
@@ -88,10 +104,11 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   const order = await getOrder(request, String(orderId));
   if (!order) return { ok: false, skipped: true, reason: `Order not found: ${orderId}` };
   const paid = session.payment_status === 'paid' || eventType === 'checkout.session.completed' || eventType === 'checkout.session.async_payment_succeeded';
-  const failed = eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed';
+  const failed = eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed' || session.status === 'expired';
   const nextStatus = paid ? (order.status === 'AWAITING_PAYMENT' ? 'ARTWORK_CHECK' : order.status) : order.status;
-  const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : failed ? `Stripe payment failed. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
-  const updated = await updateOrder(request, order.id, { status: nextStatus, paymentStatus: paid ? 'paid' : failed ? 'failed' : session.payment_status || 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : order.paymentFailureReason, internalNotes: [...(order.internalNotes || []), note] });
+  const nextPaymentStatus = paid ? 'paid' : failed ? 'failed' : session.payment_status || 'pending';
+  const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : failed ? `Stripe payment failed or expired. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
+  const updated = await updateOrder(request, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: [...(order.internalNotes || []), note] });
   return { ok: true, order: updated, paid, failed, eventType };
 }
 

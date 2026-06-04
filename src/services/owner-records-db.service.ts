@@ -74,33 +74,39 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
     return { items, persistedCount: persistedItems.length, seedCount: seed.length, hasPersistedRows: persistedItems.length > 0, usingSeedRows: persistedItems.length === 0 && seed.length > 0, resource };
   }
 
+  async function saveRecord(record: T): Promise<T> {
+    const { ownerControlResource, ownerControlStatus, ownerControlUpdatedAt, ownerControlSeedRow, ...clean } = record as any;
+    const next = clean as T;
+    const response = await fetch('/api/internal/platform/owner-control-records', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: `${resource}-${next.id}`,
+        resource,
+        recordId: next.id,
+        title: titleFromRecord(next),
+        status: statusFromRecord(next),
+        scope: (next as any).scope || null,
+        tenantId: tenantFromRecord(next),
+        metadataJson: next,
+      }),
+    });
+    await parseResponse(response);
+    return next;
+  }
+
   return {
     async list(): Promise<T[]> {
       const result = await listWithMeta();
       return result.items;
     },
 
-    async listWithMeta,
+    async listWithMeta(): Promise<OwnerDbListResult<T>> {
+      return listWithMeta();
+    },
 
     async save(record: T): Promise<T> {
-      const { ownerControlResource, ownerControlStatus, ownerControlUpdatedAt, ownerControlSeedRow, ...clean } = record as any;
-      const next = clean as T;
-      const response = await fetch('/api/internal/platform/owner-control-records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: `${resource}-${next.id}`,
-          resource,
-          recordId: next.id,
-          title: titleFromRecord(next),
-          status: statusFromRecord(next),
-          scope: (next as any).scope || null,
-          tenantId: tenantFromRecord(next),
-          metadataJson: next,
-        }),
-      });
-      await parseResponse(response);
-      return next;
+      return saveRecord(record);
     },
 
     async delete(id: string): Promise<void> {
@@ -110,7 +116,7 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
     },
 
     async reset(): Promise<T[]> {
-      await Promise.all(seed.map((record) => this.save(record)));
+      await Promise.all(seed.map((record) => saveRecord(record)));
       return seed;
     },
   };

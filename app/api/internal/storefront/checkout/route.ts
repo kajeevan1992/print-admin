@@ -7,6 +7,7 @@ import { runPreflightForCart } from '@/core/storefront/artwork-preflight-bridge'
 import { listOrders, saveOrder } from '@/core/orders/orders.service';
 import { decideCheckoutPayment } from '@/core/payments/payment-rules';
 import { collectArtworkUploadIds, linkArtworkUploadsToOrder } from '@/core/storefront/artwork-order-linking';
+import { queueOrderPlacedEmails } from '@/core/email/order-notifications.service';
 
 const SOURCE = 'internal-storefront-checkout-db';
 
@@ -152,6 +153,8 @@ export async function POST(request: NextRequest) {
       note: `Linked during hosted checkout for order ${order.orderNumber}.`,
     }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Artwork link failed.' }));
 
+    const emailQueue = await queueOrderPlacedEmails(request, order).catch((error) => [{ ok: false, error: error instanceof Error ? error.message : 'Email queue failed.' }]);
+
     if (body.clearCart !== false) {
       await saveCartItems(request, []);
     }
@@ -159,6 +162,7 @@ export async function POST(request: NextRequest) {
     return storefrontSuccess(SOURCE, {
       order,
       artworkLink,
+      emailQueue,
       totals,
       deliveryEstimate,
       quoteRequired: quoteRequest,

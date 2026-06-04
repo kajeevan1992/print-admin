@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 import { createStripeCheckoutSession, createStripeRefundForOrder } from '@/core/payments/stripe.service';
+import { queueOrderCustomerEmail } from '@/core/email/order-notifications.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,12 @@ function storefrontReturnUrls(request: Request, order: any, body: Record<string,
   };
 }
 
+async function queuePaymentEmail(request: Request, action: PaymentAction, order: any, extra?: any) {
+  if (action === 'create-payment-link' && extra?.paymentUrl) return queueOrderCustomerEmail(request, 'customer-payment-link', order, { paymentUrl: extra.paymentUrl, actor: 'admin' }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Payment link email queue failed.' }));
+  if (action === 'mark-paid') return queueOrderCustomerEmail(request, 'customer-payment-received', order, { actor: 'admin' }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Payment received email queue failed.' }));
+  return null;
+}
+
 async function handle(request: NextRequest, context: RouteContext) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -104,7 +111,8 @@ async function handle(request: NextRequest, context: RouteContext) {
 
     const note = noteFor(action, body, extra);
     const updated = await updateOrder(request, workingOrder.id, { ...patchFor(action, workingOrder, body, extra), internalNotes: [...(workingOrder.internalNotes || []), note] });
-    return json({ ok: true, source: 'internal-order-payment-admin', action, note, paymentUrl: extra?.paymentUrl, session: extra, refund: action === 'stripe-refund' ? extra : null, order: updated, data: { order: updated, paymentUrl: extra?.paymentUrl, session: extra, refund: action === 'stripe-refund' ? extra : null } });
+    const emailQueue = await queuePaymentEmail(request, action, updated, extra);
+    return json({ ok: true, source: 'internal-order-payment-admin', action, note, emailQueue, paymentUrl: extra?.paymentUrl, session: extra, refund: action === 'stripe-refund' ? extra : null, order: updated, data: { order: updated, paymentUrl: extra?.paymentUrl, session: extra, refund: action === 'stripe-refund' ? extra : null, emailQueue } });
   } catch (error) {
     return json({ ok: false, source: 'internal-order-payment-admin', error: error instanceof Error ? error.message : 'Payment action failed.' }, { status: 500 });
   }

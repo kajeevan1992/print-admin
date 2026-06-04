@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
+import { canCreatePaymentSessionForOrder } from '@/core/payments/payment-rules';
 
 type StripeSessionInput = { orderId: string; successUrl?: string; cancelUrl?: string; customerEmail?: string };
 type StripeRefundInput = { orderId: string; amountMinor?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer'; note?: string; actor?: string };
@@ -28,7 +29,8 @@ async function stripeGet(path: string) { assertStripeConfigured(); const respons
 export async function createStripeCheckoutSession(request: Request, input: StripeSessionInput) {
   const order = await getOrder(request, input.orderId);
   if (!order) throw new Error('Order not found.');
-  if (!order.totalMinor || order.totalMinor <= 0) throw new Error('Order total must be greater than zero before payment.');
+  const readiness = canCreatePaymentSessionForOrder(order);
+  if (!readiness.ok) throw new Error(readiness.reason);
   const tenant = tenantContextFromRequest(request);
   const successUrl = input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
   const cancelUrl = input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);

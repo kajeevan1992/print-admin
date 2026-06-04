@@ -6,6 +6,7 @@ import { buildStorefrontReadinessReport, recalculateCartSnapshot, readStorefront
 import { runPreflightForCart } from '@/core/storefront/artwork-preflight-bridge';
 import { listOrders, saveOrder } from '@/core/orders/orders.service';
 import { decideCheckoutPayment } from '@/core/payments/payment-rules';
+import { collectArtworkUploadIds, linkArtworkUploadsToOrder } from '@/core/storefront/artwork-order-linking';
 
 const SOURCE = 'internal-storefront-checkout-db';
 
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
     const quoteReference = String(body.quoteReference || `CHECKOUT-${Date.now()}`);
     const deliveryEstimate = body.deliveryEstimate || estimateDelivery(items[0]?.turnaround);
     const status = paymentDecision.orderStatus;
+    const artworkUploadIds = collectArtworkUploadIds({ ...body, items });
 
     const payload = {
       ...body,
@@ -105,6 +107,7 @@ export async function POST(request: NextRequest) {
       customer,
       items,
       totals,
+      artworkUploadIds,
       vatBreakdown: totals.vatBreakdown || body.vatBreakdown || body.taxSummary?.vatBreakdown || [],
       deliveryEstimate,
       pricingSources: Array.from(new Set(items.map((item) => item.pricingSource || item.pricing?.source || item.resolverSnapshot?.pricing?.source || 'internal'))),
@@ -131,14 +134,23 @@ export async function POST(request: NextRequest) {
       deliveryEstimate,
       payload,
       items,
+      artworkUploadIds,
       createdAt: now,
       updatedAt: now,
       source: 'HostedThemeCheckoutDB',
       internalNotes: [
         `Checkout payment decision: ${paymentDecision.mode}.`,
         `Next action: ${paymentDecision.nextAction}.`,
+        artworkUploadIds.length ? `Artwork uploads linked: ${artworkUploadIds.join(', ')}.` : 'No artwork upload linked at checkout.',
       ],
     });
+
+    const artworkLink = await linkArtworkUploadsToOrder(request, { ...body, items, artworkUploadIds }, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      quoteId: quoteRequest ? order.orderNumber : undefined,
+      note: `Linked during hosted checkout for order ${order.orderNumber}.`,
+    }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Artwork link failed.' }));
 
     if (body.clearCart !== false) {
       await saveCartItems(request, []);
@@ -146,6 +158,7 @@ export async function POST(request: NextRequest) {
 
     return storefrontSuccess(SOURCE, {
       order,
+      artworkLink,
       totals,
       deliveryEstimate,
       quoteRequired: quoteRequest,

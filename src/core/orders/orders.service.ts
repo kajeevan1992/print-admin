@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { calculateDeliveryVat, calculateVatLine } from '@/core/tax/vat-rules';
+import { buildOrderVatSummary } from '@/core/tax/order-vat-summary';
 
 type OrderInput = Record<string, any>;
 
@@ -130,11 +131,23 @@ function paymentFrom(input: OrderInput, existing: Record<string, any> = {}) {
   };
 }
 
+function normalisedTaxFromTotals(totals: EnforcedTotals, taxEnforcedAt: string) {
+  return buildOrderVatSummary({
+    currency: totals.currency,
+    subtotalMinor: totals.subtotalMinor,
+    shippingMinor: totals.shippingMinor,
+    taxMinor: totals.taxMinor,
+    totalMinor: totals.totalMinor,
+    vatBreakdown: totals.vatBreakdown,
+    taxEnforcedAt,
+  });
+}
+
 function normalize(order: Record<string, any>) {
   const noteData = parseNotes(order.notes);
   const items = Array.isArray(order.items) ? order.items : [];
   const payment = paymentFrom({}, noteData.payment || noteData);
-  return {
+  const base = {
     id: order.id, orderNumber: order.orderNumber, status: order.status, currency: order.currency,
     subtotalMinor: order.subtotalMinor, shippingMinor: order.shippingMinor, taxMinor: order.taxMinor, totalMinor: order.totalMinor,
     total: Number(order.totalMinor || 0) / 100,
@@ -148,6 +161,8 @@ function normalize(order: Record<string, any>) {
     items: items.map((item: any) => ({ id: item.id, productId: item.productId || item.metadataJson?.productId || item.metadataJson?.slug || item.id, productName: item.titleSnapshot || item.metadataJson?.name || 'Order item', sku: item.metadataJson?.sku || item.metadataJson?.productId || '', quantity: item.quantity || 1, unitPrice: Number(item.unitPriceMinor || 0) / 100, totalPrice: Number(item.totalPriceMinor || 0) / 100, thumbnail: item.metadataJson?.thumbnail || '', vatRate: item.metadataJson?.vatRate, vatClass: item.metadataJson?.vatClass, vatReason: item.metadataJson?.vatReason, vatMinor: item.metadataJson?.vatMinor, netTotalMinor: item.metadataJson?.netTotalMinor, grossTotalMinor: item.metadataJson?.grossTotalMinor, metadataJson: item.metadataJson || {} })),
     createdAt: order.createdAt, updatedAt: order.updatedAt, source: 'internal-orders-db',
   };
+  const taxSummary = buildOrderVatSummary({ ...base, notes: order.notes, taxSummary: noteData.taxSummary, vatBreakdown: noteData.vatBreakdown || [] });
+  return { ...base, total: taxSummary.gross, vatBreakdown: taxSummary.vatBreakdown, taxEnforcedAt: taxSummary.taxEnforcedAt, taxSummary };
 }
 
 export async function saveOrder(request: Request, input: OrderInput) {
@@ -156,6 +171,8 @@ export async function saveOrder(request: Request, input: OrderInput) {
   const enforced = enforceVatAndBuildItems(input);
   const totals = enforced.totals;
   const items = enforced.items;
+  const taxEnforcedAt = new Date().toISOString();
+  const taxSummary = normalisedTaxFromTotals(totals, taxEnforcedAt);
   const artworkUploadIds = extractArtworkUploadIds(input);
   const orderNumber = String(input.orderNumber || input.quoteReference || input.payload?.quoteReference || `ORD-${Date.now()}`);
   const orderId = String(input.id || input.orderId || '').trim();
@@ -163,7 +180,7 @@ export async function saveOrder(request: Request, input: OrderInput) {
   const existingRow = orderId ? await prisma.order.findFirst({ where: { tenantId, OR: [{ id: orderId }, { orderNumber: orderId }] }, include: { items: true, customer: true } }) : await prisma.order.findFirst({ where: { tenantId, orderNumber }, include: { items: true, customer: true } });
   const existingNotes = existingRow ? parseNotes(existingRow.notes) : {};
   const payment = paymentFrom(input, existingNotes.payment || existingNotes);
-  const notes = JSON.stringify({ note: input.notes || existingNotes.note || '', internalNotes: input.internalNotes || existingNotes.internalNotes || [], customer, quoteReference: input.quoteReference || input.payload?.quoteReference || existingNotes.quoteReference || '', totals, vatBreakdown: totals.vatBreakdown, taxEnforcedAt: new Date().toISOString(), artworkUploadIds: artworkUploadIds.length ? artworkUploadIds : existingNotes.artworkUploadIds || [], resolver: input.resolver || existingNotes.resolver || {}, artworkPreflight: input.artwork_preflight || input.artworkPreflight || existingNotes.artworkPreflight || null, shippingAddress: addressToText(input.delivery_address || input.shippingAddress) || existingNotes.shippingAddress || '', billingAddress: addressToText(input.billing_address || input.billingAddress) || existingNotes.billingAddress || '', shippingMethod: input.delivery?.publicLabel || input.delivery?.label || input.shippingMethod || existingNotes.shippingMethod || '', payment, rawCheckout: input.rawCheckout || existingNotes.rawCheckout || input });
+  const notes = JSON.stringify({ note: input.notes || existingNotes.note || '', internalNotes: input.internalNotes || existingNotes.internalNotes || [], customer, quoteReference: input.quoteReference || input.payload?.quoteReference || existingNotes.quoteReference || '', totals, vatBreakdown: taxSummary.vatBreakdown, taxSummary, taxEnforcedAt, artworkUploadIds: artworkUploadIds.length ? artworkUploadIds : existingNotes.artworkUploadIds || [], resolver: input.resolver || existingNotes.resolver || {}, artworkPreflight: input.artwork_preflight || input.artworkPreflight || existingNotes.artworkPreflight || null, shippingAddress: addressToText(input.delivery_address || input.shippingAddress) || existingNotes.shippingAddress || '', billingAddress: addressToText(input.billing_address || input.billingAddress) || existingNotes.billingAddress || '', shippingMethod: input.delivery?.publicLabel || input.delivery?.label || input.shippingMethod || existingNotes.shippingMethod || '', payment, rawCheckout: input.rawCheckout || existingNotes.rawCheckout || input });
   const existing = existingRow ? { id: existingRow.id } : null;
   const data = { tenantId, customerId: user?.id || null, orderNumber, status: statusFrom(input) as any, currency: totals.currency, subtotalMinor: totals.subtotalMinor, shippingMinor: totals.shippingMinor, taxMinor: totals.taxMinor, totalMinor: totals.totalMinor, notes };
   const order = existing ? await prisma.order.update({ where: { id: existing.id }, data: { ...data, items: { deleteMany: {}, create: items } } as any, include: { items: true, customer: true } }) : await prisma.order.create({ data: { ...data, items: { create: items } } as any, include: { items: true, customer: true } });

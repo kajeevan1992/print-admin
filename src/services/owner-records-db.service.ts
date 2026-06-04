@@ -5,6 +5,7 @@ export type OwnerDbListResult<T extends OwnerDbRecord> = {
   persistedCount: number;
   seedCount: number;
   hasPersistedRows: boolean;
+  usingSeedRows: boolean;
   resource: string;
 };
 
@@ -51,6 +52,15 @@ function toClientRecord<T extends OwnerDbRecord>(item: any) {
   } as T;
 }
 
+function toSeedRecord<T extends OwnerDbRecord>(record: T, resource: string) {
+  return {
+    ...record,
+    ownerControlResource: resource,
+    ownerControlStatus: 'seed-row',
+    ownerControlSeedRow: true,
+  } as T;
+}
+
 export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: string, seed: T[], resourceOverride?: string) {
   const resource = canonicalResource(resourceOverride || resourceFromStorageKey(storageKey));
   const endpoint = `/api/internal/platform/owner-control-records?resource=${encodeURIComponent(resource)}`;
@@ -59,8 +69,9 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
     const response = await fetch(endpoint, { cache: 'no-store' });
     const payload = await parseResponse(response);
     const rows = payload?.data?.items;
-    const items = Array.isArray(rows) ? rows.map(toClientRecord<T>) : [];
-    return { items, persistedCount: items.length, seedCount: seed.length, hasPersistedRows: items.length > 0, resource };
+    const persistedItems = Array.isArray(rows) ? rows.map(toClientRecord<T>) : [];
+    const items = persistedItems.length > 0 ? persistedItems : seed.map((record) => toSeedRecord(record, resource));
+    return { items, persistedCount: persistedItems.length, seedCount: seed.length, hasPersistedRows: persistedItems.length > 0, usingSeedRows: persistedItems.length === 0 && seed.length > 0, resource };
   }
 
   return {
@@ -72,22 +83,24 @@ export function createOwnerDbBackedService<T extends OwnerDbRecord>(storageKey: 
     async listWithMeta,
 
     async save(record: T): Promise<T> {
+      const { ownerControlResource, ownerControlStatus, ownerControlUpdatedAt, ownerControlSeedRow, ...clean } = record as any;
+      const next = clean as T;
       const response = await fetch('/api/internal/platform/owner-control-records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: `${resource}-${record.id}`,
+          id: `${resource}-${next.id}`,
           resource,
-          recordId: record.id,
-          title: titleFromRecord(record),
-          status: statusFromRecord(record),
-          scope: (record as any).scope || null,
-          tenantId: tenantFromRecord(record),
-          metadataJson: record,
+          recordId: next.id,
+          title: titleFromRecord(next),
+          status: statusFromRecord(next),
+          scope: (next as any).scope || null,
+          tenantId: tenantFromRecord(next),
+          metadataJson: next,
         }),
       });
       await parseResponse(response);
-      return record;
+      return next;
     },
 
     async delete(id: string): Promise<void> {

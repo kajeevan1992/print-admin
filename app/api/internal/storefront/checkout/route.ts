@@ -1,8 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server';
-import { cleanCustomer, estimateDelivery, readCartItems, saveCartItems, summarizeCart, validateCustomer } from '@/core/storefront/cart-checkout-bridge';
-import { buildStorefrontReadinessReport, recalculateCartSnapshot, readStorefrontBody, storefrontError, storefrontSuccess, validateCheckoutReadiness } from '@/core/storefront/storefront-integrity';
+import { cleanCustomer, estimateDelivery, readCartItems, saveCartItems, summarizeCart } from '@/core/storefront/cart-checkout-bridge';
+import { buildStorefrontReadinessReport, recalculateCartSnapshot, readStorefrontBody, StorefrontHttpError, storefrontError, storefrontSuccess, validateCheckoutReadiness } from '@/core/storefront/storefront-integrity';
 import { runPreflightForCart } from '@/core/storefront/artwork-preflight-bridge';
 import { listOrders, saveOrder } from '@/core/orders/orders.service';
 
@@ -10,6 +10,47 @@ const SOURCE = 'internal-storefront-checkout-db';
 
 function makeId(prefix: string) {
   return `${prefix}-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function text(value: unknown) {
+  return String(value || '').trim();
+}
+
+function cleanCheckoutCustomer(body: Record<string, any>) {
+  const source = body.customer || body;
+  const firstName = text(source.firstName || source.first_name);
+  const lastName = text(source.lastName || source.last_name);
+  const fullName = text(source.name || `${firstName} ${lastName}`.trim());
+  return cleanCustomer({
+    name: fullName,
+    email: source.email,
+    phone: source.phone,
+    company: source.company || source.companyName || source.company_name,
+  });
+}
+
+function validateCheckoutCustomer(customer: ReturnType<typeof cleanCustomer>) {
+  const errors: string[] = [];
+  if (!customer.name) errors.push('Customer name is required.');
+  if (!customer.email) errors.push('Email is required.');
+  if (customer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) errors.push('Enter a valid email address.');
+  if (errors.length) throw new StorefrontHttpError('CUSTOMER_INVALID', errors.join(' '), 400, 'customer');
+}
+
+function requestItems(body: Record<string, any>) {
+  const candidates = [body.items, body.checkout?.items, body.payload?.items];
+  const items = candidates.find((value) => Array.isArray(value));
+  return Array.isArray(items) ? items : [];
+}
+
+function isQuoteRequest(body: Record<string, any>) {
+  const method = String(body.payment_method || body.paymentMethod || '').toLowerCase();
+  return method.includes('quote') || Boolean(body.quoteRequired || body.resolver?.quoteRequired || body.checkoutBlocked || body.resolver?.checkoutBlocked);
+}
+
+function isArtworkLater(body: Record<string, any>) {
+  const mode = String(body.artwork_mode || body.artworkMode || body.artwork?.mode || '').toLowerCase();
+  return mode.includes('later') || mode.includes('none');
 }
 
 export async function GET(request: NextRequest) {
@@ -31,51 +72,58 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await readStorefrontBody(request);
-    const customer = cleanCustomer(body.customer || body);
-    const customerErrors = validateCustomer(customer);
-    if (customerErrors.length) {
-      throw new Error(customerErrors.join(' '));
+    const customer = cleanCheckoutCustomer(body);
+    validateCheckoutCustomer(customer);
+
+    const payloadItems = requestItems(body);
+    const storedItems = payloadItems.length ? [] : await readCartItems(request);
+    const items = payloadItems.length ? payloadItems : await recalculateCartSnapshot(request, storedItems);
+    if (!items.length) throw new StorefrontHttpError('CART_EMPTY', 'Cart is empty. Add an item before checkout.', 400, 'cart');
+
+    const quoteRequest = isQuoteRequest(body);
+    const artworkLater = isArtworkLater(body);
+    if (!payloadItems.length && !quoteRequest && !artworkLater) {
+      await runPreflightForCart(request);
+      validateCheckoutReadiness(items);
     }
 
-    const rawItems = await readCartItems(request);
-    const items = await recalculateCartSnapshot(request, rawItems);
-
-    await runPreflightForCart(request);
-    validateCheckoutReadiness(items);
-
-    const totals = summarizeCart(items);
+    const totals = payloadItems.length ? (body.totals || summarizeCart(items)) : summarizeCart(items);
     const now = new Date().toISOString();
-    const id = makeId('checkout-order');
-    const quoteReference = `CHECKOUT-${Date.now()}`;
+    const id = String(body.id || body.orderId || makeId('checkout-order'));
+    const quoteReference = String(body.quoteReference || `CHECKOUT-${Date.now()}`);
     const deliveryEstimate = body.deliveryEstimate || estimateDelivery(items[0]?.turnaround);
+    const status = quoteRequest ? 'AWAITING_APPROVAL' : 'AWAITING_PAYMENT';
 
     const payload = {
+      ...body,
       id,
       quoteReference,
-      status: 'AWAITING_PAYMENT',
+      status,
       source: 'HostedThemeCheckoutDB',
       customer,
       items,
       totals,
-      vatBreakdown: totals.vatBreakdown,
+      vatBreakdown: totals.vatBreakdown || body.vatBreakdown || body.taxSummary?.vatBreakdown || [],
       deliveryEstimate,
-      pricingSources: Array.from(new Set(items.map((item) => item.pricingSource || item.pricing?.source || 'internal'))),
+      pricingSources: Array.from(new Set(items.map((item) => item.pricingSource || item.pricing?.source || item.resolverSnapshot?.pricing?.source || 'internal'))),
       createdAt: now,
     };
 
     const order = await saveOrder(request, {
+      ...body,
       id,
       orderNumber: quoteReference,
       quoteReference,
-      status: 'AWAITING_PAYMENT',
+      status,
       customerName: customer.name,
       customerEmail: customer.email,
       customerPhone: customer.phone,
       customerCompany: customer.company,
-      currency: totals.currency,
-      subtotalMinor: totals.netTotalMinor,
-      taxMinor: totals.vatTotalMinor,
-      totalMinor: totals.grossTotalMinor,
+      currency: totals.currency || body.currency || 'GBP',
+      subtotalMinor: totals.netTotalMinor || totals.subtotalMinor,
+      shippingMinor: totals.shippingMinor || totals.deliveryMinor,
+      taxMinor: totals.vatTotalMinor || totals.taxMinor,
+      totalMinor: totals.grossTotalMinor || totals.totalMinor,
       deliveryEstimate,
       payload,
       items,
@@ -92,6 +140,8 @@ export async function POST(request: NextRequest) {
       order,
       totals,
       deliveryEstimate,
+      quoteRequired: quoteRequest,
+      artworkMode: artworkLater ? 'later' : body.artwork_mode || body.artworkMode || '',
     });
   } catch (error) {
     return storefrontError(SOURCE, error);

@@ -4,6 +4,7 @@ import { createQuoteRequest } from '@/core/storefront/internal-storefront-resolv
 import { saveOrder } from '@/core/orders/orders.service';
 import { decideCheckoutPayment } from '@/core/payments/payment-rules';
 import { collectArtworkUploadIds, linkArtworkUploadsToOrder } from '@/core/storefront/artwork-order-linking';
+import { queueOrderPlacedEmails } from '@/core/email/order-notifications.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
 
     let order = null;
     let artworkLink = null;
+    let emailQueue = null;
     if (Array.isArray(checkout.items) && checkout.items.length) {
       const quoteReference = String(checkout.quoteReference || data?.quoteRequest?.id || `QUOTE-${Date.now()}`);
       const customer = checkout.customer || body.customer || {};
@@ -63,12 +65,15 @@ export async function POST(request: Request) {
         quoteId: order.orderNumber,
         note: `Linked during quote checkout for order ${order.orderNumber}.`,
       }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Artwork link failed.' }));
+
+      emailQueue = await queueOrderPlacedEmails(request, order).catch((error) => [{ ok: false, error: error instanceof Error ? error.message : 'Email queue failed.' }]);
     }
 
     return NextResponse.json({
       ...data,
       order,
       artworkLink,
+      emailQueue,
       paymentDecision,
       payment: {
         mode: paymentDecision.mode,

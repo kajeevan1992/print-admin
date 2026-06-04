@@ -5,6 +5,16 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const revalidate = 0;
 
+const RESOURCE_ALIASES: Record<string, string> = {
+  'owner-sso-config': 'owner-sso-configs',
+  'owner-compliance-center': 'owner-compliance-controls',
+};
+
+const REVERSE_ALIASES = Object.entries(RESOURCE_ALIASES).reduce<Record<string, string[]>>((map, [legacy, canonical]) => {
+  map[canonical] = [...(map[canonical] || []), legacy];
+  return map;
+}, {});
+
 const OWNER_CONTROL_RESOURCES = new Set([
   'owner-api-keys',
   'owner-feature-flags',
@@ -19,6 +29,7 @@ const OWNER_CONTROL_RESOURCES = new Set([
   'owner-domains',
   'owner-incidents',
   'owner-maintenance-windows',
+  ...Object.keys(RESOURCE_ALIASES),
 ]);
 
 function json(data: unknown, init?: ResponseInit) {
@@ -29,6 +40,15 @@ function error(message: string, status = 400) {
   return json({ ok: false, error: { message } }, { status });
 }
 
+function canonicalResource(resource: string) {
+  return RESOURCE_ALIASES[resource] || resource;
+}
+
+function resourceQueryValues(resource: string) {
+  const canonical = canonicalResource(resource);
+  return [canonical, ...(REVERSE_ALIASES[canonical] || [])];
+}
+
 function parseResources(url: URL) {
   const single = url.searchParams.get('resource');
   const many = url.searchParams.get('resources');
@@ -36,11 +56,11 @@ function parseResources(url: URL) {
   const unique = [...new Set(values)];
   const invalid = unique.filter((value) => !OWNER_CONTROL_RESOURCES.has(value));
   if (invalid.length) throw new Error(`Unsupported owner control resource: ${invalid.join(', ')}`);
-  return unique;
+  return [...new Set(unique.flatMap(resourceQueryValues))];
 }
 
 function normaliseBody(body: any) {
-  const resource = String(body.resource || '').trim();
+  const resource = canonicalResource(String(body.resource || '').trim());
   const recordId = String(body.recordId || body.id || '').trim();
   if (!OWNER_CONTROL_RESOURCES.has(resource)) throw new Error('Unsupported or missing owner control resource.');
   if (!recordId) throw new Error('Missing owner control record id.');
@@ -110,7 +130,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
-  const resource = url.searchParams.get('resource');
+  const rawResource = url.searchParams.get('resource');
+  const resource = rawResource ? canonicalResource(rawResource) : null;
   const recordId = url.searchParams.get('recordId');
 
   if (!id && (!resource || !recordId)) {
@@ -120,7 +141,7 @@ export async function DELETE(request: Request) {
   try {
     if (resource && !OWNER_CONTROL_RESOURCES.has(resource)) return error('Unsupported owner control resource.');
     if (resource && recordId) {
-      await (prisma as any).ownerControlRecord.delete({ where: { resource_recordId: { resource, recordId } } });
+      await (prisma as any).ownerControlRecord.deleteMany({ where: { resource: { in: resourceQueryValues(resource) }, recordId } });
     } else {
       await (prisma as any).ownerControlRecord.delete({ where: { id } });
     }

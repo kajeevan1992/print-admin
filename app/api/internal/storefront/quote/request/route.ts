@@ -3,6 +3,7 @@ import { tenantContextFromRequest } from '@/core/tenant/context';
 import { createQuoteRequest } from '@/core/storefront/internal-storefront-resolver';
 import { saveOrder } from '@/core/orders/orders.service';
 import { decideCheckoutPayment } from '@/core/payments/payment-rules';
+import { collectArtworkUploadIds, linkArtworkUploadsToOrder } from '@/core/storefront/artwork-order-linking';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +17,10 @@ export async function POST(request: Request) {
     const checkout = body.checkout || body;
     const data = await createQuoteRequest(tenantContextFromRequest(request), body || {});
     const paymentDecision = decideCheckoutPayment({ ...checkout, payment_method: 'Quote request', quoteRequired: true });
+    const artworkUploadIds = collectArtworkUploadIds({ ...body, ...checkout, items: checkout.items || body.items || [] });
 
     let order = null;
+    let artworkLink = null;
     if (Array.isArray(checkout.items) && checkout.items.length) {
       const quoteReference = String(checkout.quoteReference || data?.quoteRequest?.id || `QUOTE-${Date.now()}`);
       const customer = checkout.customer || body.customer || {};
@@ -35,8 +38,10 @@ export async function POST(request: Request) {
         customerCompany: customer.company || customer.company_name || customer.companyName,
         items: checkout.items,
         totals: checkout.totals,
+        artworkUploadIds,
         payload: {
           ...checkout,
+          artworkUploadIds,
           quoteRequest: data.quoteRequest,
           paymentDecision,
           source: 'HostedThemeQuoteCheckoutDB',
@@ -48,13 +53,22 @@ export async function POST(request: Request) {
         internalNotes: [
           'Quote checkout captured as real customer order.',
           `Next action: ${paymentDecision.nextAction}.`,
+          artworkUploadIds.length ? `Artwork uploads linked: ${artworkUploadIds.join(', ')}.` : 'No artwork upload linked at quote checkout.',
         ],
       });
+
+      artworkLink = await linkArtworkUploadsToOrder(request, { ...body, ...checkout, items: checkout.items, artworkUploadIds }, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        quoteId: order.orderNumber,
+        note: `Linked during quote checkout for order ${order.orderNumber}.`,
+      }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Artwork link failed.' }));
     }
 
     return NextResponse.json({
       ...data,
       order,
+      artworkLink,
       paymentDecision,
       payment: {
         mode: paymentDecision.mode,

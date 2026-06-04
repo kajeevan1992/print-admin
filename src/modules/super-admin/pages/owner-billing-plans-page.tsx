@@ -10,6 +10,7 @@ import { Select } from '@/components/forms/select';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import type { OwnerBillingPlanRecord, OwnerBillingPlanStatus, OwnerBillingPlanTier } from '@/data/owner-billing-plans';
 import { ownerBillingPlansService } from '@/services/owner-billing-plans.service';
+import { OwnerPersistenceStatusBanner, type OwnerPersistenceMeta } from '@/modules/super-admin/components/owner-persistence-status-banner';
 
 type StatusFilter = 'all' | OwnerBillingPlanStatus;
 type TierFilter = 'all' | OwnerBillingPlanTier;
@@ -30,6 +31,7 @@ const emptyRecord: OwnerBillingPlanRecord = {
 
 export function OwnerBillingPlansPage() {
   const [rows, setRows] = useState<OwnerBillingPlanRecord[]>([]);
+  const [meta, setMeta] = useState<OwnerPersistenceMeta | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -37,9 +39,10 @@ export function OwnerBillingPlansPage() {
   const [editing, setEditing] = useState<OwnerBillingPlanRecord | null>(null);
 
   async function load() {
-    const data = await ownerBillingPlansService.list();
-    setRows(data);
-    setSelectedId((current) => current ?? data[0]?.id ?? null);
+    const result = await ownerBillingPlansService.listWithMeta();
+    setRows(result.items);
+    setMeta(result);
+    setSelectedId((current) => current ?? result.items[0]?.id ?? null);
   }
 
   useEffect(() => { void load(); }, []);
@@ -66,6 +69,11 @@ export function OwnerBillingPlansPage() {
     setSelectedId(record.id);
   }
 
+  async function persistSeedRows() {
+    await ownerBillingPlansService.reset();
+    await load();
+  }
+
   return (
     <div>
       <PageHeader
@@ -73,6 +81,8 @@ export function OwnerBillingPlansPage() {
         subtitle="Manage SaaS pricing plans, entitlements, and commercial packaging before wiring real subscriptions and invoicing."
         actions={<><Button onClick={() => ownerBillingPlansService.reset().then(load)}>Reset Seed</Button><PrimaryButton onClick={() => setEditing({ ...emptyRecord, id: `plan-${Date.now()}` })}>New Plan</PrimaryButton></>}
       />
+
+      <OwnerPersistenceStatusBanner meta={meta} onPersistSeed={persistSeedRows} />
 
       <div className="mb-4 grid gap-3 md:grid-cols-[1.6fr_220px_220px]">
         <Input id="owner-billing-plans-search" name="ownerBillingPlansSearch" placeholder="Search plan, tier, owner, || notes" value={search} onChange={(e) => setSearch(e.target.value)} leadingIcon={<Search className="h-4 w-4" />} />

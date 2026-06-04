@@ -4,6 +4,7 @@ import { listOrders } from '@/core/orders/orders.service';
 import { listArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 import { listArtworkUploads } from '@/core/storefront/internal-artwork-storage';
 import { listProductionJobTickets } from '@/core/production/internal-production-jobs';
+import { withOrderVatSummary } from '@/core/tax/order-vat-summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,27 +19,6 @@ function json(data: unknown, init?: ResponseInit) { return NextResponse.json(dat
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: corsHeaders() }); }
 
 function customerEmail(request: NextRequest) { return String(request.nextUrl.searchParams.get('email') || request.headers.get('x-customer-email') || '').trim().toLowerCase(); }
-function money(value: number) { return Math.round(Number(value || 0) * 100) / 100; }
-function minorToMoney(value: unknown) { return money(Number(value || 0) / 100); }
-function taxSummary(order: any) {
-  const netMinor = Number(order.subtotalMinor || 0);
-  const vatMinor = Number(order.taxMinor || 0);
-  const deliveryMinor = Number(order.shippingMinor || 0);
-  const grossMinor = Number(order.totalMinor || Math.round(Number(order.total || 0) * 100));
-  return {
-    currency: order.currency || 'GBP',
-    netMinor,
-    vatMinor,
-    deliveryMinor,
-    grossMinor,
-    net: minorToMoney(netMinor),
-    vat: minorToMoney(vatMinor),
-    delivery: minorToMoney(deliveryMinor),
-    gross: minorToMoney(grossMinor),
-    vatBreakdown: Array.isArray(order.vatBreakdown) ? order.vatBreakdown : [],
-    taxEnforcedAt: order.taxEnforcedAt || '',
-  };
-}
 function artworkSummary(order: any, uploads: any[]) {
   const ids = new Set([...(order.artworkUploadIds || []), ...(order.items || []).map((item: any) => item.metadataJson?.artworkUploadId)].filter(Boolean).map(String));
   const productIds = new Set((order.items || []).map((item: any) => String(item.productId || item.sku || '')).filter(Boolean));
@@ -62,8 +42,7 @@ function normalise(order: any, uploads: any[], jobs: any[]) {
   const artwork = artworkSummary(order, uploads);
   const production = productionSummary(order, jobs);
   const delivery = deliverySummary(order, production);
-  const tax = taxSummary(order);
-  return { ...order, id: order.id, orderNumber: order.orderNumber, created_at: order.createdAt, total: tax.gross || money(order.total), artwork_status: artwork.status, delivery: delivery.method, customer: { name: order.customerName, email: order.customerEmail }, artwork, production, deliveryStatus: delivery, taxSummary: tax };
+  return withOrderVatSummary({ ...order, id: order.id, orderNumber: order.orderNumber, created_at: order.createdAt, artwork_status: artwork.status, delivery: delivery.method, customer: { name: order.customerName, email: order.customerEmail }, artwork, production, deliveryStatus: delivery });
 }
 
 export async function GET(request: NextRequest) {

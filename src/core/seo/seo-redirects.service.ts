@@ -89,14 +89,21 @@ async function ensureRedirectStorage() {
   await (prisma as any).$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord" ("tenantId", "resource")');
 }
 
+function validateStatus(value: unknown): SeoRedirectStatus {
+  const code = Number(value || 301);
+  if ([301, 302, 307, 308, 410].includes(code)) return code as SeoRedirectStatus;
+  return 301;
+}
+
 function toRecord(row: CoreCatalogRow): SeoRedirectRecord {
   const meta = parseJson(row.metadataJson);
+  const statusCode = validateStatus(meta.statusCode);
   return {
     id: row.id,
     slug: row.slug,
     fromPath: cleanPath(meta.fromPath || row.name || row.slug),
-    toPath: cleanPath(meta.toPath || row.description || '/'),
-    statusCode: Number(meta.statusCode || 301) as SeoRedirectStatus,
+    toPath: statusCode === 410 ? '' : cleanPath(meta.toPath || row.description || '/'),
+    statusCode,
     isActive: meta.isActive !== false,
     note: meta.note || '',
     hitCount: Number(meta.hitCount || 0),
@@ -104,12 +111,6 @@ function toRecord(row: CoreCatalogRow): SeoRedirectRecord {
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
-}
-
-function validateStatus(value: unknown): SeoRedirectStatus {
-  const code = Number(value || 301);
-  if ([301, 302, 307, 308, 410].includes(code)) return code as SeoRedirectStatus;
-  return 301;
 }
 
 export async function listSeoRedirects(request: Request, filters: { search?: string; active?: string } = {}) {
@@ -142,12 +143,12 @@ export async function saveSeoRedirect(request: Request, input: Partial<SeoRedire
   await ensureRedirectStorage();
   const ctx = tenantContextFromRequest(request);
   const fromPath = cleanPath(input.fromPath);
-  const toPath = input.statusCode === 410 ? '' : cleanPath(input.toPath || '/');
+  const statusCode = validateStatus(input.statusCode);
+  const toPath = statusCode === 410 ? '' : cleanPath(input.toPath || '/');
   if (fromPath === '/') throw new Error('Do not redirect the homepage. Use a specific old URL.');
   if (toPath && fromPath === toPath) throw new Error('Redirect source and target cannot be the same.');
   const slug = slugifyPath(fromPath);
   const id = String(input.id || `redir-${slug}`);
-  const statusCode = validateStatus(input.statusCode);
   const meta: SeoRedirectRecord = {
     id,
     slug,

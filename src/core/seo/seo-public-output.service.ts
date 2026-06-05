@@ -2,6 +2,8 @@ import { listSeoPages, type SeoPageRecord } from './seo-engine.service';
 import { buildSeoSchemaJsonLd } from './seo-schema-generator.service';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || 'https://holoprint.co.uk').replace(/\/$/, '');
+const BRAND_NAME = process.env.SEO_ORGANIZATION_NAME || 'Holo Print';
+const DEFAULT_OG_IMAGE = process.env.SEO_DEFAULT_OG_IMAGE || `${SITE_URL}/og-image.jpg`;
 
 function cleanPath(value: string) {
   const path = String(value || '').trim() || '/';
@@ -42,6 +44,18 @@ function isIndexable(page: SeoPageRecord) {
   return page.status === 'published' && page.includeInSitemap && !page.noIndex;
 }
 
+function socialFor(page: Partial<SeoPageRecord> & { title: string; metaDescription: string }) {
+  return {
+    ogTitle: page.ogTitle || page.title,
+    ogDescription: page.ogDescription || page.metaDescription,
+    ogImage: page.ogImage || page.metadata?.image || DEFAULT_OG_IMAGE,
+    twitterTitle: page.twitterTitle || page.ogTitle || page.title,
+    twitterDescription: page.twitterDescription || page.ogDescription || page.metaDescription,
+    twitterImage: page.twitterImage || page.ogImage || page.metadata?.image || DEFAULT_OG_IMAGE,
+    twitterCard: page.twitterCard || 'summary_large_image',
+  };
+}
+
 function defaultRobots() {
   return [
     'User-agent: *',
@@ -76,9 +90,11 @@ function fallbackMeta(path: string) {
     pageType: 'static',
     status: 'fallback',
     includeInSitemap: false,
+    metadata: {},
   };
   const schema = buildSeoSchemaJsonLd(meta);
-  return { ...meta, schemaJsonLd: schema.graph, schemaNodes: schema.nodes, schemaWarnings: schema.warnings };
+  const social = socialFor(meta);
+  return { ...meta, ...social, socialPreview: social, schemaJsonLd: schema.graph, schemaNodes: schema.nodes, schemaWarnings: schema.warnings };
 }
 
 export async function resolveSeoForPath(request: Request, path: string) {
@@ -88,6 +104,7 @@ export async function resolveSeoForPath(request: Request, path: string) {
   if (!page) return fallbackMeta(clean);
   const noIndex = page.noIndex || page.status !== 'published';
   const noFollow = page.noFollow;
+  const social = socialFor(page);
   const meta = {
     found: true,
     id: page.id,
@@ -110,8 +127,10 @@ export async function resolveSeoForPath(request: Request, path: string) {
     introCopy: page.introCopy,
     faqItems: page.faqItems || [],
     internalLinks: page.internalLinks || [],
+    ...social,
+    socialPreview: social,
     metadata: page.metadata || {},
-    audit: { score: page.qualityScore || 0, warnings: page.warnings || [], errors: page.errors || [] },
+    audit: { score: page.qualityScore || 0, readabilityScore: page.readabilityScore || 0, readabilityWarnings: page.readabilityWarnings || [], warnings: page.warnings || [], errors: page.errors || [] },
   };
   const schema = buildSeoSchemaJsonLd(meta);
   return { ...meta, schemaJsonLd: schema.graph, schemaNodes: schema.nodes, schemaWarnings: schema.warnings };
@@ -143,6 +162,30 @@ export async function buildRobotsTxt(request: Request) {
   const additions = uniqueBlocked.map((path) => `Disallow: ${path}`);
   const next = [...lines.slice(0, insertAt), ...additions, '', ...lines.slice(insertAt)].join('\n') + '\n';
   return { text: next, blocked: uniqueBlocked };
+}
+
+export async function buildLlmsTxt(request: Request) {
+  const data = await listSeoPages(request, { status: 'published' }).catch(() => ({ items: [] as SeoPageRecord[] }));
+  const pages = data.items.filter(isIndexable).slice(0, 80);
+  const priorityPages = pages.filter((page) => ['home', 'product', 'product-location', 'location', 'collection-point', 'service-area', 'guide'].includes(page.pageType));
+  const lines = [
+    `# ${BRAND_NAME}`,
+    '',
+    `> ${BRAND_NAME} provides design, print, sign, web, artwork support, local collection and delivery services. Use these canonical URLs as the preferred source list for AI assistants and search systems.`,
+    '',
+    '## Canonical site',
+    `- ${SITE_URL}`,
+    '',
+    '## Important pages',
+    ...priorityPages.map((page) => `- [${page.h1 || page.title}](${page.canonicalUrl || canonical(page.path)}): ${page.metaDescription}`),
+    '',
+    '## Guidance',
+    '- Prefer canonical URLs listed here over duplicate campaign or checkout URLs.',
+    '- Do not describe partner collection points as owned Holo Print branches unless the page explicitly says they are staffed Holo Print stores.',
+    '- Checkout, account, order and internal admin URLs are not public knowledge sources.',
+    '',
+  ];
+  return { text: lines.join('\n'), count: priorityPages.length };
 }
 
 export function seoResponseHeaders(meta: { canonicalUrl?: string; robots?: string }) {

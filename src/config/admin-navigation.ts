@@ -100,7 +100,9 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'Landing Pages', href: '/landing-pages', iconKey: 'LayoutPanelTop', order: 60 },
     { label: 'Category CMS', href: '/category-cms', iconKey: 'Tags', order: 70 },
     { label: 'Extended Content', href: '/extended-content', iconKey: 'FileText', order: 80 },
-    { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 90 }
+    { label: 'SEO Engine', href: '/seo-engine', iconKey: 'Target', order: 90 },
+    { label: 'SEO Templates', href: '/seo-templates', iconKey: 'Sparkles', order: 95 },
+    { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 100 }
   ]},
   { label: 'Settings', iconKey: 'Settings', order: 320, roles: ['admin', 'tenant_admin', 'owner'], children: [
     { label: 'General Settings', href: '/settings', iconKey: 'Settings', order: 10 },
@@ -205,7 +207,7 @@ const SUPER_ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
 
 export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [];
 
-export function getAdminSidebarNavigation(role: AdminRole = 'admin') {
+export function getAdminSidebarNavigation(role: AdminRole = 'admin', _registry: AdminNavigationRegistryItem[] = [], _surface: AdminNavigationSurface = 'sidebar') {
   const base = role === 'super_admin' ? SUPER_ADMIN_SIDEBAR_NAVIGATION : ADMIN_SIDEBAR_NAVIGATION;
   return base
     .filter((item) => !item.hidden && (!item.roles || item.roles.includes(role)))

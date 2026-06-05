@@ -1,4 +1,5 @@
 import { listSeoPages, type SeoPageRecord } from './seo-engine.service';
+import { buildSeoSchemaJsonLd } from './seo-schema-generator.service';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || 'https://holoprint.co.uk').replace(/\/$/, '');
 
@@ -60,7 +61,7 @@ function defaultRobots() {
 
 function fallbackMeta(path: string) {
   const clean = cleanPath(path);
-  return {
+  const meta = {
     found: false,
     path: clean,
     title: 'Holo Print | Design, Print, Sign and Web in Sidcup',
@@ -76,6 +77,8 @@ function fallbackMeta(path: string) {
     status: 'fallback',
     includeInSitemap: false,
   };
+  const schema = buildSeoSchemaJsonLd(meta);
+  return { ...meta, schemaJsonLd: schema.graph, schemaNodes: schema.nodes, schemaWarnings: schema.warnings };
 }
 
 export async function resolveSeoForPath(request: Request, path: string) {
@@ -85,7 +88,7 @@ export async function resolveSeoForPath(request: Request, path: string) {
   if (!page) return fallbackMeta(clean);
   const noIndex = page.noIndex || page.status !== 'published';
   const noFollow = page.noFollow;
-  return {
+  const meta = {
     found: true,
     id: page.id,
     slug: page.slug,
@@ -110,6 +113,8 @@ export async function resolveSeoForPath(request: Request, path: string) {
     metadata: page.metadata || {},
     audit: { score: page.qualityScore || 0, warnings: page.warnings || [], errors: page.errors || [] },
   };
+  const schema = buildSeoSchemaJsonLd(meta);
+  return { ...meta, schemaJsonLd: schema.graph, schemaNodes: schema.nodes, schemaWarnings: schema.warnings };
 }
 
 export async function buildSitemapXml(request: Request) {

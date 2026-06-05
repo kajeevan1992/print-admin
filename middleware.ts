@@ -28,7 +28,11 @@ function wantsHostedTheme(request: NextRequest) {
 }
 
 function isInternalStorefrontApi(pathname: string) {
-  return pathname.startsWith('/api/internal/storefront/') || pathname.startsWith('/api/internal/catalog/');
+  return (
+    pathname.startsWith('/api/internal/storefront/') ||
+    pathname.startsWith('/api/internal/catalog/') ||
+    pathname.startsWith('/api/internal/seo/')
+  );
 }
 
 function withCors(request: NextRequest, response: NextResponse) {
@@ -37,7 +41,7 @@ function withCors(request: NextRequest, response: NextResponse) {
   response.headers.set('Access-Control-Allow-Origin', origin);
   response.headers.set('Access-Control-Allow-Credentials', 'true');
   response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Print-Tenant, X-Print-Hosted-Theme');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Print-Tenant, X-Print-Hosted-Theme, X-Tenant-Id, X-Site-Id');
   response.headers.set('Vary', 'Origin');
   return response;
 }

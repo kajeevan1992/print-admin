@@ -21,9 +21,10 @@ async function tenantIdFromRequest(request: Request) {
 function isCollectionOrder(order: any) {
   const notes = parseNotes(order?.notes);
   const checkout = notes.rawCheckout || notes.checkout || {};
-  const fulfilment = checkout.fulfilmentSelection || checkout.delivery || notes.fulfilmentSelection || notes.delivery || {};
-  const mode = upper(checkout.fulfilmentMode || fulfilment.mode || fulfilment.fulfilmentMode || fulfilment.type || notes.shippingMethod || '');
-  return mode.includes('COLLECTION') || clean(notes.shippingMethod).toLowerCase().includes('collect');
+  const fulfilment = checkout.fulfilmentSelection || checkout.delivery || notes.fulfilmentSelection || notes.delivery || order?.fulfilmentSelection || order?.delivery || {};
+  const mode = upper(checkout.fulfilmentMode || order?.fulfilmentMode || fulfilment.mode || fulfilment.fulfilmentMode || fulfilment.type || notes.shippingMethod || order?.shippingMethod || '');
+  const label = [notes.shippingMethod, order?.shippingMethod, fulfilment.label, fulfilment.publicLabel, fulfilment.checkoutDescription].map(clean).join(' ').toLowerCase();
+  return mode.includes('COLLECTION') || label.includes('collect');
 }
 
 function shouldSendNow(options: { sendNow?: boolean } = {}) {

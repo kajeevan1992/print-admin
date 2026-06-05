@@ -4,6 +4,7 @@ import { tenantContextFromRequest } from '@/core/tenant/context';
 export type SeoPageType = 'home' | 'product' | 'category' | 'location' | 'collection-point' | 'product-location' | 'guide' | 'static' | 'service-area';
 export type SeoPageStatus = 'draft' | 'published' | 'hidden';
 export type SeoSchemaType = 'Organization' | 'LocalBusiness' | 'Product' | 'BreadcrumbList' | 'FAQPage' | 'WebPage' | 'CollectionPage' | 'Service' | 'None';
+export type SeoTwitterCard = 'summary' | 'summary_large_image';
 
 export type SeoPageRecord = {
   id: string;
@@ -26,7 +27,16 @@ export type SeoPageRecord = {
   introCopy?: string;
   faqItems?: Array<{ question: string; answer: string }>;
   internalLinks?: Array<{ label: string; href: string }>;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  twitterTitle?: string;
+  twitterDescription?: string;
+  twitterImage?: string;
+  twitterCard?: SeoTwitterCard;
   qualityScore?: number;
+  readabilityScore?: number;
+  readabilityWarnings?: string[];
   warnings?: string[];
   errors?: string[];
   metadata?: Record<string, any>;
@@ -36,11 +46,14 @@ export type SeoPageRecord = {
 
 const RESOURCE = 'seo-pages';
 const SITE_URL = (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || 'https://holoprint.co.uk').replace(/\/$/, '');
+const DEFAULT_OG_IMAGE = process.env.SEO_DEFAULT_OG_IMAGE || `${SITE_URL}/og-image.jpg`;
 
 function now() { return new Date().toISOString(); }
 function slugify(value: string) { return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'seo-page'; }
 function cleanPath(value: string) { const path = String(value || '').trim() || '/'; return path.startsWith('/') ? path : `/${path}`; }
 function canonical(path: string) { return `${SITE_URL}${cleanPath(path) === '/' ? '' : cleanPath(path)}`; }
+function words(value: string) { return String(value || '').trim().split(/\s+/).filter(Boolean); }
+function lowerIncludes(haystack: string, needle: string) { return String(haystack || '').toLowerCase().includes(String(needle || '').toLowerCase()); }
 
 function defaultFaq(product = 'print', location = 'Sidcup') {
   return [
@@ -84,11 +97,31 @@ export const defaultSeoPages: SeoPageRecord[] = [
   },
 ];
 
+export function analyseSeoReadability(page: Pick<SeoPageRecord, 'introCopy' | 'metaDescription' | 'faqItems'>) {
+  const faqText = (page.faqItems || []).map((item) => `${item.question}. ${item.answer}`).join(' ');
+  const text = [page.introCopy, page.metaDescription, faqText].filter(Boolean).join('\n\n');
+  const wordCount = words(text).length;
+  const sentences = text.split(/[.!?]+/).map((item) => item.trim()).filter(Boolean);
+  const sentenceCount = sentences.length || 1;
+  const paragraphCount = text.split(/\n{2,}/).map((item) => item.trim()).filter(Boolean).length || 1;
+  const averageSentenceWords = Math.round((wordCount / sentenceCount) * 10) / 10;
+  const transitionWords = ['also', 'because', 'however', 'therefore', 'so', 'then', 'first', 'finally', 'before', 'after', 'where', 'when', 'while', 'if', 'or', 'and'];
+  const transitionWordMatches = words(text).filter((word) => transitionWords.includes(word.toLowerCase().replace(/[^a-z]/g, ''))).length;
+  const warnings: string[] = [];
+  if (wordCount < 80) warnings.push('Readability: add more useful body copy; aim for at least 80 words on SEO landing pages.');
+  if (averageSentenceWords > 24) warnings.push(`Readability: average sentence length is ${averageSentenceWords} words; shorten long sentences.`);
+  if (paragraphCount < 2 && wordCount > 120) warnings.push('Readability: split long copy into shorter paragraphs.');
+  if (wordCount >= 80 && transitionWordMatches < 3) warnings.push('Readability: add more transition words so the copy flows naturally.');
+  const score = Math.max(0, 100 - warnings.length * 18 - (wordCount < 50 ? 20 : 0));
+  return { score, warnings, wordCount, sentenceCount, paragraphCount, averageSentenceWords, transitionWordMatches };
+}
+
 export function auditSeoPage(page: SeoPageRecord) {
   const warnings: string[] = [];
   const errors: string[] = [];
   const titleLength = page.title?.length || 0;
   const descriptionLength = page.metaDescription?.length || 0;
+  const keyword = page.targetKeyword || '';
   if (!page.title) errors.push('Missing SEO title.');
   if (titleLength && (titleLength < 35 || titleLength > 70)) warnings.push(`Title length is ${titleLength}; aim for 35–70 characters.`);
   if (!page.metaDescription) errors.push('Missing meta description.');
@@ -96,21 +129,39 @@ export function auditSeoPage(page: SeoPageRecord) {
   if (!page.h1) errors.push('Missing H1.');
   if (!page.canonicalUrl) errors.push('Missing canonical URL.');
   if (page.includeInSitemap && page.noIndex) errors.push('Page cannot be both no-index and included in sitemap.');
-  if (!page.targetKeyword) warnings.push('Missing target keyword.');
+  if (!keyword) warnings.push('Missing target keyword.');
+  if (keyword && !lowerIncludes(page.title, keyword.split(' ')[0])) warnings.push('Target keyword is not clearly represented in the SEO title.');
+  if (keyword && !lowerIncludes(page.metaDescription, keyword.split(' ')[0])) warnings.push('Target keyword is not clearly represented in the meta description.');
   if (!page.schemaTypes?.length || page.schemaTypes.includes('None')) warnings.push('No schema selected.');
   if ((page.pageType === 'location' || page.pageType === 'product-location' || page.pageType === 'collection-point') && !page.locationName) errors.push('Location SEO page is missing location name.');
   if (page.pageType === 'product-location' && !page.productName) errors.push('Product-location SEO page is missing product name.');
   if (page.pageType === 'collection-point' && page.schemaTypes.includes('LocalBusiness') && page.metadata?.googleBusinessEligible === false) errors.push('Partner collection points must not use LocalBusiness schema as fake Holo Print branches.');
   if (!page.introCopy || page.introCopy.length < 80) warnings.push('Intro copy is weak or missing; add useful local/product context.');
   if (!page.internalLinks?.length) warnings.push('Missing internal links.');
+  if ((page.internalLinks?.length || 0) > 0 && (page.internalLinks?.length || 0) < 2) warnings.push('Add at least two useful internal links where possible.');
   if (!page.faqItems?.length) warnings.push('Missing FAQ block.');
-  const score = Math.max(0, 100 - errors.length * 20 - warnings.length * 6);
-  return { errors, warnings, score };
+  if (!page.ogImage && !page.twitterImage) warnings.push('No social sharing image set; storefront will use the default OG image.');
+  const readability = analyseSeoReadability(page);
+  warnings.push(...readability.warnings);
+  const score = Math.max(0, Math.round(100 - errors.length * 20 - warnings.length * 5));
+  return { errors, warnings, score, readability };
+}
+
+function socialDefaults(page: SeoPageRecord) {
+  return {
+    ogTitle: page.ogTitle || page.title,
+    ogDescription: page.ogDescription || page.metaDescription,
+    ogImage: page.ogImage || page.metadata?.image || DEFAULT_OG_IMAGE,
+    twitterTitle: page.twitterTitle || page.ogTitle || page.title,
+    twitterDescription: page.twitterDescription || page.ogDescription || page.metaDescription,
+    twitterImage: page.twitterImage || page.ogImage || page.metadata?.image || DEFAULT_OG_IMAGE,
+    twitterCard: page.twitterCard || 'summary_large_image' as SeoTwitterCard,
+  };
 }
 
 function toRecord(item: any): SeoPageRecord {
   const meta = item.metadataJson || {};
-  const page: SeoPageRecord = {
+  const base: SeoPageRecord = {
     id: item.id,
     slug: item.slug,
     path: meta.path || `/${item.slug}`,
@@ -131,21 +182,34 @@ function toRecord(item: any): SeoPageRecord {
     introCopy: meta.introCopy || '',
     faqItems: Array.isArray(meta.faqItems) ? meta.faqItems : [],
     internalLinks: Array.isArray(meta.internalLinks) ? meta.internalLinks : [],
+    ogTitle: meta.ogTitle || '',
+    ogDescription: meta.ogDescription || '',
+    ogImage: meta.ogImage || '',
+    twitterTitle: meta.twitterTitle || '',
+    twitterDescription: meta.twitterDescription || '',
+    twitterImage: meta.twitterImage || '',
+    twitterCard: meta.twitterCard === 'summary' ? 'summary' : 'summary_large_image',
     metadata: meta.metadata || {},
     updatedAt: item.updatedAt,
     createdAt: item.createdAt,
   };
+  const social = socialDefaults(base);
+  const page = { ...base, ...social };
   const audit = auditSeoPage(page);
-  return { ...page, qualityScore: audit.score, warnings: audit.warnings, errors: audit.errors };
+  return { ...page, qualityScore: audit.score, readabilityScore: audit.readability.score, readabilityWarnings: audit.readability.warnings, warnings: audit.warnings, errors: audit.errors };
 }
 
 function toMetadata(page: SeoPageRecord) {
-  const audit = auditSeoPage(page);
+  const withSocial = { ...page, ...socialDefaults(page) };
+  const audit = auditSeoPage(withSocial);
   return {
-    path: cleanPath(page.path), pageType: page.pageType, status: page.status || 'draft', title: page.title, metaDescription: page.metaDescription, h1: page.h1,
-    canonicalUrl: page.canonicalUrl || canonical(page.path), noIndex: Boolean(page.noIndex), noFollow: Boolean(page.noFollow), includeInSitemap: page.includeInSitemap !== false,
-    schemaTypes: page.schemaTypes?.length ? page.schemaTypes : ['WebPage'], targetKeyword: page.targetKeyword || '', locationName: page.locationName || '', productName: page.productName || '',
-    templateKey: page.templateKey || '', introCopy: page.introCopy || '', faqItems: page.faqItems || [], internalLinks: page.internalLinks || [], metadata: page.metadata || {}, audit,
+    path: cleanPath(withSocial.path), pageType: withSocial.pageType, status: withSocial.status || 'draft', title: withSocial.title, metaDescription: withSocial.metaDescription, h1: withSocial.h1,
+    canonicalUrl: withSocial.canonicalUrl || canonical(withSocial.path), noIndex: Boolean(withSocial.noIndex), noFollow: Boolean(withSocial.noFollow), includeInSitemap: withSocial.includeInSitemap !== false,
+    schemaTypes: withSocial.schemaTypes?.length ? withSocial.schemaTypes : ['WebPage'], targetKeyword: withSocial.targetKeyword || '', locationName: withSocial.locationName || '', productName: withSocial.productName || '',
+    templateKey: withSocial.templateKey || '', introCopy: withSocial.introCopy || '', faqItems: withSocial.faqItems || [], internalLinks: withSocial.internalLinks || [],
+    ogTitle: withSocial.ogTitle || '', ogDescription: withSocial.ogDescription || '', ogImage: withSocial.ogImage || '',
+    twitterTitle: withSocial.twitterTitle || '', twitterDescription: withSocial.twitterDescription || '', twitterImage: withSocial.twitterImage || '', twitterCard: withSocial.twitterCard || 'summary_large_image',
+    metadata: withSocial.metadata || {}, audit,
   };
 }
 
@@ -165,6 +229,8 @@ export async function listSeoPages(request: Request, filters: { status?: string;
     indexable: items.filter((item) => !item.noIndex && item.includeInSitemap).length,
     errors: items.reduce((sum, item) => sum + (item.errors?.length || 0), 0),
     warnings: items.reduce((sum, item) => sum + (item.warnings?.length || 0), 0),
+    averageScore: items.length ? Math.round(items.reduce((sum, item) => sum + (item.qualityScore || 0), 0) / items.length) : 0,
+    averageReadability: items.length ? Math.round(items.reduce((sum, item) => sum + (item.readabilityScore || 0), 0) / items.length) : 0,
   };
   return { items, summary, resource: RESOURCE };
 }
@@ -174,7 +240,7 @@ export async function saveSeoPage(request: Request, input: Partial<SeoPageRecord
   const path = cleanPath(input.path || `/${input.slug || input.id || 'seo-page'}`);
   const slug = slugify(input.slug || path);
   const page: SeoPageRecord = {
-    id: String(input.id || `seo-${slug}`), slug, path, pageType: input.pageType || 'static', status: input.status || 'draft', title: input.title || '', metaDescription: input.metaDescription || '', h1: input.h1 || input.title || '', canonicalUrl: input.canonicalUrl || canonical(path), noIndex: Boolean(input.noIndex), noFollow: Boolean(input.noFollow), includeInSitemap: input.includeInSitemap !== false, schemaTypes: input.schemaTypes?.length ? input.schemaTypes : ['WebPage'], targetKeyword: input.targetKeyword || '', locationName: input.locationName || '', productName: input.productName || '', templateKey: input.templateKey || '', introCopy: input.introCopy || '', faqItems: input.faqItems || [], internalLinks: input.internalLinks || [], metadata: input.metadata || {}, updatedAt: now(), createdAt: input.createdAt || now(),
+    id: String(input.id || `seo-${slug}`), slug, path, pageType: input.pageType || 'static', status: input.status || 'draft', title: input.title || '', metaDescription: input.metaDescription || '', h1: input.h1 || input.title || '', canonicalUrl: input.canonicalUrl || canonical(path), noIndex: Boolean(input.noIndex), noFollow: Boolean(input.noFollow), includeInSitemap: input.includeInSitemap !== false, schemaTypes: input.schemaTypes?.length ? input.schemaTypes : ['WebPage'], targetKeyword: input.targetKeyword || '', locationName: input.locationName || '', productName: input.productName || '', templateKey: input.templateKey || '', introCopy: input.introCopy || '', faqItems: input.faqItems || [], internalLinks: input.internalLinks || [], ogTitle: input.ogTitle || '', ogDescription: input.ogDescription || '', ogImage: input.ogImage || '', twitterTitle: input.twitterTitle || '', twitterDescription: input.twitterDescription || '', twitterImage: input.twitterImage || '', twitterCard: input.twitterCard || 'summary_large_image', metadata: input.metadata || {}, updatedAt: now(), createdAt: input.createdAt || now(),
   };
   const row = await (prisma as any).coreCatalogRecord.upsert({
     where: { tenantId_resource_slug: { tenantId: ctx.tenantId, resource: RESOURCE, slug } },

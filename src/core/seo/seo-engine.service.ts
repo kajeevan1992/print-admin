@@ -44,6 +44,18 @@ export type SeoPageRecord = {
   createdAt?: string;
 };
 
+type CoreCatalogRow = {
+  id: string;
+  tenantId: string;
+  resource: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  metadataJson: any;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
 const RESOURCE = 'seo-pages';
 const SITE_URL = (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || 'https://holoprint.co.uk').replace(/\/$/, '');
 const DEFAULT_OG_IMAGE = process.env.SEO_DEFAULT_OG_IMAGE || `${SITE_URL}/og-image.jpg`;
@@ -51,9 +63,30 @@ const DEFAULT_OG_IMAGE = process.env.SEO_DEFAULT_OG_IMAGE || `${SITE_URL}/og-ima
 function now() { return new Date().toISOString(); }
 function slugify(value: string) { return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'seo-page'; }
 function cleanPath(value: string) { const path = String(value || '').trim() || '/'; return path.startsWith('/') ? path : `/${path}`; }
-function canonical(path: string) { return `${SITE_URL}${cleanPath(path) === '/' ? '' : cleanPath(path)}`; }
+function canonical(path: string) { const clean = cleanPath(path); return `${SITE_URL}${clean === '/' ? '' : clean}`; }
 function words(value: string) { return String(value || '').trim().split(/\s+/).filter(Boolean); }
 function lowerIncludes(haystack: string, needle: string) { return String(haystack || '').toLowerCase().includes(String(needle || '').toLowerCase()); }
+function iso(value: Date | string | undefined) { return value ? new Date(value).toISOString() : now(); }
+function parseJson(value: any) { if (!value) return {}; if (typeof value === 'string') { try { return JSON.parse(value); } catch { return {}; } } return value; }
+
+async function ensureSeoStorage() {
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CoreCatalogRecord" (
+      "id" TEXT PRIMARY KEY,
+      "tenantId" TEXT NOT NULL,
+      "resource" TEXT NOT NULL,
+      "slug" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "description" TEXT NOT NULL DEFAULT '',
+      "metadataJson" JSONB,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await (prisma as any).$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_slug_key" ON "CoreCatalogRecord" ("tenantId", "resource", "slug")');
+  await (prisma as any).$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord" ("tenantId", "resource")');
+  await (prisma as any).$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_resource_slug_idx" ON "CoreCatalogRecord" ("resource", "slug")');
+}
 
 function defaultFaq(product = 'print', location = 'Sidcup') {
   return [
@@ -69,7 +102,7 @@ export const defaultSeoPages: SeoPageRecord[] = [
     title: 'Holo Print | Design, Print, Sign and Web in Sidcup',
     metaDescription: 'Holo Print offers business cards, flyers, leaflets, posters, banners, stickers, shop boards, booklets, design support and local print services in Sidcup.',
     h1: 'Design, print, sign and web support in Sidcup', canonicalUrl: canonical('/'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'printing in Sidcup', locationName: 'Sidcup', introCopy: 'Order print online, upload artwork and get local support from Holo Print.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'All products', href: '/all-products' }, { label: 'Contact', href: '/contact' }],
+    schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'printing in Sidcup', locationName: 'Sidcup', introCopy: 'Order print online, upload artwork and get local support from Holo Print.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'All products', href: '/all-products' }, { label: 'Contact', href: '/contact' }], ogImage: `${SITE_URL}/images/hero-slide-1.svg`, twitterCard: 'summary_large_image',
   },
   {
     id: 'seo-contact', slug: 'contact', path: '/contact', pageType: 'static', status: 'published',
@@ -78,16 +111,28 @@ export const defaultSeoPages: SeoPageRecord[] = [
     schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'contact Holo Print', locationName: 'Sidcup', introCopy: 'Speak to Holo Print about local printing, quotes, artwork and collection.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'Request a quote', href: '/bespoke-quote' }],
   },
   {
+    id: 'seo-business-cards', slug: 'standard-business-cards', path: '/standard-business-cards', pageType: 'product', status: 'published',
+    title: 'Business Cards Printing | Holo Print Sidcup', metaDescription: 'Order professional business cards from Holo Print. Choose paper, finish, quantity and artwork support with local collection or delivery.',
+    h1: 'Business cards printing', canonicalUrl: canonical('/standard-business-cards'), noIndex: false, noFollow: false, includeInSitemap: true,
+    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards printing', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product', introCopy: 'Professional business cards for local businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers' }, { label: 'Artwork upload', href: '/artwork-upload' }], ogImage: `${SITE_URL}/images/business-card-front.svg`, metadata: { category: 'Business stationery' },
+  },
+  {
+    id: 'seo-flyers', slug: 'flyers', path: '/flyers', pageType: 'product', status: 'published',
+    title: 'Flyers & Leaflets Printing | Holo Print', metaDescription: 'Print flyers and leaflets online with Holo Print. Ideal for menus, promotions, events and local business marketing.',
+    h1: 'Flyers and leaflets printing', canonicalUrl: canonical('/flyers'), noIndex: false, noFollow: false, includeInSitemap: true,
+    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers and leaflets printing', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/standard-business-cards' }, { label: 'Posters', href: '/posters-large-format-prints' }], ogImage: `${SITE_URL}/images/flyer-front.svg`, metadata: { category: 'Marketing print' },
+  },
+  {
     id: 'seo-business-cards-sidcup', slug: 'business-cards-sidcup', path: '/business-cards/sidcup', pageType: 'product-location', status: 'draft',
     title: 'Business Cards Sidcup | Order Online & Collect Locally | Holo Print', metaDescription: 'Order business cards in Sidcup with Holo Print. Upload artwork online, request design help and collect locally or choose delivery.',
     h1: 'Business cards in Sidcup', canonicalUrl: canonical('/business-cards/sidcup'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards Sidcup', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Business cards for local Sidcup businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/business-cards' }, { label: 'Artwork guide', href: '/artwork-guide' }],
+    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards Sidcup', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Business cards for local Sidcup businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/standard-business-cards' }, { label: 'Artwork guide', href: '/artwork-upload' }],
   },
   {
     id: 'seo-flyers-sidcup', slug: 'flyers-sidcup', path: '/flyers/sidcup', pageType: 'product-location', status: 'draft',
     title: 'Flyers & Leaflets Sidcup | Local Print & Collection | Holo Print', metaDescription: 'Print flyers and leaflets in Sidcup with online ordering, artwork upload, local collection and delivery options from Holo Print.',
     h1: 'Flyers and leaflets in Sidcup', canonicalUrl: canonical('/flyers/sidcup'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers Sidcup', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers-leaflets' }, { label: 'Contact', href: '/contact' }],
+    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers Sidcup', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers' }, { label: 'Contact', href: '/contact' }],
   },
   {
     id: 'seo-print-collection-wimbledon', slug: 'print-collection-wimbledon', path: '/print-collection/wimbledon', pageType: 'collection-point', status: 'draft',
@@ -159,8 +204,8 @@ function socialDefaults(page: SeoPageRecord) {
   };
 }
 
-function toRecord(item: any): SeoPageRecord {
-  const meta = item.metadataJson || {};
+function toRecord(item: CoreCatalogRow): SeoPageRecord {
+  const meta = parseJson(item.metadataJson);
   const base: SeoPageRecord = {
     id: item.id,
     slug: item.slug,
@@ -190,8 +235,8 @@ function toRecord(item: any): SeoPageRecord {
     twitterImage: meta.twitterImage || '',
     twitterCard: meta.twitterCard === 'summary' ? 'summary' : 'summary_large_image',
     metadata: meta.metadata || {},
-    updatedAt: item.updatedAt,
-    createdAt: item.createdAt,
+    updatedAt: iso(item.updatedAt),
+    createdAt: iso(item.createdAt),
   };
   const social = socialDefaults(base);
   const page = { ...base, ...social };
@@ -214,8 +259,13 @@ function toMetadata(page: SeoPageRecord) {
 }
 
 export async function listSeoPages(request: Request, filters: { status?: string; pageType?: string; search?: string } = {}) {
+  await ensureSeoStorage();
   const ctx = tenantContextFromRequest(request);
-  const rows = await (prisma as any).coreCatalogRecord.findMany({ where: { tenantId: ctx.tenantId, resource: RESOURCE }, orderBy: [{ updatedAt: 'desc' }] });
+  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+    SELECT * FROM "CoreCatalogRecord"
+    WHERE "tenantId" = ${ctx.tenantId} AND "resource" = ${RESOURCE}
+    ORDER BY "updatedAt" DESC
+  `;
   let items = rows.map(toRecord);
   if (filters.status && filters.status !== 'all') items = items.filter((item) => item.status === filters.status);
   if (filters.pageType && filters.pageType !== 'all') items = items.filter((item) => item.pageType === filters.pageType);
@@ -236,18 +286,25 @@ export async function listSeoPages(request: Request, filters: { status?: string;
 }
 
 export async function saveSeoPage(request: Request, input: Partial<SeoPageRecord>) {
+  await ensureSeoStorage();
   const ctx = tenantContextFromRequest(request);
   const path = cleanPath(input.path || `/${input.slug || input.id || 'seo-page'}`);
   const slug = slugify(input.slug || path);
   const page: SeoPageRecord = {
     id: String(input.id || `seo-${slug}`), slug, path, pageType: input.pageType || 'static', status: input.status || 'draft', title: input.title || '', metaDescription: input.metaDescription || '', h1: input.h1 || input.title || '', canonicalUrl: input.canonicalUrl || canonical(path), noIndex: Boolean(input.noIndex), noFollow: Boolean(input.noFollow), includeInSitemap: input.includeInSitemap !== false, schemaTypes: input.schemaTypes?.length ? input.schemaTypes : ['WebPage'], targetKeyword: input.targetKeyword || '', locationName: input.locationName || '', productName: input.productName || '', templateKey: input.templateKey || '', introCopy: input.introCopy || '', faqItems: input.faqItems || [], internalLinks: input.internalLinks || [], ogTitle: input.ogTitle || '', ogDescription: input.ogDescription || '', ogImage: input.ogImage || '', twitterTitle: input.twitterTitle || '', twitterDescription: input.twitterDescription || '', twitterImage: input.twitterImage || '', twitterCard: input.twitterCard || 'summary_large_image', metadata: input.metadata || {}, updatedAt: now(), createdAt: input.createdAt || now(),
   };
-  const row = await (prisma as any).coreCatalogRecord.upsert({
-    where: { tenantId_resource_slug: { tenantId: ctx.tenantId, resource: RESOURCE, slug } },
-    update: { name: page.title || page.h1 || slug, description: page.metaDescription || '', metadataJson: toMetadata(page) },
-    create: { id: page.id, tenantId: ctx.tenantId, resource: RESOURCE, slug, name: page.title || page.h1 || slug, description: page.metaDescription || '', metadataJson: toMetadata(page) },
-  });
-  return toRecord(row);
+  const metadataJson = JSON.stringify(toMetadata(page));
+  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+    INSERT INTO "CoreCatalogRecord" ("id", "tenantId", "resource", "slug", "name", "description", "metadataJson", "createdAt", "updatedAt")
+    VALUES (${page.id}, ${ctx.tenantId}, ${RESOURCE}, ${slug}, ${page.title || page.h1 || slug}, ${page.metaDescription || ''}, ${metadataJson}::jsonb, NOW(), NOW())
+    ON CONFLICT ("tenantId", "resource", "slug") DO UPDATE SET
+      "name" = EXCLUDED."name",
+      "description" = EXCLUDED."description",
+      "metadataJson" = EXCLUDED."metadataJson",
+      "updatedAt" = NOW()
+    RETURNING *
+  `;
+  return toRecord(rows[0]);
 }
 
 export async function seedSeoPages(request: Request) {
@@ -257,10 +314,16 @@ export async function seedSeoPages(request: Request) {
 }
 
 export async function deleteSeoPage(request: Request, idOrSlug: string) {
+  await ensureSeoStorage();
   const ctx = tenantContextFromRequest(request);
-  const row = await (prisma as any).coreCatalogRecord.findFirst({ where: { tenantId: ctx.tenantId, resource: RESOURCE, OR: [{ id: idOrSlug }, { slug: idOrSlug }] } });
+  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+    SELECT * FROM "CoreCatalogRecord"
+    WHERE "tenantId" = ${ctx.tenantId} AND "resource" = ${RESOURCE} AND ("id" = ${idOrSlug} OR "slug" = ${idOrSlug})
+    LIMIT 1
+  `;
+  const row = rows[0];
   if (!row) return { ok: true, deleted: 0 };
-  await (prisma as any).coreCatalogRecord.delete({ where: { id: row.id } });
+  await (prisma as any).$executeRaw`DELETE FROM "CoreCatalogRecord" WHERE "id" = ${row.id}`;
   return { ok: true, deleted: 1, item: toRecord(row) };
 }
 

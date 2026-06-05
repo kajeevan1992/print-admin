@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Globe2, Search, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Globe2, Search, Share2, ShieldAlert, Sparkles } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
@@ -25,12 +25,24 @@ type SeoPage = {
   targetKeyword: string;
   locationName?: string;
   productName?: string;
+  introCopy?: string;
+  faqItems?: Array<{ question: string; answer: string }>;
+  internalLinks?: Array<{ label: string; href: string }>;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  twitterTitle?: string;
+  twitterDescription?: string;
+  twitterImage?: string;
+  twitterCard?: string;
   qualityScore?: number;
+  readabilityScore?: number;
+  readabilityWarnings?: string[];
   warnings?: string[];
   errors?: string[];
 };
 
-type Summary = { total: number; published: number; draft: number; hidden: number; indexable: number; errors: number; warnings: number };
+type Summary = { total: number; published: number; draft: number; hidden: number; indexable: number; errors: number; warnings: number; averageScore?: number; averageReadability?: number };
 
 const pageTypes = ['all', 'home', 'product', 'category', 'location', 'collection-point', 'product-location', 'guide', 'static', 'service-area'];
 const statuses = ['all', 'published', 'draft', 'hidden'];
@@ -43,12 +55,13 @@ function scoreTone(score = 0) {
 
 export function SeoEnginePage() {
   const [items, setItems] = useState<SeoPage[]>([]);
-  const [summary, setSummary] = useState<Summary>({ total: 0, published: 0, draft: 0, hidden: 0, indexable: 0, errors: 0, warnings: 0 });
+  const [summary, setSummary] = useState<Summary>({ total: 0, published: 0, draft: 0, hidden: 0, indexable: 0, errors: 0, warnings: 0, averageScore: 0, averageReadability: 0 });
   const [search, setSearch] = useState('');
   const [pageType, setPageType] = useState('all');
   const [status, setStatus] = useState('all');
   const [selectedId, setSelectedId] = useState('');
   const [sitemapCount, setSitemapCount] = useState(0);
+  const [llmsCount, setLlmsCount] = useState(0);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -71,8 +84,14 @@ export function SeoEnginePage() {
     setSitemapCount(payload.data?.count || 0);
   }
 
+  async function loadLlms() {
+    const response = await fetch('/api/internal/seo/llms', { cache: 'no-store' });
+    const payload = await response.json().catch(() => ({}));
+    setLlmsCount(payload.data?.count || 0);
+  }
+
   useEffect(() => { void load().catch((error) => { setMessage(error.message); setLoading(false); }); }, []);
-  useEffect(() => { void loadSitemap(); }, []);
+  useEffect(() => { void loadSitemap(); void loadLlms(); }, []);
 
   const selected = useMemo(() => items.find((item) => item.id === selectedId) || items[0] || null, [items, selectedId]);
 
@@ -84,6 +103,7 @@ export function SeoEnginePage() {
     setMessage(`Seeded ${payload.data?.count || 0} SEO pages.`);
     await load();
     await loadSitemap();
+    await loadLlms();
   }
 
   async function publishSelected() {
@@ -94,26 +114,28 @@ export function SeoEnginePage() {
     setMessage(`Published ${selected.path}.`);
     await load();
     await loadSitemap();
+    await loadLlms();
   }
 
   return (
     <div>
       <PageHeader
         title="SEO Engine"
-        subtitle="Powerful tenant SEO foundation for Holo Print: page metadata, canonical controls, index rules, sitemap readiness, schema selection and local SEO audit checks."
+        subtitle="Yoast-style tenant SEO foundation for Holo Print: metadata, keyword checks, readability, social previews, canonical controls, index rules, sitemap, llms.txt, schema and local SEO audit checks."
         actions={<><Button onClick={() => void load()}>Refresh</Button><Button onClick={() => void seed()}>Seed Holo SEO</Button><PrimaryButton onClick={() => void publishSelected()} disabled={!selected}>Publish selected</PrimaryButton></>}
       />
 
       {message ? <div className="mb-4 rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-textMuted">{message}</div> : null}
 
-      <div className="mb-4 grid gap-4 md:grid-cols-3 xl:grid-cols-7">
+      <div className="mb-4 grid gap-4 md:grid-cols-3 xl:grid-cols-8">
         <Metric label="Total" value={summary.total} />
         <Metric label="Published" value={summary.published} tone="green" />
         <Metric label="Draft" value={summary.draft} tone="amber" />
-        <Metric label="Hidden" value={summary.hidden} />
         <Metric label="Indexable" value={summary.indexable} tone="blue" />
         <Metric label="Errors" value={summary.errors} tone={summary.errors ? 'red' : 'green'} />
-        <Metric label="Sitemap URLs" value={sitemapCount} tone="blue" />
+        <Metric label="Avg SEO" value={summary.averageScore || 0} tone="blue" />
+        <Metric label="Avg Read" value={summary.averageReadability || 0} tone="blue" />
+        <Metric label="LLMs URLs" value={llmsCount || sitemapCount} tone="blue" />
       </div>
 
       <Card className="mb-4">
@@ -143,6 +165,7 @@ export function SeoEnginePage() {
                   <Badge>{item.status}</Badge>
                   <Badge>{item.includeInSitemap && !item.noIndex ? 'sitemap ready' : 'not in sitemap'}</Badge>
                   <Badge>{item.noIndex ? 'no-index' : 'indexable'}</Badge>
+                  <Badge>read {item.readabilityScore ?? 0}/100</Badge>
                   <Badge>{(item.schemaTypes || []).join(', ') || 'no schema'}</Badge>
                 </div>
               </button>
@@ -166,9 +189,31 @@ export function SeoEnginePage() {
           </Card>
 
           <Card>
+            <div className="mb-3 flex items-center gap-2"><Search size={16} className="text-emerald-300" /><h3 className="text-sm font-semibold text-white">Google preview</h3></div>
+            {selected ? <div className="rounded-xl border border-white/8 bg-white/[0.03] p-4">
+              <p className="text-xs text-emerald-200">{selected.canonicalUrl}</p>
+              <p className="mt-1 text-base font-semibold text-sky-200">{selected.title}</p>
+              <p className="mt-1 text-sm leading-6 text-textMuted">{selected.metaDescription}</p>
+            </div> : null}
+          </Card>
+
+          <Card>
+            <div className="mb-3 flex items-center gap-2"><Share2 size={16} className="text-sky-300" /><h3 className="text-sm font-semibold text-white">Social preview fields</h3></div>
+            {selected ? <div className="space-y-3 text-sm">
+              <Read label="Open Graph title" value={selected.ogTitle || selected.title} />
+              <Read label="Open Graph description" value={selected.ogDescription || selected.metaDescription} />
+              <Read label="Open Graph image" value={selected.ogImage || 'Default OG image'} />
+              <Read label="X/Twitter card" value={selected.twitterCard || 'summary_large_image'} />
+            </div> : null}
+          </Card>
+
+          <Card>
             <div className="mb-3 flex items-center gap-2"><ShieldAlert size={16} className="text-amber-300" /><h3 className="text-sm font-semibold text-white">Audit</h3></div>
             {selected ? <div className="space-y-3 text-sm">
-              <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><p className="text-xs uppercase tracking-wide text-textMuted">Quality score</p><p className="mt-1 text-2xl font-semibold text-white">{selected.qualityScore ?? 0}/100</p></div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><p className="text-xs uppercase tracking-wide text-textMuted">Quality score</p><p className="mt-1 text-2xl font-semibold text-white">{selected.qualityScore ?? 0}/100</p></div>
+                <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><p className="text-xs uppercase tracking-wide text-textMuted">Readability</p><p className="mt-1 text-2xl font-semibold text-white">{selected.readabilityScore ?? 0}/100</p></div>
+              </div>
               {(selected.errors || []).map((item) => <AuditLine key={item} tone="red" text={item} />)}
               {(selected.warnings || []).map((item) => <AuditLine key={item} tone="amber" text={item} />)}
               {!(selected.errors || []).length && !(selected.warnings || []).length ? <AuditLine tone="green" text="No current SEO audit issues." /> : null}
@@ -176,10 +221,20 @@ export function SeoEnginePage() {
           </Card>
 
           <Card>
+            <div className="mb-3 flex items-center gap-2"><Sparkles size={16} className="text-purple-200" /><h3 className="text-sm font-semibold text-white">Frontend elements needed</h3></div>
+            <div className="space-y-2 text-sm text-textMuted">
+              <p>Call <span className="text-white">/api/internal/seo/resolve?path=/your-path</span> from the storefront route/page loader.</p>
+              <p>Map title, description, canonical, robots, Open Graph, X/Twitter card and JSON-LD into the public page head.</p>
+              <p>Expose <span className="text-white">/sitemap.xml</span>, <span className="text-white">/robots.txt</span> and <span className="text-white">/llms.txt</span> publicly on the storefront domain.</p>
+            </div>
+          </Card>
+
+          <Card>
             <h3 className="mb-3 text-sm font-semibold text-white">Foundation rules included</h3>
             <div className="space-y-2 text-sm text-textMuted">
               <p>Canonical URL and no-index/no-follow controls.</p>
-              <p>Sitemap include/exclude logic.</p>
+              <p>Sitemap include/exclude logic and llms.txt AI discovery output.</p>
+              <p>Open Graph and X/Twitter social sharing metadata.</p>
               <p>Schema type selection for products, local pages, FAQs and web pages.</p>
               <p>Fake-location warning for partner collection points using LocalBusiness schema.</p>
               <p>Local/product page checks for missing product, location, keyword, FAQ and internal links.</p>
@@ -197,4 +252,4 @@ function Metric({ label, value, tone = 'default' }: { label: string; value: numb
 }
 function Badge({ children }: { children: React.ReactNode }) { return <span className="rounded-full border border-white/8 bg-white/[0.03] px-2.5 py-1 capitalize">{children}</span>; }
 function Read({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><p className="text-xs uppercase tracking-wide text-textMuted">{label}</p><p className="mt-1 break-words text-white">{value}</p></div>; }
-function AuditLine({ tone, text }: { tone: 'red' | 'amber' | 'green'; text: string }) { const Icon = tone === 'green' ? CheckCircle2 : AlertTriangle; const cls = tone === 'green' ? 'text-emerald-200 border-emerald-500/30 bg-emerald-500/10' : tone === 'red' ? 'text-red-200 border-red-500/30 bg-red-500/10' : 'text-amber-200 border-amber-500/30 bg-amber-500/10'; return <div className={`flex gap-2 rounded-xl border p-3 ${cls}`}><Icon size={15} className="mt-0.5 shrink-0" /><span>{text}</span></div>; }
+function AuditLine({ tone, text }: { tone: 'red' | 'amber' | 'green'; text: string }) { const Icon = tone === 'green' ? CheckCircle2 : AlertTriangle; const cls = tone === 'green' ? 'text-emerald-200 border-emerald-500/30 bg-emerald-500/10' : tone === 'red' ? 'text-red-200 border-red-500/30 bg-red-500/10' : 'text-amber-200 border-amber-500/10 bg-amber-500/10'; return <div className={`flex gap-2 rounded-xl border p-3 ${cls}`}><Icon size={15} className="mt-0.5 shrink-0" /><span>{text}</span></div>; }

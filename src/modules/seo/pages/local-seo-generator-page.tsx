@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { MapPin, Sparkles, Wand2 } from 'lucide-react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { MapPin, Wand2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
@@ -229,7 +229,7 @@ function JsonEditor({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
+function Badge({ children }: { children: ReactNode }) {
   return <span className="rounded-full border border-white/8 bg-white/[0.04] px-2.5 py-1">{children}</span>;
 }
 

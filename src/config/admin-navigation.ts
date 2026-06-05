@@ -44,38 +44,47 @@ export type AdminSidebarNavigationItem = {
   }>;
 };
 
+const TENANT_ROLES: AdminRole[] = ['admin', 'tenant_admin', 'owner'];
+
 // FOREVER RULE:
 // This file is the single source of truth for admin/super-admin navigation.
 // Do not hardcode sidebar items in layout components. Add or move pages here only.
 const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
-  { label: 'Dashboard', href: '/', iconKey: 'Home', order: 10, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Workspace', href: '/workspace', iconKey: 'Sparkles', order: 20, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Products', href: '/products', iconKey: 'Box', order: 30, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Product Builder', href: '/product-builder-studio', iconKey: 'Box', order: 40, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Config Templates', href: '/config-templates', iconKey: 'SlidersHorizontal', order: 50, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Option Sets', href: '/option-sets', iconKey: 'Layers3', order: 60, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Materials Library', href: '/materials-library', iconKey: 'Archive', order: 70, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Finish Library', href: '/finish-library', iconKey: 'Palette', order: 80, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Printer Profiles', href: '/printer-profiles', iconKey: 'Printer', order: 90, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Product Rules Lab', href: '/product-rules-lab', iconKey: 'GitBranch', order: 100, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Production Routing', href: '/production-routing-lab', iconKey: 'Printer', order: 110, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Artwork Preflight', href: '/artwork-preflight-studio', iconKey: 'Shield', order: 120, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Artwork Uploads', href: '/artwork-uploads', iconKey: 'UploadCloud', order: 125, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Pricing Engine', href: '/pricing-engine-lab', iconKey: 'DollarSign', order: 130, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Categories', href: '/categories', iconKey: 'Tags', order: 140, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Collections', href: '/collections', iconKey: 'FolderTree', order: 150, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Tags', href: '/tags', iconKey: 'Tag', order: 160, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Orders', href: '/orders', iconKey: 'ClipboardList', order: 170, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Artwork Proofing', href: '/artwork-proofing', iconKey: 'PenTool', order: 180, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Artwork Intelligence', href: '/artwork-intelligence', iconKey: 'PenTool', order: 190, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Quotations', href: '/quotes', iconKey: 'FileText', order: 200, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Pricing', href: '/pricing', iconKey: 'DollarSign', order: 210, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Pricing Rules', href: '/pricing-rules', iconKey: 'BadgePoundSterling', order: 220, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Pricing Command', href: '/pricing-command', iconKey: 'BadgePoundSterling', order: 230, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Reports', href: '/reports', iconKey: 'BarChart3', order: 240, roles: ['admin', 'tenant_admin', 'owner', 'super_admin'] },
-  { label: 'Activity Log', href: '/activity-log', iconKey: 'Activity', order: 250, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Print Store', href: '/channels', iconKey: 'Store', order: 260, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Users', iconKey: 'Users', order: 270, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Dashboard', href: '/', iconKey: 'Home', order: 10, roles: TENANT_ROLES },
+  { label: 'Workspace', href: '/workspace', iconKey: 'Sparkles', order: 20, roles: TENANT_ROLES },
+  { label: 'Products', href: '/products', iconKey: 'Box', order: 30, roles: TENANT_ROLES },
+  { label: 'Product Builder', href: '/product-builder-studio', iconKey: 'Box', order: 40, roles: TENANT_ROLES },
+  { label: 'Config Templates', href: '/config-templates', iconKey: 'SlidersHorizontal', order: 50, roles: TENANT_ROLES },
+  { label: 'Option Sets', href: '/option-sets', iconKey: 'Layers3', order: 60, roles: TENANT_ROLES },
+  { label: 'Materials Library', href: '/materials-library', iconKey: 'Archive', order: 70, roles: TENANT_ROLES },
+  { label: 'Finish Library', href: '/finish-library', iconKey: 'Palette', order: 80, roles: TENANT_ROLES },
+  { label: 'Printer Profiles', href: '/printer-profiles', iconKey: 'Printer', order: 90, roles: TENANT_ROLES },
+  { label: 'Product Rules Lab', href: '/product-rules-lab', iconKey: 'GitBranch', order: 100, roles: TENANT_ROLES },
+  { label: 'Production Routing', href: '/production-routing-lab', iconKey: 'Printer', order: 110, roles: TENANT_ROLES },
+  { label: 'Artwork Preflight', href: '/artwork-preflight-studio', iconKey: 'Shield', order: 120, roles: TENANT_ROLES },
+  { label: 'Artwork Uploads', href: '/artwork-uploads', iconKey: 'UploadCloud', order: 125, roles: TENANT_ROLES },
+  { label: 'Pricing Engine', href: '/pricing-engine-lab', iconKey: 'DollarSign', order: 130, roles: TENANT_ROLES },
+  { label: 'Categories', href: '/categories', iconKey: 'Tags', order: 140, roles: TENANT_ROLES },
+  { label: 'Collections', href: '/collections', iconKey: 'FolderTree', order: 150, roles: TENANT_ROLES },
+  { label: 'Tags', href: '/tags', iconKey: 'Tag', order: 160, roles: TENANT_ROLES },
+  { label: 'Orders', href: '/orders', iconKey: 'ClipboardList', order: 170, roles: TENANT_ROLES },
+  { label: 'Artwork Proofing', href: '/artwork-proofing', iconKey: 'PenTool', order: 180, roles: TENANT_ROLES },
+  { label: 'Artwork Intelligence', href: '/artwork-intelligence', iconKey: 'PenTool', order: 190, roles: TENANT_ROLES },
+  { label: 'Quotations', href: '/quotes', iconKey: 'FileText', order: 200, roles: TENANT_ROLES },
+  { label: 'Pricing', href: '/pricing', iconKey: 'DollarSign', order: 210, roles: TENANT_ROLES },
+  { label: 'Pricing Rules', href: '/pricing-rules', iconKey: 'BadgePoundSterling', order: 220, roles: TENANT_ROLES },
+  { label: 'Pricing Command', href: '/pricing-command', iconKey: 'BadgePoundSterling', order: 230, roles: TENANT_ROLES },
+  { label: 'Reports', href: '/reports', iconKey: 'BarChart3', order: 240, roles: [...TENANT_ROLES, 'super_admin'] },
+  { label: 'Activity Log', href: '/activity-log', iconKey: 'Activity', order: 250, roles: TENANT_ROLES },
+  { label: 'Print Store', href: '/channels', iconKey: 'Store', order: 260, roles: TENANT_ROLES },
+  { label: 'Launch Operations', iconKey: 'Rocket', order: 265, roles: TENANT_ROLES, children: [
+    { label: 'Launch Operations', href: '/launch-operations', iconKey: 'Rocket', order: 10 },
+    { label: 'Location Manager', href: '/location-manager', iconKey: 'Map', order: 20 },
+    { label: 'Collection Handover', href: '/collection-handover', iconKey: 'ClipboardCheck', order: 30 },
+    { label: 'Ready Collection Automation', href: '/ready-collection-automation', iconKey: 'Activity', order: 40 },
+    { label: 'Email Send Controls', href: '/email-send-controls', iconKey: 'Mail', order: 50 }
+  ]},
+  { label: 'Users', iconKey: 'Users', order: 270, roles: TENANT_ROLES, children: [
     { label: 'Users', href: '/users', iconKey: 'Users', order: 10 },
     { label: 'Site Users', href: '/site-users', iconKey: 'UserCircle2', order: 20 },
     { label: 'User Groups', href: '/user-groups', iconKey: 'Users2', order: 30 },
@@ -83,15 +92,15 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'User Projects', href: '/user-projects', iconKey: 'FolderKanban', order: 50 },
     { label: 'User Carts', href: '/user-carts', iconKey: 'ShoppingCart', order: 60 }
   ]},
-  { label: 'Trade Vendors', href: '/vendors', iconKey: 'Truck', order: 280, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Site Theme', href: '/themes', iconKey: 'Palette', order: 290, roles: ['admin', 'tenant_admin', 'owner'] },
-  { label: 'Print Parametric', iconKey: 'SlidersHorizontal', order: 300, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Trade Vendors', href: '/vendors', iconKey: 'Truck', order: 280, roles: TENANT_ROLES },
+  { label: 'Site Theme', href: '/themes', iconKey: 'Palette', order: 290, roles: TENANT_ROLES },
+  { label: 'Print Parametric', iconKey: 'SlidersHorizontal', order: 300, roles: TENANT_ROLES, children: [
     { label: 'Parametric Setup', href: '/parametric-setup', iconKey: 'SlidersHorizontal', order: 10 },
     { label: 'Parametric Products', href: '/parametric-products', iconKey: 'Boxes', order: 20 },
     { label: 'Parametric Rules Engine', href: '/parametric-rules-engine', iconKey: 'Bot', order: 30 },
     { label: 'Parametric Libraries', href: '/parametric-libraries', iconKey: 'Archive', order: 40 }
   ]},
-  { label: 'Content', iconKey: 'FileText', order: 310, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Content', iconKey: 'FileText', order: 310, roles: TENANT_ROLES, children: [
     { label: 'Content', href: '/content', iconKey: 'FileText', order: 10 },
     { label: 'Blog Content', href: '/blog-content', iconKey: 'ScrollText', order: 20 },
     { label: 'Page Content', href: '/page-content', iconKey: 'LayoutPanelTop', order: 30 },
@@ -104,7 +113,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'SEO Templates', href: '/seo-templates', iconKey: 'Sparkles', order: 95 },
     { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 100 }
   ]},
-  { label: 'Settings', iconKey: 'Settings', order: 320, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Settings', iconKey: 'Settings', order: 320, roles: TENANT_ROLES, children: [
     { label: 'General Settings', href: '/settings', iconKey: 'Settings', order: 10 },
     { label: 'Changelog', href: '/changelog', iconKey: 'ScrollText', order: 20 },
     { label: 'API Access', href: '/api-access', iconKey: 'KeyRound', order: 30 },
@@ -128,7 +137,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'Country List', href: '/country-list', iconKey: 'Globe2', order: 180 },
     { label: 'Translations', href: '/translations', iconKey: 'Languages', order: 190 }
   ]},
-  { label: 'Advanced', iconKey: 'Wrench', order: 330, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Advanced', iconKey: 'Wrench', order: 330, roles: TENANT_ROLES, children: [
     { label: 'Attribute Sets', href: '/attribute-sets', iconKey: 'Tags', order: 10 },
     { label: 'Inventory', href: '/inventory', iconKey: 'Archive', order: 20 },
     { label: 'Order Status', href: '/order-status', iconKey: 'ClipboardList', order: 30 },
@@ -141,23 +150,23 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'Clean Up Manager', href: '/clean-up-manager', iconKey: 'Trash2', order: 100 },
     { label: 'Error Log', href: '/error-log', iconKey: 'AlertTriangle', order: 110 }
   ]},
-  { label: 'Production', iconKey: 'Factory', order: 340, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Production', iconKey: 'Factory', order: 340, roles: TENANT_ROLES, children: [
     { label: 'Production', href: '/production', iconKey: 'Factory', order: 10 },
     { label: 'Production Planner', href: '/production-planner', iconKey: 'LayoutGrid', order: 20 },
     { label: 'Dispatch Center', href: '/dispatch-center', iconKey: 'Truck', order: 30 },
     { label: 'Printer Management', href: '/printer-management', iconKey: 'Printer', order: 40 },
     { label: 'Production Board', href: '/production-board', iconKey: 'LayoutGrid', order: 50 }
   ]},
-  { label: 'Account', iconKey: 'User', order: 350, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Account', iconKey: 'User', order: 350, roles: TENANT_ROLES, children: [
     { label: 'Admin Theme', href: '/admin-theme', iconKey: 'Palette', order: 10 },
     { label: 'Uptime Report', href: '/uptime-report', iconKey: 'HeartPulse', order: 20 },
     { label: 'Support Tickets', href: '/support-tickets', iconKey: 'LifeBuoy', order: 30 }
   ]},
-  { label: 'Support', iconKey: 'LifeBuoy', order: 360, roles: ['admin', 'tenant_admin', 'owner'], children: [
+  { label: 'Support', iconKey: 'LifeBuoy', order: 360, roles: TENANT_ROLES, children: [
     { label: 'Support', href: '/support', iconKey: 'LifeBuoy', order: 10 },
     { label: 'Knowledge Base', href: '/knowledge-base', iconKey: 'BookOpen', order: 20 }
   ]},
-  { label: 'Logout', href: '/logout', iconKey: 'LogOut', order: 999, roles: ['admin', 'tenant_admin', 'owner', 'super_admin'] }
+  { label: 'Logout', href: '/logout', iconKey: 'LogOut', order: 999, roles: [...TENANT_ROLES, 'super_admin'] }
 ];
 
 const SUPER_ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
@@ -205,7 +214,13 @@ const SUPER_ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
   { label: 'Logout', href: '/logout', iconKey: 'LogOut', order: 999, roles: ['super_admin'] }
 ];
 
-export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [];
+export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [
+  { label: 'Launch Operations', href: '/launch-operations', iconKey: 'Rocket', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 10, roles: TENANT_ROLES, surface: 'sidebar', description: 'Launch operations hub for locations, collection handover and email sending.' },
+  { label: 'Location Manager', href: '/location-manager', iconKey: 'Map', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 20, roles: TENANT_ROLES, surface: 'sidebar', description: 'Manage stores, branches, partner collection points and service areas.' },
+  { label: 'Collection Handover', href: '/collection-handover', iconKey: 'ClipboardCheck', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 30, roles: TENANT_ROLES, surface: 'sidebar', description: 'Verify collection PIN/QR passes and mark orders collected.' },
+  { label: 'Ready Collection Automation', href: '/ready-collection-automation', iconKey: 'Activity', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 40, roles: TENANT_ROLES, surface: 'sidebar', description: 'Queue or send ready-for-collection notifications for ready orders.' },
+  { label: 'Email Send Controls', href: '/email-send-controls', iconKey: 'Mail', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 50, roles: TENANT_ROLES, surface: 'sidebar', description: 'Process queued outbox emails including collection-ready notifications.' }
+];
 
 export function getAdminSidebarNavigation(role: AdminRole = 'admin', _registry: AdminNavigationRegistryItem[] = [], _surface: AdminNavigationSurface = 'sidebar') {
   const base = role === 'super_admin' ? SUPER_ADMIN_SIDEBAR_NAVIGATION : ADMIN_SIDEBAR_NAVIGATION;

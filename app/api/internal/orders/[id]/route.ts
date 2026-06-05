@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
+import { runReadyCollectionAutomationForOrder } from '@/core/collection/ready-collection-automation.service';
 
 type RouteContext = { params: { id: string } };
 
@@ -37,10 +38,12 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 
 async function handleUpdate(request: NextRequest, { params }: RouteContext) {
   try {
+    const before = await getOrder(request, params.id).catch(() => null);
     const body = await request.json().catch(() => ({}));
     const order = await updateOrder(request, params.id, body || {});
     if (!order) return errorResponse(new Error('Order was not found.'), 404);
-    return json({ ok: true, source: 'internal-orders-db', order, data: { order } });
+    const collectionAutomation = await runReadyCollectionAutomationForOrder(request, order, { previousStatus: before?.status, source: 'internal-order-update', sendNow: body?.sendCollectionReadyNow === true }).catch((error) => ({ ok: false, skipped: true, reason: error instanceof Error ? error.message : 'Collection automation failed.' }));
+    return json({ ok: true, source: 'internal-orders-db', order, collectionAutomation, data: { order, collectionAutomation } });
   } catch (error) {
     return errorResponse(error);
   }

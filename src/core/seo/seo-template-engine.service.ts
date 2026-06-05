@@ -167,9 +167,11 @@ function buildFromTemplate(template: SeoTemplateDefinition, context: TemplateCon
   const path = render(template.path, context).replace(/\/+/g, '/');
   const product = context.Product || extra.productName || '';
   const location = context.Location || extra.locationName || '';
-  const title = render(template.title, context);
-  const metaDescription = render(template.metaDescription, context);
-  const h1 = render(template.h1, context);
+  const title = extra.title || render(template.title, context);
+  const metaDescription = extra.metaDescription || render(template.metaDescription, context);
+  const h1 = extra.h1 || render(template.h1, context);
+  const targetKeyword = extra.targetKeyword || render(template.targetKeyword, context);
+  const introCopy = extra.introCopy || render(template.introCopy, context);
   return {
     id: `seo-${slugify(path)}`,
     slug: slugify(path),
@@ -184,11 +186,11 @@ function buildFromTemplate(template: SeoTemplateDefinition, context: TemplateCon
     noFollow: Boolean(extra.noFollow),
     includeInSitemap: extra.includeInSitemap ?? template.includeInSitemap,
     schemaTypes: extra.schemaTypes || template.schemaTypes,
-    targetKeyword: render(template.targetKeyword, context),
+    targetKeyword,
     productName: product,
     locationName: location,
     templateKey: template.key,
-    introCopy: render(template.introCopy, context),
+    introCopy,
     faqItems: extra.faqItems || productFaq(product || 'print', location || undefined),
     internalLinks: extra.internalLinks || localLinks(context.ProductSlug, context.LocationSlug),
     metadata: {
@@ -268,7 +270,7 @@ export async function generateSeoPagesFromTemplates(request: Request, options: {
 
   if (keys.includes('guide')) {
     for (const guide of DEFAULT_GUIDES) {
-      pages.push(buildFromTemplate(defaultSeoTemplates[5], { Product: guide.name, ProductSlug: guide.slug, Brand: BRAND, SiteUrl: SITE_URL }, { status: options.publish ? 'published' : 'draft', targetKeyword: guide.keyword, introCopy: guide.intro, metadata: { guide: true } } as any));
+      pages.push(buildFromTemplate(defaultSeoTemplates[5], { Product: guide.name, ProductSlug: guide.slug, Brand: BRAND, SiteUrl: SITE_URL }, { status: options.publish ? 'published' : 'draft', targetKeyword: guide.keyword, introCopy: guide.intro, metadata: { guide: true } }));
     }
   }
 

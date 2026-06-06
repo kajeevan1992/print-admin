@@ -79,6 +79,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
   { label: 'Print Store', href: '/channels', iconKey: 'Store', order: 260, roles: TENANT_ROLES },
   { label: 'Launch Operations', iconKey: 'Rocket', order: 265, roles: TENANT_ROLES, children: [
     { label: 'Launch Operations', href: '/launch-operations', iconKey: 'Rocket', order: 10 },
+    { label: 'Launch Readiness', href: '/launch-readiness', iconKey: 'ShieldCheck', order: 15 },
     { label: 'Location Manager', href: '/location-manager', iconKey: 'Map', order: 20 },
     { label: 'Collection Handover', href: '/collection-handover', iconKey: 'ClipboardCheck', order: 30 },
     { label: 'Ready Collection Automation', href: '/ready-collection-automation', iconKey: 'Activity', order: 40 },
@@ -216,6 +217,7 @@ const SUPER_ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
 
 export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [
   { label: 'Launch Operations', href: '/launch-operations', iconKey: 'Rocket', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 10, roles: TENANT_ROLES, surface: 'sidebar', description: 'Launch operations hub for locations, collection handover and email sending.' },
+  { label: 'Launch Readiness', href: '/launch-readiness', iconKey: 'ShieldCheck', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 15, roles: TENANT_ROLES, surface: 'sidebar', description: 'Run read-only launch checks across locations, SEO, collection, email and VAT.' },
   { label: 'Location Manager', href: '/location-manager', iconKey: 'Map', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 20, roles: TENANT_ROLES, surface: 'sidebar', description: 'Manage stores, branches, partner collection points and service areas.' },
   { label: 'Collection Handover', href: '/collection-handover', iconKey: 'ClipboardCheck', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 30, roles: TENANT_ROLES, surface: 'sidebar', description: 'Verify collection PIN/QR passes and mark orders collected.' },
   { label: 'Ready Collection Automation', href: '/ready-collection-automation', iconKey: 'Activity', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 40, roles: TENANT_ROLES, surface: 'sidebar', description: 'Queue or send ready-for-collection notifications for ready orders.' },

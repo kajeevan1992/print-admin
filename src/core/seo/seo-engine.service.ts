@@ -68,6 +68,7 @@ function words(value: string) { return String(value || '').trim().split(/\s+/).f
 function lowerIncludes(haystack: string, needle: string) { return String(haystack || '').toLowerCase().includes(String(needle || '').toLowerCase()); }
 function iso(value: Date | string | undefined) { return value ? new Date(value).toISOString() : now(); }
 function parseJson(value: any) { if (!value) return {}; if (typeof value === 'string') { try { return JSON.parse(value); } catch { return {}; } } return value; }
+function tenantSafeId(prefix: string, tenantId: string, slug: string) { return `${prefix}-${slugify(tenantId)}-${slugify(slug)}`.slice(0, 180); }
 
 async function ensureSeoStorage() {
   await (prisma as any).$executeRawUnsafe(`
@@ -97,49 +98,13 @@ function defaultFaq(product = 'print', location = 'Sidcup') {
 }
 
 export const defaultSeoPages: SeoPageRecord[] = [
-  {
-    id: 'seo-home', slug: 'home', path: '/', pageType: 'home', status: 'published',
-    title: 'Holo Print | Design, Print, Sign and Web in Sidcup',
-    metaDescription: 'Holo Print offers business cards, flyers, leaflets, posters, banners, stickers, shop boards, booklets, design support and local print services in Sidcup.',
-    h1: 'Design, print, sign and web support in Sidcup', canonicalUrl: canonical('/'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'printing in Sidcup', locationName: 'Sidcup', introCopy: 'Order print online, upload artwork and get local support from Holo Print.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'All products', href: '/all-products' }, { label: 'Contact', href: '/contact' }], ogImage: `${SITE_URL}/images/hero-slide-1.svg`, twitterCard: 'summary_large_image',
-  },
-  {
-    id: 'seo-contact', slug: 'contact', path: '/contact', pageType: 'static', status: 'published',
-    title: 'Contact Holo Print | Printing in Sidcup', metaDescription: 'Contact Holo Print for business cards, flyers, leaflets, banners, signage, stickers, booklets and artwork help in Sidcup.',
-    h1: 'Contact Holo Print in Sidcup', canonicalUrl: canonical('/contact'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'contact Holo Print', locationName: 'Sidcup', introCopy: 'Speak to Holo Print about local printing, quotes, artwork and collection.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'Request a quote', href: '/bespoke-quote' }],
-  },
-  {
-    id: 'seo-business-cards', slug: 'standard-business-cards', path: '/standard-business-cards', pageType: 'product', status: 'published',
-    title: 'Business Cards Printing | Holo Print Sidcup', metaDescription: 'Order professional business cards from Holo Print. Choose paper, finish, quantity and artwork support with local collection or delivery.',
-    h1: 'Business cards printing', canonicalUrl: canonical('/standard-business-cards'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards printing', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product', introCopy: 'Professional business cards for local businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers' }, { label: 'Artwork upload', href: '/artwork-upload' }], ogImage: `${SITE_URL}/images/business-card-front.svg`, metadata: { category: 'Business stationery' },
-  },
-  {
-    id: 'seo-flyers', slug: 'flyers', path: '/flyers', pageType: 'product', status: 'published',
-    title: 'Flyers & Leaflets Printing | Holo Print', metaDescription: 'Print flyers and leaflets online with Holo Print. Ideal for menus, promotions, events and local business marketing.',
-    h1: 'Flyers and leaflets printing', canonicalUrl: canonical('/flyers'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers and leaflets printing', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/standard-business-cards' }, { label: 'Posters', href: '/posters-large-format-prints' }], ogImage: `${SITE_URL}/images/flyer-front.svg`, metadata: { category: 'Marketing print' },
-  },
-  {
-    id: 'seo-business-cards-sidcup', slug: 'business-cards-sidcup', path: '/business-cards/sidcup', pageType: 'product-location', status: 'draft',
-    title: 'Business Cards Sidcup | Order Online & Collect Locally | Holo Print', metaDescription: 'Order business cards in Sidcup with Holo Print. Upload artwork online, request design help and collect locally or choose delivery.',
-    h1: 'Business cards in Sidcup', canonicalUrl: canonical('/business-cards/sidcup'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards Sidcup', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Business cards for local Sidcup businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/standard-business-cards' }, { label: 'Artwork guide', href: '/artwork-upload' }],
-  },
-  {
-    id: 'seo-flyers-sidcup', slug: 'flyers-sidcup', path: '/flyers/sidcup', pageType: 'product-location', status: 'draft',
-    title: 'Flyers & Leaflets Sidcup | Local Print & Collection | Holo Print', metaDescription: 'Print flyers and leaflets in Sidcup with online ordering, artwork upload, local collection and delivery options from Holo Print.',
-    h1: 'Flyers and leaflets in Sidcup', canonicalUrl: canonical('/flyers/sidcup'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers Sidcup', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers' }, { label: 'Contact', href: '/contact' }],
-  },
-  {
-    id: 'seo-print-collection-wimbledon', slug: 'print-collection-wimbledon', path: '/print-collection/wimbledon', pageType: 'collection-point', status: 'draft',
-    title: 'Print Collection Wimbledon | Order Online, Collect Locally | Holo Print', metaDescription: 'Order print online from Holo Print and collect from a Wimbledon partner collection point when available. Honest local collection, not a fake branch.',
-    h1: 'Print collection in Wimbledon', canonicalUrl: canonical('/print-collection/wimbledon'), noIndex: false, noFollow: false, includeInSitemap: true,
-    schemaTypes: ['CollectionPage', 'FAQPage', 'WebPage'], targetKeyword: 'print collection Wimbledon', locationName: 'Wimbledon', templateKey: 'collection-point', introCopy: 'Order online and collect locally from an approved partner point when the collection network is active.', faqItems: defaultFaq('print orders', 'Wimbledon'), internalLinks: [{ label: 'Business cards', href: '/business-cards/wimbledon' }, { label: 'Contact', href: '/contact' }], metadata: { googleBusinessEligible: false, locationTruthRule: 'partner collection point, not Holo Print branch' },
-  },
+  { id: 'seo-home', slug: 'home', path: '/', pageType: 'home', status: 'published', title: 'Holo Print | Design, Print, Sign and Web in Sidcup', metaDescription: 'Holo Print offers business cards, flyers, leaflets, posters, banners, stickers, shop boards, booklets, design support and local print services in Sidcup.', h1: 'Design, print, sign and web support in Sidcup', canonicalUrl: canonical('/'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'printing in Sidcup', locationName: 'Sidcup', introCopy: 'Order print online, upload artwork and get local support from Holo Print.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'All products', href: '/all-products' }, { label: 'Contact', href: '/contact' }], ogImage: `${SITE_URL}/images/hero-slide-1.svg`, twitterCard: 'summary_large_image' },
+  { id: 'seo-contact', slug: 'contact', path: '/contact', pageType: 'static', status: 'published', title: 'Contact Holo Print | Printing in Sidcup', metaDescription: 'Contact Holo Print for business cards, flyers, leaflets, banners, signage, stickers, booklets and artwork help in Sidcup.', h1: 'Contact Holo Print in Sidcup', canonicalUrl: canonical('/contact'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['Organization', 'WebPage'], targetKeyword: 'contact Holo Print', locationName: 'Sidcup', introCopy: 'Speak to Holo Print about local printing, quotes, artwork and collection.', faqItems: defaultFaq('printing', 'Sidcup'), internalLinks: [{ label: 'Request a quote', href: '/bespoke-quote' }] },
+  { id: 'seo-business-cards', slug: 'standard-business-cards', path: '/standard-business-cards', pageType: 'product', status: 'published', title: 'Business Cards Printing | Holo Print Sidcup', metaDescription: 'Order professional business cards from Holo Print. Choose paper, finish, quantity and artwork support with local collection or delivery.', h1: 'Business cards printing', canonicalUrl: canonical('/standard-business-cards'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards printing', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product', introCopy: 'Professional business cards for local businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers' }, { label: 'Artwork upload', href: '/artwork-upload' }], ogImage: `${SITE_URL}/images/business-card-front.svg`, metadata: { category: 'Business stationery' } },
+  { id: 'seo-flyers', slug: 'flyers', path: '/flyers', pageType: 'product', status: 'published', title: 'Flyers & Leaflets Printing | Holo Print', metaDescription: 'Print flyers and leaflets online with Holo Print. Ideal for menus, promotions, events and local business marketing.', h1: 'Flyers and leaflets printing', canonicalUrl: canonical('/flyers'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers and leaflets printing', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/standard-business-cards' }, { label: 'Posters', href: '/posters-large-format-prints' }], ogImage: `${SITE_URL}/images/flyer-front.svg`, metadata: { category: 'Marketing print' } },
+  { id: 'seo-business-cards-sidcup', slug: 'business-cards-sidcup', path: '/business-cards/sidcup', pageType: 'product-location', status: 'draft', title: 'Business Cards Sidcup | Order Online & Collect Locally | Holo Print', metaDescription: 'Order business cards in Sidcup with Holo Print. Upload artwork online, request design help and collect locally or choose delivery.', h1: 'Business cards in Sidcup', canonicalUrl: canonical('/business-cards/sidcup'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'business cards Sidcup', productName: 'Business Cards', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Business cards for local Sidcup businesses, startups, events and trades.', faqItems: defaultFaq('business cards', 'Sidcup'), internalLinks: [{ label: 'Business cards', href: '/standard-business-cards' }, { label: 'Artwork guide', href: '/artwork-upload' }] },
+  { id: 'seo-flyers-sidcup', slug: 'flyers-sidcup', path: '/flyers/sidcup', pageType: 'product-location', status: 'draft', title: 'Flyers & Leaflets Sidcup | Local Print & Collection | Holo Print', metaDescription: 'Print flyers and leaflets in Sidcup with online ordering, artwork upload, local collection and delivery options from Holo Print.', h1: 'Flyers and leaflets in Sidcup', canonicalUrl: canonical('/flyers/sidcup'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], targetKeyword: 'flyers Sidcup', productName: 'Flyers & Leaflets', locationName: 'Sidcup', templateKey: 'product-location', introCopy: 'Flyers and leaflets for local promotions, menus, events and business marketing.', faqItems: defaultFaq('flyers and leaflets', 'Sidcup'), internalLinks: [{ label: 'Flyers', href: '/flyers' }, { label: 'Contact', href: '/contact' }] },
+  { id: 'seo-print-collection-wimbledon', slug: 'print-collection-wimbledon', path: '/print-collection/wimbledon', pageType: 'collection-point', status: 'draft', title: 'Print Collection Wimbledon | Order Online, Collect Locally | Holo Print', metaDescription: 'Order print online from Holo Print and collect from a Wimbledon partner collection point when available. Honest local collection, not a fake branch.', h1: 'Print collection in Wimbledon', canonicalUrl: canonical('/print-collection/wimbledon'), noIndex: false, noFollow: false, includeInSitemap: true, schemaTypes: ['CollectionPage', 'FAQPage', 'WebPage'], targetKeyword: 'print collection Wimbledon', locationName: 'Wimbledon', templateKey: 'collection-point', introCopy: 'Order online and collect locally from an approved partner point when the collection network is active.', faqItems: defaultFaq('print orders', 'Wimbledon'), internalLinks: [{ label: 'Business cards', href: '/business-cards/wimbledon' }, { label: 'Contact', href: '/contact' }], metadata: { googleBusinessEligible: false, locationTruthRule: 'partner collection point, not Holo Print branch' } },
 ];
 
 export function analyseSeoReadability(page: Pick<SeoPageRecord, 'introCopy' | 'metaDescription' | 'faqItems'>) {
@@ -168,39 +133,35 @@ export function auditSeoPage(page: SeoPageRecord) {
   const descriptionLength = page.metaDescription?.length || 0;
   const keyword = page.targetKeyword || '';
   if (!page.title) errors.push('Missing SEO title.');
-  if (titleLength && (titleLength < 35 || titleLength > 70)) warnings.push(`Title length is ${titleLength}; aim for 35–70 characters.`);
+  if (titleLength && (titleLength < 35 || titleLength > 70)) warnings.push(`Title length is ${titleLength}; aim for 35-70 characters.`);
   if (!page.metaDescription) errors.push('Missing meta description.');
-  if (descriptionLength && (descriptionLength < 90 || descriptionLength > 165)) warnings.push(`Meta description length is ${descriptionLength}; aim for 90–165 characters.`);
+  if (descriptionLength && (descriptionLength < 110 || descriptionLength > 160)) warnings.push(`Meta description length is ${descriptionLength}; aim for 110-160 characters.`);
   if (!page.h1) errors.push('Missing H1.');
-  if (!page.canonicalUrl) errors.push('Missing canonical URL.');
-  if (page.includeInSitemap && page.noIndex) errors.push('Page cannot be both no-index and included in sitemap.');
-  if (!keyword) warnings.push('Missing target keyword.');
-  if (keyword && !lowerIncludes(page.title, keyword.split(' ')[0])) warnings.push('Target keyword is not clearly represented in the SEO title.');
-  if (keyword && !lowerIncludes(page.metaDescription, keyword.split(' ')[0])) warnings.push('Target keyword is not clearly represented in the meta description.');
-  if (!page.schemaTypes?.length || page.schemaTypes.includes('None')) warnings.push('No schema selected.');
-  if ((page.pageType === 'location' || page.pageType === 'product-location' || page.pageType === 'collection-point') && !page.locationName) errors.push('Location SEO page is missing location name.');
-  if (page.pageType === 'product-location' && !page.productName) errors.push('Product-location SEO page is missing product name.');
-  if (page.pageType === 'collection-point' && page.schemaTypes.includes('LocalBusiness') && page.metadata?.googleBusinessEligible === false) errors.push('Partner collection points must not use LocalBusiness schema as fake Holo Print branches.');
-  if (!page.introCopy || page.introCopy.length < 80) warnings.push('Intro copy is weak or missing; add useful local/product context.');
-  if (!page.internalLinks?.length) warnings.push('Missing internal links.');
-  if ((page.internalLinks?.length || 0) > 0 && (page.internalLinks?.length || 0) < 2) warnings.push('Add at least two useful internal links where possible.');
-  if (!page.faqItems?.length) warnings.push('Missing FAQ block.');
-  if (!page.ogImage && !page.twitterImage) warnings.push('No social sharing image set; storefront will use the default OG image.');
+  if (!page.path?.startsWith('/')) errors.push('Path must start with /.');
+  if (!page.canonicalUrl?.startsWith('http')) warnings.push('Canonical URL should be absolute.');
+  if (keyword && !lowerIncludes(page.title, keyword.split(' ')[0])) warnings.push('SEO title should include the target keyword or its main word.');
+  if (keyword && !lowerIncludes(page.metaDescription, keyword.split(' ')[0])) warnings.push('Meta description should include the target keyword or its main word.');
+  if ((page.pageType === 'product-location' || page.pageType === 'location' || page.pageType === 'collection-point' || page.pageType === 'service-area') && !page.locationName) warnings.push('Local SEO page is missing location name.');
+  if ((page.pageType === 'product' || page.pageType === 'product-location') && !page.productName) warnings.push('Product SEO page is missing product name.');
+  if (page.pageType === 'collection-point' && page.schemaTypes?.includes('LocalBusiness') && page.metadata?.googleBusinessEligible === false) errors.push('Partner collection points must not use LocalBusiness schema.');
+  if (page.noIndex && page.includeInSitemap) warnings.push('No-index pages should not be included in sitemap.');
+  if (!page.faqItems?.length && (page.schemaTypes || []).includes('FAQPage')) warnings.push('FAQPage schema selected but no FAQs are configured.');
+  if (!page.internalLinks?.length) warnings.push('Add internal links so users and crawlers can move to related pages.');
   const readability = analyseSeoReadability(page);
   warnings.push(...readability.warnings);
-  const score = Math.max(0, Math.round(100 - errors.length * 20 - warnings.length * 5));
-  return { errors, warnings, score, readability };
+  const score = Math.max(0, 100 - errors.length * 25 - warnings.length * 7);
+  return { score, warnings, errors, readability };
 }
 
 function socialDefaults(page: SeoPageRecord) {
   return {
     ogTitle: page.ogTitle || page.title,
     ogDescription: page.ogDescription || page.metaDescription,
-    ogImage: page.ogImage || page.metadata?.image || DEFAULT_OG_IMAGE,
+    ogImage: page.ogImage || page.twitterImage || DEFAULT_OG_IMAGE,
     twitterTitle: page.twitterTitle || page.ogTitle || page.title,
     twitterDescription: page.twitterDescription || page.ogDescription || page.metaDescription,
-    twitterImage: page.twitterImage || page.ogImage || page.metadata?.image || DEFAULT_OG_IMAGE,
-    twitterCard: page.twitterCard || 'summary_large_image' as SeoTwitterCard,
+    twitterImage: page.twitterImage || page.ogImage || DEFAULT_OG_IMAGE,
+    twitterCard: page.twitterCard || 'summary_large_image',
   };
 }
 
@@ -209,7 +170,7 @@ function toRecord(item: CoreCatalogRow): SeoPageRecord {
   const base: SeoPageRecord = {
     id: item.id,
     slug: item.slug,
-    path: meta.path || `/${item.slug}`,
+    path: cleanPath(meta.path || `/${item.slug}`),
     pageType: meta.pageType || 'static',
     status: meta.status || 'draft',
     title: meta.title || item.name || '',
@@ -271,17 +232,7 @@ export async function listSeoPages(request: Request, filters: { status?: string;
   if (filters.pageType && filters.pageType !== 'all') items = items.filter((item) => item.pageType === filters.pageType);
   const q = String(filters.search || '').trim().toLowerCase();
   if (q) items = items.filter((item) => [item.title, item.path, item.targetKeyword, item.locationName, item.productName].join(' ').toLowerCase().includes(q));
-  const summary = {
-    total: items.length,
-    published: items.filter((item) => item.status === 'published').length,
-    draft: items.filter((item) => item.status === 'draft').length,
-    hidden: items.filter((item) => item.status === 'hidden').length,
-    indexable: items.filter((item) => !item.noIndex && item.includeInSitemap).length,
-    errors: items.reduce((sum, item) => sum + (item.errors?.length || 0), 0),
-    warnings: items.reduce((sum, item) => sum + (item.warnings?.length || 0), 0),
-    averageScore: items.length ? Math.round(items.reduce((sum, item) => sum + (item.qualityScore || 0), 0) / items.length) : 0,
-    averageReadability: items.length ? Math.round(items.reduce((sum, item) => sum + (item.readabilityScore || 0), 0) / items.length) : 0,
-  };
+  const summary = { total: items.length, published: items.filter((item) => item.status === 'published').length, draft: items.filter((item) => item.status === 'draft').length, hidden: items.filter((item) => item.status === 'hidden').length, indexable: items.filter((item) => !item.noIndex && item.includeInSitemap).length, errors: items.reduce((sum, item) => sum + (item.errors?.length || 0), 0), warnings: items.reduce((sum, item) => sum + (item.warnings?.length || 0), 0), averageScore: items.length ? Math.round(items.reduce((sum, item) => sum + (item.qualityScore || 0), 0) / items.length) : 0, averageReadability: items.length ? Math.round(items.reduce((sum, item) => sum + (item.readabilityScore || 0), 0) / items.length) : 0 };
   return { items, summary, resource: RESOURCE };
 }
 
@@ -290,9 +241,8 @@ export async function saveSeoPage(request: Request, input: Partial<SeoPageRecord
   const ctx = tenantContextFromRequest(request);
   const path = cleanPath(input.path || `/${input.slug || input.id || 'seo-page'}`);
   const slug = slugify(input.slug || path);
-  const page: SeoPageRecord = {
-    id: String(input.id || `seo-${slug}`), slug, path, pageType: input.pageType || 'static', status: input.status || 'draft', title: input.title || '', metaDescription: input.metaDescription || '', h1: input.h1 || input.title || '', canonicalUrl: input.canonicalUrl || canonical(path), noIndex: Boolean(input.noIndex), noFollow: Boolean(input.noFollow), includeInSitemap: input.includeInSitemap !== false, schemaTypes: input.schemaTypes?.length ? input.schemaTypes : ['WebPage'], targetKeyword: input.targetKeyword || '', locationName: input.locationName || '', productName: input.productName || '', templateKey: input.templateKey || '', introCopy: input.introCopy || '', faqItems: input.faqItems || [], internalLinks: input.internalLinks || [], ogTitle: input.ogTitle || '', ogDescription: input.ogDescription || '', ogImage: input.ogImage || '', twitterTitle: input.twitterTitle || '', twitterDescription: input.twitterDescription || '', twitterImage: input.twitterImage || '', twitterCard: input.twitterCard || 'summary_large_image', metadata: input.metadata || {}, updatedAt: now(), createdAt: input.createdAt || now(),
-  };
+  const safeId = tenantSafeId('seo', ctx.tenantId, slug);
+  const page: SeoPageRecord = { id: safeId, slug, path, pageType: input.pageType || 'static', status: input.status || 'draft', title: input.title || '', metaDescription: input.metaDescription || '', h1: input.h1 || input.title || '', canonicalUrl: input.canonicalUrl || canonical(path), noIndex: Boolean(input.noIndex), noFollow: Boolean(input.noFollow), includeInSitemap: input.includeInSitemap !== false, schemaTypes: input.schemaTypes?.length ? input.schemaTypes : ['WebPage'], targetKeyword: input.targetKeyword || '', locationName: input.locationName || '', productName: input.productName || '', templateKey: input.templateKey || '', introCopy: input.introCopy || '', faqItems: input.faqItems || [], internalLinks: input.internalLinks || [], ogTitle: input.ogTitle || '', ogDescription: input.ogDescription || '', ogImage: input.ogImage || '', twitterTitle: input.twitterTitle || '', twitterDescription: input.twitterDescription || '', twitterImage: input.twitterImage || '', twitterCard: input.twitterCard || 'summary_large_image', metadata: input.metadata || {}, updatedAt: now(), createdAt: input.createdAt || now() };
   const metadataJson = JSON.stringify(toMetadata(page));
   const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
     INSERT INTO "CoreCatalogRecord" ("id", "tenantId", "resource", "slug", "name", "description", "metadataJson", "createdAt", "updatedAt")
@@ -307,27 +257,16 @@ export async function saveSeoPage(request: Request, input: Partial<SeoPageRecord
   return toRecord(rows[0]);
 }
 
-export async function seedSeoPages(request: Request) {
-  const saved = [];
-  for (const page of defaultSeoPages) saved.push(await saveSeoPage(request, page));
-  return saved;
-}
+export async function seedSeoPages(request: Request) { const saved = []; for (const page of defaultSeoPages) saved.push(await saveSeoPage(request, page)); return saved; }
 
 export async function deleteSeoPage(request: Request, idOrSlug: string) {
   await ensureSeoStorage();
   const ctx = tenantContextFromRequest(request);
-  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
-    SELECT * FROM "CoreCatalogRecord"
-    WHERE "tenantId" = ${ctx.tenantId} AND "resource" = ${RESOURCE} AND ("id" = ${idOrSlug} OR "slug" = ${idOrSlug})
-    LIMIT 1
-  `;
+  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`SELECT * FROM "CoreCatalogRecord" WHERE "tenantId" = ${ctx.tenantId} AND "resource" = ${RESOURCE} AND ("id" = ${idOrSlug} OR "slug" = ${idOrSlug}) LIMIT 1`;
   const row = rows[0];
   if (!row) return { ok: true, deleted: 0 };
   await (prisma as any).$executeRaw`DELETE FROM "CoreCatalogRecord" WHERE "id" = ${row.id}`;
   return { ok: true, deleted: 1, item: toRecord(row) };
 }
 
-export async function getSitemapSeoPages(request: Request) {
-  const data = await listSeoPages(request, { status: 'published' });
-  return data.items.filter((item) => item.includeInSitemap && !item.noIndex).map((item) => ({ loc: item.canonicalUrl || canonical(item.path), path: item.path, lastmod: item.updatedAt || now(), priority: item.pageType === 'home' ? 1 : item.pageType === 'product-location' ? 0.8 : 0.7, changefreq: item.pageType === 'home' ? 'daily' : 'weekly' }));
-}
+export async function getSitemapSeoPages(request: Request) { const data = await listSeoPages(request, { status: 'published' }); return data.items.filter((item) => item.includeInSitemap && !item.noIndex).map((item) => ({ loc: item.canonicalUrl || canonical(item.path), path: item.path, lastmod: item.updatedAt || now(), priority: item.pageType === 'home' ? 1 : item.pageType === 'product-location' ? 0.8 : 0.7, changefreq: item.pageType === 'home' ? 'daily' : 'weekly' })); }

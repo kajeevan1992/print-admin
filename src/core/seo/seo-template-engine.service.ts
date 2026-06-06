@@ -33,6 +33,18 @@ type SeoTemplateDefinition = {
   notes: string;
 };
 
+type CoreCatalogRow = {
+  id: string;
+  tenantId: string;
+  resource: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  metadataJson: any;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
 const SITE_URL = (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || 'https://holoprint.co.uk').replace(/\/$/, '');
 const BRAND = 'Holo Print';
 const TEMPLATE_RESOURCE = 'seo-templates';
@@ -53,72 +65,12 @@ const DEFAULT_GUIDES = [
 ];
 
 export const defaultSeoTemplates: SeoTemplateDefinition[] = [
-  {
-    key: 'product', label: 'Product page', pageType: 'product', defaultStatus: 'draft', includeInSitemap: true,
-    title: '{Product} Printing | Order Online | {Brand}',
-    metaDescription: 'Order {Product} online from {Brand}. Upload artwork, choose options, request design help and get local print support from Sidcup.',
-    h1: '{Product} printing from {Brand}',
-    path: '/{ProductSlug}',
-    targetKeyword: '{Product} printing',
-    introCopy: '{Product} from {Brand} is built for local businesses, events, trades and everyday customers who need reliable print, artwork support and clear checkout options.',
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-    notes: 'Core product SEO page template.',
-  },
-  {
-    key: 'product-location', label: 'Product + location page', pageType: 'product-location', defaultStatus: 'draft', includeInSitemap: true,
-    title: '{Product} in {Location} | Order Online & Collect Locally | {Brand}',
-    metaDescription: 'Order {Product} in {Location} with {Brand}. Upload artwork online, request design help, choose delivery or local collection where available.',
-    h1: '{Product} in {Location}',
-    path: '/{ProductSlug}/{LocationSlug}',
-    targetKeyword: '{Product} {Location}',
-    introCopy: '{Brand} helps customers in {Location} order {Product} online with clear artwork upload, quote support, payment options and honest local collection or delivery information.',
-    schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-    notes: 'High-value local SEO page. Must be unique and useful, not a thin duplicate.',
-  },
-  {
-    key: 'location', label: 'Owned store location page', pageType: 'location', defaultStatus: 'draft', includeInSitemap: true,
-    title: 'Printing in {Location} | Local Print Shop | {Brand}',
-    metaDescription: '{Brand} provides local printing in {Location}: business cards, flyers, banners, posters, stickers, signage, booklets, artwork help and collection options.',
-    h1: 'Printing in {Location}',
-    path: '/locations/{LocationSlug}',
-    targetKeyword: 'printing in {Location}',
-    introCopy: '{Brand} supports customers in {Location} with design, print, signage and web support. Use this page for genuine owned store/service information only.',
-    schemaTypes: ['LocalBusiness', 'Organization', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-    notes: 'Only for real Holo Print branches or staffed stores eligible for Google Business Profile.',
-  },
-  {
-    key: 'collection-point', label: 'Partner collection point page', pageType: 'collection-point', defaultStatus: 'draft', includeInSitemap: true,
-    title: 'Print Collection {Location} | Order Online, Collect Locally | {Brand}',
-    metaDescription: 'Order print online from {Brand} and collect in {Location} from an approved partner collection point where available. Honest local collection, not a fake branch.',
-    h1: 'Print collection in {Location}',
-    path: '/print-collection/{LocationSlug}',
-    targetKeyword: 'print collection {Location}',
-    introCopy: 'Customers in {Location} can order online with {Brand} and collect from an approved partner collection point where available. This is a collection option, not a fake Holo Print branch.',
-    schemaTypes: ['CollectionPage', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-    notes: 'Never use LocalBusiness schema unless it is a real staffed Holo Print branch.',
-  },
-  {
-    key: 'service-area', label: 'Service area page', pageType: 'service-area', defaultStatus: 'draft', includeInSitemap: true,
-    title: 'Printing for {Location} | Online Print & Delivery | {Brand}',
-    metaDescription: '{Brand} supports customers in {Location} with online print ordering, artwork upload, quotes, delivery and future collection options.',
-    h1: 'Printing for customers in {Location}',
-    path: '/printing/{LocationSlug}',
-    targetKeyword: 'printing {Location}',
-    introCopy: '{Brand} can support customers in {Location} through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.',
-    schemaTypes: ['Service', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-    notes: 'Service area page. Do not pretend there is a physical Holo Print branch.',
-  },
-  {
-    key: 'guide', label: 'Guide page', pageType: 'guide', defaultStatus: 'draft', includeInSitemap: true,
-    title: '{Product} | Helpful Print Guide | {Brand}',
-    metaDescription: 'Read the {Product} guide from {Brand}. Learn how to prepare artwork, choose print options and avoid delays before ordering.',
-    h1: '{Product}',
-    path: '/guides/{ProductSlug}',
-    targetKeyword: '{Product}',
-    introCopy: '{Product} from {Brand}. This guide gives customers practical print, artwork and ordering advice before checkout.',
-    schemaTypes: ['FAQPage', 'BreadcrumbList', 'WebPage'],
-    notes: 'Evergreen guide template for artwork and product education.',
-  },
+  { key: 'product', label: 'Product page', pageType: 'product', defaultStatus: 'draft', includeInSitemap: true, title: '{Product} Printing | Order Online | {Brand}', metaDescription: 'Order {Product} online from {Brand}. Upload artwork, choose options, request design help and get local print support from Sidcup.', h1: '{Product} printing from {Brand}', path: '/{ProductSlug}', targetKeyword: '{Product} printing', introCopy: '{Product} from {Brand} is built for local businesses, events, trades and everyday customers who need reliable print, artwork support and clear checkout options.', schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], notes: 'Core product SEO page template.' },
+  { key: 'product-location', label: 'Product + location page', pageType: 'product-location', defaultStatus: 'draft', includeInSitemap: true, title: '{Product} in {Location} | Order Online & Collect Locally | {Brand}', metaDescription: 'Order {Product} in {Location} with {Brand}. Upload artwork online, request design help, choose delivery or local collection where available.', h1: '{Product} in {Location}', path: '/{ProductSlug}/{LocationSlug}', targetKeyword: '{Product} {Location}', introCopy: '{Brand} helps customers in {Location} order {Product} online with clear artwork upload, quote support, payment options and honest local collection or delivery information.', schemaTypes: ['Product', 'BreadcrumbList', 'FAQPage', 'WebPage'], notes: 'High-value local SEO page. Must be unique and useful, not a thin duplicate.' },
+  { key: 'location', label: 'Owned store location page', pageType: 'location', defaultStatus: 'draft', includeInSitemap: true, title: 'Printing in {Location} | Local Print Shop | {Brand}', metaDescription: '{Brand} provides local printing in {Location}: business cards, flyers, banners, posters, stickers, signage, booklets, artwork help and collection options.', h1: 'Printing in {Location}', path: '/locations/{LocationSlug}', targetKeyword: 'printing in {Location}', introCopy: '{Brand} supports customers in {Location} with design, print, signage and web support. Use this page for genuine owned store/service information only.', schemaTypes: ['LocalBusiness', 'Organization', 'BreadcrumbList', 'FAQPage', 'WebPage'], notes: 'Only for real Holo Print branches or staffed stores eligible for Google Business Profile.' },
+  { key: 'collection-point', label: 'Partner collection point page', pageType: 'collection-point', defaultStatus: 'draft', includeInSitemap: true, title: 'Print Collection {Location} | Order Online, Collect Locally | {Brand}', metaDescription: 'Order print online from {Brand} and collect in {Location} from an approved partner collection point where available. Honest local collection, not a fake branch.', h1: 'Print collection in {Location}', path: '/print-collection/{LocationSlug}', targetKeyword: 'print collection {Location}', introCopy: 'Customers in {Location} can order online with {Brand} and collect from an approved partner collection point where available. This is a collection option, not a fake Holo Print branch.', schemaTypes: ['CollectionPage', 'BreadcrumbList', 'FAQPage', 'WebPage'], notes: 'Never use LocalBusiness schema unless it is a real staffed Holo Print branch.' },
+  { key: 'service-area', label: 'Service area page', pageType: 'service-area', defaultStatus: 'draft', includeInSitemap: true, title: 'Printing for {Location} | Online Print & Delivery | {Brand}', metaDescription: '{Brand} supports customers in {Location} with online print ordering, artwork upload, quotes, delivery and future collection options.', h1: 'Printing for customers in {Location}', path: '/printing/{LocationSlug}', targetKeyword: 'printing {Location}', introCopy: '{Brand} can support customers in {Location} through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', schemaTypes: ['Service', 'BreadcrumbList', 'FAQPage', 'WebPage'], notes: 'Service area page. Do not pretend there is a physical Holo Print branch.' },
+  { key: 'guide', label: 'Guide page', pageType: 'guide', defaultStatus: 'draft', includeInSitemap: true, title: '{Product} | Helpful Print Guide | {Brand}', metaDescription: 'Read the {Product} guide from {Brand}. Learn how to prepare artwork, choose print options and avoid delays before ordering.', h1: '{Product}', path: '/guides/{ProductSlug}', targetKeyword: '{Product}', introCopy: '{Product} from {Brand}. This guide gives customers practical print, artwork and ordering advice before checkout.', schemaTypes: ['FAQPage', 'BreadcrumbList', 'WebPage'], notes: 'Evergreen guide template for artwork and product education.' },
 ];
 
 function slugify(value: string) {
@@ -131,6 +83,32 @@ function render(template: string, context: TemplateContext) {
 
 function canonical(path: string) {
   return `${SITE_URL}${path === '/' ? '' : path}`;
+}
+
+function parseJson(value: any) {
+  if (!value) return {};
+  if (typeof value === 'string') {
+    try { return JSON.parse(value); } catch { return {}; }
+  }
+  return value;
+}
+
+async function ensureTemplateStorage() {
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CoreCatalogRecord" (
+      "id" TEXT PRIMARY KEY,
+      "tenantId" TEXT NOT NULL,
+      "resource" TEXT NOT NULL,
+      "slug" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "description" TEXT NOT NULL DEFAULT '',
+      "metadataJson" JSONB,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await (prisma as any).$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_slug_key" ON "CoreCatalogRecord" ("tenantId", "resource", "slug")');
+  await (prisma as any).$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord" ("tenantId", "resource")');
 }
 
 function productFaq(product: string, location?: string) {
@@ -194,7 +172,7 @@ function buildFromTemplate(template: SeoTemplateDefinition, context: TemplateCon
     faqItems: extra.faqItems || productFaq(product || 'print', location || undefined),
     internalLinks: extra.internalLinks || localLinks(context.ProductSlug, context.LocationSlug),
     metadata: {
-      generatedBy: 'build-54-seo-template-engine',
+      generatedBy: 'seo-template-engine-corecatalog',
       templateLabel: template.label,
       templateNotes: template.notes,
       category: context.Category || '',
@@ -207,28 +185,60 @@ function buildFromTemplate(template: SeoTemplateDefinition, context: TemplateCon
 }
 
 async function liveProducts(tenantId: string) {
-  const rows = await (prisma as any).product.findMany({ where: { tenantId, isActive: true }, include: { category: true }, orderBy: { updatedAt: 'desc' }, take: 50 }).catch(() => []);
-  if (rows.length) return rows.map((row: any) => ({ id: row.id, slug: row.slug, title: row.title, name: row.title, categoryName: row.category?.name || '', categorySlug: row.category?.slug || '' }));
+  await ensureTemplateStorage();
+  try {
+    const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+      SELECT * FROM "CoreCatalogRecord"
+      WHERE "tenantId" = ${tenantId}
+        AND "resource" IN ('products', 'catalog-products', 'internal-products')
+      ORDER BY "updatedAt" DESC
+      LIMIT 50
+    `;
+    const mapped = rows.map((row) => {
+      const meta = parseJson(row.metadataJson);
+      return {
+        id: row.id,
+        slug: row.slug,
+        title: meta.title || meta.name || row.name,
+        name: meta.name || row.name,
+        categoryName: meta.categoryName || meta.category || '',
+        categorySlug: meta.categorySlug || meta.categoryId || '',
+      };
+    }).filter((item) => item.slug && item.title);
+    if (mapped.length) return mapped;
+  } catch {}
   return holoPrintLaunchProducts.map((product) => ({ id: product.id, slug: product.slug, title: product.title || product.name, name: product.name, categorySlug: product.categorySlug }));
 }
 
 export async function listSeoTemplates(request: Request) {
+  await ensureTemplateStorage();
   const ctx = tenantContextFromRequest(request);
-  const savedRows = await (prisma as any).coreCatalogRecord.findMany({ where: { tenantId: ctx.tenantId, resource: TEMPLATE_RESOURCE }, orderBy: { slug: 'asc' } }).catch(() => []);
-  const saved = savedRows.map((row: any) => ({ id: row.id, slug: row.slug, name: row.name, description: row.description, ...(row.metadataJson || {}) }));
+  const savedRows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+    SELECT * FROM "CoreCatalogRecord"
+    WHERE "tenantId" = ${ctx.tenantId} AND "resource" = ${TEMPLATE_RESOURCE}
+    ORDER BY "slug" ASC
+  `;
+  const saved = savedRows.map((row) => ({ id: row.id, slug: row.slug, name: row.name, description: row.description, ...parseJson(row.metadataJson) }));
   return { templates: saved.length ? saved : defaultSeoTemplates, savedCount: saved.length, defaultCount: defaultSeoTemplates.length };
 }
 
 export async function seedSeoTemplates(request: Request) {
+  await ensureTemplateStorage();
   const ctx = tenantContextFromRequest(request);
   const saved = [];
   for (const template of defaultSeoTemplates) {
-    const row = await (prisma as any).coreCatalogRecord.upsert({
-      where: { tenantId_resource_slug: { tenantId: ctx.tenantId, resource: TEMPLATE_RESOURCE, slug: template.key } },
-      update: { name: template.label, description: template.notes, metadataJson: template },
-      create: { id: `seo-template-${template.key}`, tenantId: ctx.tenantId, resource: TEMPLATE_RESOURCE, slug: template.key, name: template.label, description: template.notes, metadataJson: template },
-    });
-    saved.push(row.metadataJson || template);
+    const id = `seo-template-${template.key}`;
+    const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+      INSERT INTO "CoreCatalogRecord" ("id", "tenantId", "resource", "slug", "name", "description", "metadataJson", "createdAt", "updatedAt")
+      VALUES (${id}, ${ctx.tenantId}, ${TEMPLATE_RESOURCE}, ${template.key}, ${template.label}, ${template.notes}, ${JSON.stringify(template)}::jsonb, NOW(), NOW())
+      ON CONFLICT ("tenantId", "resource", "slug") DO UPDATE SET
+        "name" = EXCLUDED."name",
+        "description" = EXCLUDED."description",
+        "metadataJson" = EXCLUDED."metadataJson",
+        "updatedAt" = NOW()
+      RETURNING *
+    `;
+    saved.push(parseJson(rows[0]?.metadataJson) || template);
   }
   return saved;
 }
@@ -254,10 +264,7 @@ export async function generateSeoPagesFromTemplates(request: Request, options: {
     const productContext = contextForProduct(product);
     if (keys.includes('product')) pages.push(buildFromTemplate(defaultSeoTemplates[0], productContext, { status: options.publish ? 'published' : 'draft' }));
     if (keys.includes('product-location')) {
-      for (const location of locations) {
-        const locationContext = contextForLocation(location);
-        pages.push(buildFromTemplate(defaultSeoTemplates[1], { ...productContext, ...locationContext }, { status: options.publish ? 'published' : 'draft', metadata: { googleBusinessEligible: location.googleBusinessEligible, locationType: location.type } }));
-      }
+      for (const location of locations) pages.push(buildFromTemplate(defaultSeoTemplates[1], { ...productContext, ...contextForLocation(location) }, { status: options.publish ? 'published' : 'draft', metadata: { googleBusinessEligible: location.googleBusinessEligible, locationType: location.type } }));
     }
   }
 
@@ -269,9 +276,7 @@ export async function generateSeoPagesFromTemplates(request: Request, options: {
   }
 
   if (keys.includes('guide')) {
-    for (const guide of DEFAULT_GUIDES) {
-      pages.push(buildFromTemplate(defaultSeoTemplates[5], { Product: guide.name, ProductSlug: guide.slug, Brand: BRAND, SiteUrl: SITE_URL }, { status: options.publish ? 'published' : 'draft', targetKeyword: guide.keyword, introCopy: guide.intro, metadata: { guide: true } }));
-    }
+    for (const guide of DEFAULT_GUIDES) pages.push(buildFromTemplate(defaultSeoTemplates[5], { Product: guide.name, ProductSlug: guide.slug, Brand: BRAND, SiteUrl: SITE_URL }, { status: options.publish ? 'published' : 'draft', targetKeyword: guide.keyword, introCopy: guide.intro, metadata: { guide: true } }));
   }
 
   const saved = [];

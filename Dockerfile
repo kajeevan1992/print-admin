@@ -8,6 +8,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PNPM_HOME=/usr/local/share/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
+RUN apk add --no-cache openssl
 RUN npm install -g pnpm@9.15.9
 
 COPY package.json pnpm-lock.yaml* ./
@@ -21,6 +22,7 @@ ENV NODE_ENV=production
 ENV PNPM_HOME=/usr/local/share/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
+RUN apk add --no-cache openssl
 RUN npm install -g pnpm@9.15.9
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -36,7 +38,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
+RUN apk add --no-cache openssl \
+  && addgroup --system --gid 1001 nodejs \
+  && adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

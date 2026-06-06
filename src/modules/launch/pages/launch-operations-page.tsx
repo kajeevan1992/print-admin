@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, ClipboardCheck, Mail, Map, Rocket, ShieldCheck } from 'lucide-react';
+import { Activity, ClipboardCheck, Mail, Map, PackageCheck, Rocket, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 
 const tools = [
   ['Launch Readiness', '/launch-readiness', ShieldCheck, 'Run read-only launch checks across locations, SEO, collection, email and VAT.'],
+  ['Launch Test Order', '/launch-test-order', PackageCheck, 'Create an opt-in test order to verify VAT, collection pass and notification queueing.'],
   ['Location Manager', '/location-manager', Map, 'Manage stores, branches, collection points and service areas.'],
   ['Collection Handover', '/collection-handover', ClipboardCheck, 'Verify collection passes and mark orders collected.'],
   ['Ready Collection Automation', '/ready-collection-automation', Activity, 'Queue ready-for-collection messages for ready orders.'],
@@ -18,13 +19,13 @@ export function LaunchOperationsPage() {
     <div>
       <PageHeader
         title="Launch Operations"
-        subtitle="Quick access to the Holo Print launch tools for readiness checks, locations, collection handover and email sending."
+        subtitle="Quick access to the Holo Print launch tools for readiness checks, test orders, locations, collection handover and email sending."
         actions={<Link href="/launch-readiness" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black">Run Launch Readiness</Link>}
       />
       <div className="mb-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-100">
         <Rocket className="mr-2 inline h-4 w-4" /> These links reuse existing modules. No duplicate workflows are created here.
       </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         {tools.map(([title, href, Icon, body]) => (
           <Link key={href} href={href}>
             <Card className="h-full transition hover:border-sky-500/40 hover:bg-white/[0.05]">

@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import { listCollectionPoints } from '@/core/locations/collection-points.service';
+import { listFulfilmentLocations } from '@/core/locations/location-manager.service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const data = await listCollectionPoints(request, {
-      search: url.searchParams.get('search') || '',
+    const type = url.searchParams.get('type') || url.searchParams.get('kind') || 'all';
+    const data = await listFulfilmentLocations(request, {
       status: 'active',
-      kind: url.searchParams.get('kind') || 'all',
+      type: type === 'partner-collection' ? 'partner-collection-point' : type,
+      search: url.searchParams.get('search') || '',
+      publicOnly: true,
       checkoutOnly: url.searchParams.get('checkoutOnly') !== 'false',
       productSlug: url.searchParams.get('productSlug') || '',
     });
@@ -17,17 +19,21 @@ export async function GET(request: Request) {
       id: item.id,
       slug: item.slug,
       name: item.name,
-      kind: item.kind,
-      areaName: item.areaName,
-      town: item.town,
-      postcode: item.postcode,
-      openingHours: item.openingHours,
-      collectionInstructions: item.collectionInstructions,
-      customerNotes: item.customerNotes,
+      type: item.type,
+      kind: item.type === 'partner-collection-point' ? 'partner-collection' : item.type === 'service-area' ? 'service-area' : 'owned-branch',
+      areaName: item.name,
+      town: item.address?.town || '',
+      postcode: item.address?.postcode || '',
+      openingHours: item.collectionHours || item.openingHours,
+      cutoffTime: item.cutoffTime,
+      collectionInstructions: item.pickupInstructions,
+      customerNotes: item.customerFacingDescription,
       checkoutEnabled: item.checkoutEnabled,
-      productAvailabilityMode: item.productAvailabilityMode,
-      seoPath: item.seoPath,
-      sortOrder: item.sortOrder,
+      allowedProductSlugs: item.allowedProductSlugs,
+      blockedProductSlugs: item.blockedProductSlugs,
+      seoPath: item.seo?.path,
+      sortOrder: item.priority,
+      collectionFeeMinor: item.collectionFeeMinor,
     }));
     return NextResponse.json({ ok: true, source: 'internal-storefront-collection-points', data: { items, summary: data.summary } });
   } catch (error) {

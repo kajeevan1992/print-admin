@@ -63,6 +63,10 @@ function slugifyPath(path: string) {
     .replace(/^-+|-+$/g, '') || 'home';
 }
 
+function tenantSafeId(prefix: string, tenantId: string, slug: string) {
+  return `${prefix}-${slugifyPath(tenantId)}-${slugifyPath(slug)}`.slice(0, 180);
+}
+
 function parseJson(value: any) {
   if (!value) return {};
   if (typeof value === 'string') {
@@ -148,7 +152,7 @@ export async function saveSeoRedirect(request: Request, input: Partial<SeoRedire
   if (fromPath === '/') throw new Error('Do not redirect the homepage. Use a specific old URL.');
   if (toPath && fromPath === toPath) throw new Error('Redirect source and target cannot be the same.');
   const slug = slugifyPath(fromPath);
-  const id = String(input.id || `redir-${slug}`);
+  const id = String(input.id || tenantSafeId('redir', ctx.tenantId, slug));
   const meta: SeoRedirectRecord = {
     id,
     slug,

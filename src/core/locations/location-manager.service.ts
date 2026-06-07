@@ -7,6 +7,7 @@ export type FulfilmentLocationStatus = 'draft' | 'active' | 'paused' | 'hidden';
 
 type HoursRow = { day: string; open: string; close: string; closed?: boolean };
 type DropScheduleRow = { day: string; dropBy: string; readyFrom: string; note?: string };
+type CoreCatalogRow = { id: string; tenantId: string; resource: string; slug: string; name: string; description: string | null; metadataJson: any; createdAt: Date | string; updatedAt: Date | string };
 
 export type FulfilmentLocationRecord = {
   id: string;
@@ -17,6 +18,7 @@ export type FulfilmentLocationRecord = {
   publicPageEnabled: boolean;
   seoPageEnabled: boolean;
   googleBusinessEligible: boolean;
+  checkoutEnabled: boolean;
   address: { line1?: string; line2?: string; town?: string; county?: string; postcode?: string; country?: string };
   contact: { phone?: string; email?: string; managerName?: string };
   openingHours: HoursRow[];
@@ -41,46 +43,42 @@ export type FulfilmentLocationRecord = {
 const RESOURCE = 'fulfilment-locations';
 const SITE_URL = (process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || 'https://holoprint.co.uk').replace(/\/$/, '');
 
-function slugify(value: string) {
-  return String(value || '').toLowerCase().trim().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'location';
+function slugify(value: string) { return String(value || '').toLowerCase().trim().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'location'; }
+function safeId(prefix: string, tenantId: string, slug: string) { return `${prefix}-${slugify(tenantId)}-${slugify(slug)}`.slice(0, 180); }
+function parseJson(value: any) { if (!value) return {}; if (typeof value === 'string') { try { return JSON.parse(value); } catch { return {}; } } return value; }
+function iso(value: Date | string | undefined) { return value ? new Date(value).toISOString() : new Date().toISOString(); }
+function arr(value: any) { return Array.isArray(value) ? value.map(String).filter(Boolean) : []; }
+
+async function ensureLocationStorage() {
+  await (prisma as any).$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "CoreCatalogRecord" (
+      "id" TEXT PRIMARY KEY,
+      "tenantId" TEXT NOT NULL,
+      "resource" TEXT NOT NULL,
+      "slug" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "description" TEXT NOT NULL DEFAULT '',
+      "metadataJson" JSONB,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await (prisma as any).$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_slug_key" ON "CoreCatalogRecord" ("tenantId", "resource", "slug")');
+  await (prisma as any).$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord" ("tenantId", "resource")');
 }
+
 function pathFor(location: Pick<FulfilmentLocationRecord, 'type' | 'slug'>) {
   if (location.type === 'main-store' || location.type === 'owned-branch') return `/locations/${location.slug}`;
   if (location.type === 'partner-collection-point') return `/print-collection/${location.slug}`;
   return `/printing/${location.slug}`;
 }
-function defaultHours(): HoursRow[] {
-  return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => ({ day, open: '09:00', close: '17:30' }));
-}
-function defaultDropSchedule(): DropScheduleRow[] {
-  return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => ({ day, dropBy: '16:00', readyFrom: 'Next working day', note: 'Subject to payment and artwork approval.' }));
-}
+function defaultHours(): HoursRow[] { return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => ({ day, open: '09:00', close: '17:30' })); }
+function defaultDropSchedule(): DropScheduleRow[] { return ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => ({ day, dropBy: '16:00', readyFrom: 'Next working day', note: 'Subject to payment and artwork approval.' })); }
 function seoFor(location: FulfilmentLocationRecord) {
   const path = pathFor(location);
-  if (location.type === 'main-store' || location.type === 'owned-branch') return {
-    path,
-    title: `Printing in ${location.name} | Local Print Shop | Holo Print`,
-    metaDescription: `Holo Print provides local printing in ${location.name}: business cards, flyers, banners, posters, stickers, signage, booklets, artwork help and collection options.`,
-    h1: `Printing in ${location.name}`,
-    targetKeyword: `printing in ${location.name}`,
-    schemaTypes: ['LocalBusiness', 'Organization', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-  };
-  if (location.type === 'partner-collection-point') return {
-    path,
-    title: `Print Collection ${location.name} | Order Online, Collect Locally | Holo Print`,
-    metaDescription: `Order print online from Holo Print and collect in ${location.name} from an approved partner collection point where available. Honest local collection, not a fake branch.`,
-    h1: `Print collection in ${location.name}`,
-    targetKeyword: `print collection ${location.name}`,
-    schemaTypes: ['CollectionPage', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-  };
-  return {
-    path,
-    title: `Printing for ${location.name} | Online Print & Delivery | Holo Print`,
-    metaDescription: `Holo Print supports customers in ${location.name} with online print ordering, artwork upload, quotes, delivery and future collection options.`,
-    h1: `Printing for customers in ${location.name}`,
-    targetKeyword: `printing ${location.name}`,
-    schemaTypes: ['Service', 'BreadcrumbList', 'FAQPage', 'WebPage'],
-  };
+  if (location.type === 'main-store' || location.type === 'owned-branch') return { path, title: `Printing in ${location.name} | Local Print Shop | Holo Print`, metaDescription: `Holo Print provides local printing in ${location.name}: business cards, flyers, banners, posters, stickers, signage, booklets, artwork help and collection options.`, h1: `Printing in ${location.name}`, targetKeyword: `printing in ${location.name}`, schemaTypes: ['LocalBusiness', 'Organization', 'BreadcrumbList', 'FAQPage', 'WebPage'] };
+  if (location.type === 'partner-collection-point') return { path, title: `Print Collection ${location.name} | Order Online, Collect Locally | Holo Print`, metaDescription: `Order print online from Holo Print and collect in ${location.name} from an approved partner collection point where available. Honest local collection, not a fake branch.`, h1: `Print collection in ${location.name}`, targetKeyword: `print collection ${location.name}`, schemaTypes: ['CollectionPage', 'BreadcrumbList', 'FAQPage', 'WebPage'] };
+  return { path, title: `Printing for ${location.name} | Online Print & Delivery | Holo Print`, metaDescription: `Holo Print supports customers in ${location.name} with online print ordering, artwork upload, quotes, delivery and future collection options.`, h1: `Printing for customers in ${location.name}`, targetKeyword: `printing ${location.name}`, schemaTypes: ['Service', 'BreadcrumbList', 'FAQPage', 'WebPage'] };
 }
 
 function auditLocation(location: FulfilmentLocationRecord) {
@@ -102,15 +100,19 @@ function auditLocation(location: FulfilmentLocationRecord) {
   return { score, warnings, errors };
 }
 
+function normaliseType(value: any): FulfilmentLocationType { const key = String(value || '').trim() as FulfilmentLocationType; return ['main-store', 'owned-branch', 'partner-collection-point', 'service-area'].includes(key) ? key : 'partner-collection-point'; }
+function normaliseStatus(value: any): FulfilmentLocationStatus { const key = String(value || '').trim() as FulfilmentLocationStatus; return ['draft', 'active', 'paused', 'hidden'].includes(key) ? key : 'draft'; }
+
 function normalise(input: Partial<FulfilmentLocationRecord>): FulfilmentLocationRecord {
   const name = String(input.name || 'Sidcup').trim();
   const slug = slugify(input.slug || name);
-  const type = input.type || 'partner-collection-point';
+  const type = normaliseType(input.type);
   const base: FulfilmentLocationRecord = {
-    id: String(input.id || `loc-${slug}`), slug, name, type, status: input.status || 'draft',
+    id: String(input.id || `loc-${slug}`), slug, name, type, status: normaliseStatus(input.status),
     publicPageEnabled: input.publicPageEnabled ?? true,
     seoPageEnabled: input.seoPageEnabled ?? true,
-    googleBusinessEligible: input.googleBusinessEligible ?? (type === 'main-store' || type === 'owned-branch'),
+    googleBusinessEligible: type === 'main-store' || type === 'owned-branch' ? Boolean(input.googleBusinessEligible ?? true) : false,
+    checkoutEnabled: Boolean(input.checkoutEnabled ?? (type === 'main-store' || type === 'owned-branch')),
     address: { country: 'GB', ...(input.address || {}) },
     contact: input.contact || {},
     openingHours: input.openingHours?.length ? input.openingHours : defaultHours(),
@@ -120,8 +122,8 @@ function normalise(input: Partial<FulfilmentLocationRecord>): FulfilmentLocation
     pickupInstructions: input.pickupInstructions || 'Bring your order confirmation, collection PIN or QR code when collecting.',
     customerFacingDescription: input.customerFacingDescription || `${name} is available in Holo Print as a ${type.replace(/-/g, ' ')} for local print ordering, collection or delivery planning.`,
     adminNotes: input.adminNotes || '',
-    allowedProductSlugs: input.allowedProductSlugs || [],
-    blockedProductSlugs: input.blockedProductSlugs || [],
+    allowedProductSlugs: arr(input.allowedProductSlugs),
+    blockedProductSlugs: arr(input.blockedProductSlugs),
     collectionFeeMinor: Number(input.collectionFeeMinor || 0),
     partnerFeeMinor: Number(input.partnerFeeMinor || 0),
     priority: Number(input.priority || 100),
@@ -135,20 +137,27 @@ function normalise(input: Partial<FulfilmentLocationRecord>): FulfilmentLocation
   return base;
 }
 
-function toRecord(row: any): FulfilmentLocationRecord {
-  return normalise({ id: row.id, slug: row.slug, name: row.name, ...(row.metadataJson || {}), createdAt: row.createdAt, updatedAt: row.updatedAt });
+function toRecord(row: CoreCatalogRow): FulfilmentLocationRecord {
+  return normalise({ id: row.id, slug: row.slug, name: row.name, ...parseJson(row.metadataJson), createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) });
 }
-function toMetadata(location: FulfilmentLocationRecord) {
-  return { ...location, readiness: auditLocation(location) };
+function toMetadata(location: FulfilmentLocationRecord) { return { ...location, readiness: auditLocation(location) }; }
+
+export function locationAllowsProduct(location: FulfilmentLocationRecord, productSlug?: string) {
+  if (location.status !== 'active' || !location.checkoutEnabled) return false;
+  const slug = slugify(productSlug || '');
+  if (!slug) return true;
+  if (location.allowedProductSlugs.length) return location.allowedProductSlugs.map(slugify).includes(slug);
+  if (location.blockedProductSlugs.map(slugify).includes(slug)) return false;
+  return true;
 }
 
 export const defaultFulfilmentLocations: Partial<FulfilmentLocationRecord>[] = [
-  { id: 'loc-sidcup', slug: 'sidcup', name: 'Sidcup', type: 'main-store', status: 'active', googleBusinessEligible: true, address: { line1: 'Sidcup High Street', town: 'Sidcup', county: 'London', country: 'GB' }, contact: { email: 'sales@holoprint.co.uk', phone: '020 3336 0322' }, cutoffTime: '15:00', pickupInstructions: 'Collect from Holo Print Sidcup. Bring your order confirmation or collection PIN.', customerFacingDescription: 'Holo Print Sidcup is the main production and collection store for local customers ordering print, signage, design support and artwork services online or in person.', priority: 1 },
-  { id: 'loc-wimbledon', slug: 'wimbledon', name: 'Wimbledon', type: 'partner-collection-point', status: 'draft', googleBusinessEligible: false, address: { town: 'Wimbledon', county: 'London', country: 'GB' }, cutoffTime: '13:00', pickupInstructions: 'Partner collection point details will be confirmed when the order is ready. This is not a Holo Print branch.', customerFacingDescription: 'Customers in Wimbledon can order print online from Holo Print and collect from an approved partner point when the collection network is active. This page must not be presented as a Holo Print store.', partnerFeeMinor: 100, priority: 20, metadata: { collectionTruth: 'partner collection point, not a Holo Print branch' } },
-  { id: 'loc-kingston', slug: 'kingston', name: 'Kingston', type: 'partner-collection-point', status: 'draft', googleBusinessEligible: false, address: { town: 'Kingston', county: 'London', country: 'GB' }, cutoffTime: '13:00', pickupInstructions: 'Partner collection point details will be confirmed when the order is ready. This is not a Holo Print branch.', customerFacingDescription: 'Customers in Kingston can order print online from Holo Print and collect from an approved partner point when available. The page should clearly describe partner collection, not a fake branch.', partnerFeeMinor: 100, priority: 30, metadata: { collectionTruth: 'partner collection point, not a Holo Print branch' } },
-  { id: 'loc-croydon', slug: 'croydon', name: 'Croydon', type: 'service-area', status: 'draft', googleBusinessEligible: false, address: { town: 'Croydon', county: 'London', country: 'GB' }, pickupInstructions: 'Delivery or future collection options will be shown at checkout where available.', customerFacingDescription: 'Holo Print can support customers in Croydon through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', priority: 40, metadata: { collectionTruth: 'service area page, not a Holo Print branch' } },
-  { id: 'loc-bromley', slug: 'bromley', name: 'Bromley', type: 'service-area', status: 'draft', googleBusinessEligible: false, address: { town: 'Bromley', county: 'London', country: 'GB' }, pickupInstructions: 'Delivery or future collection options will be shown at checkout where available.', customerFacingDescription: 'Holo Print can support customers in Bromley through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', priority: 50, metadata: { collectionTruth: 'service area page, not a Holo Print branch' } },
-  { id: 'loc-sutton', slug: 'sutton', name: 'Sutton', type: 'service-area', status: 'draft', googleBusinessEligible: false, address: { town: 'Sutton', county: 'London', country: 'GB' }, pickupInstructions: 'Delivery or future collection options will be shown at checkout where available.', customerFacingDescription: 'Holo Print can support customers in Sutton through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', priority: 60, metadata: { collectionTruth: 'service area page, not a Holo Print branch' } },
+  { id: 'loc-sidcup', slug: 'sidcup', name: 'Sidcup', type: 'main-store', status: 'active', checkoutEnabled: true, googleBusinessEligible: true, address: { line1: 'Sidcup High Street', town: 'Sidcup', county: 'London', country: 'GB' }, contact: { email: 'sales@holoprint.co.uk', phone: '020 3336 0322' }, cutoffTime: '15:00', pickupInstructions: 'Collect from Holo Print Sidcup. Bring your order confirmation or collection PIN.', customerFacingDescription: 'Holo Print Sidcup is the main production and collection store for local customers ordering print, signage, design support and artwork services online or in person.', priority: 1 },
+  { id: 'loc-wimbledon', slug: 'wimbledon', name: 'Wimbledon', type: 'partner-collection-point', status: 'draft', checkoutEnabled: false, googleBusinessEligible: false, address: { town: 'Wimbledon', county: 'London', country: 'GB' }, cutoffTime: '13:00', pickupInstructions: 'Partner collection point details will be confirmed when the order is ready. This is not a Holo Print branch.', customerFacingDescription: 'Customers in Wimbledon can order print online from Holo Print and collect from an approved partner point when the collection network is active. This page must not be presented as a Holo Print store.', partnerFeeMinor: 100, priority: 20, metadata: { collectionTruth: 'partner collection point, not a Holo Print branch' } },
+  { id: 'loc-kingston', slug: 'kingston', name: 'Kingston', type: 'partner-collection-point', status: 'draft', checkoutEnabled: false, googleBusinessEligible: false, address: { town: 'Kingston', county: 'London', country: 'GB' }, cutoffTime: '13:00', pickupInstructions: 'Partner collection point details will be confirmed when the order is ready. This is not a Holo Print branch.', customerFacingDescription: 'Customers in Kingston can order print online from Holo Print and collect from an approved partner point when available. The page should clearly describe partner collection, not a fake branch.', partnerFeeMinor: 100, priority: 30, metadata: { collectionTruth: 'partner collection point, not a Holo Print branch' } },
+  { id: 'loc-croydon', slug: 'croydon', name: 'Croydon', type: 'service-area', status: 'draft', checkoutEnabled: false, googleBusinessEligible: false, address: { town: 'Croydon', county: 'London', country: 'GB' }, pickupInstructions: 'Delivery or future collection options will be shown at checkout where available.', customerFacingDescription: 'Holo Print can support customers in Croydon through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', priority: 40, metadata: { collectionTruth: 'service area page, not a Holo Print branch' } },
+  { id: 'loc-bromley', slug: 'bromley', name: 'Bromley', type: 'service-area', status: 'draft', checkoutEnabled: false, googleBusinessEligible: false, address: { town: 'Bromley', county: 'London', country: 'GB' }, pickupInstructions: 'Delivery or future collection options will be shown at checkout where available.', customerFacingDescription: 'Holo Print can support customers in Bromley through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', priority: 50, metadata: { collectionTruth: 'service area page, not a Holo Print branch' } },
+  { id: 'loc-sutton', slug: 'sutton', name: 'Sutton', type: 'service-area', status: 'draft', checkoutEnabled: false, googleBusinessEligible: false, address: { town: 'Sutton', county: 'London', country: 'GB' }, pickupInstructions: 'Delivery or future collection options will be shown at checkout where available.', customerFacingDescription: 'Holo Print can support customers in Sutton through online ordering, artwork upload, quote approval, payment links and delivery or future collection options.', priority: 60, metadata: { collectionTruth: 'service area page, not a Holo Print branch' } },
 ];
 
 async function syncLocationSeo(request: Request, location: FulfilmentLocationRecord) {
@@ -178,39 +187,48 @@ async function syncLocationSeo(request: Request, location: FulfilmentLocationRec
       { question: 'What do I need for collection?', answer: location.pickupInstructions },
     ],
     internalLinks: [{ label: 'All products', href: '/all-products' }, { label: 'Artwork guide', href: '/artwork-guide' }, { label: 'Request quote', href: '/bespoke-quote' }],
-    metadata: { ...location.metadata, googleBusinessEligible: location.googleBusinessEligible, locationType: location.type, address: location.address, openingHoursSpecification: location.openingHours.map((row) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: row.day, opens: row.open, closes: row.close })) },
+    metadata: { ...location.metadata, googleBusinessEligible: location.googleBusinessEligible, locationType: location.type, checkoutEnabled: location.checkoutEnabled, address: location.address, openingHoursSpecification: location.openingHours.map((row) => ({ '@type': 'OpeningHoursSpecification', dayOfWeek: row.day, opens: row.open, closes: row.close })) },
   };
   return saveSeoPage(request, page);
 }
 
-export async function listFulfilmentLocations(request: Request, filters: { status?: string; type?: string; search?: string; publicOnly?: boolean } = {}) {
+export async function listFulfilmentLocations(request: Request, filters: { status?: string; type?: string; search?: string; publicOnly?: boolean; checkoutOnly?: boolean; productSlug?: string } = {}) {
+  await ensureLocationStorage();
   const ctx = tenantContextFromRequest(request);
-  const rows = await (prisma as any).coreCatalogRecord.findMany({ where: { tenantId: ctx.tenantId, resource: RESOURCE }, orderBy: [{ metadataJson: 'asc' }, { updatedAt: 'desc' }] }).catch(async () => (prisma as any).coreCatalogRecord.findMany({ where: { tenantId: ctx.tenantId, resource: RESOURCE }, orderBy: { updatedAt: 'desc' } }));
+  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+    SELECT * FROM "CoreCatalogRecord"
+    WHERE "tenantId" = ${ctx.tenantId} AND "resource" = ${RESOURCE}
+    ORDER BY "updatedAt" DESC
+  `;
   let items = rows.map(toRecord).sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name));
   if (filters.status && filters.status !== 'all') items = items.filter((item) => item.status === filters.status);
   if (filters.type && filters.type !== 'all') items = items.filter((item) => item.type === filters.type);
   if (filters.publicOnly) items = items.filter((item) => item.publicPageEnabled && item.status === 'active');
+  if (filters.checkoutOnly) items = items.filter((item) => locationAllowsProduct(item, filters.productSlug));
   const q = String(filters.search || '').toLowerCase().trim();
   if (q) items = items.filter((item) => [item.name, item.slug, item.address?.town, item.address?.postcode, item.type].join(' ').toLowerCase().includes(q));
-  const summary = { total: items.length, active: items.filter((i) => i.status === 'active').length, draft: items.filter((i) => i.status === 'draft').length, partner: items.filter((i) => i.type === 'partner-collection-point').length, serviceArea: items.filter((i) => i.type === 'service-area').length, seoEnabled: items.filter((i) => i.seoPageEnabled).length, errors: items.reduce((sum, i) => sum + (i.readiness?.errors?.length || 0), 0), warnings: items.reduce((sum, i) => sum + (i.readiness?.warnings?.length || 0), 0) };
+  const summary = { total: items.length, active: items.filter((i) => i.status === 'active').length, draft: items.filter((i) => i.status === 'draft').length, partner: items.filter((i) => i.type === 'partner-collection-point').length, serviceArea: items.filter((i) => i.type === 'service-area').length, seoEnabled: items.filter((i) => i.seoPageEnabled).length, checkoutEnabled: items.filter((i) => i.checkoutEnabled && i.status === 'active').length, errors: items.reduce((sum, i) => sum + (i.readiness?.errors?.length || 0), 0), warnings: items.reduce((sum, i) => sum + (i.readiness?.warnings?.length || 0), 0) };
   return { items, summary, resource: RESOURCE };
 }
 
 export async function saveFulfilmentLocation(request: Request, input: Partial<FulfilmentLocationRecord>) {
+  await ensureLocationStorage();
   const ctx = tenantContextFromRequest(request);
-  const location = normalise(input);
-  const saved = await (prisma as any).coreCatalogRecord.upsert({
-    where: { tenantId_resource_slug: { tenantId: ctx.tenantId, resource: RESOURCE, slug: location.slug } },
-    update: { name: location.name, description: location.customerFacingDescription, metadataJson: toMetadata(location) },
-    create: { id: location.id, tenantId: ctx.tenantId, resource: RESOURCE, slug: location.slug, name: location.name, description: location.customerFacingDescription, metadataJson: toMetadata(location) },
-  });
-  const item = toRecord(saved);
+  const location = normalise({ ...input, id: input.id || safeId('loc', ctx.tenantId, input.slug || input.name || 'location') });
+  const metadataJson = JSON.stringify(toMetadata(location));
+  const rows = await (prisma as any).$queryRaw<CoreCatalogRow[]>`
+    INSERT INTO "CoreCatalogRecord" ("id", "tenantId", "resource", "slug", "name", "description", "metadataJson", "createdAt", "updatedAt")
+    VALUES (${location.id}, ${ctx.tenantId}, ${RESOURCE}, ${location.slug}, ${location.name}, ${location.customerFacingDescription || ''}, ${metadataJson}::jsonb, NOW(), NOW())
+    ON CONFLICT ("tenantId", "resource", "slug") DO UPDATE SET
+      "name" = EXCLUDED."name",
+      "description" = EXCLUDED."description",
+      "metadataJson" = EXCLUDED."metadataJson",
+      "updatedAt" = NOW()
+    RETURNING *
+  `;
+  const item = toRecord(rows[0]);
   const seoPage = await syncLocationSeo(request, item).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'SEO sync failed.' }));
   return { item, seoPage };
 }
 
-export async function seedFulfilmentLocations(request: Request) {
-  const saved = [];
-  for (const location of defaultFulfilmentLocations) saved.push(await saveFulfilmentLocation(request, location));
-  return saved;
-}
+export async function seedFulfilmentLocations(request: Request) { const saved = []; for (const location of defaultFulfilmentLocations) saved.push(await saveFulfilmentLocation(request, location)); return saved; }

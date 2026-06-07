@@ -3,8 +3,19 @@ import { deleteInternalCatalogRecord, getInternalCatalogRecord, listInternalCata
 import { CatalogValidationError, normalizeSlugValue } from './catalog-validation';
 import type { CatalogResource } from './catalog-store';
 import { tenantContextFromRequest } from '../tenant/context';
+import { saveSeoRedirect } from '../seo/seo-redirects.service';
 
-type Body = Record<string, unknown>;
+ type Body = Record<string, unknown>;
+
+type RedirectAutomationResult = {
+  checked: boolean;
+  created: boolean;
+  resource?: CatalogResource;
+  fromPath?: string;
+  toPath?: string;
+  statusCode?: 301;
+  error?: string;
+};
 
 function readOptions(request: Request) {
   const url = new URL(request.url);
@@ -73,6 +84,73 @@ function errorResponse(error: unknown, status = 500) {
   return NextResponse.json({ ok: false, source: 'internal-core', error: message, issues }, { status: statusForError(message, status) });
 }
 
+function slugOf(record: unknown) {
+  const value = record && typeof record === 'object' ? (record as Record<string, unknown>).slug : undefined;
+  return typeof value === 'string' ? normalizeSlugValue(value) : undefined;
+}
+
+function titleOf(record: unknown) {
+  if (!record || typeof record !== 'object') return '';
+  const item = record as Record<string, unknown>;
+  return String(item.title || item.name || item.slug || '').trim();
+}
+
+function publicPathFor(resource: CatalogResource, slug?: string) {
+  const clean = normalizeSlugValue(slug);
+  if (!clean) return '';
+  if (resource === 'products') return `/${clean}`;
+  if (resource === 'categories') return `/category/${clean}`;
+  return '';
+}
+
+function shouldAutoCreateRedirect(body: Body) {
+  if (body.createSlugRedirect === false) return false;
+  if (body.createRedirectOnSlugChange === false) return false;
+  if (body.skipSlugRedirect === true) return false;
+  const metadata = body.metadataJson;
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    if ((metadata as Record<string, unknown>).createSlugRedirect === false) return false;
+    if ((metadata as Record<string, unknown>).skipSlugRedirect === true) return false;
+  }
+  return true;
+}
+
+async function readBeforeForSlugRedirect(request: Request, resource: CatalogResource, body: Body, mode: string) {
+  if (!['products', 'categories'].includes(resource)) return null;
+  if (mode === 'create') return null;
+  const ctx = tenantContextFromRequest(request);
+  const idOrSlug = getString(body, 'id') || getString(body, 'previousSlug') || getString(body, 'oldSlug');
+  if (!idOrSlug) return null;
+  try {
+    return await getInternalCatalogRecord(ctx, resource, idOrSlug);
+  } catch {
+    return null;
+  }
+}
+
+async function maybeCreateSlugRedirect(request: Request, resource: CatalogResource, body: Body, before: unknown, after: unknown): Promise<RedirectAutomationResult> {
+  if (!['products', 'categories'].includes(resource)) return { checked: false, created: false };
+  if (!shouldAutoCreateRedirect(body)) return { checked: true, created: false, resource };
+  const oldSlug = slugOf(before);
+  const newSlug = slugOf(after);
+  if (!oldSlug || !newSlug || oldSlug === newSlug) return { checked: true, created: false, resource };
+  const fromPath = publicPathFor(resource, oldSlug);
+  const toPath = publicPathFor(resource, newSlug);
+  if (!fromPath || !toPath || fromPath === toPath) return { checked: true, created: false, resource };
+  try {
+    await saveSeoRedirect(request, {
+      fromPath,
+      toPath,
+      statusCode: 301,
+      isActive: true,
+      note: `${resource === 'products' ? 'Product' : 'Category'} slug changed from ${oldSlug} to ${newSlug}${titleOf(after) ? ` for ${titleOf(after)}` : ''}. Auto-created by Build 41.`,
+    });
+    return { checked: true, created: true, resource, fromPath, toPath, statusCode: 301 };
+  } catch (error) {
+    return { checked: true, created: false, resource, fromPath, toPath, statusCode: 301, error: error instanceof Error ? error.message : 'Redirect creation failed.' };
+  }
+}
+
 export async function handleCatalogGet(request: Request, resource: CatalogResource) {
   try {
     const data = await listInternalCatalog(tenantContextFromRequest(request), resource, readOptions(request));
@@ -84,11 +162,14 @@ export async function handleCatalogGet(request: Request, resource: CatalogResour
 
 export async function handleCatalogWrite(request: Request, resource: CatalogResource) {
   try {
-    const input = toWriteInput(await readBody(request));
+    const body = await readBody(request);
+    const input = toWriteInput(body);
     const method = request.method.toUpperCase();
     const mode = method === 'POST' ? 'create' : method === 'PATCH' || method === 'PUT' ? 'update' : 'upsert';
+    const before = await readBeforeForSlugRedirect(request, resource, body, mode);
     const data = await writeInternalCatalogRecord(tenantContextFromRequest(request), resource, input, mode);
-    return NextResponse.json({ ok: true, source: 'internal-core-db', mode, data });
+    const redirectAutomation = await maybeCreateSlugRedirect(request, resource, body, before, data);
+    return NextResponse.json({ ok: true, source: 'internal-core-db', mode, data, redirectAutomation });
   } catch (error) {
     return errorResponse(error);
   }
@@ -119,11 +200,14 @@ export async function handleCatalogItemGet(request: Request, resource: CatalogRe
 
 export async function handleCatalogItemWrite(request: Request, resource: CatalogResource, id: string) {
   try {
-    const input = inputWithId(await readBody(request), id);
+    const body = await readBody(request);
+    const input = inputWithId(body, id);
     const method = request.method.toUpperCase();
     const mode = method === 'POST' ? 'upsert' : 'update';
+    const before = await readBeforeForSlugRedirect(request, resource, { ...body, id }, mode);
     const data = await writeInternalCatalogRecord(tenantContextFromRequest(request), resource, input, mode);
-    return NextResponse.json({ ok: true, source: 'internal-core-db', mode, data });
+    const redirectAutomation = await maybeCreateSlugRedirect(request, resource, body, before, data);
+    return NextResponse.json({ ok: true, source: 'internal-core-db', mode, data, redirectAutomation });
   } catch (error) {
     return errorResponse(error);
   }

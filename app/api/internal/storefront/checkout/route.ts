@@ -55,6 +55,31 @@ function isArtworkLater(body: Record<string, any>) {
   return mode.includes('later') || mode.includes('none');
 }
 
+function normaliseFulfilmentSelection(body: Record<string, any>) {
+  const selected = body.fulfilmentSelection || body.delivery || body.rawCheckout?.fulfilmentSelection || body.rawCheckout?.delivery || {};
+  const mode = String(body.fulfilmentMode || selected.fulfilmentMode || selected.type || 'delivery');
+  const isCollection = mode.includes('collection');
+  const label = text(selected.publicLabel || selected.label || selected.name || body.shippingMethod || (isCollection ? 'Collection' : 'Delivery'));
+  const location = selected.rawLocation || selected.location || selected;
+  return {
+    mode,
+    choice: text(body.fulfilmentChoice || selected.id || selected.value || body.delivery || ''),
+    label,
+    shippingMethod: label,
+    isCollection,
+    locationId: text(selected.locationId || location.id),
+    locationSlug: text(selected.locationSlug || location.slug),
+    locationName: text(location.name || selected.locationName || selected.name),
+    locationType: text(selected.locationType || location.type || selected.kind),
+    collectionTruth: text(selected.collectionTruth || location.collectionTruth),
+    pickupInstructions: text(selected.pickupInstructions || location.pickupInstructions || location.collectionInstructions),
+    cutoffTime: text(selected.cutoffTime || location.cutoffTime),
+    googleBusinessEligible: Boolean(selected.googleBusinessEligible || location.googleBusinessEligible),
+    feeMinor: Number(body.shippingMinor || selected.priceMinor || selected.collectionFeeMinor || 0),
+    raw: selected,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const [itemsRaw, orders] = await Promise.all([
@@ -97,6 +122,7 @@ export async function POST(request: NextRequest) {
     const deliveryEstimate = body.deliveryEstimate || estimateDelivery(items[0]?.turnaround);
     const status = paymentDecision.orderStatus;
     const artworkUploadIds = collectArtworkUploadIds({ ...body, items });
+    const fulfilment = normaliseFulfilmentSelection(body);
 
     const payload = {
       ...body,
@@ -108,6 +134,19 @@ export async function POST(request: NextRequest) {
       customer,
       items,
       totals,
+      fulfilment,
+      fulfilmentMode: fulfilment.mode,
+      fulfilmentChoice: fulfilment.choice,
+      fulfilmentLocation: fulfilment.isCollection ? {
+        id: fulfilment.locationId,
+        slug: fulfilment.locationSlug,
+        name: fulfilment.locationName,
+        type: fulfilment.locationType,
+        pickupInstructions: fulfilment.pickupInstructions,
+        cutoffTime: fulfilment.cutoffTime,
+        collectionTruth: fulfilment.collectionTruth,
+        googleBusinessEligible: fulfilment.googleBusinessEligible,
+      } : null,
       artworkUploadIds,
       vatBreakdown: totals.vatBreakdown || body.vatBreakdown || body.taxSummary?.vatBreakdown || [],
       deliveryEstimate,
@@ -142,8 +181,10 @@ export async function POST(request: NextRequest) {
       internalNotes: [
         `Checkout payment decision: ${paymentDecision.mode}.`,
         `Next action: ${paymentDecision.nextAction}.`,
+        `Fulfilment: ${fulfilment.label}${fulfilment.locationName ? ` (${fulfilment.locationName})` : ''}.`,
+        fulfilment.isCollection && fulfilment.collectionTruth ? `Collection truth rule: ${fulfilment.collectionTruth}.` : '',
         artworkUploadIds.length ? `Artwork uploads linked: ${artworkUploadIds.join(', ')}.` : 'No artwork upload linked at checkout.',
-      ],
+      ].filter(Boolean),
     });
 
     const artworkLink = await linkArtworkUploadsToOrder(request, { ...body, items, artworkUploadIds }, {
@@ -164,6 +205,7 @@ export async function POST(request: NextRequest) {
       artworkLink,
       emailQueue,
       totals,
+      fulfilment,
       deliveryEstimate,
       quoteRequired: quoteRequest,
       paymentDecision,

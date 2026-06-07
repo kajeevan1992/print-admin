@@ -112,6 +112,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'Extended Content', href: '/extended-content', iconKey: 'FileText', order: 80 },
     { label: 'SEO Engine', href: '/seo-engine', iconKey: 'Target', order: 90 },
     { label: 'SEO Templates', href: '/seo-templates', iconKey: 'Sparkles', order: 95 },
+    { label: 'SEO Analytics', href: '/seo-analytics', iconKey: 'BarChart3', order: 96 },
     { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 100 }
   ]},
   { label: 'Settings', iconKey: 'Settings', order: 320, roles: TENANT_ROLES, children: [
@@ -167,70 +168,11 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'Support', href: '/support', iconKey: 'LifeBuoy', order: 10 },
     { label: 'Knowledge Base', href: '/knowledge-base', iconKey: 'BookOpen', order: 20 }
   ]},
-  { label: 'Logout', href: '/logout', iconKey: 'LogOut', order: 999, roles: [...TENANT_ROLES, 'super_admin'] }
 ];
 
-const SUPER_ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
-  { label: 'Super Admin', href: '/super-admin', iconKey: 'Shield', order: 10, roles: ['super_admin'] },
-  { label: 'Tenant Control', href: '/tenant-control', iconKey: 'Building2', order: 20, roles: ['super_admin'] },
-  { label: 'Owner Onboarding', href: '/owner-onboarding', iconKey: 'Sparkles', order: 30, roles: ['super_admin'] },
-  { label: 'Owner Invitations', href: '/owner-invitations', iconKey: 'Mail', order: 40, roles: ['super_admin'] },
-  { label: 'Launch Checklist', href: '/owner-launch-checklist', iconKey: 'ClipboardCheck', order: 50, roles: ['super_admin'] },
-  { label: 'Owner Escalations', href: '/owner-escalations', iconKey: 'AlertTriangle', order: 60, roles: ['super_admin'] },
-  { label: 'Owner Audit Log', href: '/owner-audit-log', iconKey: 'History', order: 70, roles: ['super_admin'] },
-  { label: 'Owner Notifications', href: '/owner-notifications', iconKey: 'BellRing', order: 80, roles: ['super_admin'] },
-  { label: 'Owner Feature Flags', href: '/owner-feature-flags', iconKey: 'Flag', order: 90, roles: ['super_admin'] },
-  { label: 'Owner API Keys', href: '/owner-api-keys', iconKey: 'KeyRound', order: 100, roles: ['super_admin'] },
-  { label: 'Owner Webhooks', href: '/owner-webhooks', iconKey: 'Webhook', order: 110, roles: ['super_admin'] },
-  { label: 'Owner SSO Config', href: '/owner-sso-config', iconKey: 'ShieldEllipsis', order: 120, roles: ['super_admin'] },
-  { label: 'Owner Usage Limits', href: '/owner-usage-limits', iconKey: 'Gauge', order: 130, roles: ['super_admin'] },
-  { label: 'Owner Billing Plans', href: '/owner-billing-plans', iconKey: 'CreditCard', order: 140, roles: ['super_admin'] },
-  { label: 'Owner Environments', href: '/owner-environments', iconKey: 'Globe2', order: 150, roles: ['super_admin'] },
-  { label: 'Owner Domains', href: '/owner-domains', iconKey: 'Globe2', order: 160, roles: ['super_admin'] },
-  { label: 'Owner Backups', href: '/owner-backups', iconKey: 'DatabaseBackup', order: 170, roles: ['super_admin'] },
-  { label: 'Owner Maintenance Windows', href: '/owner-maintenance-windows', iconKey: 'Wrench', order: 180, roles: ['super_admin'] },
-  { label: 'Owner Incidents', href: '/owner-incidents', iconKey: 'AlertOctagon', order: 190, roles: ['super_admin'] },
-  { label: 'Owner Runbooks', href: '/owner-runbooks', iconKey: 'FileText', order: 200, roles: ['super_admin'] },
-  { label: 'Owner Compliance Center', href: '/owner-compliance-center', iconKey: 'ShieldAlert', order: 210, roles: ['super_admin'] },
-  { label: 'Owner Release Approvals', href: '/owner-release-approvals', iconKey: 'CheckCheck', order: 220, roles: ['super_admin'] },
-  { label: 'Owner Data Retention', href: '/owner-data-retention', iconKey: 'Archive', order: 230, roles: ['super_admin'] },
-  { label: 'Owner Customer Health', href: '/owner-customer-health', iconKey: 'Activity', order: 240, roles: ['super_admin'] },
-  { label: 'Owner Renewals', href: '/owner-renewals', iconKey: 'CalendarClock', order: 250, roles: ['super_admin'] },
-  { label: 'Owner QBRs', href: '/owner-qbrs', iconKey: 'Presentation', order: 260, roles: ['super_admin'] },
-  { label: 'Owner Onboarding Pipeline', href: '/owner-onboarding-pipeline', iconKey: 'Rocket', order: 270, roles: ['super_admin'] },
-  { label: 'Owner Portfolio Risks', href: '/owner-portfolio-risks', iconKey: 'AlertTriangle', order: 280, roles: ['super_admin'] },
-  { label: 'Owner Success Plans', href: '/owner-success-plans', iconKey: 'Target', order: 290, roles: ['super_admin'] },
-  { label: 'Owner Customer Journeys', href: '/owner-customer-journeys', iconKey: 'Map', order: 300, roles: ['super_admin'] },
-  { label: 'Owner Account Plans', href: '/owner-account-plans', iconKey: 'ClipboardList', order: 310, roles: ['super_admin'] },
-  { label: 'Owner Stakeholder Map', href: '/owner-stakeholder-map', iconKey: 'Users', order: 320, roles: ['super_admin'] },
-  { label: 'Licensing Center', href: '/licensing-center', iconKey: 'KeyRound', order: 330, roles: ['super_admin'] },
-  { label: 'Admin Users', href: '/admin-users', iconKey: 'Users2', order: 340, roles: ['super_admin'] },
-  { label: 'Store Activations', href: '/organizations', iconKey: 'Store', order: 350, roles: ['super_admin'] },
-  { label: 'Billing Ops', href: '/merchant-accounts', iconKey: 'CreditCard', order: 360, roles: ['super_admin'] },
-  { label: 'Owner Deployments', href: '/owner-deployments', iconKey: 'Rocket', order: 370, roles: ['super_admin'] },
-  { label: 'Demo Library', href: '/demo-library', iconKey: 'UploadCloud', order: 380, roles: ['super_admin'] },
-  { label: 'Reports', href: '/reports', iconKey: 'BarChart3', order: 390, roles: ['super_admin'] },
-  { label: 'Support Hub', href: '/support-tickets', iconKey: 'LifeBuoy', order: 400, roles: ['super_admin'] },
-  { label: 'Knowledge Base', href: '/knowledge-base', iconKey: 'BookOpen', order: 410, roles: ['super_admin'] },
-  { label: 'Logout', href: '/logout', iconKey: 'LogOut', order: 999, roles: ['super_admin'] }
-];
+export const adminSidebarNavigation = ADMIN_SIDEBAR_NAVIGATION;
 
-export const ADMIN_NAVIGATION_REGISTRY: AdminNavigationRegistryItem[] = [
-  { label: 'Launch Operations', href: '/launch-operations', iconKey: 'Rocket', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 10, roles: TENANT_ROLES, surface: 'sidebar', description: 'Launch operations hub for locations, collection handover and email sending.' },
-  { label: 'Launch Readiness', href: '/launch-readiness', iconKey: 'ShieldCheck', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 15, roles: TENANT_ROLES, surface: 'sidebar', description: 'Run read-only launch checks across locations, SEO, collection, email and VAT.' },
-  { label: 'Location Manager', href: '/location-manager', iconKey: 'Map', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 20, roles: TENANT_ROLES, surface: 'sidebar', description: 'Manage stores, branches, partner collection points and service areas.' },
-  { label: 'Collection Handover', href: '/collection-handover', iconKey: 'ClipboardCheck', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 30, roles: TENANT_ROLES, surface: 'sidebar', description: 'Verify collection PIN/QR passes and mark orders collected.' },
-  { label: 'Ready Collection Automation', href: '/ready-collection-automation', iconKey: 'Activity', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 40, roles: TENANT_ROLES, surface: 'sidebar', description: 'Queue or send ready-for-collection notifications for ready orders.' },
-  { label: 'Email Send Controls', href: '/email-send-controls', iconKey: 'Mail', parentLabel: 'Launch Operations', groupLabel: 'Launch Operations', order: 50, roles: TENANT_ROLES, surface: 'sidebar', description: 'Process queued outbox emails including collection-ready notifications.' }
-];
-
-export function getAdminSidebarNavigation(role: AdminRole = 'admin', _registry: AdminNavigationRegistryItem[] = [], _surface: AdminNavigationSurface = 'sidebar') {
-  const base = role === 'super_admin' ? SUPER_ADMIN_SIDEBAR_NAVIGATION : ADMIN_SIDEBAR_NAVIGATION;
-  return base
-    .filter((item) => !item.hidden && (!item.roles || item.roles.includes(role)))
-    .sort((a, b) => (a.order || 999) - (b.order || 999));
-}
-
-export function getAdminNavigationRegistry() {
-  return ADMIN_NAVIGATION_REGISTRY;
-}
+export const adminNavigationRegistry: AdminNavigationRegistryItem[] = ADMIN_SIDEBAR_NAVIGATION.flatMap((item) => {
+  if (!item.children?.length) return item.href ? [{ label: item.label, href: item.href, iconKey: item.iconKey, order: item.order, roles: item.roles, ownerOnly: item.ownerOnly, tenantOnly: item.tenantOnly, hidden: item.hidden, featureFlagKey: item.featureFlagKey, surface: item.surface }] : [];
+  return item.children.map((child) => ({ ...child, parentLabel: item.label, groupLabel: item.label, roles: child.roles || item.roles, ownerOnly: child.ownerOnly ?? item.ownerOnly, tenantOnly: child.tenantOnly ?? item.tenantOnly, hidden: child.hidden ?? item.hidden, featureFlagKey: child.featureFlagKey || item.featureFlagKey, surface: child.surface || item.surface }));
+});

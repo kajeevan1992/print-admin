@@ -18,6 +18,7 @@ function typeToKind(type: string) {
   return 'owned-branch';
 }
 function statusToLocation(status: string) {
+  if (status === 'all') return 'all';
   if (status === 'active') return 'active';
   if (status === 'inactive') return 'paused';
   if (status === 'hidden') return 'hidden';

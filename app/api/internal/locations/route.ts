@@ -11,6 +11,8 @@ export async function GET(request: Request) {
       type: url.searchParams.get('type') || 'all',
       search: url.searchParams.get('search') || '',
       publicOnly: url.searchParams.get('publicOnly') === '1' || url.searchParams.get('publicOnly') === 'true',
+      checkoutOnly: url.searchParams.get('checkoutOnly') === '1' || url.searchParams.get('checkoutOnly') === 'true',
+      productSlug: url.searchParams.get('productSlug') || '',
     });
     return NextResponse.json({ ok: true, source: 'internal-locations-manager', data });
   } catch (error) {
@@ -31,3 +33,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, source: 'internal-locations-manager', error: error instanceof Error ? error.message : 'Failed to save location.' }, { status: 500 });
   }
 }
+
+export async function PUT(request: Request) { return POST(request); }
+export async function PATCH(request: Request) { return POST(request); }

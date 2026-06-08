@@ -27,7 +27,6 @@ type Dashboard = {
 };
 
 function todayMinus(days: number) { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().slice(0, 10); }
-function number(value = 0) { return new Intl.NumberFormat('en-GB').format(Number(value || 0)); }
 
 export function GoogleSearchConsolePage() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);

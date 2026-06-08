@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, Bug, CheckCircle2, Eye, Settings2, Tag, ToggleLeft } from 'lucide-react';
+import { BarChart3, Eye, Settings2, Tag, ToggleLeft } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
@@ -29,11 +29,13 @@ type TrackingSettings = {
   notes?: string;
 };
 
+type TrackingEventKey = 'trackPageViews' | 'trackSeoEvents' | 'trackViewItem' | 'trackBeginCheckout' | 'trackGenerateLead' | 'trackPurchase' | 'trackCheckoutErrors';
+
 type TrackingDashboard = {
   settings: TrackingSettings;
-  publicSettings: TrackingSettings;
+  publicSettings: Partial<TrackingSettings>;
   status: { enabled: boolean; ga4Ready: boolean; gtmReady: boolean; hasAnyProvider: boolean; warning: string };
-  events: Array<{ key: keyof TrackingSettings; label: string; event: string }>;
+  events: Array<{ key: TrackingEventKey; label: string; event: string }>;
 };
 
 const defaultSettings: TrackingSettings = {
@@ -147,7 +149,7 @@ export function TrackingSettingsPage() {
           <Card>
             <div className="mb-3 flex items-center gap-2"><BarChart3 size={16} className="text-emerald-300" /><h3 className="text-sm font-semibold text-white">Storefront events</h3></div>
             <div className="grid gap-2">
-              {events.map((item) => <EventToggle key={String(item.key)} label={item.label} event={item.event} value={Boolean(settings[item.key])} onChange={(value) => update(item.key, value as any)} />)}
+              {events.map((item) => <EventToggle key={item.key} label={item.label} event={item.event} value={Boolean(settings[item.key])} onChange={(value) => update(item.key, value)} />)}
             </div>
           </Card>
 

@@ -114,6 +114,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'SEO Templates', href: '/seo-templates', iconKey: 'Sparkles', order: 95 },
     { label: 'SEO Analytics', href: '/seo-analytics', iconKey: 'BarChart3', order: 96 },
     { label: 'Search Console', href: '/seo-search-console', iconKey: 'Search', order: 97 },
+    { label: 'Tracking Settings', href: '/tracking-settings', iconKey: 'BarChart3', order: 98 },
     { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 100 }
   ]},
   { label: 'Settings', iconKey: 'Settings', order: 320, roles: TENANT_ROLES, children: [

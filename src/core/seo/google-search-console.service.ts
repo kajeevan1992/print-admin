@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { createSign } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { importSeoAnalyticsMetrics, type SeoAnalyticsMetric } from './seo-analytics.service';
@@ -47,7 +47,6 @@ function now() { return new Date().toISOString(); }
 function iso(value: Date | string | undefined) { return value ? new Date(value).toISOString() : now(); }
 function parseJson(value: any) { if (!value) return {}; if (typeof value === 'string') { try { return JSON.parse(value); } catch { return {}; } } return value; }
 function number(value: any, fallback = 0) { const next = Number(value); return Number.isFinite(next) ? next : fallback; }
-function bool(value: unknown) { return value === true || String(value || '').toLowerCase() === 'true'; }
 function dateMinus(days: number) { const date = new Date(); date.setDate(date.getDate() - days); return date.toISOString().slice(0, 10); }
 function cleanPath(value: string) { const raw = String(value || '/').trim() || '/'; try { if (/^https?:\/\//i.test(raw)) return new URL(raw).pathname || '/'; } catch {} const clean = raw.split('?')[0].split('#')[0] || '/'; return clean.startsWith('/') ? clean : `/${clean}`; }
 function base64url(value: string | Buffer) { return Buffer.from(value).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_'); }
@@ -173,7 +172,7 @@ async function accessTokenFromServiceAccount() {
   const header = { alg: 'RS256', typ: 'JWT' };
   const claim = { iss: clientEmail, scope: SCOPE, aud: TOKEN_URL, exp: iat + 3600, iat };
   const unsigned = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(claim))}`;
-  const signer = crypto.createSign('RSA-SHA256');
+  const signer = createSign('RSA-SHA256');
   signer.update(unsigned);
   signer.end();
   const signed = signer.sign(privateKey);

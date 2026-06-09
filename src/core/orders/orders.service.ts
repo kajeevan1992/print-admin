@@ -57,35 +57,47 @@ function addVatBucket(map: Map<number, any>, line: { vatRate: number; vatClass: 
   map.set(line.vatRate, current);
 }
 
+function enforceLine(item: Record<string, any>, buckets: Map<number, any>, options: { parentLineId?: string; lineType?: string } = {}): EnforcedOrderLine {
+  const quantity = qty(item.quantity ?? item.qty);
+  const grossMinor = lineTotalMinor(item, quantity);
+  const vat = calculateVatLine(item, quantity, grossMinor);
+  addVatBucket(buckets, { ...vat, vatReason: vat.vatReason });
+  return {
+    productId: options.lineType === 'add-on' ? null : productIdFrom(item),
+    titleSnapshot: titleFrom(item),
+    quantity,
+    unitPriceMinor: vat.unitGrossMinor,
+    totalPriceMinor: vat.grossMinor,
+    metadataJson: {
+      ...item,
+      lineType: options.lineType || item.type || 'product',
+      parentLineId: options.parentLineId || item.parentLineId || '',
+      vatRate: vat.vatRate,
+      vatClass: vat.vatClass,
+      vatReason: vat.vatReason,
+      vatMinor: vat.vatMinor,
+      netTotalMinor: vat.netMinor,
+      grossTotalMinor: vat.grossMinor,
+      unitNetMinor: vat.unitNetMinor,
+      unitGrossMinor: vat.unitGrossMinor,
+      taxEnforcedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function enforceVatAndBuildItems(input: OrderInput): { items: EnforcedOrderLine[]; totals: EnforcedTotals } {
   const currency = currencyFrom(input);
   const raw = rawItems(input);
   const buckets = new Map<number, any>();
-  const items: EnforcedOrderLine[] = raw.map((item: Record<string, any>) => {
-    const quantity = qty(item.quantity ?? item.qty);
-    const grossMinor = lineTotalMinor(item, quantity);
-    const vat = calculateVatLine(item, quantity, grossMinor);
-    addVatBucket(buckets, { ...vat, vatReason: vat.vatReason });
-    return {
-      productId: productIdFrom(item),
-      titleSnapshot: titleFrom(item),
-      quantity,
-      unitPriceMinor: vat.unitGrossMinor,
-      totalPriceMinor: vat.grossMinor,
-      metadataJson: {
-        ...item,
-        vatRate: vat.vatRate,
-        vatClass: vat.vatClass,
-        vatReason: vat.vatReason,
-        vatMinor: vat.vatMinor,
-        netTotalMinor: vat.netMinor,
-        grossTotalMinor: vat.grossMinor,
-        unitNetMinor: vat.unitNetMinor,
-        unitGrossMinor: vat.unitGrossMinor,
-        taxEnforcedAt: new Date().toISOString(),
-      },
-    };
-  });
+  const items: EnforcedOrderLine[] = [];
+  for (const item of raw) {
+    const parent = enforceLine(item, buckets);
+    items.push(parent);
+    const addOns = Array.isArray(item.addOns) ? item.addOns : [];
+    for (const addOn of addOns) {
+      items.push(enforceLine({ ...addOn, currency: addOn.currency || item.currency || currency }, buckets, { parentLineId: item.id || item.productId || parent.titleSnapshot, lineType: 'add-on' }));
+    }
+  }
   const totals = rawTotals(input);
   const itemGrossMinor = items.reduce((sum, item) => sum + item.totalPriceMinor, 0);
   const itemVatMinor = items.reduce((sum, item) => sum + minor(item.metadataJson.vatMinor), 0);
@@ -158,7 +170,7 @@ function normalize(order: Record<string, any>) {
     payment, paymentStatus: payment.paymentStatus, paymentProvider: payment.paymentProvider, paymentReference: payment.paymentReference,
     stripeCheckoutSessionId: payment.stripeCheckoutSessionId, stripePaymentIntentId: payment.stripePaymentIntentId, stripeRefundId: payment.stripeRefundId, stripeRefundStatus: payment.stripeRefundStatus,
     paidAt: payment.paidAt, refundedAt: payment.refundedAt, refundAmountMinor: payment.refundAmountMinor, refundNote: payment.refundNote, paymentFailureReason: payment.paymentFailureReason,
-    items: items.map((item: any) => ({ id: item.id, productId: item.productId || item.metadataJson?.productId || item.metadataJson?.slug || item.id, productName: item.titleSnapshot || item.metadataJson?.name || 'Order item', sku: item.metadataJson?.sku || item.metadataJson?.productId || '', quantity: item.quantity || 1, unitPrice: Number(item.unitPriceMinor || 0) / 100, totalPrice: Number(item.totalPriceMinor || 0) / 100, thumbnail: item.metadataJson?.thumbnail || '', vatRate: item.metadataJson?.vatRate, vatClass: item.metadataJson?.vatClass, vatReason: item.metadataJson?.vatReason, vatMinor: item.metadataJson?.vatMinor, netTotalMinor: item.metadataJson?.netTotalMinor, grossTotalMinor: item.metadataJson?.grossTotalMinor, metadataJson: item.metadataJson || {} })),
+    items: items.map((item: any) => ({ id: item.id, productId: item.productId || item.metadataJson?.productId || item.metadataJson?.slug || item.id, productName: item.titleSnapshot || item.metadataJson?.name || 'Order item', sku: item.metadataJson?.sku || item.metadataJson?.productId || '', quantity: item.quantity || 1, unitPrice: Number(item.unitPriceMinor || 0) / 100, totalPrice: Number(item.totalPriceMinor || 0) / 100, thumbnail: item.metadataJson?.thumbnail || '', vatRate: item.metadataJson?.vatRate, vatClass: item.metadataJson?.vatClass, vatReason: item.metadataJson?.vatReason, vatMinor: item.metadataJson?.vatMinor, netTotalMinor: item.metadataJson?.netTotalMinor, grossTotalMinor: item.metadataJson?.grossTotalMinor, lineType: item.metadataJson?.lineType || 'product', parentLineId: item.metadataJson?.parentLineId || '', metadataJson: item.metadataJson || {} })),
     createdAt: order.createdAt, updatedAt: order.updatedAt, source: 'internal-orders-db',
   };
   const taxSummary = buildOrderVatSummary({ ...base, notes: order.notes, taxSummary: noteData.taxSummary, vatBreakdown: noteData.vatBreakdown || [] });

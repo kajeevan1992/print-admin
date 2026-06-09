@@ -193,6 +193,18 @@ function validateScenario(params: { scenarioId: string; items: Array<Record<stri
   return steps;
 }
 
+function validatePersistedOrder(order: Record<string, any>, payload: Record<string, any>, scenarioId: string) {
+  const steps: StorefrontE2eStep[] = [];
+  if (minor(order.totalMinor) === minor(payload.totals?.grossTotalMinor)) steps.push(pass('persisted-total', 'Persisted order total', 'Saved order gross total matches the checkout payload total.'));
+  else steps.push(fail('persisted-total', 'Persisted order total', `Saved total ${order.totalMinor} does not match checkout payload ${payload.totals?.grossTotalMinor}.`, 'Fix order VAT/totals persistence before launch.'));
+  if (scenarioId === 'mixed-vat') {
+    const hasAddOn = Array.isArray(order.items) && order.items.some((item: Record<string, any>) => item.lineType === 'add-on' || item.metadataJson?.lineType === 'add-on');
+    if (hasAddOn) steps.push(pass('persisted-add-on', 'Persisted add-on line', 'Design/service add-on was saved as its own VAT-enforced order line.'));
+    else steps.push(fail('persisted-add-on', 'Persisted add-on line', 'Mixed VAT scenario did not save an add-on order line.', 'Add-ons must be preserved as VAT-rated lines.'));
+  }
+  return steps;
+}
+
 async function runScenario(request: Request, scenarioId: 'mixed-vat' | 'standard-vat', mode: ScenarioMode): Promise<ScenarioResult> {
   const items = await buildScenarioItems(request, scenarioId);
   const location = await firstCheckoutLocation(request);
@@ -209,6 +221,7 @@ async function runScenario(request: Request, scenarioId: 'mixed-vat' | 'standard
       notes: 'Build 53 storefront end-to-end launch test order. Safe to cancel/delete after QA.',
     }) as Record<string, any>;
     steps.push(pass('order-created', 'Order created', `Test order was created: ${order.orderNumber || order.id}.`, 'Open Orders and verify the order payload, VAT, fulfilment and customer details.'));
+    steps.push(...validatePersistedOrder(order, payload, scenarioId));
   } else if (mode === 'dry-run') {
     steps.push(info('dry-run', 'Dry run only', 'No order was written. Use create-test-order mode when you want to verify persistence in Orders.', 'Run create-test-order after reviewing dry-run output.'));
   }

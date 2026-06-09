@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, GitBranch, Link2, Search, Wand2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
@@ -60,16 +60,7 @@ export function SeoInternalLinkingPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'apply',
-        apply: {
-          applyAll,
-          paths: selected,
-          onlyMissing,
-          maxPerPage: 4,
-          minScore: Number(minScore || 55),
-          status,
-          pageType,
-          search,
-        },
+        apply: { applyAll, paths: selected, onlyMissing, maxPerPage: 4, minScore: Number(minScore || 55), status, pageType, search },
       }),
     });
     const payload = await res.json().catch(() => ({}));
@@ -157,7 +148,7 @@ function Metric({ label, value, tone = 'default' }: { label: string; value: stri
   const cls = tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10' : tone === 'blue' ? 'border-sky-500/30 bg-sky-500/10' : '';
   return <Card className={cls}><p className="text-xs uppercase tracking-wide text-textMuted">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p></Card>;
 }
-function Badge({ children, tone = 'default' }: { children: React.ReactNode; tone?: 'default' | 'green' | 'amber' | 'blue' }) { const cls = tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : tone === 'blue' ? 'border-sky-500/30 bg-sky-500/10 text-sky-100' : 'border-white/10 bg-white/[0.04] text-textMuted'; return <span className={`rounded-full border px-2.5 py-1 text-xs ${cls}`}>{children}</span>; }
+function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'green' | 'amber' | 'blue' }) { const cls = tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : tone === 'blue' ? 'border-sky-500/30 bg-sky-500/10 text-sky-100' : 'border-white/10 bg-white/[0.04] text-textMuted'; return <span className={`rounded-full border px-2.5 py-1 text-xs ${cls}`}>{children}</span>; }
 function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><p className="text-xs uppercase tracking-wide text-textMuted">{label}</p><p className="mt-1 text-xl font-semibold text-white">{value}</p></div>; }
 function Read({ label, value }: { label: string; value: string }) { return <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3"><p className="text-xs uppercase tracking-wide text-textMuted">{label}</p><p className="mt-1 break-words text-white">{value}</p></div>; }
-function Notice({ children, tone = 'default' }: { children: React.ReactNode; tone?: 'default' | 'green' | 'amber' }) { const cls = tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : 'border-white/8 bg-white/[0.03] text-textMuted'; return <div className={`rounded-xl border p-3 text-sm leading-6 ${cls}`}>{children}</div>; }
+function Notice({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'green' | 'amber' }) { const cls = tone === 'green' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : tone === 'amber' ? 'border-amber-500/30 bg-amber-500/10 text-amber-100' : 'border-white/8 bg-white/[0.03] text-textMuted'; return <div className={`rounded-xl border p-3 text-sm leading-6 ${cls}`}>{children}</div>; }

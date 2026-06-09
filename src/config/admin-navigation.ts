@@ -80,6 +80,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
   { label: 'Launch Operations', iconKey: 'Rocket', order: 265, roles: TENANT_ROLES, children: [
     { label: 'Launch Operations', href: '/launch-operations', iconKey: 'Rocket', order: 10 },
     { label: 'Launch Readiness', href: '/launch-readiness', iconKey: 'ShieldCheck', order: 15 },
+    { label: 'Storefront Order Test', href: '/storefront-order-test', iconKey: 'ShoppingCart', order: 17 },
     { label: 'Location Manager', href: '/location-manager', iconKey: 'Map', order: 20 },
     { label: 'Collection Handover', href: '/collection-handover', iconKey: 'ClipboardCheck', order: 30 },
     { label: 'Ready Collection Automation', href: '/ready-collection-automation', iconKey: 'Activity', order: 40 },

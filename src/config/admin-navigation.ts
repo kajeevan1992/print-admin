@@ -115,7 +115,10 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
     { label: 'SEO Analytics', href: '/seo-analytics', iconKey: 'BarChart3', order: 96 },
     { label: 'Search Console', href: '/seo-search-console', iconKey: 'Search', order: 97 },
     { label: 'Tracking Settings', href: '/tracking-settings', iconKey: 'BarChart3', order: 98 },
-    { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 100 }
+    { label: 'SEO Live Readiness', href: '/seo-live-readiness', iconKey: 'ShieldCheck', order: 99 },
+    { label: 'Internal Linking', href: '/seo-internal-links', iconKey: 'GitBranch', order: 100 },
+    { label: 'Content Queue', href: '/seo-content-queue', iconKey: 'FileText', order: 101 },
+    { label: 'HTML Snippets', href: '/html-snippets', iconKey: 'FileText', order: 110 }
   ]},
   { label: 'Settings', iconKey: 'Settings', order: 320, roles: TENANT_ROLES, children: [
     { label: 'General Settings', href: '/settings', iconKey: 'Settings', order: 10 },

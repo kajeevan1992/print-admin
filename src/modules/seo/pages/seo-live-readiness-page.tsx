@@ -34,7 +34,6 @@ function toneFor(severity: Severity | string) {
   return 'default';
 }
 function label(value: string) { return value === 'all' ? 'All' : value.replace(/-/g, ' '); }
-function scoreTone(score: number) { if (score >= 90) return 'green'; if (score >= 75) return 'blue'; if (score >= 55) return 'amber'; return 'red'; }
 
 export function SeoLiveReadinessPage() {
   const [data, setData] = useState<Readiness | null>(null);
@@ -71,7 +70,7 @@ export function SeoLiveReadinessPage() {
       {message ? <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-100">{message}</div> : null}
 
       <div className="mb-4 grid gap-4 xl:grid-cols-[330px_1fr]">
-        <Card className={`border-${scoreTone(data?.score || 0)}-500/30`}>
+        <Card className="border-white/10">
           <div className="flex items-center gap-3"><div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-white/[0.04]"><Gauge size={22} className="text-sky-300" /></div><div><p className="text-xs uppercase tracking-wide text-textMuted">Readiness score</p><p className="text-4xl font-black text-white">{loading ? '...' : data?.score ?? 0}<span className="ml-2 text-lg text-textMuted">/100</span></p></div></div>
           <div className="mt-4 grid grid-cols-2 gap-3"><Mini label="Grade" value={data?.grade || '-'} /><Mini label="Status" value={data?.status || 'Loading'} /></div>
           {data?.ready ? <Notice tone="green"><CheckCircle2 className="mr-2 inline h-4 w-4" />Ready enough for SEO launch checks.</Notice> : <Notice tone="amber"><AlertTriangle className="mr-2 inline h-4 w-4" />Not fully ready. Fix errors/warnings before Google push.</Notice>}

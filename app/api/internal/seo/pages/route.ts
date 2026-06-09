@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     if (action === 'bulk-update') {
       const ids = Array.isArray(body.ids) ? body.ids.map(String) : [];
-      const updates = body.updates && typeof body.updates === 'object' ? body.updates : {};
+      const updates = (body.updates && typeof body.updates === 'object' ? body.updates : {}) as Record<string, any>;
       if (!ids.length) return NextResponse.json({ ok: false, source: 'internal-seo-pages', error: 'Bulk update requires at least one SEO page id.' }, { status: 400 });
       const all = await listSeoPages(request, { status: 'all' });
       const selected = all.items.filter((item) => ids.includes(item.id));

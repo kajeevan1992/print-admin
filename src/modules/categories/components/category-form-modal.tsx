@@ -10,6 +10,15 @@ import { Toggle } from '@/components/forms/toggle';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import type { CategoryFormValues, CategoryTag } from '@/modules/categories/types';
 
+function slugify(value: string) {
+  return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function pathFromSlug(value: string) {
+  const clean = slugify(String(value || '').replace(/^\/+/, '').replace(/\/+$/, ''));
+  return clean ? `/${clean}` : '';
+}
+
 export function CategoryFormModal({
   open,
   title,
@@ -44,14 +53,24 @@ export function CategoryFormModal({
     [availableTags, values.tagIds]
   );
 
+  const categoryPath = pathFromSlug(values.friendlyUrl || values.name);
+
   return (
     <BaseModal open={open} onClose={onClose} title={title}>
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
         <div className="space-y-4">
           <FormSection title="Category Settings">
+            <div className="mb-4 rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+              <div className="text-xs uppercase tracking-[0.18em] text-cyan-200">Category slug / landing URL</div>
+              <div className="mt-2 font-semibold text-white">{categoryPath || '/category-slug'}</div>
+              <div className="mt-2 text-xs text-cyan-100/80">Products inside this category will use: {categoryPath || '/category-slug'}/product-slug</div>
+            </div>
             <FormGrid>
-              <Input placeholder="Name" value={values.name} onChange={(e) => onChange({ name: e.target.value })} />
-              <Input placeholder="Friendly URL" value={values.friendlyUrl} onChange={(e) => onChange({ friendlyUrl: e.target.value })} />
+              <Input placeholder="Name" value={values.name} onChange={(e) => {
+                const nextName = e.target.value;
+                onChange({ name: nextName, friendlyUrl: values.friendlyUrl ? values.friendlyUrl : pathFromSlug(nextName) });
+              }} />
+              <Input placeholder="Category Slug, e.g. same-day-prints" value={String(values.friendlyUrl || '').replace(/^\/+/, '')} onChange={(e) => onChange({ friendlyUrl: pathFromSlug(e.target.value) })} />
               <Select options={categoryOptions} value={values.parentId} onChange={(e) => onChange({ parentId: e.target.value })} />
               <Select options={pricingOptions} value={values.pricingId} onChange={(e) => onChange({ pricingId: e.target.value })} />
               <Select options={attributeOptions} value={values.attributeSetId} onChange={(e) => onChange({ attributeSetId: e.target.value })} />

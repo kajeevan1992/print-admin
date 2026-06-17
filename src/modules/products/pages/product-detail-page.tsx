@@ -27,7 +27,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
   const [active, setActive] = useState(defaultTab);
   const [product, setProduct] = useState<Product | null>(null);
   const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Array<SelectOption & { slug?: string; friendlyUrl?: string }>>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,7 +48,7 @@ export function ProductDetailPage({ productId }: { productId: string }) {
       .then(([productResponse, allProductsResponse, categoriesResponse]) => {
         setProduct(productResponse.data);
         setAllProducts(allProductsResponse.data.items);
-        setCategoryOptions(categoriesResponse.data.items.map((item) => ({ value: item.id, label: item.name })));
+        setCategoryOptions(categoriesResponse.data.items.map((item) => ({ value: item.id, label: item.name, slug: item.friendlyUrl.replace(/^\/+/, ''), friendlyUrl: item.friendlyUrl })));
       })
       .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load product'))
       .finally(() => setLoading(false));

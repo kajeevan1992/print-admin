@@ -2,6 +2,7 @@ import type { PrismaClient as PrismaClientType } from '@prisma/client';
 import type { TenantContext, TenantDatabaseConnection } from '../tenant/types';
 import { allowSelfSignedDbCertificatesForNode, buildPostgresConnectionString, normalizePrismaPostgresUrl } from './connection-string';
 import { getDatabaseConnection, listDatabaseConnections, toConnectionInput } from './database-connection-store';
+import { platformPrisma } from './platform-prisma';
 
 const globalForTenantPrisma = globalThis as unknown as {
   tenantPrismaClients?: Map<string, PrismaClientType>;
@@ -18,6 +19,7 @@ export type TenantPrismaResolution = {
   client?: PrismaClientType;
   connection?: TenantDatabaseConnection;
   message: string;
+  usingPlatformDatabase?: boolean;
 };
 
 function clientCacheKey(record: TenantDatabaseConnection) {
@@ -41,6 +43,19 @@ function makeTenantClient(record: TenantDatabaseConnection) {
   });
   tenantPrismaClients.set(key, client);
   return client;
+}
+
+function shouldUsePlatformDatabaseFallback() {
+  return process.env.TENANT_DB_FALLBACK_TO_PLATFORM !== 'false';
+}
+
+function platformDatabaseFallback(ctx: TenantContext): TenantPrismaResolution {
+  return {
+    ok: true,
+    client: platformPrisma,
+    message: `Tenant ${ctx.tenantId} is using the main platform database because no separate tenant database connection is configured.`,
+    usingPlatformDatabase: true,
+  };
 }
 
 export async function findTenantDatabaseConnection(ctx: TenantContext) {
@@ -69,6 +84,7 @@ export async function getTenantPrisma(ctx: TenantContext): Promise<TenantPrismaR
   const connection = await findTenantDatabaseConnection(ctx);
 
   if (!connection) {
+    if (shouldUsePlatformDatabaseFallback()) return platformDatabaseFallback(ctx);
     return {
       ok: false,
       message: `No tenant database connection configured for tenant ${ctx.tenantId}.`,
@@ -76,6 +92,7 @@ export async function getTenantPrisma(ctx: TenantContext): Promise<TenantPrismaR
   }
 
   if (!connection.encryptedPassword) {
+    if (shouldUsePlatformDatabaseFallback()) return platformDatabaseFallback(ctx);
     return {
       ok: false,
       connection,

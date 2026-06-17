@@ -15,10 +15,31 @@ const RESERVED_PREFIXES = [
   '/storefront',
 ];
 
-const ALLOWED_STOREFRONT_ORIGINS = new Set([
+const DEFAULT_STOREFRONT_ORIGINS = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://hosted-theme.vercel.app',
   'http://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io',
   'https://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io',
-]);
+];
+
+function envOrigins() {
+  return [
+    process.env.CORS_ORIGIN,
+    process.env.CORS_ORIGINS,
+    process.env.ALLOWED_ORIGINS,
+    process.env.STOREFRONT_URL,
+    process.env.NEXT_PUBLIC_STOREFRONT_URL,
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+}
+
+function allowedStorefrontOrigins() {
+  return new Set([...DEFAULT_STOREFRONT_ORIGINS, ...envOrigins()].map((value) => value.replace(/\/$/, '')));
+}
 
 function wantsHostedTheme(request: NextRequest) {
   const url = request.nextUrl;
@@ -36,12 +57,13 @@ function isInternalStorefrontApi(pathname: string) {
 }
 
 function withCors(request: NextRequest, response: NextResponse) {
-  const origin = request.headers.get('origin') || '';
-  if (!origin || !ALLOWED_STOREFRONT_ORIGINS.has(origin)) return response;
+  const origin = (request.headers.get('origin') || '').replace(/\/$/, '');
+  if (!origin || !allowedStorefrontOrigins().has(origin)) return response;
   response.headers.set('Access-Control-Allow-Origin', origin);
   response.headers.set('Access-Control-Allow-Credentials', 'true');
   response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Print-Tenant, X-Print-Hosted-Theme, X-Tenant-Id, X-Site-Id');
+  response.headers.set('Access-Control-Allow-Headers', 'Accept, Content-Type, Authorization, X-Requested-With, X-Print-Tenant, X-Print-Hosted-Theme, X-Tenant-Id, X-Site-Id');
+  response.headers.set('Access-Control-Max-Age', '86400');
   response.headers.set('Vary', 'Origin');
   return response;
 }

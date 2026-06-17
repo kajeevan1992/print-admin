@@ -1,5 +1,4 @@
-import { prisma } from '@/lib/prisma';
-import { tenantContextFromRequest } from '@/core/tenant/context';
+import { queueInternalEmail } from './internal-email.service';
 
 export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link';
 
@@ -23,10 +22,6 @@ type QueueOptions = {
   actor?: string;
 };
 
-function id(prefix: string) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-}
-
 function money(order: EmailOrder) {
   const currency = order.currency || 'GBP';
   const total = typeof order.total === 'number' ? order.total : typeof order.totalMinor === 'number' ? order.totalMinor / 100 : 0;
@@ -34,7 +29,7 @@ function money(order: EmailOrder) {
 }
 
 function adminEmail() {
-  return process.env.HOLO_PRINT_ADMIN_EMAIL || process.env.ORDER_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL || 'sales@holoprint.co.uk';
+  return process.env.HOLO_PRINT_ADMIN_EMAIL || process.env.ORDER_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER || 'sales@holoprint.co.uk';
 }
 
 function customerEmail(order: EmailOrder) {
@@ -90,25 +85,18 @@ function htmlFromText(text: string) {
 
 async function createOutboxEmail(request: Request, type: OrderEmailType, to: string, order: EmailOrder, options: QueueOptions = {}) {
   if (!to) return { ok: false, skipped: true, reason: 'Missing recipient email.' };
-  const ctx = tenantContextFromRequest(request);
   const subject = subjectFor(type, order);
   const body = bodyFor(type, order, options);
-  const row = await (prisma as any).tenantEmailOutboxEmail.create({
-    data: {
-      id: id(type),
-      tenantId: ctx.tenantId,
-      type,
-      status: 'queued',
-      to,
-      subject,
-      body,
-      html: htmlFromText(body),
-      orderId: order.id || order.orderNumber || null,
-      quoteId: order.quoteReference || null,
-      metadataJson: { orderNumber: orderNumber(order), paymentUrl: options.paymentUrl || '', actor: options.actor || 'system', note: options.note || '' },
-    },
-  });
-  return { ok: true, email: row };
+  const email = await queueInternalEmail({
+    type,
+    to,
+    subject,
+    body,
+    html: htmlFromText(body),
+    orderId: order.id || order.orderNumber || undefined,
+    quoteId: order.quoteReference || undefined,
+  }, request);
+  return { ok: true, email };
 }
 
 export async function queueOrderCustomerEmail(request: Request, type: Exclude<OrderEmailType, 'admin-new-order'>, order: EmailOrder, options: QueueOptions = {}) {

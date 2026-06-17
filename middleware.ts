@@ -52,7 +52,8 @@ function isInternalStorefrontApi(pathname: string) {
   return (
     pathname.startsWith('/api/internal/storefront/') ||
     pathname.startsWith('/api/internal/catalog/') ||
-    pathname.startsWith('/api/internal/seo/')
+    pathname.startsWith('/api/internal/seo/') ||
+    pathname.startsWith('/api/internal/config/')
   );
 }
 

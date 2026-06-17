@@ -19,28 +19,7 @@ import { pricingImportService } from '@/services/pricing-import.service';
 import type { Product, ProductFormValues, ProductListQuery } from '@/modules/products/types';
 
 const emptyForm: ProductFormValues = {
-  name: '',
-  categoryId: '',
-  creationMethod: 'idml',
-  productType: 'online',
-  idmlFileName: '',
-  printEditorTemplateName: '',
-  pages: '1',
-  units: 'mm',
-  width: '0',
-  height: '0',
-  bleed: '0',
-  parametricStandard: '',
-  parametricSize: '',
-  parametricAllowance: '',
-  parametricMaterial: '',
-  templateId: 'business-cards',
-  materialId: 'silk-350',
-  finishId: 'matt-lam',
-  printerId: 'hp-indigo-7k',
-  quantity: '250',
-  turnaround: 'standard',
-  configValues: {}
+  name: '', categoryId: '', creationMethod: 'idml', productType: 'online', idmlFileName: '', printEditorTemplateName: '', pages: '1', units: 'mm', width: '0', height: '0', bleed: '0', parametricStandard: '', parametricSize: '', parametricAllowance: '', parametricMaterial: '', templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: '250', turnaround: 'standard', configValues: {}
 };
 
 export function ProductsListPage() {
@@ -64,155 +43,79 @@ export function ProductsListPage() {
   const [saving, setSaving] = useState(false);
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
   const [total, setTotal] = useState(0);
-
   const [params, setParams] = useState<ProductListQuery>({ page: 1, perPage: 20, sortBy: 'lastSavedAt', sortDirection: 'desc' });
 
   const loadProducts = useCallback(async (nextParams: ProductListQuery) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await productsService.listProducts(nextParams);
-      setProducts(response.data.items);
-      setTotal(response.meta.total);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load products');
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError(null);
+    try { const response = await productsService.listProducts(nextParams); setProducts(response.data.items); setTotal(response.meta.total); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Failed to load products'); }
+    finally { setLoading(false); }
   }, []);
 
-  useEffect(() => {
-    void loadProducts(params);
-  }, [loadProducts, params]);
+  useEffect(() => { void loadProducts(params); }, [loadProducts, params]);
 
   useEffect(() => {
     Promise.all([categoriesService.listCategories(), vendorsService.listVendors()])
       .then(([categories, vendors]) => {
         const catOptions = categories.data.items.map((item) => ({ value: item.id, label: item.name }));
         const venOptions = vendors.data.items.map((item) => ({ value: item.id, label: item.name }));
-        setCategoryOptions(catOptions);
-        setVendorOptions(venOptions);
+        setCategoryOptions(catOptions); setVendorOptions(venOptions);
         setForm((prev) => ({ ...prev, categoryId: catOptions[0] ? String(catOptions[0].value) : '' }));
       })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load product page options');
-      });
+      .catch((err) => { setError(err instanceof Error ? err.message : 'Failed to load product page options'); });
   }, []);
 
   const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
 
   async function handleCsvImport() {
-    if (!csvFile || !importSlug.trim() || !importName.trim()) {
-      setError('CSV file, product slug and product name are required.');
-      return;
-    }
-
-    setImporting(true);
-    setError(null);
-    setNotice(null);
-
+    if (!csvFile || !importSlug.trim() || !importName.trim()) { setError('CSV file, product slug and product name are required.'); return; }
+    setImporting(true); setError(null); setNotice(null);
     try {
-      const result = await pricingImportService.importCsvPricing({
-        file: csvFile,
-        productSlug: importSlug.trim(),
-        productName: importName.trim(),
-        categoryId: form.categoryId || undefined,
-        markupPercent: Number(importMarkup || 0),
-      });
-
-      setNotice(`Imported CSV pricing for ${result.productName || importName}.`);
-      setImportOpen(false);
-      setCsvFile(null);
-      await loadProducts(params);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'CSV pricing import failed.');
-    } finally {
-      setImporting(false);
-    }
+      const result = await pricingImportService.importCsvPricing({ file: csvFile, productSlug: importSlug.trim(), productName: importName.trim(), categoryId: form.categoryId || undefined, markupPercent: Number(importMarkup || 0) });
+      setNotice(`Imported CSV pricing for ${result.productName || importName}.`); setImportOpen(false); setCsvFile(null); await loadProducts(params);
+    } catch (err) { setError(err instanceof Error ? err.message : 'CSV pricing import failed.'); }
+    finally { setImporting(false); }
   }
 
   const handleToggle = async (id: string, key: 'published' | 'isGlobal', value: boolean) => {
-    setError(null);
-    setNotice(null);
-    try {
-      await productsService.updateProduct(id, { [key]: value });
-      setNotice(`Product ${key === 'published' ? (value ? 'published' : 'unpublished') : 'global flag updated'}.`);
-      await loadProducts(params);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update product');
-    }
+    setError(null); setNotice(null);
+    try { await productsService.updateProduct(id, { [key]: value }); setNotice(`Product ${key === 'published' ? (value ? 'published' : 'unpublished') : 'global flag updated'}.`); await loadProducts(params); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Failed to update product'); }
   };
 
   const handleAction = async (id: string, action: ProductTableAction) => {
-    setError(null);
-    setNotice(null);
+    setError(null); setNotice(null);
     try {
-      if (action === 'clone') {
-        await productsService.cloneProduct(id);
-        setNotice('Product cloned.');
-      }
-      if (action === 'delete') {
-        const product = products.find((item) => item.id === id);
-        if (product) setPendingDeleteProduct(product);
-        return;
-      }
+      if (action === 'clone') { await productsService.cloneProduct(id); setNotice('Product cloned.'); }
+      if (action === 'delete') { const product = products.find((item) => item.id === id); if (product) setPendingDeleteProduct(product); return; }
       if (action === 'edit-window') window.open(`/products/${id}`, '_blank', 'noopener,noreferrer');
       if (action === 'preview') window.open(`/products/${id}/preview`, '_blank', 'noopener,noreferrer');
       await loadProducts(params);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Product action failed');
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Product action failed'); }
   };
 
   const confirmDeleteProduct = async () => {
     if (!pendingDeleteProduct) return;
-    setSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      await productsService.deleteProduct(pendingDeleteProduct.id);
-      setNotice(`Deleted product ${pendingDeleteProduct.name}.`);
-      setPendingDeleteProduct(null);
-      await loadProducts(params);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete product');
-    } finally {
-      setSaving(false);
-    }
+    setSaving(true); setError(null); setNotice(null);
+    try { await productsService.deleteProduct(pendingDeleteProduct.id); setNotice(`Deleted product ${pendingDeleteProduct.name}.`); setPendingDeleteProduct(null); await loadProducts(params); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Failed to delete product'); }
+    finally { setSaving(false); }
   };
 
   const handleCreate = async () => {
     if (!form.name.trim() || !form.categoryId || saving) return;
-    setSaving(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const created = await productsService.createProduct(form);
-      setCreatedProductId(created.data.id);
-      setCreationSuccess(true);
-      setNotice(`Created product ${created.data.name}.`);
-      await loadProducts(params);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create product');
-    } finally {
-      setSaving(false);
-    }
+    setSaving(true); setError(null); setNotice(null);
+    try { const created = await productsService.createProduct(form); setCreatedProductId(created.data.id); setCreationSuccess(true); setNotice(`Created product ${created.data.name}.`); await loadProducts(params); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Failed to create product'); }
+    finally { setSaving(false); }
   };
 
-  const resetCreation = () => {
-    setCreationSuccess(false);
-    setCreatedProductId('');
-    setForm({ ...emptyForm, categoryId: form.categoryId });
-  };
+  const resetCreation = () => { setCreationSuccess(false); setCreatedProductId(''); setForm({ ...emptyForm, categoryId: form.categoryId }); };
+  const closeCreateWizard = () => { setOpen(false); setCreationSuccess(false); setCreatedProductId(''); setForm({ ...emptyForm, categoryId: form.categoryId }); };
 
   return (
     <div>
-      <PageHeader
-        title="Products"
-        subtitle={subtitle}
-        actions={<><Button onClick={() => setImportOpen(true)}>Import CSV Pricing</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>}
-      />
-
+      <PageHeader title="Products" subtitle={subtitle} actions={<><Button onClick={() => setImportOpen(true)}>Import CSV Pricing</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>} />
       <CatalogPageDiagnostics resourceLabel="Products" loading={loading} error={error} itemCount={products.length} />
       {notice ? <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</div> : null}
 
@@ -223,23 +126,25 @@ export function ProductsListPage() {
       </FilterBar>
 
       {!loading && !error && products.length > 0 ? <ProductTable products={products} onToggle={handleToggle} onAction={handleAction} /> : null}
+      {!loading && !error && products.length === 0 ? <EmptyModuleState title="No products yet" description="Create your first storefront product or import pricing from a CSV matrix." actionLabel="Add Product" onAction={() => setOpen(true)} /> : null}
+
+      <BaseModal open={open} onClose={closeCreateWizard} title="Add Product">
+        <ProductForm values={form} categoryOptions={categoryOptions} onChange={(key, value) => setForm((prev) => ({ ...prev, [key]: value }))} onCancel={() => { if (creationSuccess && createdProductId) router.push(`/products/${createdProductId}`); else closeCreateWizard(); }} onSubmit={handleCreate} success={creationSuccess} onReset={resetCreation} />
+        {!creationSuccess ? <div className="mt-5 flex justify-end gap-2 border-t border-white/8 pt-4"><Button onClick={closeCreateWizard} disabled={saving}>Cancel</Button><PrimaryButton onClick={handleCreate} disabled={saving || !form.name.trim() || !form.categoryId}>{saving ? 'Creating…' : 'Create Product'}</PrimaryButton></div> : null}
+      </BaseModal>
 
       <BaseModal open={importOpen} onClose={() => setImportOpen(false)} title="Import CSV Pricing">
         <div className="space-y-4">
           <Input label="Product Slug" value={importSlug} onChange={(e) => setImportSlug(e.target.value)} placeholder="standard-business-cards" />
           <Input label="Product Name" value={importName} onChange={(e) => setImportName(e.target.value)} placeholder="Standard Business Cards" />
           <Input label="Markup %" value={importMarkup} onChange={(e) => setImportMarkup(e.target.value)} placeholder="35" />
-          <div className="space-y-2">
-            <label className="text-sm font-medium">CSV File</label>
-            <input type="file" accept=".csv,text/csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="w-full rounded-xl border border-border bg-panel px-3 py-2 text-sm" />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button onClick={() => setImportOpen(false)} disabled={importing}>Cancel</Button>
-            <PrimaryButton onClick={handleCsvImport} disabled={importing || !csvFile}>
-              {importing ? 'Importing…' : 'Import Pricing CSV'}
-            </PrimaryButton>
-          </div>
+          <div className="space-y-2"><label className="text-sm font-medium">CSV File</label><input type="file" accept=".csv,text/csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="w-full rounded-xl border border-border bg-panel px-3 py-2 text-sm" /></div>
+          <div className="flex justify-end gap-2 pt-2"><Button onClick={() => setImportOpen(false)} disabled={importing}>Cancel</Button><PrimaryButton onClick={handleCsvImport} disabled={importing || !csvFile}>{importing ? 'Importing…' : 'Import Pricing CSV'}</PrimaryButton></div>
         </div>
+      </BaseModal>
+
+      <BaseModal open={Boolean(pendingDeleteProduct)} onClose={() => setPendingDeleteProduct(null)} title="Delete Product">
+        <div className="space-y-4"><p className="text-sm text-textMuted">Delete <span className="font-semibold text-white">{pendingDeleteProduct?.name}</span>? This cannot be undone.</p><div className="flex justify-end gap-2"><Button onClick={() => setPendingDeleteProduct(null)} disabled={saving}>Cancel</Button><PrimaryButton onClick={confirmDeleteProduct} disabled={saving}>{saving ? 'Deleting…' : 'Delete Product'}</PrimaryButton></div></div>
       </BaseModal>
     </div>
   );

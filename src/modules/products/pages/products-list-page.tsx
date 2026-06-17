@@ -22,6 +22,22 @@ const emptyForm: ProductFormValues = {
   name: '', categoryId: '', creationMethod: 'idml', productType: 'online', idmlFileName: '', printEditorTemplateName: '', pages: '1', units: 'mm', width: '0', height: '0', bleed: '0', parametricStandard: '', parametricSize: '', parametricAllowance: '', parametricMaterial: '', templateId: 'business-cards', materialId: 'silk-350', finishId: 'matt-lam', printerId: 'hp-indigo-7k', quantity: '250', turnaround: 'standard', configValues: {}
 };
 
+function csvCell(value: unknown) {
+  const text = String(value ?? '');
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadCsv(filename: string, rows: Array<Array<unknown>>) {
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function ProductsListPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
@@ -39,6 +55,7 @@ export function ProductsListPage() {
   const [createdProductId, setCreatedProductId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [pendingDeleteProduct, setPendingDeleteProduct] = useState<Product | null>(null);
@@ -68,13 +85,22 @@ export function ProductsListPage() {
   const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
 
   async function handleCsvImport() {
-    if (!csvFile || !importSlug.trim() || !importName.trim()) { setError('CSV file, product slug and product name are required.'); return; }
-    setImporting(true); setError(null); setNotice(null);
+    if (!csvFile || !importSlug.trim() || !importName.trim()) { setImportError('CSV file, product slug and product name are required.'); return; }
+    setImporting(true); setImportError(null); setNotice(null);
     try {
       const result = await pricingImportService.importCsvPricing({ file: csvFile, productSlug: importSlug.trim(), productName: importName.trim(), categoryId: form.categoryId || undefined, markupPercent: Number(importMarkup || 0) });
       setNotice(`Imported CSV pricing for ${result.productName || importName}.`); setImportOpen(false); setCsvFile(null); await loadProducts(params);
-    } catch (err) { setError(err instanceof Error ? err.message : 'CSV pricing import failed.'); }
+    } catch (err) { setImportError(err instanceof Error ? err.message : 'CSV pricing import failed.'); }
     finally { setImporting(false); }
+  }
+
+  function handleExport() {
+    if (!products.length) { setNotice('No products available to export.'); return; }
+    downloadCsv(`products-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ['ID', 'Slug', 'Name', 'Status', 'Published', 'Global', 'Category ID', 'Product Type', 'Price From', 'Currency', 'Updated'],
+      ...products.map((product) => [product.id, product.slug, product.name, product.status, product.published ? 'yes' : 'no', product.isGlobal ? 'yes' : 'no', product.categoryId, product.productType, product.priceMapping?.basePrice ?? '', product.priceMapping?.currency ?? 'GBP', product.lastSavedAt || product.updatedAt]),
+    ]);
+    setNotice(`Exported ${products.length} visible products.`);
   }
 
   const handleToggle = async (id: string, key: 'published' | 'isGlobal', value: boolean) => {
@@ -115,7 +141,7 @@ export function ProductsListPage() {
 
   return (
     <div>
-      <PageHeader title="Products" subtitle={subtitle} actions={<><Button onClick={() => setImportOpen(true)}>Import CSV Pricing</Button><Button>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>} />
+      <PageHeader title="Products" subtitle={subtitle} actions={<><Button onClick={() => setImportOpen(true)}>Import CSV Pricing</Button><Button onClick={handleExport} disabled={loading || products.length === 0}>Export</Button><PrimaryButton onClick={() => setOpen(true)}>+ Add Product</PrimaryButton></>} />
       <CatalogPageDiagnostics resourceLabel="Products" loading={loading} error={error} itemCount={products.length} />
       {notice ? <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-200">{notice}</div> : null}
 
@@ -139,6 +165,7 @@ export function ProductsListPage() {
           <Input label="Product Name" value={importName} onChange={(e) => setImportName(e.target.value)} placeholder="Standard Business Cards" />
           <Input label="Markup %" value={importMarkup} onChange={(e) => setImportMarkup(e.target.value)} placeholder="35" />
           <div className="space-y-2"><label className="text-sm font-medium">CSV File</label><input type="file" accept=".csv,text/csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="w-full rounded-xl border border-border bg-panel px-3 py-2 text-sm" /></div>
+          {importError ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{importError}</div> : null}
           <div className="flex justify-end gap-2 pt-2"><Button onClick={() => setImportOpen(false)} disabled={importing}>Cancel</Button><PrimaryButton onClick={handleCsvImport} disabled={importing || !csvFile}>{importing ? 'Importing…' : 'Import Pricing CSV'}</PrimaryButton></div>
         </div>
       </BaseModal>

@@ -12,6 +12,14 @@ export type ContentRecord = {
   body: string;
   seoTitle: string;
   seoDescription: string;
+  heroTitle?: string;
+  heroIntro?: string;
+  heroImage?: string;
+  menuLabel?: string;
+  menuDescription?: string;
+  menuOrder?: number;
+  showInMenu?: boolean;
+  canonicalPath?: string;
 };
 
 export type HtmlSnippet = {
@@ -55,14 +63,22 @@ export const contentRecordsSeed: ContentRecord[] = [
     id: 'cnt-category-1',
     kind: 'category',
     title: 'Business Cards Category CMS',
-    slug: 'business-cards-category',
+    slug: 'business-cards',
     status: 'draft',
     updatedAt: '2026-03-30',
     author: 'Catalog Ops',
     summary: 'Category copy, banners, and browse/upload/create permissions.',
     body: 'Configure hero copy, browse text, upload/create blocks, and category-specific support messaging.',
     seoTitle: 'Business Cards',
-    seoDescription: 'Explore premium business card printing options.'
+    seoDescription: 'Explore premium business card printing options.',
+    heroTitle: 'Business card options for teams, brands and everyday networking.',
+    heroIntro: 'Compare standard, premium and related business stationery products before choosing a product or quote route.',
+    heroImage: '/images/business-card-front.svg',
+    menuLabel: 'Business Cards',
+    menuDescription: 'Premium presentation for your brand, team and customer touchpoints.',
+    menuOrder: 10,
+    showInMenu: true,
+    canonicalPath: '/business-cards'
   },
   {
     id: 'cnt-extended-1',
@@ -84,7 +100,7 @@ export const htmlSnippetsSeed: HtmlSnippet[] = [
     id: 'snippet-1',
     name: 'Global Analytics',
     location: 'head',
-    status: 'published',
+    status: 'draft',
     updatedAt: '2026-04-02',
     code: '<script>window.dataLayer = window.dataLayer || [];</script>',
     notes: 'Core analytics boot snippet.'

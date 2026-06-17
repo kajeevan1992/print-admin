@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { adminSidebarNavigation, type AdminSidebarNavigationItem, type AdminRole } from '@/config/admin-navigation';
 
 const BUILD55_LINK = { label: 'Mail QA', href: '/email-order-notification-qa', iconKey: 'Mail', order: 35 };
+const BUILD56_LINK = { label: 'Launch Guard', href: '/admin-launch-security', iconKey: 'ShieldCheck', order: 36 };
 
 const SUPER_ADMIN_NAVIGATION: AdminSidebarNavigationItem[] = [
   { label: 'Super Admin', href: '/super-admin', iconKey: 'ShieldCheck', order: 10 },
@@ -31,6 +32,7 @@ const SUPER_ADMIN_NAVIGATION: AdminSidebarNavigationItem[] = [
       { label: 'Storefront Order Test', href: '/storefront-order-test', iconKey: 'ShoppingCart', order: 20 },
       { label: 'Payment Checkout QA', href: '/payment-checkout-qa', iconKey: 'CreditCard', order: 30 },
       BUILD55_LINK,
+      BUILD56_LINK,
       { label: 'SEO Live Readiness', href: '/seo-live-readiness', iconKey: 'ShieldCheck', order: 40 },
     ]
   },
@@ -55,11 +57,14 @@ function roleAllowed(item: { roles?: AdminRole[] }, role?: string) {
   return !item.roles?.length || !role || item.roles.includes(role as AdminRole);
 }
 
-function addBuild55Link(items: AdminSidebarNavigationItem[]) {
+function addLaunchLinks(items: AdminSidebarNavigationItem[]) {
   return items.map((item) => {
     if (item.label !== 'Launch Operations' || !item.children?.length) return item;
-    if (item.children.some((child) => child.href === BUILD55_LINK.href)) return item;
-    return { ...item, children: [...item.children, { ...BUILD55_LINK, order: 19 }].sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) };
+    const next = [...item.children];
+    for (const link of [BUILD55_LINK, { ...BUILD56_LINK, order: 19.5 }]) {
+      if (!next.some((child) => child.href === link.href)) next.push(link);
+    }
+    return { ...item, children: next.sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) };
   });
 }
 
@@ -69,7 +74,7 @@ function tenantNavigation(role?: string) {
     .map((item) => ({ ...item, children: item.children?.filter((child) => !child.hidden && roleAllowed(child, role)).sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) }))
     .filter((item) => item.href || item.children?.length)
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  return addBuild55Link(items);
+  return addLaunchLinks(items);
 }
 
 function visibleNavigation(role?: string) {

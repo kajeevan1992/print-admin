@@ -10,6 +10,7 @@ import { adminSidebarNavigation, type AdminSidebarNavigationItem, type AdminRole
 
 const BUILD55_LINK = { label: 'Mail QA', href: '/email-order-notification-qa', iconKey: 'Mail', order: 35 };
 const BUILD56_LINK = { label: 'Launch Guard', href: '/admin-launch-security', iconKey: 'ShieldCheck', order: 36 };
+const BUILD57_LINK = { label: 'Data Check', href: '/data-continuity', iconKey: 'ShieldCheck', order: 37 };
 
 const SUPER_ADMIN_NAVIGATION: AdminSidebarNavigationItem[] = [
   { label: 'Super Admin', href: '/super-admin', iconKey: 'ShieldCheck', order: 10 },
@@ -33,6 +34,7 @@ const SUPER_ADMIN_NAVIGATION: AdminSidebarNavigationItem[] = [
       { label: 'Payment Checkout QA', href: '/payment-checkout-qa', iconKey: 'CreditCard', order: 30 },
       BUILD55_LINK,
       BUILD56_LINK,
+      BUILD57_LINK,
       { label: 'SEO Live Readiness', href: '/seo-live-readiness', iconKey: 'ShieldCheck', order: 40 },
     ]
   },
@@ -61,7 +63,7 @@ function addLaunchLinks(items: AdminSidebarNavigationItem[]) {
   return items.map((item) => {
     if (item.label !== 'Launch Operations' || !item.children?.length) return item;
     const next = [...item.children];
-    for (const link of [BUILD55_LINK, { ...BUILD56_LINK, order: 19.5 }]) {
+    for (const link of [BUILD55_LINK, { ...BUILD56_LINK, order: 19.5 }, { ...BUILD57_LINK, order: 19.75 }]) {
       if (!next.some((child) => child.href === link.href)) next.push(link);
     }
     return { ...item, children: next.sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) };

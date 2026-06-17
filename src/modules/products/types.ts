@@ -160,36 +160,9 @@ export type ProductAdminRuleScope = 'storefront' | 'pricing' | 'artwork' | 'prod
 export type ProductAdminRuleConditionOperator = 'equals' | 'not-equals' | 'is-selected' | 'is-empty' | 'greater-than' | 'less-than' | 'between';
 export type ProductAdminRuleActionType = 'show-group' | 'hide-group' | 'require-group' | 'show-value' | 'hide-value' | 'set-default-value' | 'add-price' | 'multiply-price' | 'set-lead-time' | 'block-checkout' | 'show-message' | 'set-artwork-mode' | 'assign-production-method';
 
-export type ProductAdminRuleCondition = {
-  id: Id;
-  groupKey: string;
-  operator: ProductAdminRuleConditionOperator;
-  value?: string;
-  secondaryValue?: string;
-};
-
-export type ProductAdminRuleAction = {
-  id: Id;
-  type: ProductAdminRuleActionType;
-  targetGroupKey?: string;
-  targetValueId?: string;
-  amountMinor?: number;
-  multiplier?: number;
-  leadTimeDays?: number;
-  message?: string;
-};
-
-export type ProductAdminRuleConfig = {
-  id: Id;
-  name: string;
-  enabled: boolean;
-  priority: number;
-  scope: ProductAdminRuleScope;
-  stopProcessing?: boolean;
-  conditions: ProductAdminRuleCondition[];
-  actions: ProductAdminRuleAction[];
-  adminNote?: string;
-};
+export type ProductAdminRuleCondition = { id: Id; groupKey: string; operator: ProductAdminRuleConditionOperator; value?: string; secondaryValue?: string };
+export type ProductAdminRuleAction = { id: Id; type: ProductAdminRuleActionType; targetGroupKey?: string; targetValueId?: string; amountMinor?: number; multiplier?: number; leadTimeDays?: number; message?: string };
+export type ProductAdminRuleConfig = { id: Id; name: string; enabled: boolean; priority: number; scope: ProductAdminRuleScope; stopProcessing?: boolean; conditions: ProductAdminRuleCondition[]; actions: ProductAdminRuleAction[]; adminNote?: string };
 
 export type ProductTemplateRuleConfig = {
   templateKey: string;
@@ -210,7 +183,6 @@ export type ProductTemplateRuleConfig = {
 export type ProductPricingMode = 'formula' | 'supplier' | 'quote' | 'hybrid-formula-supplier' | 'hybrid-supplier-quote';
 export type ProductPricingRoutePriority = 'formula-first' | 'supplier-first' | 'quote-first';
 export type ProductCostingBasis = 'sheet' | 'area' | 'linear-metre' | 'matrix' | 'supplier-api' | 'manual-quote';
-
 export type ProductModeSettings = {
   mode: ProductPricingMode;
   active: boolean;
@@ -232,16 +204,7 @@ export type ProductTaxSettings = {
   internalNote?: string;
 };
 
-export type ProductSystemConfig = {
-  templateId: string;
-  materialId: string;
-  finishId: string;
-  printerId: string;
-  quantity: number;
-  turnaround: 'standard' | 'priority' | 'rush';
-  fieldValues: Record<string, string>;
-};
-
+export type ProductSystemConfig = { templateId: string; materialId: string; finishId: string; printerId: string; quantity: number; turnaround: 'standard' | 'priority' | 'rush'; fieldValues: Record<string, string> };
 export type ProductPriceMapping = { basePrice: number; sizeLabel: string; dielineMapping: string; currency: 'USD'; parametricStandard?: ParametricStandardConfig };
 export type ProductComment = { id: Id; author: string; timestamp: string; label: 'internal' | 'qa' | 'vendor'; message: string };
 export type ProductTag = { id: Id; label: string; color: 'blue' | 'violet' | 'emerald' | 'amber' };
@@ -259,6 +222,8 @@ export type Product = {
   productType: ProductType;
   creationMethod: CreationMethod;
   categoryId: Id;
+  categoryName?: string;
+  categorySlug?: string;
   vendorId: Id;
   hotFolder: string;
   pdfFileUrl?: string;

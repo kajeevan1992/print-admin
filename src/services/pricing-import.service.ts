@@ -13,7 +13,15 @@ export type CsvPricingImportResult = {
   priceFromMinor?: number | null;
   productSlug?: string;
   productName?: string;
+  detectedColumns?: Record<string, string | undefined>;
 };
+
+function errorMessageFromPayload(payload: any, fallback: string) {
+  if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error;
+  if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) return payload.error.message;
+  if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
+  return fallback;
+}
 
 export const pricingImportService = {
   async importCsvPricing(input: CsvPricingImportInput): Promise<CsvPricingImportResult> {
@@ -29,9 +37,13 @@ export const pricingImportService = {
       body: form,
     });
 
-    const payload = await response.json().catch(() => ({}));
+    const text = await response.text();
+    let payload: any = {};
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = {}; }
+
     if (!response.ok || payload.ok === false) {
-      throw new Error(payload.error || payload?.error?.message || 'CSV pricing import failed.');
+      const detail = errorMessageFromPayload(payload, text || `HTTP ${response.status}`);
+      throw new Error(detail || 'CSV pricing import failed.');
     }
 
     return payload.data || payload;

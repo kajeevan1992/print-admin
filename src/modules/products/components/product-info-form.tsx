@@ -8,15 +8,52 @@ import { calculateProductEstimate, printerProfiles, productFinishes, productMate
 import { productVendors, storefrontOptions } from '@/data/products';
 import type { Product, ProductSystemConfig } from '@/modules/products/types';
 
+type CategoryOption = SelectOption & { slug?: string; friendlyUrl?: string };
+
 const productTypeOptions: SelectOption[] = [
   { value: 'online', label: 'Online' },
   { value: 'static', label: 'Static PDF' },
   { value: 'parametric', label: 'Parametric' }
 ];
 
-export function ProductInfoForm({ product, onUpdate, categoryOptions = [] }: { product: Product; onUpdate: (changes: Partial<Product>) => void; categoryOptions?: SelectOption[] }) {
+function slugify(value: string) {
+  return String(value || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function cleanSlug(value: string) {
+  return slugify(String(value || '').replace(/^\/+/, '').replace(/\/+$/, ''));
+}
+
+function storefrontBaseUrl() {
+  return (process.env.NEXT_PUBLIC_STOREFRONT_URL || 'https://hosted-theme.vercel.app').replace(/\/$/, '');
+}
+
+export function ProductInfoForm({ product, onUpdate, categoryOptions = [] }: { product: Product; onUpdate: (changes: Partial<Product>) => void; categoryOptions?: CategoryOption[] }) {
+  const selectedCategory = categoryOptions.find((item) => String(item.value) === String(product.categoryId));
+  const categorySlug = cleanSlug(selectedCategory?.slug || selectedCategory?.friendlyUrl || selectedCategory?.label || 'uncategorized');
+  const productSlug = cleanSlug(product.slug || product.name);
+  const storefrontPath = categorySlug && productSlug ? `/${categorySlug}/${productSlug}` : productSlug ? `/${productSlug}` : '';
+  const fullStorefrontUrl = `${storefrontBaseUrl()}${storefrontPath}`;
+
   return (
     <div className="space-y-4">
+      <FormSection title="Storefront URL & Slugs">
+        <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+          <div className="text-xs uppercase tracking-[0.18em] text-cyan-200">Generated storefront URL</div>
+          <div className="mt-2 break-all font-semibold text-white">{fullStorefrontUrl}</div>
+          <div className="mt-2 text-xs text-cyan-100/80">Rule: /category-slug/product-slug. The category slug is picked from the selected category below.</div>
+        </div>
+        <FormGrid>
+          <Input value={categorySlug} readOnly placeholder="Category Slug" />
+          <Input value={productSlug} onChange={(e) => onUpdate({ slug: cleanSlug(e.target.value) })} placeholder="Product Slug" />
+        </FormGrid>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => navigator.clipboard?.writeText(storefrontPath)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-text">Copy Path</button>
+          <button type="button" onClick={() => navigator.clipboard?.writeText(fullStorefrontUrl)} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-text">Copy Full URL</button>
+          <a href={fullStorefrontUrl} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-cyan-500/30 px-3 py-2 text-xs text-cyan-200">Open Frontend</a>
+        </div>
+      </FormSection>
+
       <FormSection title="Basic Information">
         <FormGrid>
           <Input value={product.cmsPageLink} readOnly placeholder="CMS PageLink" />
@@ -82,8 +119,6 @@ export function ProductInfoForm({ product, onUpdate, categoryOptions = [] }: { p
           </div>
         ) : null}
       </FormSection>
-
-
 
       <FormSection title="Product System">
         <FormGrid>

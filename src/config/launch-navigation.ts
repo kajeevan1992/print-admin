@@ -5,6 +5,7 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Launch Guard', href: '/admin-launch-security', iconKey: 'ShieldCheck', order: 36 },
   { label: 'Data Check', href: '/data-continuity', iconKey: 'ShieldCheck', order: 37 },
   { label: 'Final Check', href: '/final-check', iconKey: 'ShieldCheck', order: 38 },
+  { label: 'Button Audit', href: '/button-audit', iconKey: 'MousePointerClick', order: 39 },
 ];
 
 export function addLaunchQaLinks(items: AdminSidebarNavigationItem[]) {

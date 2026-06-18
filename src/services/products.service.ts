@@ -17,6 +17,7 @@ function readStore(): Product[] { if (!devFallbackEnabled()) return productsStor
 function writeStore(next: Product[]) { productsStore = next; if (devFallbackEnabled() && typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
 function isBrowserRuntime() { return typeof window !== 'undefined' && typeof fetch === 'function'; }
 function makeSlug(name: string) { return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function mapCurrency(value?: string): Product['priceMapping']['currency'] { return String(value || '').toUpperCase() === 'USD' ? 'USD' : 'GBP'; }
 function brandedProductThumbnail(name: string) {
   const initials = encodeURIComponent((name || 'HO').slice(0, 2).toUpperCase());
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#18A7D0"/><text x="48" y="56" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#ffffff">${initials}</text></svg>`;
@@ -59,7 +60,7 @@ function mapInternalProduct(item: InternalCatalogProduct, index = 0): Product {
     templateDefaults: { scaleFactor: 1, zoomState: 'fit', palette: 'Default', colorSpace: 'CMYK', editorMode: 'simple', textModes: ['point'], imageMode: 'contain', previewType: '2D', photoGroup: 'Default', model3d: '', defaultFont: 'Inter', toggles: [], rules: [] },
     templateSetup: { setupProfile: 'default', allowUpload: true, allowLayers: true, smartSnapping: true, bleedLocked: false, showSafeArea: true },
     templateAssets: { fonts: [], layouts: [], themes: [], cliparts: [] },
-    priceMapping: { basePrice: (item.priceFromMinor || 0) / 100, sizeLabel: '', dielineMapping: '', currency: item.currency || 'GBP' },
+    priceMapping: { basePrice: (item.priceFromMinor || 0) / 100, sizeLabel: '', dielineMapping: '', currency: mapCurrency(item.currency) },
     tags: [], comments: [], internalNotes: '', inventory: { onHandQuantity: 0, reorderQuantity: 0 }, relatedProducts: [], attributes: [], alternateViews: [], updatedAt: updated.slice(0, 10),
     productSystem: item.productSystem || item.metadataJson?.productSystem,
     templateRules: item.templateRules || item.metadataJson?.templateRules,

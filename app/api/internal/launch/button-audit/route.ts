@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { buildButtonAudit } from '@/core/launch/button-audit.service';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET() {
   try {

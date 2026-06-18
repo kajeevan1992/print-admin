@@ -5,15 +5,26 @@ const globalForPrisma = globalThis as unknown as {
   platformPrisma?: PrismaClientType;
 };
 
+function runtimeDatabaseUrl() {
+  return (
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    ''
+  );
+}
+
 function createPlatformPrisma(): PrismaClientType {
   allowSelfSignedDbCertificatesForNode();
   // Lazy require prevents Next.js build-time route collection from loading
   // @prisma/client before the generated client exists.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { PrismaClient } = require('@prisma/client') as typeof import('@prisma/client');
+  const dbUrl = runtimeDatabaseUrl();
   return new PrismaClient({
-    datasources: process.env.DATABASE_URL
-      ? { db: { url: normalizePrismaPostgresUrl(process.env.DATABASE_URL) } }
+    datasources: dbUrl
+      ? { db: { url: normalizePrismaPostgresUrl(dbUrl) } }
       : undefined,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   });

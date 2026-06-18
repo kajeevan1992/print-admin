@@ -122,16 +122,20 @@ function readSession(): AppSession | null {
 }
 
 async function signInViaDatabase(email: string, password: string) {
-  const response = await fetch('/api/internal/auth/admin-login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.ok === false) return { ok: false, error: payload?.error || 'Login failed.' };
-  const session = normaliseSession(payload.session);
-  if (!session) return { ok: false, error: 'Login returned an invalid session.' };
-  return { ok: true, session, redirectTo: String(payload.redirectTo || (session.role === 'super_admin' ? '/super-admin' : '/workspace')) };
+  try {
+    const response = await fetch('/api/internal/auth/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.ok === false) return { ok: false, error: payload?.error || 'Login failed.' };
+    const session = normaliseSession(payload.session);
+    if (!session) return { ok: false, error: 'Login returned an invalid session.' };
+    return { ok: true, session, redirectTo: String(payload.redirectTo || (session.role === 'super_admin' ? '/super-admin' : '/workspace')) };
+  } catch {
+    return { ok: false, error: 'Database login is currently unavailable. Check DATABASE_URL / Neon connection and redeploy.' };
+  }
 }
 
 function signInViaDemo(email: string, password: string) {

@@ -18,7 +18,8 @@ type DemoAccount = AppSession & {
   defaultRoute: string;
 };
 
-const SESSION_KEY = 'print-admin.session.v1';
+const SESSION_KEY = 'print-admin.session.v2';
+const DEMO_LOGIN_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === 'true';
 
 function safeSessionWrite(session: AppSession | null) {
   if (typeof window === 'undefined') return;
@@ -30,38 +31,35 @@ function safeSessionWrite(session: AppSession | null) {
   }
 }
 
-const demoAccounts: DemoAccount[] = [
-  {
-    id: 'saas-owner',
-    name: 'Kajee',
-    email: 'owner@printadmin.app',
-    password: 'demo123',
-    role: 'super_admin',
-    company: 'Print Admin SaaS',
-    tenantId: 'owner-console',
-    defaultRoute: '/super-admin'
-  },
-  {
-    id: 'tenant-admin',
-    name: 'Sophie Patel',
-    email: 'admin@northstarprint.co.uk',
-    password: 'demo123',
-    role: 'tenant_admin',
-    company: 'Northstar Print',
-    tenantId: 'northstar-print',
-    defaultRoute: '/workspace'
-  },
-  {
-    id: 'ops-manager',
-    name: 'Liam Carter',
-    email: 'ops@northstarprint.co.uk',
-    password: 'demo123',
-    role: 'ops_manager',
-    company: 'Northstar Print',
-    tenantId: 'northstar-print',
-    defaultRoute: '/workspace'
-  }
-];
+function demoAccountsFromEnv(): DemoAccount[] {
+  if (!DEMO_LOGIN_ENABLED) return [];
+  const password = process.env.NEXT_PUBLIC_DEMO_PASSWORD || '';
+  if (!password) return [];
+  return [
+    {
+      id: 'demo-owner',
+      name: process.env.NEXT_PUBLIC_DEMO_OWNER_NAME || 'Demo Owner',
+      email: process.env.NEXT_PUBLIC_DEMO_OWNER_EMAIL || 'owner@example.com',
+      password,
+      role: 'super_admin',
+      company: process.env.NEXT_PUBLIC_DEMO_OWNER_COMPANY || 'Print Admin SaaS',
+      tenantId: process.env.NEXT_PUBLIC_DEMO_OWNER_TENANT || 'owner-console',
+      defaultRoute: '/super-admin',
+    },
+    {
+      id: 'demo-tenant-admin',
+      name: process.env.NEXT_PUBLIC_DEMO_TENANT_NAME || 'Demo Tenant Admin',
+      email: process.env.NEXT_PUBLIC_DEMO_TENANT_EMAIL || 'admin@example.com',
+      password,
+      role: 'tenant_admin',
+      company: process.env.NEXT_PUBLIC_DEMO_TENANT_COMPANY || 'Demo Print Shop',
+      tenantId: process.env.NEXT_PUBLIC_DEMO_TENANT_ID || process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || 'holo-print',
+      defaultRoute: '/workspace',
+    },
+  ];
+}
+
+const demoAccounts = demoAccountsFromEnv();
 
 type AuthContextValue = {
   ready: boolean;
@@ -107,7 +105,7 @@ function normaliseSession(value: unknown): AppSession | null {
     email: String(session.email),
     role: session.role === 'super_admin' || session.role === 'tenant_admin' || session.role === 'ops_manager' ? session.role : 'tenant_admin',
     company: String(session.company || 'Print Admin'),
-    tenantId: String(session.tenantId || 'northstar-print')
+    tenantId: String(session.tenantId || process.env.NEXT_PUBLIC_DEFAULT_TENANT_ID || 'holo-print')
   };
 }
 
@@ -123,6 +121,27 @@ function readSession(): AppSession | null {
   }
 }
 
+async function signInViaDatabase(email: string, password: string) {
+  const response = await fetch('/api/internal/auth/admin-login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok === false) return { ok: false, error: payload?.error || 'Login failed.' };
+  const session = normaliseSession(payload.session);
+  if (!session) return { ok: false, error: 'Login returned an invalid session.' };
+  return { ok: true, session, redirectTo: String(payload.redirectTo || (session.role === 'super_admin' ? '/super-admin' : '/workspace')) };
+}
+
+function signInViaDemo(email: string, password: string) {
+  if (!DEMO_LOGIN_ENABLED) return null;
+  const account = demoAccounts.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
+  if (!account || account.password !== password) return null;
+  const nextSession: AppSession = { id: account.id, name: account.name, email: account.email, role: account.role, company: account.company, tenantId: account.tenantId };
+  return { ok: true, session: nextSession, redirectTo: account.defaultRoute };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<AppSession | null>(null);
@@ -133,23 +152,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function signIn(email: string, password: string) {
-    const account = demoAccounts.find((item) => item.email.toLowerCase() === email.trim().toLowerCase());
-    if (!account || account.password !== password) {
-      return { ok: false, error: 'Use one of the demo accounts shown on the login screen.' };
+    const databaseResult = await signInViaDatabase(email, password);
+    if (databaseResult.ok && databaseResult.session) {
+      safeSessionWrite(databaseResult.session);
+      setSession(databaseResult.session);
+      return { ok: true, redirectTo: databaseResult.redirectTo };
     }
 
-    const nextSession: AppSession = {
-      id: account.id,
-      name: account.name,
-      email: account.email,
-      role: account.role,
-      company: account.company,
-      tenantId: account.tenantId
-    };
+    const demoResult = signInViaDemo(email, password);
+    if (demoResult?.ok && demoResult.session) {
+      safeSessionWrite(demoResult.session);
+      setSession(demoResult.session);
+      return { ok: true, redirectTo: demoResult.redirectTo };
+    }
 
-    safeSessionWrite(nextSession);
-    setSession(nextSession);
-    return { ok: true, redirectTo: account.defaultRoute };
+    return { ok: false, error: databaseResult.error || 'Invalid email or password.' };
   }
 
   function signOut() {
@@ -180,15 +197,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function updateSession(patch: Partial<AppSession>) {
-  const current = readSession();
-  if (!current) return null;
-  const nextSession = normaliseSession({ ...current, ...patch });
-  if (!nextSession) return null;
-  safeSessionWrite(nextSession);
-  return nextSession;
+export function useAuth() {
+  return useContext(AuthContext);
 }
 
-export function useAuth() {
-  return useContext(AuthContext) ?? fallbackAuthContext;
+export function useAuthSession() {
+  const context = useAuth();
+  return context.session;
 }

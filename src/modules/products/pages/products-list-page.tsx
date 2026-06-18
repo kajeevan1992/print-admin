@@ -46,8 +46,8 @@ export function ProductsListPage() {
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [importSlug, setImportSlug] = useState('');
-  const [importName, setImportName] = useState('');
+  const [importSlug, setImportSlug] = useState('standard-business-cards');
+  const [importName, setImportName] = useState('Standard Business Cards');
   const [importMarkup, setImportMarkup] = useState('35');
   const [importing, setImporting] = useState(false);
   const [form, setForm] = useState<ProductFormValues>(emptyForm);
@@ -85,12 +85,11 @@ export function ProductsListPage() {
   const subtitle = useMemo(() => `${total} products total · Manage publishing, global assignment, and lifecycle actions`, [total]);
 
   async function handleCsvImport() {
-    if (!csvFile) { setImportError('CSV file is required. Product slug/name can be left blank when the CSV includes Product Slug, Product Name, Category Slug or Storefront Path columns.'); return; }
+    if (!csvFile || !importSlug.trim() || !importName.trim()) { setImportError('CSV file, product slug and product name are required.'); return; }
     setImporting(true); setImportError(null); setNotice(null);
     try {
-      const result = await pricingImportService.importCsvPricing({ file: csvFile, productSlug: importSlug.trim(), productName: importName.trim(), markupPercent: Number(importMarkup || 0) });
-      const importedLabel = result.productCount && result.productCount > 1 ? `${result.productCount} products` : (result.productName || importName || result.productSlug || 'product');
-      setNotice(`Imported CSV pricing for ${importedLabel}. Category/product slug mapping applied when present.`); setImportOpen(false); setCsvFile(null); await loadProducts(params);
+      const result = await pricingImportService.importCsvPricing({ file: csvFile, productSlug: importSlug.trim(), productName: importName.trim(), categoryId: form.categoryId || undefined, markupPercent: Number(importMarkup || 0) });
+      setNotice(`Imported CSV pricing for ${result.productName || importName}.`); setImportOpen(false); setCsvFile(null); await loadProducts(params);
     } catch (err) { setImportError(err instanceof Error ? err.message : 'CSV pricing import failed.'); }
     finally { setImporting(false); }
   }
@@ -98,8 +97,8 @@ export function ProductsListPage() {
   function handleExport() {
     if (!products.length) { setNotice('No products available to export.'); return; }
     downloadCsv(`products-${new Date().toISOString().slice(0, 10)}.csv`, [
-      ['ID', 'Category Slug', 'Product Slug', 'Storefront Path', 'Name', 'Status', 'Published', 'Global', 'Category ID', 'Product Type', 'Price From', 'Currency', 'Updated'],
-      ...products.map((product) => [product.id, product.categorySlug || '', product.slug, product.categorySlug ? `/${product.categorySlug}/${product.slug}` : `/${product.slug}`, product.name, product.status, product.published ? 'yes' : 'no', product.isGlobal ? 'yes' : 'no', product.categoryId, product.productType, product.priceMapping?.basePrice ?? '', product.priceMapping?.currency ?? 'GBP', product.lastSavedAt || product.updatedAt]),
+      ['ID', 'Slug', 'Name', 'Status', 'Published', 'Global', 'Category ID', 'Product Type', 'Price From', 'Currency', 'Updated'],
+      ...products.map((product) => [product.id, product.slug, product.name, product.status, product.published ? 'yes' : 'no', product.isGlobal ? 'yes' : 'no', product.categoryId, product.productType, product.priceMapping?.basePrice ?? '', product.priceMapping?.currency ?? 'GBP', product.lastSavedAt || product.updatedAt]),
     ]);
     setNotice(`Exported ${products.length} visible products.`);
   }
@@ -162,9 +161,8 @@ export function ProductsListPage() {
 
       <BaseModal open={importOpen} onClose={() => setImportOpen(false)} title="Import CSV Pricing">
         <div className="space-y-4">
-          <div className="rounded-xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-100">For bulk mapped imports, add CSV columns named Category Slug, Product Slug, Product Name and Storefront Path. Example Storefront Path: /same-day-prints/standard-business-cards.</div>
-          <Input label="Product Slug Override" value={importSlug} onChange={(e) => setImportSlug(e.target.value)} placeholder="Optional. Leave blank to use CSV Product Slug." />
-          <Input label="Product Name Override" value={importName} onChange={(e) => setImportName(e.target.value)} placeholder="Optional. Leave blank to use CSV Product Name." />
+          <Input label="Product Slug" value={importSlug} onChange={(e) => setImportSlug(e.target.value)} placeholder="standard-business-cards" />
+          <Input label="Product Name" value={importName} onChange={(e) => setImportName(e.target.value)} placeholder="Standard Business Cards" />
           <Input label="Markup %" value={importMarkup} onChange={(e) => setImportMarkup(e.target.value)} placeholder="35" />
           <div className="space-y-2"><label className="text-sm font-medium">CSV File</label><input type="file" accept=".csv,text/csv" onChange={(e) => setCsvFile(e.target.files?.[0] || null)} className="w-full rounded-xl border border-border bg-panel px-3 py-2 text-sm" /></div>
           {importError ? <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">{importError}</div> : null}

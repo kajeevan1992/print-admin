@@ -50,15 +50,20 @@ async function ensureAuthColumns() {
 }
 
 async function bootstrapOwnerIfConfigured() {
-  const email = env('BOOTSTRAP_ADMIN_EMAIL');
+  const email = env('BOOTSTRAP_ADMIN_EMAIL').toLowerCase();
   const secret = env('BOOTSTRAP_ADMIN_PASSWORD');
   if (!email || !secret) return;
-  const existing = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>('SELECT id FROM "User" WHERE lower(email)=lower($1) LIMIT 1', email);
-  if (existing.length) return;
+  const existing = await platformPrisma.$queryRawUnsafe<Array<{ id: string; passwordHash: string | null }>>('SELECT id, "passwordHash" FROM "User" WHERE lower(email)=lower($1) LIMIT 1', email);
+  if (existing[0]?.passwordHash) return;
   const tenantSlug = env('DEFAULT_TENANT_ID') || 'holo-print';
   const tenantRows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; name: string; slug: string }>>('SELECT id, name, slug FROM "Tenant" WHERE slug=$1 LIMIT 1', tenantSlug);
   const tenantId = tenantRows[0]?.id || null;
-  await platformPrisma.$executeRawUnsafe('INSERT INTO "User" (id, "tenantId", email, name, role, "passwordHash", "isActive", "sessionVersion", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,$5,$6,true,1,NOW(),NOW())', `admin_${Date.now()}`, tenantId, email.toLowerCase(), env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', 'SUPERADMIN', pbkdf2Hash(secret));
+  const passwordHash = pbkdf2Hash(secret);
+  if (existing[0]?.id) {
+    await (platformPrisma as any).user.update({ where: { id: existing[0].id }, data: { tenantId, name: env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', role: 'SUPERADMIN', passwordHash, isActive: true, sessionVersion: 1 } });
+    return;
+  }
+  await (platformPrisma as any).user.create({ data: { tenantId, email, name: env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', role: 'SUPERADMIN', passwordHash, isActive: true, sessionVersion: 1 } });
 }
 
 export async function verifyAdminLogin(email: string, secret: string): Promise<{ ok: boolean; session?: AdminAuthSession; error?: string }> {
@@ -76,6 +81,7 @@ export async function verifyAdminLogin(email: string, secret: string): Promise<{
 
 export async function dbAuthStatus() {
   await ensureAuthColumns();
+  await bootstrapOwnerIfConfigured();
   const rows = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "User" WHERE "passwordHash" IS NOT NULL AND "isActive" IS NOT FALSE');
   return { ok: true, activeLoginUsers: Number(rows[0]?.count || 0), bootstrapConfigured: Boolean(env('BOOTSTRAP_ADMIN_EMAIL') && env('BOOTSTRAP_ADMIN_PASSWORD')) };
 }

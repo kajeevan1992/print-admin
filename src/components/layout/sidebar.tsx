@@ -7,47 +7,8 @@ import { FileText, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { adminSidebarNavigation, type AdminSidebarNavigationItem, type AdminRole } from '@/config/admin-navigation';
-
-const BUILD55_LINK = { label: 'Mail QA', href: '/email-order-notification-qa', iconKey: 'Mail', order: 35 };
-const BUILD56_LINK = { label: 'Launch Guard', href: '/admin-launch-security', iconKey: 'ShieldCheck', order: 36 };
-const BUILD57_LINK = { label: 'Data Check', href: '/data-continuity', iconKey: 'ShieldCheck', order: 37 };
-const BUILD58_LINK = { label: 'Final Check', href: '/final-check', iconKey: 'ShieldCheck', order: 38 };
-
-const SUPER_ADMIN_NAVIGATION: AdminSidebarNavigationItem[] = [
-  { label: 'Super Admin', href: '/super-admin', iconKey: 'ShieldCheck', order: 10 },
-  { label: 'Reports', href: '/reports', iconKey: 'BarChart3', order: 20 },
-  {
-    label: 'Platform Settings', iconKey: 'Settings', order: 30, children: [
-      { label: 'Tenant Control', href: '/tenant-control', iconKey: 'Building2', order: 10 },
-      { label: 'Database Manager', href: '/database-manager', iconKey: 'DatabaseBackup', order: 20 },
-      { label: 'Organizations', href: '/organizations', iconKey: 'Building2', order: 30 },
-      { label: 'Merchant Accounts', href: '/merchant-accounts', iconKey: 'CreditCard', order: 40 },
-      { label: 'Admin Users', href: '/admin-users', iconKey: 'Shield', order: 50 },
-      { label: 'Licensing Center', href: '/licensing-center', iconKey: 'KeyRound', order: 60 },
-      { label: 'API Access', href: '/api-access', iconKey: 'KeyRound', order: 70 },
-      { label: 'API Keys', href: '/api-keys', iconKey: 'KeyRound', order: 80 },
-    ]
-  },
-  {
-    label: 'Launch Control', iconKey: 'Rocket', order: 40, children: [
-      { label: 'Launch Readiness', href: '/launch-readiness', iconKey: 'ShieldCheck', order: 10 },
-      { label: 'Storefront Order Test', href: '/storefront-order-test', iconKey: 'ShoppingCart', order: 20 },
-      { label: 'Payment Checkout QA', href: '/payment-checkout-qa', iconKey: 'CreditCard', order: 30 },
-      BUILD55_LINK,
-      BUILD56_LINK,
-      BUILD57_LINK,
-      BUILD58_LINK,
-      { label: 'SEO Live Readiness', href: '/seo-live-readiness', iconKey: 'ShieldCheck', order: 40 },
-    ]
-  },
-  {
-    label: 'Support', iconKey: 'LifeBuoy', order: 50, children: [
-      { label: 'Support', href: '/support', iconKey: 'LifeBuoy', order: 10 },
-      { label: 'Knowledge Base', href: '/knowledge-base', iconKey: 'BookOpen', order: 20 },
-      { label: 'Error Log', href: '/error-log', iconKey: 'AlertTriangle', order: 30 },
-    ]
-  },
-];
+import { addLaunchQaLinks } from '@/config/launch-navigation';
+import { superAdminSidebarNavigation } from '@/config/super-admin-navigation';
 
 function itemIsActive(pathname: string, href?: string) {
   return Boolean(href && (pathname === href || pathname.startsWith(`${href}/`)));
@@ -61,28 +22,17 @@ function roleAllowed(item: { roles?: AdminRole[] }, role?: string) {
   return !item.roles?.length || !role || item.roles.includes(role as AdminRole);
 }
 
-function addLaunchLinks(items: AdminSidebarNavigationItem[]) {
-  return items.map((item) => {
-    if (item.label !== 'Launch Operations' || !item.children?.length) return item;
-    const next = [...item.children];
-    for (const link of [BUILD55_LINK, { ...BUILD56_LINK, order: 19.5 }, { ...BUILD57_LINK, order: 19.75 }, { ...BUILD58_LINK, order: 19.9 }]) {
-      if (!next.some((child) => child.href === link.href)) next.push(link);
-    }
-    return { ...item, children: next.sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) };
-  });
-}
-
 function tenantNavigation(role?: string) {
   const items = adminSidebarNavigation
     .filter((item) => !item.hidden && roleAllowed(item, role))
     .map((item) => ({ ...item, children: item.children?.filter((child) => !child.hidden && roleAllowed(child, role)).sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) }))
     .filter((item) => item.href || item.children?.length)
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
-  return addLaunchLinks(items);
+  return addLaunchQaLinks(items);
 }
 
 function visibleNavigation(role?: string) {
-  if (role === 'super_admin') return SUPER_ADMIN_NAVIGATION;
+  if (role === 'super_admin') return superAdminSidebarNavigation;
   return tenantNavigation(role);
 }
 

@@ -1,22 +1,27 @@
-import { productsMock } from '@/data/products';
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
 import { calculateProductEstimate } from '@/lib/product-system';
 import type { Product, ProductAttribute, ProductComment, ProductFormValues, ProductInventory, ProductListQuery, ProductTag, RelatedProduct, ProductType, ProductStatus, ProductOptionGroup } from '@/modules/products/types';
 
-let productsStore: Product[] = [...productsMock];
+let productsStore: Product[] = [];
 const STORAGE_KEY = 'print-admin-products-store';
 const wait = async () => new Promise((resolve) => setTimeout(resolve, 80));
 
-type ProductMetadataJson = { optionGroups?: ProductOptionGroup[]; productSystem?: Product['productSystem']; templateRules?: Product['templateRules']; productModeSettings?: Product['productModeSettings']; taxSettings?: Product['taxSettings']; vatRate?: number; vatClass?: string; taxClass?: string; vatLabel?: string };
+type ProductMetadataJson = { optionGroups?: ProductOptionGroup[]; productSystem?: Product['productSystem']; templateRules?: Product['templateRules']; productModeSettings?: Product['productModeSettings']; taxSettings?: Product['taxSettings']; vatRate?: number; vatClass?: string; taxClass?: string; vatLabel?: string; thumbnailUrl?: string; imageUrl?: string };
 type InternalCatalogProduct = { id: string; slug?: string; name?: string; title?: string; description?: string | null; subtitle?: string | null; productType?: ProductType; status?: ProductStatus | string; isActive?: boolean; isGlobal?: boolean; categoryId?: string | null; priceFromMinor?: number | null; currency?: string; createdAt?: string; updatedAt?: string; metadataJson?: ProductMetadataJson | null; optionGroups?: ProductOptionGroup[]; productSystem?: Product['productSystem']; templateRules?: Product['templateRules']; productModeSettings?: Product['productModeSettings']; taxSettings?: Product['taxSettings'] };
 type InternalCatalogList<T> = { items: T[]; pagination?: { page: number; limit: number; total: number; totalPages: number } };
 type InternalCatalogResponse<T> = { ok?: boolean; data?: T; error?: string };
 
-function readStore(): Product[] { if (typeof window === 'undefined') return productsStore; try { const raw = window.localStorage.getItem(STORAGE_KEY); if (!raw) return productsStore; const parsed = JSON.parse(raw) as Product[]; return Array.isArray(parsed) && parsed.length ? parsed : productsStore; } catch { return productsStore; } }
-function writeStore(next: Product[]) { productsStore = next; if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
+function devFallbackEnabled() { return process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_ENABLE_DEV_PRODUCT_STORE === 'true'; }
+function readStore(): Product[] { if (!devFallbackEnabled()) return productsStore; if (typeof window === 'undefined') return productsStore; try { const raw = window.localStorage.getItem(STORAGE_KEY); if (!raw) return productsStore; const parsed = JSON.parse(raw) as Product[]; return Array.isArray(parsed) ? parsed : productsStore; } catch { return productsStore; } }
+function writeStore(next: Product[]) { productsStore = next; if (devFallbackEnabled() && typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
 function isBrowserRuntime() { return typeof window !== 'undefined' && typeof fetch === 'function'; }
 function makeSlug(name: string) { return name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
+function brandedProductThumbnail(name: string) {
+  const initials = encodeURIComponent((name || 'HO').slice(0, 2).toUpperCase());
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="22" fill="#18A7D0"/><text x="48" y="56" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#ffffff">${initials}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 async function readInternalCatalog<T>(path: string, params?: Record<string, string | number | undefined>) { const query = new URLSearchParams(); Object.entries(params || {}).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); }); const response = await fetch(`/api/internal/catalog/${path}${query.toString() ? `?${query}` : ''}`, { cache: 'no-store' }); const payload = (await response.json().catch(() => ({}))) as InternalCatalogResponse<T>; if (!response.ok || payload.ok === false) throw new Error(payload.error || `Failed to load catalog ${path}`); return payload.data as T; }
 async function writeInternalCatalog<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body: Record<string, unknown>) { const response = await fetch(`/api/internal/catalog/${path}`, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const payload = (await response.json().catch(() => ({}))) as InternalCatalogResponse<T>; if (!response.ok || payload.ok === false) throw new Error(payload.error || `Failed to write catalog ${path}`); return payload.data as T; }
 
@@ -35,6 +40,7 @@ function mapInternalProduct(item: InternalCatalogProduct, index = 0): Product {
   const slug = item.slug || makeSlug(name);
   const updated = item.updatedAt || item.createdAt || new Date().toISOString();
   const published = typeof item.isActive === 'boolean' ? item.isActive : item.status === 'published';
+  const metadata = item.metadataJson || {};
   return {
     id: item.id,
     sortOrder: index + 1,
@@ -47,13 +53,13 @@ function mapInternalProduct(item: InternalCatalogProduct, index = 0): Product {
     vendorId: '', hotFolder: '', pages: 1, units: 'mm', width: 0, height: 0, bleed: 0,
     cmsPageLink: `/products/${slug}`, previewUrl: `/products/${item.id}`,
     status: published ? 'published' : 'draft', published, isGlobal: typeof item.isGlobal === 'boolean' ? item.isGlobal : false,
-    storefrontIds: [], channelIds: [], thumbnail: `https://placehold.co/96x96/111827/ffffff?text=${encodeURIComponent(name.slice(0, 2).toUpperCase() || 'PR')}`,
+    storefrontIds: [], channelIds: [], thumbnail: metadata.thumbnailUrl || metadata.imageUrl || brandedProductThumbnail(name),
     lastSavedAt: updated,
     productNumbers: { itemNumber: item.id, modelNumber: item.id, integrationId: '' },
     templateDefaults: { scaleFactor: 1, zoomState: 'fit', palette: 'Default', colorSpace: 'CMYK', editorMode: 'simple', textModes: ['point'], imageMode: 'contain', previewType: '2D', photoGroup: 'Default', model3d: '', defaultFont: 'Inter', toggles: [], rules: [] },
     templateSetup: { setupProfile: 'default', allowUpload: true, allowLayers: true, smartSnapping: true, bleedLocked: false, showSafeArea: true },
     templateAssets: { fonts: [], layouts: [], themes: [], cliparts: [] },
-    priceMapping: { basePrice: (item.priceFromMinor || 0) / 100, sizeLabel: '', dielineMapping: '', currency: 'USD' },
+    priceMapping: { basePrice: (item.priceFromMinor || 0) / 100, sizeLabel: '', dielineMapping: '', currency: item.currency || 'GBP' },
     tags: [], comments: [], internalNotes: '', inventory: { onHandQuantity: 0, reorderQuantity: 0 }, relatedProducts: [], attributes: [], alternateViews: [], updatedAt: updated.slice(0, 10),
     productSystem: item.productSystem || item.metadataJson?.productSystem,
     templateRules: item.templateRules || item.metadataJson?.templateRules,
@@ -68,7 +74,7 @@ function createProductFromForm(payload: ProductFormValues): Product {
   const name = payload.name.trim();
   const iso = new Date().toISOString();
   const taxSettings = payload.taxClass || payload.vatPreset ? { taxClass: payload.taxClass || 'auto', vatRate: payload.vatRate === '' || payload.vatRate === undefined ? undefined : Number(payload.vatRate), preset: payload.vatPreset || 'auto', forceVatOnDesignServices: true } as Product['taxSettings'] : undefined;
-  return { ...mapInternalProduct({ id, name, slug: makeSlug(name), categoryId: payload.categoryId, status: 'draft', isActive: false, updatedAt: iso, metadataJson: { taxSettings } }), productType: payload.productType, creationMethod: payload.creationMethod, pages: Number(payload.pages) || 1, units: payload.units || 'mm', width: Number(payload.width) || 0, height: Number(payload.height) || 0, bleed: Number(payload.bleed) || 0, priceMapping: { basePrice: calculateProductEstimate(Number(payload.quantity) || 250, payload.materialId || 'silk-350', payload.finishId || 'matt-lam', payload.printerId || 'hp-indigo-7k', payload.turnaround || 'standard').total, sizeLabel: payload.parametricSize || '', dielineMapping: '', currency: 'USD' }, taxSettings };
+  return { ...mapInternalProduct({ id, name, slug: makeSlug(name), categoryId: payload.categoryId, status: 'draft', isActive: false, updatedAt: iso, currency: 'GBP', metadataJson: { taxSettings } }), productType: payload.productType, creationMethod: payload.creationMethod, pages: Number(payload.pages) || 1, units: payload.units || 'mm', width: Number(payload.width) || 0, height: Number(payload.height) || 0, bleed: Number(payload.bleed) || 0, priceMapping: { basePrice: calculateProductEstimate(Number(payload.quantity) || 250, payload.materialId || 'silk-350', payload.finishId || 'matt-lam', payload.printerId || 'hp-indigo-7k', payload.turnaround || 'standard').total, sizeLabel: payload.parametricSize || '', dielineMapping: '', currency: 'GBP' }, taxSettings };
 }
 
 function productToCatalogPayload(product: Partial<Product>) {

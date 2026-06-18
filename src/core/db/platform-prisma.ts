@@ -5,9 +5,9 @@ const globalForPrisma = globalThis as unknown as { platformPrisma?: PrismaClient
 
 function firstConfiguredDatabaseUrl() {
   const candidates = [
+    ['DATABASE_URL', process.env.DATABASE_URL],
     ['POSTGRES_PRISMA_URL', process.env.POSTGRES_PRISMA_URL],
     ['POSTGRES_URL', process.env.POSTGRES_URL],
-    ['DATABASE_URL', process.env.DATABASE_URL],
     ['POSTGRES_URL_NON_POOLING', process.env.POSTGRES_URL_NON_POOLING],
   ] as const;
   return candidates.find(([, value]) => Boolean(value)) || [null, ''] as const;
@@ -41,9 +41,6 @@ export function getRuntimeDatabaseInfo() {
 
 function createPlatformPrisma(): PrismaClientType {
   allowSelfSignedDbCertificatesForNode();
-  // Lazy require prevents Next.js build-time route collection from loading
-  // @prisma/client before the generated client exists.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { PrismaClient } = require('@prisma/client') as typeof import('@prisma/client');
   const dbUrl = getRuntimeDatabaseUrl();
   return new PrismaClient({

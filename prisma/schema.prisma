@@ -87,14 +87,18 @@ model Tenant {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  tenantId  String?
-  email     String   @unique
-  name      String?
-  role      UserRole @default(CUSTOMER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  id             String    @id @default(cuid())
+  tenantId       String?
+  email          String    @unique
+  name           String?
+  role           UserRole  @default(CUSTOMER)
+  passwordHash   String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  sessionVersion Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  tenant         Tenant?   @relation(fields: [tenantId], references: [id])
 }
 
 model Domain {

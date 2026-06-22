@@ -11,6 +11,13 @@ export type AdminAuthSession = {
   defaultRoute: string;
 };
 
+export type VerifiedAdminLogin = {
+  ok: boolean;
+  session?: AdminAuthSession;
+  dbUser?: { id: string; tenantId: string | null; role: string; sessionVersion: number | null };
+  error?: string;
+};
+
 type UserRow = {
   id: string;
   tenantId: string | null;
@@ -104,7 +111,7 @@ async function bootstrapOwnerIfConfigured() {
   await platformPrisma.$executeRawUnsafe('INSERT INTO "User" (id, "tenantId", email, name, role, "passwordHash", "isActive", "sessionVersion", "updatedAt") VALUES ($1,$2,$3,$4,$5::"UserRole",$6,true,1,NOW())', `user-${crypto.randomUUID()}`, resolvedTenantId, email, env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', 'SUPERADMIN', passwordHash);
 }
 
-export async function verifyAdminLogin(email: string, secret: string): Promise<{ ok: boolean; session?: AdminAuthSession; error?: string }> {
+export async function verifyAdminLogin(email: string, secret: string): Promise<VerifiedAdminLogin> {
   await ensureAuthColumns();
   await bootstrapOwnerIfConfigured();
   const rows = await platformPrisma.$queryRawUnsafe<UserRow[]>('SELECT u.id, u."tenantId", u.email, u.name, u.role::text as role, u."passwordHash", u."isActive", u."sessionVersion", t.name as "tenantName", t.slug as "tenantSlug" FROM "User" u LEFT JOIN "Tenant" t ON t.id = u."tenantId" WHERE lower(u.email)=lower($1) LIMIT 1', email.trim());
@@ -114,12 +121,13 @@ export async function verifyAdminLogin(email: string, secret: string): Promise<{
   if (!verifyHash(secret, user.passwordHash)) return { ok: false, error: 'Invalid email or password.' };
   await platformPrisma.$executeRawUnsafe('UPDATE "User" SET "lastLoginAt"=NOW(), "updatedAt"=NOW() WHERE id=$1', user.id);
   const role = mapRole(user.role);
-  return { ok: true, session: { id: user.id, name: user.name || user.email, email: user.email, role, company: user.tenantName || (role === 'super_admin' ? 'Print Admin SaaS' : 'Print Admin'), tenantId: user.tenantSlug || env('DEFAULT_TENANT_ID') || 'holo-print', defaultRoute: defaultRoute(role) } };
+  return { ok: true, dbUser: { id: user.id, tenantId: user.tenantId, role: user.role, sessionVersion: user.sessionVersion || 1 }, session: { id: user.id, name: user.name || user.email, email: user.email, role, company: user.tenantName || (role === 'super_admin' ? 'Print Admin SaaS' : 'Print Admin'), tenantId: user.tenantSlug || env('DEFAULT_TENANT_ID') || 'holo-print', defaultRoute: defaultRoute(role) } };
 }
 
 export async function dbAuthStatus() {
   await ensureAuthColumns();
   await bootstrapOwnerIfConfigured();
   const rows = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "User" WHERE "passwordHash" IS NOT NULL AND "isActive" IS NOT FALSE');
-  return { ok: true, activeLoginUsers: Number(rows[0]?.count || 0), bootstrapConfigured: Boolean(env('BOOTSTRAP_ADMIN_EMAIL') && env('BOOTSTRAP_ADMIN_PASSWORD')) };
+  const sessions = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "AdminSession" WHERE "revokedAt" IS NULL AND "expiresAt" > NOW()').catch(() => [{ count: 0 }]);
+  return { ok: true, activeLoginUsers: Number(rows[0]?.count || 0), activeServerSessions: Number(sessions[0]?.count || 0), bootstrapConfigured: Boolean(env('BOOTSTRAP_ADMIN_EMAIL') && env('BOOTSTRAP_ADMIN_PASSWORD')) };
 }

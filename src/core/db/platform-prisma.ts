@@ -44,6 +44,7 @@ function createPlatformPrisma(): PrismaClientType {
   allowSelfSignedDbCertificatesForNode();
   const { PrismaClient } = require('@prisma/client') as typeof import('@prisma/client');
   const dbUrl = getRuntimeDatabaseUrl();
+  if (dbUrl) process.env.DATABASE_URL = dbUrl;
   return new PrismaClient({ datasources: dbUrl ? { db: { url: normalizePrismaPostgresUrl(dbUrl) } } : undefined, log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'] });
 }
 

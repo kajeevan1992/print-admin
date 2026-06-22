@@ -25,6 +25,7 @@ type UserRow = {
 };
 
 function env(name: string) { return String(process.env[name] || '').trim(); }
+function sqlId(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'holo-print'; }
 function pbkdf2Hash(secret: string, salt = crypto.randomBytes(16).toString('hex')) {
   const hash = crypto.pbkdf2Sync(secret, salt, 180000, 32, 'sha256').toString('hex');
   return `pbkdf2_sha256$180000$${salt}$${hash}`;
@@ -42,7 +43,42 @@ function mapRole(role: string): AdminAuthSession['role'] {
 }
 function defaultRoute(role: AdminAuthSession['role']) { return role === 'super_admin' ? '/super-admin' : '/workspace'; }
 
+async function ensureAuthTables() {
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "TenantStatus" AS ENUM ('ACTIVE','TRIAL','SUSPENDED','PENDING_ACTIVATION'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "UserRole" AS ENUM ('SUPERADMIN','TENANT_OWNER','TENANT_ADMIN','TENANT_STAFF','CUSTOMER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tenant" (
+    "id" TEXT PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL UNIQUE,
+    "status" "TenantStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
+    "defaultSubdomain" TEXT NOT NULL UNIQUE,
+    "primaryDomain" TEXT,
+    "planName" TEXT NOT NULL DEFAULT 'Starter',
+    "storefrontsLimit" INTEGER NOT NULL DEFAULT 1,
+    "adminUsersLimit" INTEGER NOT NULL DEFAULT 3,
+    "storageLimitGb" INTEGER NOT NULL DEFAULT 10,
+    "themeKey" TEXT NOT NULL DEFAULT 'base',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "User" (
+    "id" TEXT PRIMARY KEY,
+    "tenantId" TEXT,
+    "email" TEXT NOT NULL UNIQUE,
+    "name" TEXT,
+    "role" "UserRole" NOT NULL DEFAULT 'CUSTOMER',
+    "passwordHash" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "lastLoginAt" TIMESTAMP(3),
+    "sessionVersion" INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "User_tenantId_idx" ON "User"("tenantId")');
+}
+
 async function ensureAuthColumns() {
+  await ensureAuthTables();
   await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordHash" TEXT');
   await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true');
   await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP(3)');
@@ -55,15 +91,17 @@ async function bootstrapOwnerIfConfigured() {
   if (!email || !secret) return;
   const existing = await platformPrisma.$queryRawUnsafe<Array<{ id: string; passwordHash: string | null }>>('SELECT id, "passwordHash" FROM "User" WHERE lower(email)=lower($1) LIMIT 1', email);
   if (existing[0]?.passwordHash) return;
-  const tenantSlug = env('DEFAULT_TENANT_ID') || 'holo-print';
+  const tenantSlug = sqlId(env('DEFAULT_TENANT_ID') || 'holo-print');
+  const tenantId = `tenant-${tenantSlug}`;
+  await platformPrisma.$executeRawUnsafe('INSERT INTO "Tenant" (id, name, slug, "defaultSubdomain", status, "updatedAt") VALUES ($1,$2,$3,$4,\'ACTIVE\',NOW()) ON CONFLICT (slug) DO NOTHING', tenantId, env('BOOTSTRAP_TENANT_NAME') || 'HOLO Print', tenantSlug, tenantSlug);
   const tenantRows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; name: string; slug: string }>>('SELECT id, name, slug FROM "Tenant" WHERE slug=$1 LIMIT 1', tenantSlug);
-  const tenantId = tenantRows[0]?.id || null;
+  const resolvedTenantId = tenantRows[0]?.id || tenantId;
   const passwordHash = pbkdf2Hash(secret);
   if (existing[0]?.id) {
-    await (platformPrisma as any).user.update({ where: { id: existing[0].id }, data: { tenantId, name: env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', role: 'SUPERADMIN', passwordHash, isActive: true, sessionVersion: 1 } });
+    await platformPrisma.$executeRawUnsafe('UPDATE "User" SET "tenantId"=$1, name=$2, role=$3::"UserRole", "passwordHash"=$4, "isActive"=true, "sessionVersion"=1, "updatedAt"=NOW() WHERE id=$5', resolvedTenantId, env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', 'SUPERADMIN', passwordHash, existing[0].id);
     return;
   }
-  await (platformPrisma as any).user.create({ data: { tenantId, email, name: env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', role: 'SUPERADMIN', passwordHash, isActive: true, sessionVersion: 1 } });
+  await platformPrisma.$executeRawUnsafe('INSERT INTO "User" (id, "tenantId", email, name, role, "passwordHash", "isActive", "sessionVersion", "updatedAt") VALUES ($1,$2,$3,$4,$5::"UserRole",$6,true,1,NOW())', `user-${crypto.randomUUID()}`, resolvedTenantId, email, env('BOOTSTRAP_ADMIN_NAME') || 'Admin User', 'SUPERADMIN', passwordHash);
 }
 
 export async function verifyAdminLogin(email: string, secret: string): Promise<{ ok: boolean; session?: AdminAuthSession; error?: string }> {

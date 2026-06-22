@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireSuperAdmin } from '@/core/auth/session-guard.service';
 import { listWebsiteOwnerSetup, setWebsiteOwnerStatus, upsertWebsiteOwner } from '@/core/platform/website-owner-setup.service';
 
 export const dynamic = 'force-dynamic';
@@ -6,6 +7,7 @@ export const runtime = 'nodejs';
 
 export async function GET() {
   try {
+    await requireSuperAdmin();
     const data = await listWebsiteOwnerSetup();
     return NextResponse.json({ ok: true, source: 'internal-platform-shop-owner', data });
   } catch (error) {
@@ -15,6 +17,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    await requireSuperAdmin();
     const body = await request.json().catch(() => ({}));
     const data = body?.action === 'status' ? await setWebsiteOwnerStatus(String(body.email || ''), Boolean(body.isActive)) : await upsertWebsiteOwner(body);
     return NextResponse.json({ ok: true, source: 'internal-platform-shop-owner', data });

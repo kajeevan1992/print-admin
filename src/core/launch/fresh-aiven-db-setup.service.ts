@@ -1,7 +1,7 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { getRuntimeDatabaseInfo } from '@/core/db/platform-prisma';
 
-const REQUIRED_TABLES = ['Tenant', 'User', 'Domain', 'AuditLog', 'CoreCatalogRecord'] as const;
+const REQUIRED_TABLES = ['Tenant', 'User', 'AdminSession', 'Domain', 'AuditLog', 'CoreCatalogRecord'] as const;
 const REQUIRED_ENUMS = ['TenantStatus', 'UserRole', 'DomainType', 'DomainVerificationStatus', 'SSLStatus'] as const;
 
 type SetupMode = 'check' | 'apply';
@@ -77,6 +77,20 @@ async function ensureTables(steps: Step[], mode: SetupMode) {
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   );`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AdminSession" (
+    "id" TEXT PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "tenantId" TEXT,
+    "tokenHash" TEXT NOT NULL UNIQUE,
+    "roleSnapshot" TEXT NOT NULL,
+    "sessionVersion" INTEGER NOT NULL DEFAULT 1,
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "revokedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Domain" (
     "id" TEXT PRIMARY KEY,
     "tenantId" TEXT NOT NULL,
@@ -109,6 +123,9 @@ async function ensureTables(steps: Step[], mode: SetupMode) {
   );`);
 
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "User_tenantId_idx" ON "User"("tenantId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminSession_userId_idx" ON "AdminSession"("userId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminSession_tenantId_idx" ON "AdminSession"("tenantId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminSession_expiresAt_idx" ON "AdminSession"("expiresAt")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Domain_tenantId_idx" ON "Domain"("tenantId")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AuditLog_tenantId_idx" ON "AuditLog"("tenantId")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord"("tenantId", "resource")');

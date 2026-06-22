@@ -68,38 +68,59 @@ enum ArtworkStatus {
 }
 
 model Tenant {
-  id               String       @id @default(cuid())
+  id               String             @id @default(cuid())
   name             String
-  slug             String       @unique
-  status           TenantStatus @default(PENDING_ACTIVATION)
-  defaultSubdomain String       @unique
+  slug             String             @unique
+  status           TenantStatus       @default(PENDING_ACTIVATION)
+  defaultSubdomain String             @unique
   primaryDomain    String?
-  planName         String       @default("Starter")
-  storefrontsLimit Int          @default(1)
-  adminUsersLimit  Int          @default(3)
-  storageLimitGb   Int          @default(10)
-  themeKey         String       @default("base")
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  planName         String             @default("Starter")
+  storefrontsLimit Int                @default(1)
+  adminUsersLimit  Int                @default(3)
+  storageLimitGb   Int                @default(10)
+  themeKey         String             @default("base")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   users            User[]
   domains          Domain[]
   auditLogs        AuditLog[]
+  memberships      TenantMembership[]
 }
 
 model User {
-  id             String         @id @default(cuid())
+  id             String             @id @default(cuid())
   tenantId       String?
-  email          String         @unique
+  email          String             @unique
   name           String?
-  role           UserRole       @default(CUSTOMER)
+  role           UserRole           @default(CUSTOMER)
   passwordHash   String?
-  isActive       Boolean        @default(true)
+  isActive       Boolean            @default(true)
   lastLoginAt    DateTime?
-  sessionVersion Int            @default(1)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  tenant         Tenant?        @relation(fields: [tenantId], references: [id])
+  sessionVersion Int                @default(1)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  tenant         Tenant?            @relation(fields: [tenantId], references: [id])
   adminSessions  AdminSession[]
+  memberships    TenantMembership[]
+}
+
+model TenantMembership {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String
+  role        UserRole @default(TENANT_STAFF)
+  status      String   @default("ACTIVE")
+  permissions Json?
+  invitedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, userId])
+  @@index([tenantId])
+  @@index([userId])
+  @@index([role])
 }
 
 model AdminSession {

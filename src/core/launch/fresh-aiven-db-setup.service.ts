@@ -1,0 +1,167 @@
+import { platformPrisma } from '@/core/db/platform-prisma';
+import { getRuntimeDatabaseInfo } from '@/core/db/platform-prisma';
+
+const REQUIRED_TABLES = ['Tenant', 'User', 'Domain', 'AuditLog', 'CoreCatalogRecord'] as const;
+const REQUIRED_ENUMS = ['TenantStatus', 'UserRole', 'DomainType', 'DomainVerificationStatus', 'SSLStatus'] as const;
+
+type SetupMode = 'check' | 'apply';
+type Step = { id: string; label: string; status: 'ready' | 'created' | 'missing' | 'warning' | 'error'; detail: string };
+
+function env(name: string) { return String(process.env[name] || '').trim(); }
+function slugify(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'holo-print'; }
+
+async function tableExists(name: string) {
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ exists: boolean }>>('SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = current_schema() AND table_name = $1) AS exists', name);
+  return Boolean(rows[0]?.exists);
+}
+
+async function enumExists(name: string) {
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ exists: boolean }>>('SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = $1) AS exists', name);
+  return Boolean(rows[0]?.exists);
+}
+
+async function countRows(name: string) {
+  if (!(await tableExists(name))) return null;
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>(`SELECT COUNT(*)::bigint AS count FROM "${name}"`);
+  return Number(rows[0]?.count || 0);
+}
+
+async function ensureEnums(steps: Step[], mode: SetupMode) {
+  const before = await Promise.all(REQUIRED_ENUMS.map(async (name) => [name, await enumExists(name)] as const));
+  for (const [name, exists] of before) {
+    if (exists) steps.push({ id: `enum-${name}`, label: `${name} enum`, status: 'ready', detail: 'Enum already exists.' });
+    else if (mode === 'check') steps.push({ id: `enum-${name}`, label: `${name} enum`, status: 'missing', detail: 'Enum is missing and will be created by setup.' });
+  }
+  if (mode !== 'apply') return;
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "TenantStatus" AS ENUM ('ACTIVE','TRIAL','SUSPENDED','PENDING_ACTIVATION'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "UserRole" AS ENUM ('SUPERADMIN','TENANT_OWNER','TENANT_ADMIN','TENANT_STAFF','CUSTOMER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "DomainType" AS ENUM ('PLATFORM_SUBDOMAIN','CUSTOM_DOMAIN'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "DomainVerificationStatus" AS ENUM ('VERIFIED','PENDING','NOT_ADDED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "SSLStatus" AS ENUM ('ISSUED','PENDING','NOT_STARTED'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
+  for (const [name, exists] of before) if (!exists) steps.push({ id: `enum-${name}`, label: `${name} enum`, status: 'created', detail: 'Enum created.' });
+}
+
+async function ensureTables(steps: Step[], mode: SetupMode) {
+  const before = await Promise.all(REQUIRED_TABLES.map(async (name) => [name, await tableExists(name)] as const));
+  for (const [name, exists] of before) {
+    if (exists) steps.push({ id: `table-${name}`, label: `${name} table`, status: 'ready', detail: 'Table already exists.' });
+    else if (mode === 'check') steps.push({ id: `table-${name}`, label: `${name} table`, status: 'missing', detail: 'Table is missing and will be created by setup.' });
+  }
+  if (mode !== 'apply') return;
+
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tenant" (
+    "id" TEXT PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL UNIQUE,
+    "status" "TenantStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
+    "defaultSubdomain" TEXT NOT NULL UNIQUE,
+    "primaryDomain" TEXT,
+    "planName" TEXT NOT NULL DEFAULT 'Starter',
+    "storefrontsLimit" INTEGER NOT NULL DEFAULT 1,
+    "adminUsersLimit" INTEGER NOT NULL DEFAULT 3,
+    "storageLimitGb" INTEGER NOT NULL DEFAULT 10,
+    "themeKey" TEXT NOT NULL DEFAULT 'base',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "User" (
+    "id" TEXT PRIMARY KEY,
+    "tenantId" TEXT,
+    "email" TEXT NOT NULL UNIQUE,
+    "name" TEXT,
+    "role" "UserRole" NOT NULL DEFAULT 'CUSTOMER',
+    "passwordHash" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "lastLoginAt" TIMESTAMP(3),
+    "sessionVersion" INTEGER NOT NULL DEFAULT 1,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Domain" (
+    "id" TEXT PRIMARY KEY,
+    "tenantId" TEXT NOT NULL,
+    "domain" TEXT NOT NULL UNIQUE,
+    "type" "DomainType" NOT NULL,
+    "verificationStatus" "DomainVerificationStatus" NOT NULL DEFAULT 'PENDING',
+    "sslStatus" "SSLStatus" NOT NULL DEFAULT 'NOT_STARTED',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AuditLog" (
+    "id" TEXT PRIMARY KEY,
+    "tenantId" TEXT,
+    "action" TEXT NOT NULL,
+    "actor" TEXT,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CoreCatalogRecord" (
+    "id" TEXT PRIMARY KEY,
+    "tenantId" TEXT NOT NULL,
+    "resource" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT NOT NULL DEFAULT '',
+    "metadataJson" JSONB,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "CoreCatalogRecord_tenantId_resource_slug_key" UNIQUE ("tenantId", "resource", "slug")
+  );`);
+
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "User_tenantId_idx" ON "User"("tenantId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "Domain_tenantId_idx" ON "Domain"("tenantId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AuditLog_tenantId_idx" ON "AuditLog"("tenantId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord"("tenantId", "resource")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_resource_slug_idx" ON "CoreCatalogRecord"("resource", "slug")');
+
+  for (const [name, exists] of before) if (!exists) steps.push({ id: `table-${name}`, label: `${name} table`, status: 'created', detail: 'Table created.' });
+}
+
+async function ensureBaselineTenant(steps: Step[], mode: SetupMode) {
+  const slug = slugify(env('DEFAULT_TENANT_ID') || 'holo-print');
+  if (!(await tableExists('Tenant'))) {
+    steps.push({ id: 'tenant-baseline', label: 'Baseline tenant', status: mode === 'apply' ? 'warning' : 'missing', detail: 'Tenant table is not ready yet.' });
+    return;
+  }
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>('SELECT id FROM "Tenant" WHERE slug=$1 LIMIT 1', slug);
+  if (rows[0]?.id) {
+    steps.push({ id: 'tenant-baseline', label: 'Baseline tenant', status: 'ready', detail: `Tenant ${slug} already exists.` });
+    return;
+  }
+  if (mode === 'check') {
+    steps.push({ id: 'tenant-baseline', label: 'Baseline tenant', status: 'missing', detail: `Tenant ${slug} will be created by setup.` });
+    return;
+  }
+  await platformPrisma.$executeRawUnsafe('INSERT INTO "Tenant" (id, name, slug, "defaultSubdomain", status, "updatedAt") VALUES ($1,$2,$3,$4,$5::"TenantStatus",NOW()) ON CONFLICT (slug) DO NOTHING', `tenant-${slug}`, env('BOOTSTRAP_TENANT_NAME') || 'HOLO Print', slug, slug, 'ACTIVE');
+  steps.push({ id: 'tenant-baseline', label: 'Baseline tenant', status: 'created', detail: `Tenant ${slug} created.` });
+}
+
+async function tableCounts() {
+  const entries = await Promise.all(REQUIRED_TABLES.map(async (name) => [name, await countRows(name)] as const));
+  return Object.fromEntries(entries.map(([name, count]) => [name, count]));
+}
+
+export async function runFreshAivenDbSetup(mode: SetupMode = 'check') {
+  const steps: Step[] = [];
+  await ensureEnums(steps, mode);
+  await ensureTables(steps, mode);
+  await ensureBaselineTenant(steps, mode);
+  const counts = await tableCounts();
+  const missing = steps.filter((item) => item.status === 'missing' || item.status === 'error').length;
+  return {
+    ok: missing === 0,
+    mode,
+    generatedAt: new Date().toISOString(),
+    database: getRuntimeDatabaseInfo(),
+    tables: REQUIRED_TABLES,
+    enums: REQUIRED_ENUMS,
+    counts,
+    summary: {
+      ready: steps.filter((item) => item.status === 'ready').length,
+      created: steps.filter((item) => item.status === 'created').length,
+      missing,
+      warning: steps.filter((item) => item.status === 'warning').length,
+    },
+    steps,
+  };
+}

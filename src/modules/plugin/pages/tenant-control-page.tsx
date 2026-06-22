@@ -23,6 +23,15 @@ const emptyRecord: TenantControlRecord = {
   domainsReady: false, catalogReady: false, checkoutReady: false, risk: 'healthy', notes: ''
 };
 
+function tenantSlugFrom(record: Pick<TenantControlRecord, 'id' | 'company'>) {
+  const raw = record.id?.replace(/^tenant-/, '') || record.company;
+  return raw.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'holo-print';
+}
+function setupHref(record: TenantControlRecord) {
+  const params = new URLSearchParams({ tenantSlug: tenantSlugFrom(record), tenantName: record.company, ownerName: record.owner });
+  return `/shop-login-setup?${params.toString()}`;
+}
+
 export function TenantControlPage() {
   const [rows, setRows] = useState<TenantControlRecord[]>([]);
   const [search, setSearch] = useState('');
@@ -79,8 +88,8 @@ export function TenantControlPage() {
     <div>
       <PageHeader
         title="Tenant Control"
-        subtitle="Provision storefronts, review launch readiness, and manage tenant activation without leaving the owner control plane."
-        actions={<div className="flex flex-wrap gap-2"><Button onClick={resetAll}>Reset seed data</Button><PrimaryButton onClick={() => setEditing({ ...emptyRecord, id: `tenant-${Date.now()}` })}>Add tenant record</PrimaryButton></div>}
+        subtitle="Provision storefronts, review launch readiness, and manage tenant activation without leaving the owner control plane. Use Shop Login Setup to connect real DB-backed tenant admin accounts."
+        actions={<div className="flex flex-wrap gap-2"><Button onClick={resetAll}>Reset seed data</Button><a href="/shop-login-setup" className="rounded-xl border border-white/8 px-3 py-2 text-sm text-text transition hover:bg-white/[0.05]">Shop Login Setup</a><PrimaryButton onClick={() => setEditing({ ...emptyRecord, id: `tenant-${Date.now()}` })}>Add tenant record</PrimaryButton></div>}
       />
       <div className="mb-4 grid gap-4 md:grid-cols-4">
         <MetricCard icon={Building2} label="Live tenants" value={String(kpis.live)} helper="Tenants currently serving live stores." />
@@ -129,6 +138,7 @@ export function TenantControlPage() {
               <p className="rounded-2xl border border-white/8 bg-white/[0.02] p-3 text-sm text-textMuted">{selected.notes}</p>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={() => setEditing(selected)}>Edit record</Button>
+                <a href={setupHref(selected)} className="rounded-xl border border-white/8 px-3 py-2 text-sm text-text transition hover:bg-white/[0.05]">Add owner/admin login</a>
                 <Button onClick={() => toggleReadiness(selected)}>{selected.environment === 'launch_ready' ? 'Drop to attention' : 'Mark launch ready'}</Button>
                 <PrimaryButton onClick={() => activate(selected)}>Activate live</PrimaryButton>
                 <Button onClick={() => remove(selected)}>Delete</Button>

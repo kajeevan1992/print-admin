@@ -13,10 +13,7 @@ export type AppSession = {
   tenantId: string;
 };
 
-type DemoAccount = AppSession & {
-  password: string;
-  defaultRoute: string;
-};
+type DemoAccount = AppSession & { password: string; defaultRoute: string };
 
 const SESSION_KEY = 'print-admin.session.v2';
 const DEMO_LOGIN_ENABLED = process.env.NEXT_PUBLIC_ENABLE_DEMO_LOGIN === 'true';
@@ -26,9 +23,7 @@ function safeSessionWrite(session: AppSession | null) {
   try {
     if (session) window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     else window.localStorage.removeItem(SESSION_KEY);
-  } catch {
-    // ignore browser storage failures and rely on in-memory session
-  }
+  } catch {}
 }
 
 export function updateSession(changes: Partial<AppSession>) {
@@ -41,9 +36,7 @@ export function updateSession(changes: Partial<AppSession>) {
     const next = normaliseSession({ ...current, ...changes });
     if (next) safeSessionWrite(next);
     return next;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 function demoAccountsFromEnv(): DemoAccount[] {
@@ -64,7 +57,7 @@ type AuthContextValue = {
   accounts: DemoAccount[];
   auth: { ready: boolean; session: AppSession | null; user: AppSession | null; role: AppRole | null; tenantId: string | null; isAuthenticated: boolean };
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string; redirectTo?: string }>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 };
 
 const fallbackAuthContext: AuthContextValue = {
@@ -73,7 +66,7 @@ const fallbackAuthContext: AuthContextValue = {
   accounts: demoAccounts,
   auth: { ready: false, session: null, user: null, role: null, tenantId: null, isAuthenticated: false },
   signIn: async () => ({ ok: false, error: 'Authentication is not ready yet.' }),
-  signOut: () => {}
+  signOut: async () => {}
 };
 
 const AuthContext = createContext<AuthContextValue>(fallbackAuthContext);
@@ -91,10 +84,16 @@ function readSession(): AppSession | null {
     const raw = window.localStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     return normaliseSession(JSON.parse(raw));
-  } catch {
-    safeSessionWrite(null);
-    return null;
-  }
+  } catch { safeSessionWrite(null); return null; }
+}
+
+async function readServerSession() {
+  try {
+    const response = await fetch('/api/internal/auth/session', { cache: 'no-store' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.ok === false) return null;
+    return normaliseSession(payload.session);
+  } catch { return null; }
 }
 
 async function signInViaDatabase(email: string, password: string) {
@@ -105,9 +104,7 @@ async function signInViaDatabase(email: string, password: string) {
     const session = normaliseSession(payload.session);
     if (!session) return { ok: false, error: 'Login returned an invalid session.' };
     return { ok: true, session, redirectTo: String(payload.redirectTo || (session.role === 'super_admin' ? '/super-admin' : '/workspace')) };
-  } catch {
-    return { ok: false, error: 'Database login is currently unavailable. Check DATABASE_URL / Neon connection and redeploy.' };
-  }
+  } catch { return { ok: false, error: 'Database login is currently unavailable. Check DATABASE_URL / Neon connection and redeploy.' }; }
 }
 
 function signInViaDemo(email: string, password: string) {
@@ -123,8 +120,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<AppSession | null>(null);
 
   useEffect(() => {
+    let mounted = true;
     setSession(readSession());
-    setReady(true);
+    readServerSession().then((serverSession) => {
+      if (!mounted) return;
+      if (serverSession) { safeSessionWrite(serverSession); setSession(serverSession); }
+      else safeSessionWrite(null);
+      setReady(true);
+    });
+    return () => { mounted = false; };
   }, []);
 
   async function signIn(email: string, password: string) {
@@ -143,7 +147,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { ok: false, error: databaseResult.error || 'Invalid email or password.' };
   }
 
-  function signOut() {
+  async function signOut() {
+    await fetch('/api/internal/auth/logout', { method: 'POST' }).catch(() => undefined);
     safeSessionWrite(null);
     setSession(null);
   }

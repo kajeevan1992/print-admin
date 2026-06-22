@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import { runFreshAivenDbSetup } from '@/core/launch/fresh-aiven-db-setup.service';
+import { requireSuperAdmin } from '@/core/auth/session-guard.service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function GET() {
   try {
+    await requireSuperAdmin();
     const data = await runFreshAivenDbSetup('check');
     return NextResponse.json({ ok: true, source: 'internal-launch-fresh-db-setup', data });
   } catch (error) {
@@ -15,6 +17,7 @@ export async function GET() {
 
 export async function POST() {
   try {
+    await requireSuperAdmin();
     const data = await runFreshAivenDbSetup('apply');
     return NextResponse.json({ ok: true, source: 'internal-launch-fresh-db-setup', data });
   } catch (error) {

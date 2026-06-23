@@ -85,6 +85,7 @@ model Tenant {
   domains          Domain[]
   auditLogs        AuditLog[]
   memberships      TenantMembership[]
+  invitations      AdminInvitation[]
 }
 
 model User {
@@ -121,6 +122,30 @@ model TenantMembership {
   @@index([tenantId])
   @@index([userId])
   @@index([role])
+}
+
+model AdminInvitation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  email       String
+  name        String?
+  role        UserRole @default(TENANT_STAFF)
+  tokenHash   String   @unique
+  status      String   @default("PENDING")
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  invitedBy   String?
+  acceptedUserId String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([status])
+  @@index([expiresAt])
 }
 
 model AdminSession {

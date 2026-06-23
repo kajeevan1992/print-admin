@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { KeyRound, Layers3, Shield, Sparkles } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/forms/input';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
@@ -12,42 +12,15 @@ const roleLabel = { super_admin: 'Super Admin', tenant_admin: 'Tenant Admin', op
 
 export function LoginScreen() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { accounts, signIn } = useAuth();
   const [email, setEmail] = useState(accounts[0]?.email ?? '');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(searchParams.get('error'));
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const grouped = useMemo(() => accounts, [accounts]);
   async function handleSubmit(event: React.FormEvent) { event.preventDefault(); setLoading(true); setError(null); const result = await signIn(email, password); setLoading(false); if (!result.ok) { setError(result.error ?? 'Unable to sign in.'); return; } const destination = result.redirectTo ?? '/'; try { router.replace(destination); setTimeout(() => { if (typeof window !== 'undefined' && window.location.pathname !== destination) window.location.assign(destination); }, 120); } catch { if (typeof window !== 'undefined') window.location.assign(destination); } }
-  function googleSignIn() { if (typeof window === 'undefined') return; const next = searchParams.get('next') || '/workspace'; window.location.assign(`/api/internal/auth/google/start?next=${encodeURIComponent(next)}`); }
-  return (
-    <div className="min-h-screen bg-background px-4 py-8 text-text">
-      <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.95fr]">
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-white/6 bg-[radial-gradient(circle_at_top_left,rgba(82,123,255,0.22),transparent_40%),linear-gradient(180deg,rgba(15,21,37,0.98),rgba(11,16,29,0.98))] p-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-textMuted"><Sparkles size={14} />print admin</div>
-            <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-white">Secure SaaS access for operators and owners.</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-textMuted">Sign in as a tenant user to operate a print business, or use the super admin account to manage customers, licensing, billing controls, store activations, demo uploads, and deployments across your SaaS.</p>
-            <div className="mt-8 grid gap-4 md:grid-cols-3"><FeatureCard icon={Shield} title="Role-gated access" copy="Separate super-admin controls from tenant operations." /><FeatureCard icon={Layers3} title="Storefront rollout" copy="Track activations, demos, and deployment readiness." /><FeatureCard icon={KeyRound} title="Server auth" copy="DB-backed sessions, invitations and Google sign-in support." /></div>
-          </div>
-          <div className="grid gap-4 p-6 md:grid-cols-3">{grouped.map((account) => (<button key={account.id} type="button" onClick={() => { setEmail(account.email); setPassword(''); }} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 text-left transition hover:border-white/14 hover:bg-white/[0.04]"><p className="text-xs uppercase tracking-[0.2em] text-textMuted">{roleLabel[account.role]}</p><h3 className="mt-3 text-lg font-semibold text-white">{account.name}</h3><p className="mt-1 text-sm text-textMuted">{account.company}</p><p className="mt-4 text-xs text-textMuted">{account.email}</p></button>))}</div>
-        </Card>
-        <Card>
-          <p className="text-xs uppercase tracking-[0.2em] text-textMuted">Login</p>
-          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">Access your workspace</h2>
-          <p className="mt-2 text-sm text-textMuted">Use password login, or sign in with Google if your email is invited or already linked to an admin account.</p>
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div><label htmlFor="login-email" className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Email</label><Input id="login-email" name="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="owner@printadmin.app" /></div>
-            <div><label htmlFor="login-password" className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Password</label><Input id="login-password" name="password" autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" /></div>
-            {error ? <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p> : null}
-            <div className="flex flex-wrap gap-3"><PrimaryButton type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</PrimaryButton><Button type="button" onClick={googleSignIn}>Continue with Google</Button></div>
-          </form>
-          <div className="mt-8 rounded-2xl border border-white/8 bg-panelMuted/70 p-4"><p className="text-xs uppercase tracking-[0.2em] text-textMuted">Google OAuth</p><ul className="mt-3 space-y-2 text-sm text-textMuted"><li>• Invite-only: Google email must match an existing admin or pending invitation.</li><li>• Optional domain allow-list via GOOGLE_OAUTH_ALLOWED_DOMAINS.</li><li>• Uses the same secure server session cookie as password login.</li></ul></div>
-        </Card>
-      </div>
-    </div>
-  );
+  function googleSignIn() { if (typeof window === 'undefined') return; const params = new URLSearchParams(window.location.search); const next = params.get('next') || '/workspace'; window.location.assign(`/api/internal/auth/google/start?next=${encodeURIComponent(next)}`); }
+  return <div className="min-h-screen bg-background px-4 py-8 text-text"><div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.2fr_0.95fr]"><Card className="overflow-hidden p-0"><div className="border-b border-white/6 bg-[radial-gradient(circle_at_top_left,rgba(82,123,255,0.22),transparent_40%),linear-gradient(180deg,rgba(15,21,37,0.98),rgba(11,16,29,0.98))] p-8"><div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-textMuted"><Sparkles size={14} />print admin</div><h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-white">Secure SaaS access for operators and owners.</h1><p className="mt-4 max-w-2xl text-sm leading-6 text-textMuted">Sign in as a tenant user to operate a print business, or use the super admin account to manage customers, licensing, billing controls, store activations, demo uploads, and deployments across your SaaS.</p><div className="mt-8 grid gap-4 md:grid-cols-3"><FeatureCard icon={Shield} title="Role-gated access" copy="Separate super-admin controls from tenant operations." /><FeatureCard icon={Layers3} title="Storefront rollout" copy="Track activations, demos, and deployment readiness." /><FeatureCard icon={KeyRound} title="Server auth" copy="DB-backed sessions, invitations and Google sign-in support." /></div></div><div className="grid gap-4 p-6 md:grid-cols-3">{grouped.map((account) => <button key={account.id} type="button" onClick={() => { setEmail(account.email); setPassword(''); }} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4 text-left transition hover:border-white/14 hover:bg-white/[0.04]"><p className="text-xs uppercase tracking-[0.2em] text-textMuted">{roleLabel[account.role]}</p><h3 className="mt-3 text-lg font-semibold text-white">{account.name}</h3><p className="mt-1 text-sm text-textMuted">{account.company}</p><p className="mt-4 text-xs text-textMuted">{account.email}</p></button>)}</div></Card><Card><p className="text-xs uppercase tracking-[0.2em] text-textMuted">Login</p><h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em] text-white">Access your workspace</h2><p className="mt-2 text-sm text-textMuted">Use password login, or sign in with Google if your email is invited or already linked to an admin account.</p><form className="mt-6 space-y-4" onSubmit={handleSubmit}><div><label htmlFor="login-email" className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Email</label><Input id="login-email" name="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="owner@printadmin.app" /></div><div><label htmlFor="login-password" className="mb-2 block text-xs uppercase tracking-[0.2em] text-textMuted">Password</label><Input id="login-password" name="password" autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" /></div>{error ? <p className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p> : null}<div className="flex flex-wrap gap-3"><PrimaryButton type="submit" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</PrimaryButton><Button type="button" onClick={googleSignIn}>Continue with Google</Button></div></form><div className="mt-8 rounded-2xl border border-white/8 bg-panelMuted/70 p-4"><p className="text-xs uppercase tracking-[0.2em] text-textMuted">Google OAuth</p><ul className="mt-3 space-y-2 text-sm text-textMuted"><li>• Invite-only: Google email must match an existing admin or pending invitation.</li><li>• Optional domain allow-list via GOOGLE_OAUTH_ALLOWED_DOMAINS.</li><li>• Uses the same secure server session cookie as password login.</li></ul></div></Card></div></div>;
 }
 
 function FeatureCard({ icon: Icon, title, copy }: { icon: typeof Shield; title: string; copy: string }) { return <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><div className="inline-flex rounded-xl border border-white/8 bg-white/[0.04] p-2 text-cyan-200"><Icon size={16} /></div><h3 className="mt-3 text-sm font-semibold text-white">{title}</h3><p className="mt-2 text-sm leading-6 text-textMuted">{copy}</p></div>; }

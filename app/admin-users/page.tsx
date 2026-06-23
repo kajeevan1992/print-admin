@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { AdminUsersPage } from '@/modules/super-admin/pages/admin-users-page';
+import { AdminInvitationsPage } from '@/modules/platform/admin-invitations-page';
 
 export default function Page() {
-  return <AdminUsersPage />;
+  return <AdminInvitationsPage />;
 }

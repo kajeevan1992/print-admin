@@ -4,6 +4,7 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Fresh DB Setup', href: '/fresh-db-setup', iconKey: 'Database', order: 34 },
   { label: 'Platform Shop Setup', href: '/shop-login-setup', iconKey: 'Shield', order: 34.5 },
   { label: 'Memberships', href: '/memberships', iconKey: 'ShieldCheck', order: 34.7 },
+  { label: 'DB Credentials', href: '/credentials', iconKey: 'KeyRound', order: 34.8 },
   { label: 'Mail QA', href: '/email-order-notification-qa', iconKey: 'Mail', order: 35 },
   { label: 'Launch Guard', href: '/admin-launch-security', iconKey: 'ShieldCheck', order: 36 },
   { label: 'Data Check', href: '/data-continuity', iconKey: 'ShieldCheck', order: 37 },

@@ -1,7 +1,7 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { getRuntimeDatabaseInfo } from '@/core/db/platform-prisma';
 
-const REQUIRED_TABLES = ['Tenant', 'User', 'TenantMembership', 'AdminSession', 'Domain', 'AuditLog', 'CoreCatalogRecord'] as const;
+const REQUIRED_TABLES = ['Tenant', 'User', 'TenantMembership', 'AdminInvitation', 'AdminSession', 'Domain', 'AuditLog', 'CoreCatalogRecord'] as const;
 const REQUIRED_ENUMS = ['TenantStatus', 'UserRole', 'DomainType', 'DomainVerificationStatus', 'SSLStatus'] as const;
 
 type SetupMode = 'check' | 'apply';
@@ -19,6 +19,7 @@ async function ensureTables(steps: Step[], mode: SetupMode) {
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tenant" ("id" TEXT PRIMARY KEY,"name" TEXT NOT NULL,"slug" TEXT NOT NULL UNIQUE,"status" "TenantStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',"defaultSubdomain" TEXT NOT NULL UNIQUE,"primaryDomain" TEXT,"planName" TEXT NOT NULL DEFAULT 'Starter',"storefrontsLimit" INTEGER NOT NULL DEFAULT 1,"adminUsersLimit" INTEGER NOT NULL DEFAULT 3,"storageLimitGb" INTEGER NOT NULL DEFAULT 10,"themeKey" TEXT NOT NULL DEFAULT 'base',"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "User" ("id" TEXT PRIMARY KEY,"tenantId" TEXT,"email" TEXT NOT NULL UNIQUE,"name" TEXT,"role" "UserRole" NOT NULL DEFAULT 'CUSTOMER',"passwordHash" TEXT,"isActive" BOOLEAN NOT NULL DEFAULT true,"lastLoginAt" TIMESTAMP(3),"sessionVersion" INTEGER NOT NULL DEFAULT 1,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "TenantMembership" ("id" TEXT PRIMARY KEY,"tenantId" TEXT NOT NULL,"userId" TEXT NOT NULL,"role" "UserRole" NOT NULL DEFAULT 'TENANT_STAFF',"status" TEXT NOT NULL DEFAULT 'ACTIVE',"permissions" JSONB,"invitedBy" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "TenantMembership_tenantId_userId_key" UNIQUE ("tenantId","userId"));`);
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AdminInvitation" ("id" TEXT PRIMARY KEY,"tenantId" TEXT NOT NULL,"email" TEXT NOT NULL,"name" TEXT,"role" "UserRole" NOT NULL DEFAULT 'TENANT_STAFF',"tokenHash" TEXT NOT NULL UNIQUE,"status" TEXT NOT NULL DEFAULT 'PENDING',"expiresAt" TIMESTAMP(3) NOT NULL,"acceptedAt" TIMESTAMP(3),"revokedAt" TIMESTAMP(3),"invitedBy" TEXT,"acceptedUserId" TEXT,"metadata" JSONB,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AdminSession" ("id" TEXT PRIMARY KEY,"userId" TEXT NOT NULL,"tenantId" TEXT,"tokenHash" TEXT NOT NULL UNIQUE,"roleSnapshot" TEXT NOT NULL,"sessionVersion" INTEGER NOT NULL DEFAULT 1,"ipAddress" TEXT,"userAgent" TEXT,"expiresAt" TIMESTAMP(3) NOT NULL,"revokedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Domain" ("id" TEXT PRIMARY KEY,"tenantId" TEXT NOT NULL,"domain" TEXT NOT NULL UNIQUE,"type" "DomainType" NOT NULL,"verificationStatus" "DomainVerificationStatus" NOT NULL DEFAULT 'PENDING',"sslStatus" "SSLStatus" NOT NULL DEFAULT 'NOT_STARTED',"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AuditLog" ("id" TEXT PRIMARY KEY,"tenantId" TEXT,"action" TEXT NOT NULL,"actor" TEXT,"metadata" JSONB,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
@@ -27,6 +28,10 @@ async function ensureTables(steps: Step[], mode: SetupMode) {
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "TenantMembership_tenantId_idx" ON "TenantMembership"("tenantId")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "TenantMembership_userId_idx" ON "TenantMembership"("userId")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "TenantMembership_role_idx" ON "TenantMembership"("role")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminInvitation_tenantId_idx" ON "AdminInvitation"("tenantId")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminInvitation_email_idx" ON "AdminInvitation"("email")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminInvitation_status_idx" ON "AdminInvitation"("status")');
+  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminInvitation_expiresAt_idx" ON "AdminInvitation"("expiresAt")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminSession_userId_idx" ON "AdminSession"("userId")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminSession_tenantId_idx" ON "AdminSession"("tenantId")');
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "AdminSession_expiresAt_idx" ON "AdminSession"("expiresAt")');

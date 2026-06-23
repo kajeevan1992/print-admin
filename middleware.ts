@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 const RESERVED_PREFIXES = [
   '/api', '/_next', '/admin', '/app', '/account-dashboard', '/products', '/categories', '/orders', '/settings', '/super-admin', '/theme', '/storefront',
 ];
-const PROTECTED_PAGE_PREFIXES = ['/', '/workspace', '/super-admin', '/products', '/categories', '/orders', '/settings', '/tenant-control', '/shop-login-setup', '/memberships', '/fresh-db-setup', '/admin-users', '/api-keys', '/database-manager'];
+const PROTECTED_PAGE_PREFIXES = ['/', '/workspace', '/super-admin', '/products', '/categories', '/orders', '/settings', '/tenant-control', '/shop-login-setup', '/memberships', '/fresh-db-setup', '/admin-users', '/api-keys', '/credentials', '/database-manager'];
 const PUBLIC_PAGE_PREFIXES = ['/login', '/logout', '/accept-invite', '/theme', '/storefront', '/product', '/category', '/cart', '/checkout'];
 const PUBLIC_INTERNAL_PREFIXES = ['/api/internal/auth/', '/api/internal/storefront/', '/api/internal/catalog/', '/api/internal/seo/', '/api/internal/config/'];
 const DEFAULT_STOREFRONT_ORIGINS = ['http://localhost:5173', 'http://localhost:3000', 'https://hosted-theme.vercel.app', 'http://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io', 'https://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io'];

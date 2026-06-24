@@ -1,52 +1,14 @@
 import { ok, okPaginated, type PaginatedResponse } from '@/services/api/responses';
 import type { ApiResponse } from '@/services/api/types';
-import { http } from '@/services/api/http';
 import type { Channel, ChannelForm } from '@/modules/channels/types';
 
-type BackendEnvelope<T> = { success: boolean; data: T };
 type BackendListData<T> = { items: T[]; pagination?: { page: number; perPage: number; total: number; totalPages?: number } };
-
-const mapChannel = (raw: Record<string, unknown>): Channel => ({
-  id: String(raw.id),
-  name: String(raw.name ?? ''),
-  slug: String(raw.slug ?? ''),
-  domain: raw.domain ? String(raw.domain) : '',
-  status: (raw.status as Channel['status']) ?? 'inactive',
-  themeId: String(raw.themeId ?? ''),
-  currency: String(raw.currency ?? 'USD'),
-  locale: String(raw.locale ?? 'en-US'),
-  isHeadless: Boolean(raw.isHeadless),
-  createdAt: String(raw.createdAt ?? new Date().toISOString().slice(0, 10)),
-  publicApiKey: String(raw.publicApiKey ?? ''),
-  privateApiKey: String(raw.privateApiKey ?? '')
-});
-
+type Envelope<T> = { ok?: boolean; success?: boolean; data?: T; error?: string };
+const mapChannel = (raw: Record<string, unknown>): Channel => ({ id: String(raw.id), name: String(raw.name ?? ''), slug: String(raw.slug ?? ''), domain: raw.domain ? String(raw.domain) : '', status: (raw.status as Channel['status']) ?? 'inactive', themeId: String(raw.themeId ?? 'base'), currency: String(raw.currency ?? 'GBP'), locale: String(raw.locale ?? 'en-GB'), isHeadless: Boolean(raw.isHeadless), createdAt: String(raw.createdAt ?? new Date().toISOString().slice(0, 10)), publicApiKey: String(raw.publicApiKey ?? ''), privateApiKey: '' });
+async function readJson<T>(response: Response): Promise<Envelope<T>> { const payload = await response.json().catch(() => ({})); if (!response.ok || payload?.ok === false || payload?.success === false) throw new Error(payload?.error || 'Channel request failed.'); return payload as Envelope<T>; }
 export const channelsService = {
-  listChannels: async (params?: { search?: string; status?: 'active' | 'inactive' }): Promise<PaginatedResponse<Channel>> => {
-    const response = await http.get<BackendEnvelope<BackendListData<Record<string, unknown>>>>('/channels', params);
-    const items = (response.data.items ?? []).map(mapChannel);
-    const pagination = response.data.pagination;
-
-    return okPaginated(items, {
-      page: pagination?.page ?? 1,
-      perPage: pagination?.perPage ?? (items.length || 1),
-      total: pagination?.total ?? items.length,
-      totalPages: pagination?.totalPages ?? 1
-    });
-  },
-
-  getChannel: async (id: string): Promise<ApiResponse<Channel>> => {
-    const response = await http.get<BackendEnvelope<Record<string, unknown>>>(`/channels/${id}`);
-    return ok(mapChannel(response.data));
-  },
-
-  createChannel: async (payload: ChannelForm): Promise<ApiResponse<Channel>> => {
-    const response = await http.post<BackendEnvelope<Record<string, unknown>>>('/channels', payload);
-    return ok(mapChannel(response.data));
-  },
-
-  updateChannel: async (id: string, changes: Partial<Channel>): Promise<ApiResponse<Channel>> => {
-    const response = await http.patch<BackendEnvelope<Record<string, unknown>>>(`/channels/${id}`, changes);
-    return ok(mapChannel(response.data));
-  }
+  listChannels: async (params?: { search?: string; status?: 'active' | 'inactive' }): Promise<PaginatedResponse<Channel>> => { const qs = new URLSearchParams(); if (params?.search) qs.set('search', params.search); if (params?.status) qs.set('status', params.status); const response = await fetch(`/api/internal/store-channels${qs.toString() ? `?${qs}` : ''}`, { cache: 'no-store' }); const payload = await readJson<BackendListData<Record<string, unknown>>>(response); const items = (payload.data?.items ?? []).map(mapChannel); const pagination = payload.data?.pagination; return okPaginated(items, { page: pagination?.page ?? 1, perPage: pagination?.perPage ?? (items.length || 1), total: pagination?.total ?? items.length, totalPages: pagination?.totalPages ?? 1 }); },
+  getChannel: async (id: string): Promise<ApiResponse<Channel>> => { const list = await channelsService.listChannels(); const found = list.data.items.find((item) => item.id === id || item.slug === id); if (!found) throw new Error('Channel not found.'); return ok(found); },
+  createChannel: async (payload: ChannelForm): Promise<ApiResponse<Channel>> => { const response = await fetch('/api/internal/store-channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const data = await readJson<Record<string, unknown>>(response); return ok(mapChannel(data.data || {})); },
+  updateChannel: async (id: string, changes: Partial<Channel>): Promise<ApiResponse<Channel>> => { const response = await fetch('/api/internal/store-channels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...changes, id }) }); const data = await readJson<Record<string, unknown>>(response); return ok(mapChannel(data.data || {})); }
 };

@@ -16,7 +16,7 @@ type LiveSyncState = 'local' | 'loading' | 'live' | 'saving' | 'error';
 const sortOptions = [{ value: 'recent', label: 'Newest first' }, { value: 'title', label: 'Title A–Z' }, { value: 'status', label: 'Status' }, { value: 'owner', label: 'Owner / Assignee' }];
 
 export function LocalRecordsPage({ storageKey, title, subtitle, createLabel, fields, initialItems, buildCardMeta, buildSubtitle, cardMetaFields, subtitleFields, searchKeys, primaryFilterKey, liveEndpoint, mapLiveItem }: { storageKey: string; title: string; subtitle: string; createLabel: string; fields: Field[]; initialItems: RecordItem[]; buildCardMeta?: (item: RecordItem) => string; buildSubtitle?: (item: RecordItem) => string; cardMetaFields?: string[]; subtitleFields?: string[]; searchKeys?: string[]; primaryFilterKey?: string; quickTemplates?: QuickTemplate[]; liveEndpoint?: string; mapLiveItem?: (row: Record<string, unknown>, index: number) => RecordItem }) {
-  const seedItems = useMemo(() => initialItems.map((item, index) => ({ ...item, createdAt: item.createdAt ?? new Date(Date.now() - index * 1000 * 60 * 30).toISOString(), pinned: Boolean(item.pinned), starred: Boolean(item.starred) })), [initialItems]);
+  const seedItems = useMemo(() => { void initialItems; return [] as RecordItem[]; }, [initialItems]);
   const effectiveLiveEndpoint = liveEndpoint || (storageKey ? `/api/internal/config/${encodeURIComponent(storageKey)}/items` : undefined);
   const [items, setItems] = useState<RecordItem[]>(seedItems);
   const [selectedId, setSelectedId] = useState<string>(seedItems[0]?.id ?? '');

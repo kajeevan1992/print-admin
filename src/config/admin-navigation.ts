@@ -39,6 +39,7 @@ const ADMIN_SIDEBAR_NAVIGATION: AdminSidebarNavigationItem[] = [
   ]},
   { label: 'Trade Vendors', href: '/vendors', iconKey: 'Truck', order: 280, roles: TENANT_ROLES },
   { label: 'Site Theme', href: '/themes', iconKey: 'Palette', order: 290, roles: TENANT_ROLES },
+  { label: 'Site Designer', href: '/site-designer', iconKey: 'Palette', order: 295, roles: TENANT_ROLES },
   { label: 'Print Parametric', iconKey: 'SlidersHorizontal', order: 300, roles: TENANT_ROLES, children: [
     { label: 'Parametric Setup', href: '/parametric-setup', iconKey: 'SlidersHorizontal', order: 10 }, { label: 'Parametric Products', href: '/parametric-products', iconKey: 'Boxes', order: 20 }, { label: 'Parametric Rules Engine', href: '/parametric-rules-engine', iconKey: 'Bot', order: 30 }, { label: 'Parametric Libraries', href: '/parametric-libraries', iconKey: 'Archive', order: 40 }
   ]},

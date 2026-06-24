@@ -1,0 +1,27 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { PageHeader } from '@/components/ui/page-header';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/forms/input';
+import { Select } from '@/components/forms/select';
+import { Button, PrimaryButton } from '@/components/ui/buttons';
+import { BaseModal } from '@/components/modals/base-modal';
+import { licensingCenterService } from '@/services/licensing-center.service';
+import type { LicenseRecord, LicenseStatus } from '@/data/licensing-center';
+
+const blank = (): LicenseRecord => ({ id: `license-${Date.now()}`, company: '', plan: 'Starter', status: 'trial', seatsUsed: 1, seatLimit: 5, apiAccess: false, storesAllowed: 1, renewalDate: new Date().toISOString().slice(0, 10), overageRisk: 'healthy', notes: '' });
+export function LicensingCenterLivePage() {
+  const [rows, setRows] = useState<LicenseRecord[]>([]);
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState<LicenseRecord | null>(null);
+  const [message, setMessage] = useState('');
+  async function load() { try { setRows(await licensingCenterService.list()); setMessage('Database records loaded.'); } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not load licensing records.'); } }
+  useEffect(() => { void load(); }, []);
+  const visible = useMemo(() => rows.filter((row) => !search || `${row.company} ${row.plan} ${row.status}`.toLowerCase().includes(search.toLowerCase())), [rows, search]);
+  async function save(record: LicenseRecord) { await licensingCenterService.save(record); setEditing(null); await load(); }
+  async function remove(id: string) { await licensingCenterService.remove(id); await load(); }
+  return <div className="space-y-4"><PageHeader title="Licensing Center" subtitle="Database-backed licence and entitlement records. No seed reset or demo data." actions={<PrimaryButton onClick={() => setEditing(blank())}>Add licence</PrimaryButton>} />{message ? <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-sm text-textMuted">{message}</div> : null}<div className="grid gap-4 md:grid-cols-4"><Metric label="Licences" value={visible.length} /><Metric label="Seat limit" value={visible.reduce((s, r) => s + r.seatLimit, 0)} /><Metric label="Seats used" value={visible.reduce((s, r) => s + r.seatsUsed, 0)} /><Metric label="API enabled" value={visible.filter((r) => r.apiAccess).length} /></div><Card><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search licences..." /></Card><Card><div className="space-y-3">{visible.map((row) => <div key={row.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-semibold text-white">{row.company || 'Untitled licence'}</p><p className="text-sm text-textMuted">{row.plan} · {row.status} · {row.seatsUsed}/{row.seatLimit} seats · renewal {row.renewalDate}</p></div><div className="flex gap-2"><Button onClick={() => setEditing(row)}>Edit</Button><Button onClick={() => void remove(row.id)}>Delete</Button></div></div></div>)}{!visible.length ? <p className="text-sm text-textMuted">No licence records yet.</p> : null}</div></Card><LicenseModal record={editing} onClose={() => setEditing(null)} onSave={save} /></div>;
+}
+function Metric({ label, value }: { label: string; value: string | number }) { return <Card><p className="text-xs uppercase tracking-wide text-textMuted">{label}</p><p className="mt-2 text-2xl font-semibold text-white">{value}</p></Card>; }
+function LicenseModal({ record, onClose, onSave }: { record: LicenseRecord | null; onClose: () => void; onSave: (record: LicenseRecord) => void | Promise<void> }) { const [draft, setDraft] = useState<LicenseRecord | null>(record); useEffect(() => setDraft(record), [record]); if (!draft) return null; return <BaseModal open={Boolean(record)} onClose={onClose} title="Licence" description="Manage licence details."><div className="grid gap-3 md:grid-cols-2"><Input value={draft.company} onChange={(e) => setDraft({ ...draft, company: e.target.value })} placeholder="Company" /><Input value={draft.plan} onChange={(e) => setDraft({ ...draft, plan: e.target.value })} placeholder="Plan" /><Input type="number" value={String(draft.seatsUsed)} onChange={(e) => setDraft({ ...draft, seatsUsed: Number(e.target.value) || 0 })} /><Input type="number" value={String(draft.seatLimit)} onChange={(e) => setDraft({ ...draft, seatLimit: Number(e.target.value) || 1 })} /><Input type="number" value={String(draft.storesAllowed)} onChange={(e) => setDraft({ ...draft, storesAllowed: Number(e.target.value) || 1 })} /><Input value={draft.renewalDate} onChange={(e) => setDraft({ ...draft, renewalDate: e.target.value })} /><Select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as LicenseStatus })} options={['active', 'trial', 'grace', 'paused']} /><Select value={draft.apiAccess ? 'yes' : 'no'} onChange={(e) => setDraft({ ...draft, apiAccess: e.target.value === 'yes' })} options={[{ value: 'yes', label: 'API enabled' }, { value: 'no', label: 'API disabled' }]} /><Input value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="Notes" /></div><div className="mt-4 flex justify-end gap-2"><Button onClick={onClose}>Cancel</Button><PrimaryButton onClick={() => onSave(draft)}>Save</PrimaryButton></div></BaseModal>; }

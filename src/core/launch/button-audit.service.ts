@@ -21,6 +21,7 @@ const DEEP_CHECKS: Record<string, Omit<RouteCheck, 'route'>> = {
   '/api-access': { file: 'src/modules/settings/pages/api-access-page.tsx', expectedActions: ['Add Access Profile', 'Edit', 'Delete'], note: 'DB-backed through platform records API.' },
   '/api-keys': { file: 'src/modules/platform/credentials-page.tsx', expectedActions: ['Create credential', 'Refresh'], note: 'DB-backed credential page.' },
   '/licensing-center': { file: 'src/modules/plugin/pages/licensing-center-live-page.tsx', expectedActions: ['Add licence', 'Edit', 'Delete'], note: 'Cleaned live licensing page.' },
+  '/business-defaults': { file: 'src/modules/platform/default-store-bootstrap-page.tsx', expectedActions: ['Create / refresh default stores'], note: 'Build 76 default hosted store bootstrap for existing tenants.' },
   '/button-audit': { file: 'src/modules/launch/button-audit-page.tsx', expectedActions: ['Refresh'], note: 'Route/click audit registry.' },
   '/email-order-notification-qa': { file: 'src/modules/launch/email-order-notification-qa-page.tsx', expectedActions: ['Dry run', 'Queue test notifications'] },
   '/payment-checkout-qa': { file: 'src/modules/launch/payment-checkout-qa-page.tsx', expectedActions: ['Dry run', 'Create payment test order'] },
@@ -30,33 +31,5 @@ const TENANT_ROLE_NAMES = new Set(['admin', 'tenant_admin', 'owner']);
 function row(id: string, file: string, severity: ButtonAuditSeverity, label: string, detail: string, action = ''): ButtonAuditFinding { return { id, file, severity, label, detail, action }; }
 function routeToFile(route: string) { const clean = route.replace(/^\//, '') || 'page'; return `app/${clean}/page.tsx`; }
 function isTenantRoute(item: { href?: string; roles?: string[]; hidden?: boolean }) { return Boolean(item.href && !item.hidden && item.roles?.some((role) => TENANT_ROLE_NAMES.has(role))); }
-function buildRouteChecks(): RouteCheck[] {
-  const checks: RouteCheck[] = [];
-  const seen = new Set<string>();
-  for (const item of adminNavigationRegistry) {
-    if (!isTenantRoute(item)) continue;
-    const route = item.href;
-    if (!route || seen.has(route)) continue;
-    seen.add(route);
-    const deep = DEEP_CHECKS[route];
-    checks.push({ route, file: deep?.file || routeToFile(route), expectedActions: deep?.expectedActions || ['Open page'], note: deep?.note || `Tenant sidebar route from ${item.groupLabel || item.parentLabel || 'main'}: ${item.label}.` });
-  }
-  for (const [route, deep] of Object.entries(DEEP_CHECKS)) if (!seen.has(route)) checks.push({ route, ...deep });
-  return checks.sort((a, b) => a.route.localeCompare(b.route));
-}
-export async function buildButtonAudit() {
-  const findings: ButtonAuditFinding[] = [];
-  const routeChecks = buildRouteChecks();
-  for (const module of routeChecks) {
-    findings.push(row(`known-${module.route}`, module.file, 'pass', 'Tenant sidebar route registered', `${module.route} is included in the tenant/admin action audit registry.`));
-    findings.push(row(`actions-${module.route}`, module.file, 'info', 'Expected visible actions', `Expected actions: ${module.expectedActions.join(', ')}.`, 'Open the route and confirm each action after deploy.'));
-    if (module.note) findings.push(row(`note-${module.route}`, module.file, 'info', 'Production wiring note', module.note));
-  }
-  findings.push(row('tenant-sidebar-full-coverage', 'src/config/admin-navigation.ts', 'pass', 'Full tenant sidebar imported', 'Button Audit now builds from adminNavigationRegistry instead of a short hand-written list.'));
-  findings.push(row('deployment-safe-mode', 'src/core/launch/button-audit.service.ts', 'warning', 'Lightweight audit mode', 'This page uses registry coverage and manual action expectations to keep the Vercel function small.', 'Use the listed routes for manual click testing.'));
-  const summary = findings.reduce((acc, item) => { acc.findings += 1; acc[item.severity] += 1; return acc; }, { findings: 0, pass: 0, warning: 0, error: 0, info: 0 } as Record<ButtonAuditSeverity | 'findings', number>);
-  const score = Math.max(0, Math.min(100, 100 - summary.error * 8 - summary.warning * 3));
-  const ready = summary.error === 0;
-  const nextActions = findings.filter((item) => item.severity === 'error' || item.severity === 'warning').slice(0, 30).map((item) => ({ label: item.label, detail: `${item.file}: ${item.detail}`, action: item.action, severity: item.severity }));
-  return { ready, score, generatedAt: new Date().toISOString(), summary: { ...summary, filesScanned: routeChecks.length }, findings, nextActions };
-}
+function buildRouteChecks(): RouteCheck[] { const checks: RouteCheck[] = []; const seen = new Set<string>(); for (const item of adminNavigationRegistry) { if (!isTenantRoute(item)) continue; const route = item.href; if (!route || seen.has(route)) continue; seen.add(route); const deep = DEEP_CHECKS[route]; checks.push({ route, file: deep?.file || routeToFile(route), expectedActions: deep?.expectedActions || ['Open page'], note: deep?.note || `Tenant sidebar route from ${item.groupLabel || item.parentLabel || 'main'}: ${item.label}.` }); } for (const [route, deep] of Object.entries(DEEP_CHECKS)) if (!seen.has(route)) checks.push({ route, ...deep }); return checks.sort((a, b) => a.route.localeCompare(b.route)); }
+export async function buildButtonAudit() { const findings: ButtonAuditFinding[] = []; const routeChecks = buildRouteChecks(); for (const module of routeChecks) { findings.push(row(`known-${module.route}`, module.file, 'pass', 'Tenant sidebar route registered', `${module.route} is included in the tenant/admin action audit registry.`)); findings.push(row(`actions-${module.route}`, module.file, 'info', 'Expected visible actions', `Expected actions: ${module.expectedActions.join(', ')}.`, 'Open the route and confirm each action after deploy.')); if (module.note) findings.push(row(`note-${module.route}`, module.file, 'info', 'Production wiring note', module.note)); } findings.push(row('tenant-sidebar-full-coverage', 'src/config/admin-navigation.ts', 'pass', 'Full tenant sidebar imported', 'Button Audit now builds from adminNavigationRegistry instead of a short hand-written list.')); findings.push(row('deployment-safe-mode', 'src/core/launch/button-audit.service.ts', 'warning', 'Lightweight audit mode', 'This page uses registry coverage and manual action expectations to keep the Vercel function small.', 'Use the listed routes for manual click testing.')); const summary = findings.reduce((acc, item) => { acc.findings += 1; acc[item.severity] += 1; return acc; }, { findings: 0, pass: 0, warning: 0, error: 0, info: 0 } as Record<ButtonAuditSeverity | 'findings', number>); const score = Math.max(0, Math.min(100, 100 - summary.error * 8 - summary.warning * 3)); const ready = summary.error === 0; const nextActions = findings.filter((item) => item.severity === 'error' || item.severity === 'warning').slice(0, 30).map((item) => ({ label: item.label, detail: `${item.file}: ${item.detail}`, action: item.action, severity: item.severity })); return { ready, score, generatedAt: new Date().toISOString(), summary: { ...summary, filesScanned: routeChecks.length }, findings, nextActions }; }

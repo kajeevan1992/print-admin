@@ -1,48 +1,62 @@
+import { adminNavigationRegistry } from '@/config/admin-navigation';
+
 export type ButtonAuditSeverity = 'pass' | 'warning' | 'error' | 'info';
 export type ButtonAuditFinding = { id: string; file: string; severity: ButtonAuditSeverity; label: string; detail: string; action?: string };
-type KnownModuleCheck = { file: string; route: string; expectedActions: string[]; note?: string };
-const KNOWN_MODULES: KnownModuleCheck[] = [
-  { file: 'src/modules/products/pages/products-list-page.tsx', route: '/products', expectedActions: ['Add Product', 'Import CSV Pricing', 'Export', 'Edit', 'Preview', 'Clone', 'Delete'], note: 'Tenant catalog list; should use internal catalog API/database only.' },
-  { file: 'app/categories/page.tsx', route: '/categories', expectedActions: ['Add Category', 'Edit', 'Delete'], note: 'Tenant category management must persist to database.' },
-  { file: 'app/product-builder-studio/page.tsx', route: '/product-builder-studio', expectedActions: ['Save', 'Preview'], note: 'Tenant product builder should create database-backed product records.' },
-  { file: 'app/config-templates/page.tsx', route: '/config-templates', expectedActions: ['Add Template'], note: 'Shared records page now starts empty and saves bulk items to internal config API.' },
-  { file: 'app/option-sets/page.tsx', route: '/option-sets', expectedActions: ['Add'], note: 'Shared records page now starts empty and saves bulk items to internal config API.' },
-  { file: 'app/materials-library/page.tsx', route: '/materials-library', expectedActions: ['Add'], note: 'Check material size/machine compatibility records after deploy.' },
-  { file: 'app/finish-library/page.tsx', route: '/finish-library', expectedActions: ['Add'], note: 'Check finish/add-on VAT flags after deploy.' },
-  { file: 'app/printer-profiles/page.tsx', route: '/printer-profiles', expectedActions: ['Add'], note: 'Check machine capability records after deploy.' },
-  { file: 'app/orders/page.tsx', route: '/orders', expectedActions: ['Open order', 'Update status'], note: 'Tenant orders should read from order database.' },
-  { file: 'app/quotes/page.tsx', route: '/quotes', expectedActions: ['Create Quote'], note: 'Tenant quotation flow should remain internal, not public API.' },
-  { file: 'app/artwork-uploads/page.tsx', route: '/artwork-uploads', expectedActions: ['Open upload'], note: 'Tenant artwork queue route registered.' },
-  { file: 'app/pricing-engine-lab/page.tsx', route: '/pricing-engine-lab', expectedActions: ['Calculate', 'Save'], note: 'Pricing engine should reuse internal pricing modules.' },
-  { file: 'src/modules/settings/pages/organizations-page.tsx', route: '/organizations', expectedActions: ['Add Activation Group', 'Edit', 'Delete'], note: 'DB-backed through /api/internal/platform/records?resource=organizations.' },
-  { file: 'src/modules/settings/pages/merchant-accounts-page.tsx', route: '/merchant-accounts', expectedActions: ['Add Merchant Account', 'Edit', 'Delete'], note: 'DB-backed through /api/internal/platform/records?resource=merchant-accounts.' },
-  { file: 'src/modules/settings/pages/api-access-page.tsx', route: '/api-access', expectedActions: ['Add Access Profile', 'Edit', 'Delete'], note: 'DB-backed through /api/internal/platform/records?resource=api-access-profiles.' },
-  { file: 'src/modules/platform/credentials-page.tsx', route: '/api-keys', expectedActions: ['Create credential', 'Refresh'], note: 'DB-backed API credential page.' },
-  { file: 'src/modules/plugin/pages/licensing-center-live-page.tsx', route: '/licensing-center', expectedActions: ['Add licence', 'Edit', 'Delete'], note: 'Cleaned live licensing page. No seed reset.' },
-  { file: 'src/modules/super-admin/pages/live-owner-reports-page.tsx', route: '/reports', expectedActions: ['Refresh'], note: 'Super Admin report route uses live DB metrics; tenant report still uses tenant report page.' },
-  { file: 'app/support/page.tsx', route: '/support', expectedActions: ['Create Support Task'], note: 'DB-backed through internal config API.' },
-  { file: 'app/knowledge-base/page.tsx', route: '/knowledge-base', expectedActions: ['Add Article'], note: 'DB-backed through internal config API.' },
-  { file: 'app/error-log/page.tsx', route: '/error-log', expectedActions: ['Create Incident'], note: 'No dummy incidents preloaded.' },
-  { file: 'src/modules/launch/final-launch-checklist-page.tsx', route: '/final-check', expectedActions: ['Refresh', 'Open module'] },
-  { file: 'src/modules/launch/data-continuity-page.tsx', route: '/data-continuity', expectedActions: ['Refresh'] },
-  { file: 'src/modules/launch/admin-launch-security-page.tsx', route: '/admin-launch-security', expectedActions: ['Refresh'] },
-  { file: 'src/modules/launch/button-audit-page.tsx', route: '/button-audit', expectedActions: ['Refresh'] },
-  { file: 'src/modules/launch/email-order-notification-qa-page.tsx', route: '/email-order-notification-qa', expectedActions: ['Dry run', 'Queue test notifications'] },
-  { file: 'src/modules/launch/payment-checkout-qa-page.tsx', route: '/payment-checkout-qa', expectedActions: ['Dry run', 'Create payment test order'] },
-  { file: 'src/modules/launch/storefront-order-test-page.tsx', route: '/storefront-order-test', expectedActions: ['Dry run'] },
-];
+type RouteCheck = { file: string; route: string; expectedActions: string[]; note?: string };
+const DEEP_CHECKS: Record<string, Omit<RouteCheck, 'route'>> = {
+  '/products': { file: 'src/modules/products/pages/products-list-page.tsx', expectedActions: ['Add Product', 'Import CSV Pricing', 'Export', 'Edit', 'Preview', 'Clone', 'Delete'], note: 'Tenant catalog list should use internal catalog API/database only.' },
+  '/categories': { file: 'app/categories/page.tsx', expectedActions: ['Add Category', 'Edit', 'Delete'], note: 'Tenant category management must persist to database.' },
+  '/orders': { file: 'app/orders/page.tsx', expectedActions: ['Open order', 'Update status'], note: 'Tenant orders should read from order database.' },
+  '/quotes': { file: 'app/quotes/page.tsx', expectedActions: ['Create Quote', 'Save', 'Delete'], note: 'Quotes now use tenant operations service without mock fallback.' },
+  '/production': { file: 'app/production/page.tsx', expectedActions: ['Create job', 'Edit', 'Delete'], note: 'Production records should use internal production-board/database path.' },
+  '/artwork-proofing': { file: 'app/artwork-proofing/page.tsx', expectedActions: ['Open proof', 'Save', 'Delete'], note: 'Artwork proof records now use tenant operations service without mock fallback.' },
+  '/reports': { file: 'src/modules/reports/pages/reports-page.tsx', expectedActions: ['Refresh', 'Export CSV', 'Schedule Report'], note: 'Tenant Reports use live orders/products/activity, not seed arrays.' },
+  '/activity-log': { file: 'src/modules/activity-log/pages/activity-log-page.tsx', expectedActions: ['Refresh'], note: 'Activity Log uses live records and clean empty state.' },
+  '/settings': { file: 'src/modules/operations/pages/settings-page.tsx', expectedActions: ['Edit', 'Save', 'Cancel'], note: 'General Settings save through tenant operations service.' },
+  '/support': { file: 'app/support/page.tsx', expectedActions: ['Create Support Task'], note: 'DB-backed through internal config API.' },
+  '/knowledge-base': { file: 'app/knowledge-base/page.tsx', expectedActions: ['Add Article'], note: 'DB-backed through internal config API.' },
+  '/error-log': { file: 'app/error-log/page.tsx', expectedActions: ['Create Incident'], note: 'No dummy incidents preloaded.' },
+  '/organizations': { file: 'src/modules/settings/pages/organizations-page.tsx', expectedActions: ['Add Activation Group', 'Edit', 'Delete'], note: 'DB-backed through platform records API.' },
+  '/merchant-accounts': { file: 'src/modules/settings/pages/merchant-accounts-page.tsx', expectedActions: ['Add Merchant Account', 'Edit', 'Delete'], note: 'DB-backed through platform records API.' },
+  '/api-access': { file: 'src/modules/settings/pages/api-access-page.tsx', expectedActions: ['Add Access Profile', 'Edit', 'Delete'], note: 'DB-backed through platform records API.' },
+  '/api-keys': { file: 'src/modules/platform/credentials-page.tsx', expectedActions: ['Create credential', 'Refresh'], note: 'DB-backed credential page.' },
+  '/licensing-center': { file: 'src/modules/plugin/pages/licensing-center-live-page.tsx', expectedActions: ['Add licence', 'Edit', 'Delete'], note: 'Cleaned live licensing page.' },
+  '/button-audit': { file: 'src/modules/launch/button-audit-page.tsx', expectedActions: ['Refresh'], note: 'Route/click audit registry.' },
+  '/email-order-notification-qa': { file: 'src/modules/launch/email-order-notification-qa-page.tsx', expectedActions: ['Dry run', 'Queue test notifications'] },
+  '/payment-checkout-qa': { file: 'src/modules/launch/payment-checkout-qa-page.tsx', expectedActions: ['Dry run', 'Create payment test order'] },
+  '/storefront-order-test': { file: 'src/modules/launch/storefront-order-test-page.tsx', expectedActions: ['Dry run'] },
+};
+const TENANT_ROLE_NAMES = new Set(['admin', 'tenant_admin', 'owner']);
 function row(id: string, file: string, severity: ButtonAuditSeverity, label: string, detail: string, action = ''): ButtonAuditFinding { return { id, file, severity, label, detail, action }; }
+function routeToFile(route: string) { const clean = route.replace(/^\//, '') || 'page'; return `app/${clean}/page.tsx`; }
+function isTenantRoute(item: { href?: string; roles?: string[]; hidden?: boolean }) { return Boolean(item.href && !item.hidden && item.roles?.some((role) => TENANT_ROLE_NAMES.has(role))); }
+function buildRouteChecks(): RouteCheck[] {
+  const checks: RouteCheck[] = [];
+  const seen = new Set<string>();
+  for (const item of adminNavigationRegistry) {
+    if (!isTenantRoute(item)) continue;
+    const route = item.href;
+    if (!route || seen.has(route)) continue;
+    seen.add(route);
+    const deep = DEEP_CHECKS[route];
+    checks.push({ route, file: deep?.file || routeToFile(route), expectedActions: deep?.expectedActions || ['Open page'], note: deep?.note || `Tenant sidebar route from ${item.groupLabel || item.parentLabel || 'main'}: ${item.label}.` });
+  }
+  for (const [route, deep] of Object.entries(DEEP_CHECKS)) if (!seen.has(route)) checks.push({ route, ...deep });
+  return checks.sort((a, b) => a.route.localeCompare(b.route));
+}
 export async function buildButtonAudit() {
   const findings: ButtonAuditFinding[] = [];
-  for (const module of KNOWN_MODULES) {
-    findings.push(row(`known-${module.route}`, module.file, 'pass', 'Module registered', `${module.route} is included in the action audit registry.`));
+  const routeChecks = buildRouteChecks();
+  for (const module of routeChecks) {
+    findings.push(row(`known-${module.route}`, module.file, 'pass', 'Tenant sidebar route registered', `${module.route} is included in the tenant/admin action audit registry.`));
     findings.push(row(`actions-${module.route}`, module.file, 'info', 'Expected visible actions', `Expected actions: ${module.expectedActions.join(', ')}.`, 'Open the route and confirm each action after deploy.'));
     if (module.note) findings.push(row(`note-${module.route}`, module.file, 'info', 'Production wiring note', module.note));
   }
-  findings.push(row('deployment-safe-mode', 'src/core/launch/button-audit.service.ts', 'warning', 'Lightweight audit mode', 'This page uses a fixed registry to keep the Vercel function small.', 'Use the listed routes for manual click testing.'));
+  findings.push(row('tenant-sidebar-full-coverage', 'src/config/admin-navigation.ts', 'pass', 'Full tenant sidebar imported', 'Button Audit now builds from adminNavigationRegistry instead of a short hand-written list.'));
+  findings.push(row('deployment-safe-mode', 'src/core/launch/button-audit.service.ts', 'warning', 'Lightweight audit mode', 'This page uses registry coverage and manual action expectations to keep the Vercel function small.', 'Use the listed routes for manual click testing.'));
   const summary = findings.reduce((acc, item) => { acc.findings += 1; acc[item.severity] += 1; return acc; }, { findings: 0, pass: 0, warning: 0, error: 0, info: 0 } as Record<ButtonAuditSeverity | 'findings', number>);
   const score = Math.max(0, Math.min(100, 100 - summary.error * 8 - summary.warning * 3));
   const ready = summary.error === 0;
   const nextActions = findings.filter((item) => item.severity === 'error' || item.severity === 'warning').slice(0, 30).map((item) => ({ label: item.label, detail: `${item.file}: ${item.detail}`, action: item.action, severity: item.severity }));
-  return { ready, score, generatedAt: new Date().toISOString(), summary: { ...summary, filesScanned: KNOWN_MODULES.length }, findings, nextActions };
+  return { ready, score, generatedAt: new Date().toISOString(), summary: { ...summary, filesScanned: routeChecks.length }, findings, nextActions };
 }

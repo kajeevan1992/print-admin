@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { LicensingCenterPage } from '@/modules/plugin/pages/licensing-center-page';
+import { LicensingCenterLivePage } from '@/modules/plugin/pages/licensing-center-live-page';
 
 export default function Page() {
-  return <LicensingCenterPage />;
+  return <LicensingCenterLivePage />;
 }

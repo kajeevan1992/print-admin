@@ -5,122 +5,14 @@ import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/ca
 import { tenantContextFromRequest } from '@/core/tenant/context';
 
 const CONFIG_RESOURCE = 'admin-config' as any;
-
 type ConfigItem = Record<string, unknown> & { id?: string; title?: string; name?: string };
-
-function cleanKey(value: string) {
-  return decodeURIComponent(value || '')
-    .trim()
-    .replace(/[^a-zA-Z0-9._:-]/g, '-')
-    .slice(0, 120);
-}
-
-function responseError(error: unknown, status = 500) {
-  return NextResponse.json(
-    { ok: false, error: error instanceof Error ? error.message : 'Configuration item request failed.' },
-    { status }
-  );
-}
-
-function normaliseItem(item: ConfigItem, index: number): ConfigItem {
-  const id = String(item.id || item.slug || `item-${Date.now()}-${index}`);
-  const title = String(item.title || item.name || item.label || id);
-  return {
-    ...item,
-    id,
-    title,
-    name: item.name || title,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-async function readItems(request: NextRequest, key: string): Promise<ConfigItem[]> {
-  try {
-    const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key);
-    const items = (record as any)?.metadataJson?.items;
-    return Array.isArray(items) ? items : [];
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message.includes('was not found')) return [];
-    throw error;
-  }
-}
-
-async function saveItems(request: NextRequest, key: string, items: ConfigItem[]) {
-  const savedAt = new Date().toISOString();
-  return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, {
-    id: key,
-    slug: key,
-    name: key,
-    description: 'Admin local records workspace values',
-    metadataJson: {
-      items,
-      savedAt,
-      storageKey: key,
-      source: 'LocalRecordsPage',
-    },
-  } as any);
-}
-
-export async function GET(request: NextRequest, { params }: { params: { key: string } }) {
-  const key = cleanKey(params.key);
-  if (!key) return responseError(new Error('Configuration key is required.'), 400);
-
-  try {
-    const items = await readItems(request, key);
-    return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items } });
-  } catch (error) {
-    return responseError(error);
-  }
-}
-
-export async function POST(request: NextRequest, { params }: { params: { key: string } }) {
-  const key = cleanKey(params.key);
-  if (!key) return responseError(new Error('Configuration key is required.'), 400);
-
-  try {
-    const body = await request.json().catch(() => ({}));
-    const incoming = normaliseItem(body as ConfigItem, 0);
-    const items = await readItems(request, key);
-    const next = [incoming, ...items.filter((item) => String(item.id) !== String(incoming.id))];
-    const record = await saveItems(request, key, next);
-    return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: record, item: incoming });
-  } catch (error) {
-    return responseError(error);
-  }
-}
-
-export async function PATCH(request: NextRequest, { params }: { params: { key: string } }) {
-  const key = cleanKey(params.key);
-  if (!key) return responseError(new Error('Configuration key is required.'), 400);
-
-  try {
-    const body = await request.json().catch(() => ({}));
-    const incoming = normaliseItem(body as ConfigItem, 0);
-    const items = await readItems(request, key);
-    const exists = items.some((item) => String(item.id) === String(incoming.id));
-    const next = exists
-      ? items.map((item) => (String(item.id) === String(incoming.id) ? { ...item, ...incoming } : item))
-      : [incoming, ...items];
-    const record = await saveItems(request, key, next);
-    return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: record, item: incoming });
-  } catch (error) {
-    return responseError(error);
-  }
-}
-
-export async function DELETE(request: NextRequest, { params }: { params: { key: string } }) {
-  const key = cleanKey(params.key);
-  if (!key) return responseError(new Error('Configuration key is required.'), 400);
-
-  try {
-    const id = request.nextUrl.searchParams.get('id');
-    if (!id) return responseError(new Error('Item id is required.'), 400);
-    const items = await readItems(request, key);
-    const next = items.filter((item) => String(item.id) !== String(id));
-    const record = await saveItems(request, key, next);
-    return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: record, deletedId: id });
-  } catch (error) {
-    return responseError(error);
-  }
-}
+function cleanKey(value: string) { return decodeURIComponent(value || '').trim().replace(/[^a-zA-Z0-9._:-]/g, '-').slice(0, 120); }
+function responseError(error: unknown, status = 500) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Configuration item request failed.' }, { status }); }
+function normaliseItem(item: ConfigItem, index: number): ConfigItem { const id = String(item.id || item.slug || `item-${Date.now()}-${index}`); const title = String(item.title || item.name || item.label || id); return { ...item, id, title, name: item.name || title, updatedAt: new Date().toISOString() }; }
+function normaliseItems(items: unknown): ConfigItem[] { if (!Array.isArray(items)) return []; return items.map((item, index) => normaliseItem((item || {}) as ConfigItem, index)); }
+async function readItems(request: NextRequest, key: string): Promise<ConfigItem[]> { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key); const items = (record as any)?.metadataJson?.items; return Array.isArray(items) ? items : []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
+async function saveItems(request: NextRequest, key: string, items: ConfigItem[]) { const savedAt = new Date().toISOString(); return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: key, slug: key, name: key, description: 'Admin configuration records', metadataJson: { items, savedAt, storageKey: key, source: 'InternalConfigItemsApi' } } as any); }
+export async function GET(request: NextRequest, { params }: { params: { key: string } }) { const key = cleanKey(params.key); if (!key) return responseError(new Error('Configuration key is required.'), 400); try { const items = await readItems(request, key); return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items, metadataJson: { items } } }); } catch (error) { return responseError(error); } }
+export async function POST(request: NextRequest, { params }: { params: { key: string } }) { const key = cleanKey(params.key); if (!key) return responseError(new Error('Configuration key is required.'), 400); try { const body = await request.json().catch(() => ({})); if (Array.isArray(body?.items)) { const next = normaliseItems(body.items); const record = await saveItems(request, key, next); return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items: next, record, metadataJson: { items: next } } }); } const incoming = normaliseItem(body as ConfigItem, 0); const items = await readItems(request, key); const next = [incoming, ...items.filter((item) => String(item.id) !== String(incoming.id))]; const record = await saveItems(request, key, next); return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items: next, record, metadataJson: { items: next } }, item: incoming }); } catch (error) { return responseError(error); } }
+export async function PATCH(request: NextRequest, { params }: { params: { key: string } }) { const key = cleanKey(params.key); if (!key) return responseError(new Error('Configuration key is required.'), 400); try { const body = await request.json().catch(() => ({})); if (Array.isArray(body?.items)) { const next = normaliseItems(body.items); const record = await saveItems(request, key, next); return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items: next, record, metadataJson: { items: next } } }); } const incoming = normaliseItem(body as ConfigItem, 0); const items = await readItems(request, key); const exists = items.some((item) => String(item.id) === String(incoming.id)); const next = exists ? items.map((item) => (String(item.id) === String(incoming.id) ? { ...item, ...incoming } : item)) : [incoming, ...items]; const record = await saveItems(request, key, next); return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items: next, record, metadataJson: { items: next } }, item: incoming }); } catch (error) { return responseError(error); } }
+export async function DELETE(request: NextRequest, { params }: { params: { key: string } }) { const key = cleanKey(params.key); if (!key) return responseError(new Error('Configuration key is required.'), 400); try { const id = request.nextUrl.searchParams.get('id'); if (!id) return responseError(new Error('Item id is required.'), 400); const items = await readItems(request, key); const next = items.filter((item) => String(item.id) !== String(id)); const record = await saveItems(request, key, next); return NextResponse.json({ ok: true, source: 'internal-config-items-db', key, data: { items: next, record, metadataJson: { items: next } }, deletedId: id }); } catch (error) { return responseError(error); } }

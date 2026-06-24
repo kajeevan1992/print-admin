@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic';
 
-import { ApiKeysPage } from '@/modules/settings/pages/api-keys-page';
+import { CredentialsPage } from '@/modules/platform/credentials-page';
 
 export default function Page() {
-  return <ApiKeysPage />;
+  return <CredentialsPage />;
 }

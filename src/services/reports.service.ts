@@ -1,42 +1,19 @@
-import { activityLog, channelPerformance, productPerformance, revenueSeries, type ActivityLogItem } from '@/data/reports';
+import type { ActivityLogItem } from '@/data/reports';
 
-function normaliseSeverity(value: unknown): ActivityLogItem['severity'] {
-  return value === 'critical' || value === 'warning' || value === 'info' ? value : 'info';
-}
-
-function mapActivityRecord(row: Record<string, unknown>, index: number): ActivityLogItem {
-  const meta = (row.metadataJson && typeof row.metadataJson === 'object' ? row.metadataJson : {}) as Record<string, unknown>;
-  return {
-    id: String(row.id ?? meta.id ?? `activity-${index + 1}`),
-    actor: String(row.actor ?? meta.actor ?? row.owner ?? meta.owner ?? 'System'),
-    area: String(row.area ?? meta.area ?? 'Platform'),
-    action: String(row.action ?? meta.action ?? row.title ?? row.name ?? 'Recorded'),
-    target: String(row.target ?? meta.target ?? row.description ?? meta.subtitle ?? 'Platform record'),
-    timestamp: String(row.timestamp ?? meta.timestamp ?? row.createdAt ?? meta.createdAt ?? new Date().toISOString()),
-    severity: normaliseSeverity(row.severity ?? meta.severity),
-  };
-}
-
-async function getActivityLogFromInternalApi(): Promise<ActivityLogItem[]> {
-  if (typeof fetch === 'undefined') return [];
-  const response = await fetch('/api/internal/config/platform-activity-log/items', { cache: 'no-store' });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Activity log API failed.');
-  const rows = payload?.data?.items;
-  if (!Array.isArray(rows) || rows.length === 0) return [];
-  return rows.map((row: Record<string, unknown>, index: number) => mapActivityRecord(row, index));
-}
-
+type RevenuePoint = { label: string; revenue: number; orders: number };
+type ChannelPerformance = { id: string; channel: string; orders: number; revenue: number; conversion: string; aov: string };
+type ProductPerformance = { id: string; product: string; category: string; orders: number; revenue: number; margin: string };
+function normaliseSeverity(value: unknown): ActivityLogItem['severity'] { return value === 'critical' || value === 'warning' || value === 'info' ? value : 'info'; }
+function money(value: number) { return `£${Math.round(value).toLocaleString()}`; }
+async function jsonFetch(path: string) { const response = await fetch(path, { cache: 'no-store' }); const payload = await response.json().catch(() => ({})); if (!response.ok || payload?.ok === false) throw new Error(payload?.error || `${path} failed.`); return payload; }
+function orderItems(payload: any): any[] { const data = payload?.data?.items || payload?.data || payload?.items || []; return Array.isArray(data) ? data : []; }
+function orderTotal(order: any) { const candidates = [order?.totals?.grandTotalMinor, order?.totalMinor, order?.grandTotalMinor, order?.amountMinor, order?.metadataJson?.totals?.grandTotalMinor]; const minor = candidates.find((value) => Number.isFinite(Number(value))); return Number(minor || 0) / 100; }
+async function getOrders() { try { return orderItems(await jsonFetch('/api/internal/orders')); } catch { return []; } }
+async function getProducts() { try { return orderItems(await jsonFetch('/api/internal/catalog/products?limit=200')); } catch { return []; } }
+async function getActivityLogFromInternalApi(): Promise<ActivityLogItem[]> { const payload = await jsonFetch('/api/internal/config/platform-activity-log/items'); const rows = payload?.data?.items || payload?.data?.metadataJson?.items || []; if (!Array.isArray(rows)) return []; return rows.map((row: Record<string, unknown>, index: number) => { const meta = (row.metadataJson && typeof row.metadataJson === 'object' ? row.metadataJson : {}) as Record<string, unknown>; return { id: String(row.id ?? meta.id ?? `activity-${index + 1}`), actor: String(row.actor ?? meta.actor ?? row.owner ?? meta.owner ?? 'System'), area: String(row.area ?? meta.area ?? 'Platform'), action: String(row.action ?? meta.action ?? row.title ?? row.name ?? 'Recorded'), target: String(row.target ?? meta.target ?? row.description ?? meta.subtitle ?? 'Platform record'), timestamp: String(row.timestamp ?? meta.timestamp ?? row.createdAt ?? meta.createdAt ?? new Date().toISOString()), severity: normaliseSeverity(row.severity ?? meta.severity) }; }); }
 export const reportsService = {
-  getRevenueSeries: async () => revenueSeries,
-  getChannelPerformance: async () => channelPerformance,
-  getProductPerformance: async () => productPerformance,
-  getActivityLog: async () => {
-    try {
-      const live = await getActivityLogFromInternalApi();
-      return live.length ? live : activityLog;
-    } catch {
-      return activityLog;
-    }
-  }
+  getRevenueSeries: async (): Promise<RevenuePoint[]> => { const orders = await getOrders(); const map = new Map<string, RevenuePoint>(); for (const order of orders) { const rawDate = String(order.createdAt || order.updatedAt || new Date().toISOString()); const label = rawDate.slice(0, 10); const current = map.get(label) || { label, revenue: 0, orders: 0 }; current.orders += 1; current.revenue += orderTotal(order); map.set(label, current); } return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label)).slice(-7); },
+  getChannelPerformance: async (): Promise<ChannelPerformance[]> => { const orders = await getOrders(); const total = orders.reduce((sum, order) => sum + orderTotal(order), 0); return orders.length ? [{ id: 'internal-storefront', channel: 'Internal storefront/admin', orders: orders.length, revenue: total, conversion: 'Live orders', aov: money(total / Math.max(1, orders.length)) }] : []; },
+  getProductPerformance: async (): Promise<ProductPerformance[]> => { const products = await getProducts(); return products.slice(0, 20).map((product: any) => ({ id: String(product.id || product.slug), product: String(product.name || product.title || product.slug || 'Product'), category: String(product.categoryName || product.category || 'Uncategorised'), orders: 0, revenue: 0, margin: 'Not tracked' })); },
+  getActivityLog: async () => { try { return await getActivityLogFromInternalApi(); } catch { return []; } }
 };

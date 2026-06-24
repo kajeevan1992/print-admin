@@ -13,6 +13,7 @@ const DEEP_CHECKS: Record<string, Omit<RouteCheck, 'route'>> = {
   '/reports': { file: 'src/modules/reports/pages/reports-page.tsx', expectedActions: ['Refresh', 'Export CSV', 'Schedule Report'], note: 'Tenant Reports use live orders/products/activity, not seed arrays.' },
   '/activity-log': { file: 'src/modules/activity-log/pages/activity-log-page.tsx', expectedActions: ['Refresh'], note: 'Activity Log uses live records and clean empty state.' },
   '/settings': { file: 'src/modules/operations/pages/settings-page.tsx', expectedActions: ['Edit', 'Save', 'Cancel'], note: 'General Settings save through tenant operations service.' },
+  '/payment-accounts': { file: 'src/modules/settings/pages/payment-accounts-page.tsx', expectedActions: ['Refresh', 'Save account'], note: 'Build 78 separates tenant customer payments from platform subscription billing and shows missing env.' },
   '/support': { file: 'app/support/page.tsx', expectedActions: ['Create Support Task'], note: 'DB-backed through internal config API.' },
   '/knowledge-base': { file: 'app/knowledge-base/page.tsx', expectedActions: ['Add Article'], note: 'DB-backed through internal config API.' },
   '/error-log': { file: 'app/error-log/page.tsx', expectedActions: ['Create Incident'], note: 'No dummy incidents preloaded.' },

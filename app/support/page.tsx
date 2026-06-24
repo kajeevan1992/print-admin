@@ -21,7 +21,7 @@ export default function Page() {
   const filtered = useMemo(() => tickets.filter((ticket) => { const q = query.toLowerCase(); const matchesQuery = !q || `${ticket.id} ${ticket.subject} ${ticket.customer} ${ticket.assignee}`.toLowerCase().includes(q); const matchesStatus = status === 'All' || ticket.status === status; return matchesQuery && matchesStatus; }), [tickets, query, status]);
   const openCount = tickets.filter((ticket) => ticket.status !== 'Resolved').length;
   const criticalCount = tickets.filter((ticket) => ticket.priority === 'Critical').length;
-  async function createTask() { try { await supportService.addTicket({ subject: 'New support task', customer: 'Internal', assignee: 'Unassigned', status: 'Open', priority: 'Normal' }); setMessage('Support task created. Edit details from the support queue.'); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not create support task.'); } }
+  async function createTask() { try { await supportService.addTicket({ subject: 'New support task', customer: 'Internal', assignee: 'Unassigned', status: 'Open', priority: 'Medium' }); setMessage('Support task created. Edit details from the support queue.'); await load(); } catch (error) { setMessage(error instanceof Error ? error.message : 'Could not create support task.'); } }
   return (
     <div className="space-y-4">
       <PageHeader title="Support" subtitle="Central workspace for queues, escalations, and response ownership." actions={<PrimaryButton onClick={createTask}>Create Support Task</PrimaryButton>} />

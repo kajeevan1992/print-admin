@@ -13,6 +13,7 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Design Bundles', href: '/design-bundles', iconKey: 'Archive', order: 35.61 },
   { label: 'Theme Versions', href: '/theme-versions', iconKey: 'History', order: 35.62 },
   { label: 'Theme Marketplace', href: '/theme-marketplace', iconKey: 'Store', order: 35.63 },
+  { label: 'Store Domains', href: '/store-domains', iconKey: 'Globe2', order: 35.64 },
   { label: 'Store Theme Selector', href: '/store-theme-selector', iconKey: 'Store', order: 35.7 },
   { label: 'Store Design Live', href: '/store-design-live', iconKey: 'Rocket', order: 35.75 },
   { label: 'Block Editor', href: '/site-block-editor', iconKey: 'LayoutPanelTop', order: 35.8 },

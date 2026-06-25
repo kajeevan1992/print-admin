@@ -14,6 +14,7 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Theme Versions', href: '/theme-versions', iconKey: 'History', order: 35.62 },
   { label: 'Theme Marketplace', href: '/theme-marketplace', iconKey: 'Store', order: 35.63 },
   { label: 'Store Domains', href: '/store-domains', iconKey: 'Globe2', order: 35.64 },
+  { label: 'Store Allowances', href: '/store-allowances', iconKey: 'ShieldCheck', order: 35.65 },
   { label: 'Store Theme Selector', href: '/store-theme-selector', iconKey: 'Store', order: 35.7 },
   { label: 'Store Design Live', href: '/store-design-live', iconKey: 'Rocket', order: 35.75 },
   { label: 'Block Editor', href: '/site-block-editor', iconKey: 'LayoutPanelTop', order: 35.8 },

@@ -1,3 +1,5 @@
+@import '@measured/puck/puck.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -60,4 +62,36 @@ textarea {
 
 ::selection {
   background: rgba(124, 140, 255, 0.28);
+}
+
+.puck-admin-shell {
+  min-height: calc(100vh - 180px);
+  overflow: hidden;
+  border-radius: 1.25rem;
+  background: #ffffff;
+  color: #111827;
+}
+
+.puck-admin-shell * {
+  border-color: initial;
+}
+
+.puck-admin-shell input,
+.puck-admin-shell textarea,
+.puck-admin-shell select,
+.puck-admin-shell button {
+  color: inherit;
+}
+
+.puck-admin-shell [class*='Puck'],
+.puck-admin-shell [class*='puck'] {
+  color: #111827;
+}
+
+.puck-admin-shell [class*='Sidebar'],
+.puck-admin-shell [class*='sidebar'],
+.puck-admin-shell [class*='Fields'],
+.puck-admin-shell [class*='fields'] {
+  background: #ffffff;
+  color: #111827;
 }

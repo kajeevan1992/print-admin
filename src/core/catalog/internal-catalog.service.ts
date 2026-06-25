@@ -40,3 +40,7 @@ export async function upsertInternalCatalogRecord(ctx: TenantContext, resource: 
 export async function createInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, input: InternalCatalogWriteInput) { validateCatalogWrite(resource, input); return writeToTenantDb(ctx, resource, input, 'create'); }
 export async function updateInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, idOrSlug: string, input: InternalCatalogWriteInput) { return writeToTenantDb(ctx, resource, { ...input, id: input.id || idOrSlug }, 'update'); }
 export async function deleteInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, idOrSlug: string) { return deleteFromTenantDb(ctx, resource, idOrSlug); }
+
+export async function listInternalCatalog(ctx: TenantContext, resource: CatalogResource, options: ListOptions = {}) { return listInternalCatalogRecords(ctx, resource, options); }
+export async function listInternalCatalogArray(ctx: TenantContext, resource: CatalogResource, options: ListOptions = {}) { const result = await listInternalCatalogRecords(ctx, resource, options); return Array.isArray((result as any)?.items) ? (result as any).items : Array.isArray(result) ? result : []; }
+export async function writeInternalCatalogRecord(ctx: TenantContext, resource: CatalogResource, input: InternalCatalogWriteInput, mode: InternalCatalogWriteMode = 'upsert') { if (mode === 'create') validateCatalogWrite(resource, input); return writeToTenantDb(ctx, resource, input, mode); }

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { notFound } from 'next/navigation';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { getPublicHostedThemeSettings } from '@/core/themes/hosted-theme-editor.service';
@@ -138,7 +139,7 @@ function SectionBlock({ section, brand, basePath }: { section: Section; brand: B
   );
 }
 
-function ProductPage({ productSlug, basePath, brand }: { productSlug: string; basePath: string; brand: Brand }) {
+function ProductPage({ productSlug, basePath }: { productSlug: string; basePath: string; brand: Brand }) {
   return (
     <main>
       <section className="store-section">
@@ -231,8 +232,15 @@ export default async function PublicTenantStorePage({ params, searchParams }: Pa
     content = <main>{sections.map((section, index) => <SectionBlock section={section} brand={brand} basePath={basePath} key={section.id || `${section.type}-${index}`} />)}</main>;
   }
 
+  const storeStyle = {
+    '--store-primary': brand.primary,
+    '--store-accent': brand.accent,
+    '--store-bg': brand.background,
+    '--store-text': brand.text,
+  } as CSSProperties;
+
   return (
-    <div className="public-store" style={{ '--store-primary': brand.primary, '--store-accent': brand.accent, '--store-bg': brand.background, '--store-text': brand.text } as React.CSSProperties}>
+    <div className="public-store" style={storeStyle}>
       <header className="store-header">
         <a className="store-logo" href={basePath}>
           {brand.logoUrl ? <img src={brand.logoUrl} alt={brand.brandName || 'Store'} /> : <span>{(brand.brandName || 'Store').slice(0, 1)}</span>}

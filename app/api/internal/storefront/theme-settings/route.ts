@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const tenantId = resolved?.tenantId || await resolveTenantId(url);
     const channelSlug = resolved?.channelSlug || url.searchParams.get('channelSlug') || 'default-store';
     const data = await getPublicHostedThemeSettings(tenantId, channelSlug);
-    return NextResponse.json({ ok: true, source: 'hosted-theme-settings', data: { ...data, resolvedHost: resolved } });
+    return NextResponse.json({ ok: true, source: 'hosted-theme-settings', resolver: 'host-aware', data: { ...data, resolvedHost: resolved } });
   } catch (error) {
     return NextResponse.json({ ok: false, source: 'hosted-theme-settings', error: error instanceof Error ? error.message : 'Hosted theme settings could not load.' }, { status: 500 });
   }

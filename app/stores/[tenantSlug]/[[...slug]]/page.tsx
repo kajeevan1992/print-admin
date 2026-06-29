@@ -12,6 +12,11 @@ type TenantIdentity = {
   identifiers: string[];
 };
 
+type StoreMatch = {
+  id: string;
+  tenantId: string;
+};
+
 function cleanSegment(value: string) {
   return String(value || '')
     .toLowerCase()
@@ -45,35 +50,46 @@ async function resolveTenantIdentity(tenantSlugInput: string): Promise<TenantIde
   const tenantSlug = cleanSegment(tenantSlugInput);
   if (!tenantSlug) return null;
 
-  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
-    'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
-    tenantSlug,
-  );
-  const row = rows[0];
-  const identifiers = unique([tenantSlug, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
-  return { canonicalTenantId: row?.id || tenantSlug, identifiers };
+  try {
+    const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
+      'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
+      tenantSlug,
+    );
+    const row = rows[0];
+    const identifiers = unique([tenantSlug, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
+    return { canonicalTenantId: row?.id || tenantSlug, identifiers };
+  } catch {
+    return { canonicalTenantId: tenantSlug, identifiers: [tenantSlug] };
+  }
 }
 
-async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string) {
-  if (!identity.identifiers.length || !storeSlug) return false;
+async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string): Promise<StoreMatch | null> {
+  if (!identity.identifiers.length || !storeSlug) return null;
 
-  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; tenantId: string }>>(
-    `SELECT id,"tenantId" FROM "CoreCatalogRecord"
-     WHERE "tenantId" = ANY($1::text[])
-       AND slug=$2
-       AND resource IN ($3,$4,$5,$6,$7,$8,$9)
-     LIMIT 1`,
-    identity.identifiers,
-    storeSlug,
-    'store-channels',
-    'hosted-theme-settings',
-    'store-domain-bindings',
-    'storefront-stores',
-    'storefront-store',
-    'store-channel',
-    'tenant-stores',
-  );
-  return rows[0] || null;
+  for (const tenantId of identity.identifiers) {
+    try {
+      const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; tenantId: string }>>(
+        `SELECT id,"tenantId" FROM "CoreCatalogRecord"
+         WHERE "tenantId"=$1
+           AND slug=$2
+           AND resource IN ($3,$4,$5,$6,$7,$8,$9)
+         LIMIT 1`,
+        tenantId,
+        storeSlug,
+        'store-channels',
+        'hosted-theme-settings',
+        'store-domain-bindings',
+        'storefront-stores',
+        'storefront-store',
+        'store-channel',
+        'tenant-stores',
+      );
+      if (rows[0]?.id) return { id: rows[0].id, tenantId: rows[0].tenantId || tenantId };
+    } catch {
+      // Try the next tenant identifier. Public preview should never crash on a validation query.
+    }
+  }
+  return null;
 }
 
 export default async function PublicStoreThemeFrame({ params }: PageProps) {

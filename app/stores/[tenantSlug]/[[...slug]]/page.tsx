@@ -18,11 +18,10 @@ type StoreMatch = {
   metadataJson: Record<string, any>;
 };
 
-const INTERNAL_THEME_ROUTES: Record<string, string> = {
-  base: '/theme/atlantis',
-  atlantis: '/theme/atlantis',
-  'holo-default': '/theme/atlantis',
-  'holo-print': '/theme/atlantis',
+type ThemeResolution = {
+  url: string;
+  themeKey: string;
+  reason: string;
 };
 
 function cleanSegment(value: string) {
@@ -55,11 +54,6 @@ function adminBaseUrl() {
   ).replace(/^https?:\/\//, '').replace(/\/$/, '');
 }
 
-function absoluteAdminUrl(pathname: string) {
-  const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
-  return `https://${adminBaseUrl()}${path}`;
-}
-
 function firstUrl(...values: any[]) {
   for (const value of values) {
     const text = String(value || '').trim();
@@ -74,6 +68,8 @@ function selectedThemeKey(meta: Record<string, any>) {
 
 function rendererUrlFromMeta(meta: Record<string, any>) {
   const manifest = meta.manifest && typeof meta.manifest === 'object' ? meta.manifest : {};
+  const deployment = meta.deployment && typeof meta.deployment === 'object' ? meta.deployment : {};
+  const renderer = meta.renderer && typeof meta.renderer === 'object' ? meta.renderer : {};
   return firstUrl(
     meta.rendererUrl,
     meta.publicRendererUrl,
@@ -97,6 +93,11 @@ function rendererUrlFromMeta(meta: Record<string, any>) {
     manifest.appUrl,
     manifest.themeUrl,
     manifest.storefrontUrl,
+    deployment.url,
+    deployment.rendererUrl,
+    deployment.publicUrl,
+    renderer.url,
+    renderer.publicUrl,
   );
 }
 
@@ -126,17 +127,11 @@ async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string)
         `SELECT id,"tenantId","metadataJson" FROM "CoreCatalogRecord"
          WHERE "tenantId"=$1
            AND slug=$2
-           AND resource IN ($3,$4,$5,$6,$7,$8,$9)
+           AND resource=$3
          LIMIT 1`,
         tenantId,
         storeSlug,
         'store-channels',
-        'hosted-theme-settings',
-        'store-domain-bindings',
-        'storefront-stores',
-        'storefront-store',
-        'store-channel',
-        'tenant-stores',
       );
       if (rows[0]?.id) return { id: rows[0].id, tenantId: rows[0].tenantId || tenantId, metadataJson: rows[0].metadataJson || {} };
     } catch {
@@ -146,15 +141,13 @@ async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string)
   return null;
 }
 
-async function resolveThemeRendererUrl(store: StoreMatch) {
-  const envUrl = envThemeBaseUrl();
-  if (envUrl) return envUrl;
-
+async function resolveThemeRenderer(store: StoreMatch): Promise<ThemeResolution> {
   const storeMeta = store.metadataJson || {};
-  const directStoreRenderer = rendererUrlFromMeta(storeMeta);
-  if (directStoreRenderer) return directStoreRenderer;
-
   const themeKey = selectedThemeKey(storeMeta);
+
+  const directStoreRenderer = rendererUrlFromMeta(storeMeta);
+  if (directStoreRenderer) return { url: directStoreRenderer, themeKey, reason: 'store-renderer-url' };
+
   try {
     const rows = await platformPrisma.$queryRawUnsafe<Array<{ metadataJson: any }>>(
       'SELECT "metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 AND slug=$3 LIMIT 1',
@@ -164,13 +157,28 @@ async function resolveThemeRendererUrl(store: StoreMatch) {
     );
     const themeMeta = rows[0]?.metadataJson || {};
     const themeRenderer = rendererUrlFromMeta(themeMeta);
-    if (themeRenderer) return themeRenderer;
+    if (themeRenderer) return { url: themeRenderer, themeKey, reason: 'platform-theme-renderer-url' };
   } catch {
-    // Fall through to internal renderer map.
+    // Fall through to env renderer.
   }
 
-  const internalRoute = INTERNAL_THEME_ROUTES[themeKey] || INTERNAL_THEME_ROUTES.base;
-  return absoluteAdminUrl(internalRoute);
+  const envUrl = envThemeBaseUrl();
+  if (envUrl) return { url: envUrl, themeKey, reason: 'env-renderer-url' };
+
+  return { url: '', themeKey, reason: 'missing-renderer-url' };
+}
+
+function MissingRendererMessage({ themeKey, storeSlug }: { themeKey: string; storeSlug: string }) {
+  return (
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc', color: '#111827', fontFamily: 'Inter, Arial, sans-serif' }}>
+      <div style={{ maxWidth: 760, border: '1px solid #e5e7eb', borderRadius: 24, background: '#ffffff', padding: 32, boxShadow: '0 20px 50px rgba(15,23,42,.08)' }}>
+        <p style={{ margin: '0 0 10px', color: '#18a7d0', fontSize: 12, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase' }}>Uploaded theme renderer missing</p>
+        <h1 style={{ margin: '0 0 12px', fontSize: 32, lineHeight: 1.1 }}>The store has a selected theme, but that theme does not have a renderer URL saved.</h1>
+        <p style={{ margin: '0 0 14px', color: '#64748b', lineHeight: 1.7 }}>Store: <strong>{storeSlug}</strong><br />Selected theme: <strong>{themeKey}</strong></p>
+        <p style={{ margin: 0, color: '#64748b', lineHeight: 1.7 }}>Add a renderer URL to the uploaded theme manifest/record, for example <strong>rendererUrl</strong>, <strong>publicRendererUrl</strong>, <strong>previewUrl</strong>, or <strong>deployedUrl</strong>. The tenant preview will not use the internal /theme/atlantis preview because that is not the real uploaded theme layout.</p>
+      </div>
+    </main>
+  );
 }
 
 export default async function PublicStoreThemeFrame({ params }: PageProps) {
@@ -186,13 +194,13 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
   const validStore = await storeExistsForTenant(tenantIdentity, storeSlug);
   if (!validStore) notFound();
 
-  const themeBaseUrl = await resolveThemeRendererUrl(validStore);
-  if (!themeBaseUrl) notFound();
+  const theme = await resolveThemeRenderer(validStore);
+  if (!theme.url) return <MissingRendererMessage themeKey={theme.themeKey} storeSlug={storeSlug} />;
 
   const themePathParts = slug.slice(1).filter(Boolean);
   const themePath = themePathParts.length ? `/${themePathParts.map(encodeURIComponent).join('/')}` : '/';
 
-  const url = new URL(`${themeBaseUrl}${themePath}`);
+  const url = new URL(`${theme.url}${themePath}`);
   url.searchParams.set('tenantSlug', cleanTenantSlug);
   url.searchParams.set('tenantId', validStore.tenantId || tenantIdentity.canonicalTenantId);
   url.searchParams.set('channelSlug', storeSlug);

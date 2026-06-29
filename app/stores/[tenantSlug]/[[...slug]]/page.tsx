@@ -15,6 +15,14 @@ type TenantIdentity = {
 type StoreMatch = {
   id: string;
   tenantId: string;
+  metadataJson: Record<string, any>;
+};
+
+const INTERNAL_THEME_ROUTES: Record<string, string> = {
+  base: '/theme/atlantis',
+  atlantis: '/theme/atlantis',
+  'holo-default': '/theme/atlantis',
+  'holo-print': '/theme/atlantis',
 };
 
 function cleanSegment(value: string) {
@@ -28,7 +36,7 @@ function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
 }
 
-function hostedThemeBaseUrl() {
+function envThemeBaseUrl() {
   return (
     process.env.HOSTED_THEME_PUBLIC_URL ||
     process.env.NEXT_PUBLIC_HOSTED_THEME_URL ||
@@ -45,6 +53,51 @@ function adminBaseUrl() {
     process.env.VERCEL_URL ||
     'print-admin-teal.vercel.app'
   ).replace(/^https?:\/\//, '').replace(/\/$/, '');
+}
+
+function absoluteAdminUrl(pathname: string) {
+  const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  return `https://${adminBaseUrl()}${path}`;
+}
+
+function firstUrl(...values: any[]) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (/^https?:\/\//i.test(text)) return text.replace(/\/$/, '');
+  }
+  return '';
+}
+
+function selectedThemeKey(meta: Record<string, any>) {
+  return cleanSegment(String(meta.themeKey || meta.themeId || meta.selectedThemeKey || meta.selectedThemeId || meta.theme || 'base')) || 'base';
+}
+
+function rendererUrlFromMeta(meta: Record<string, any>) {
+  const manifest = meta.manifest && typeof meta.manifest === 'object' ? meta.manifest : {};
+  return firstUrl(
+    meta.rendererUrl,
+    meta.publicRendererUrl,
+    meta.hostedRendererUrl,
+    meta.themeRendererUrl,
+    meta.publicUrl,
+    meta.previewUrl,
+    meta.deployedUrl,
+    meta.deploymentUrl,
+    meta.appUrl,
+    meta.themeUrl,
+    meta.storefrontUrl,
+    manifest.rendererUrl,
+    manifest.publicRendererUrl,
+    manifest.hostedRendererUrl,
+    manifest.themeRendererUrl,
+    manifest.publicUrl,
+    manifest.previewUrl,
+    manifest.deployedUrl,
+    manifest.deploymentUrl,
+    manifest.appUrl,
+    manifest.themeUrl,
+    manifest.storefrontUrl,
+  );
 }
 
 async function resolveTenantIdentity(tenantSlugInput: string): Promise<TenantIdentity | null> {
@@ -69,8 +122,8 @@ async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string)
 
   for (const tenantId of identity.identifiers) {
     try {
-      const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; tenantId: string }>>(
-        `SELECT id,"tenantId" FROM "CoreCatalogRecord"
+      const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; tenantId: string; metadataJson: any }>>(
+        `SELECT id,"tenantId","metadataJson" FROM "CoreCatalogRecord"
          WHERE "tenantId"=$1
            AND slug=$2
            AND resource IN ($3,$4,$5,$6,$7,$8,$9)
@@ -85,12 +138,39 @@ async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string)
         'store-channel',
         'tenant-stores',
       );
-      if (rows[0]?.id) return { id: rows[0].id, tenantId: rows[0].tenantId || tenantId };
+      if (rows[0]?.id) return { id: rows[0].id, tenantId: rows[0].tenantId || tenantId, metadataJson: rows[0].metadataJson || {} };
     } catch {
       // Try the next tenant identifier. Public preview should never crash on a validation query.
     }
   }
   return null;
+}
+
+async function resolveThemeRendererUrl(store: StoreMatch) {
+  const envUrl = envThemeBaseUrl();
+  if (envUrl) return envUrl;
+
+  const storeMeta = store.metadataJson || {};
+  const directStoreRenderer = rendererUrlFromMeta(storeMeta);
+  if (directStoreRenderer) return directStoreRenderer;
+
+  const themeKey = selectedThemeKey(storeMeta);
+  try {
+    const rows = await platformPrisma.$queryRawUnsafe<Array<{ metadataJson: any }>>(
+      'SELECT "metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 AND slug=$3 LIMIT 1',
+      'platform',
+      'platform-themes',
+      themeKey,
+    );
+    const themeMeta = rows[0]?.metadataJson || {};
+    const themeRenderer = rendererUrlFromMeta(themeMeta);
+    if (themeRenderer) return themeRenderer;
+  } catch {
+    // Fall through to internal renderer map.
+  }
+
+  const internalRoute = INTERNAL_THEME_ROUTES[themeKey] || INTERNAL_THEME_ROUTES.base;
+  return absoluteAdminUrl(internalRoute);
 }
 
 export default async function PublicStoreThemeFrame({ params }: PageProps) {
@@ -106,18 +186,8 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
   const validStore = await storeExistsForTenant(tenantIdentity, storeSlug);
   if (!validStore) notFound();
 
-  const themeBaseUrl = hostedThemeBaseUrl();
-  if (!themeBaseUrl) {
-    return (
-      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc', color: '#111827', fontFamily: 'Inter, Arial, sans-serif' }}>
-        <div style={{ maxWidth: 680, border: '1px solid #e5e7eb', borderRadius: 24, background: '#ffffff', padding: 32, boxShadow: '0 20px 50px rgba(15,23,42,.08)' }}>
-          <p style={{ margin: '0 0 10px', color: '#18a7d0', fontSize: 12, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase' }}>Theme renderer not configured</p>
-          <h1 style={{ margin: '0 0 12px', fontSize: 32, lineHeight: 1.1 }}>This store is valid, but no uploaded theme renderer URL is configured.</h1>
-          <p style={{ margin: 0, color: '#64748b', lineHeight: 1.7 }}>To keep the standalone hosted theme demo separate, the tenant preview no longer falls back to hosted-theme.vercel.app. Configure HOSTED_THEME_PUBLIC_URL, NEXT_PUBLIC_HOSTED_THEME_URL, or UPLOADED_THEME_RENDERER_URL to a copied/uploaded theme renderer for tenant testing.</p>
-        </div>
-      </main>
-    );
-  }
+  const themeBaseUrl = await resolveThemeRendererUrl(validStore);
+  if (!themeBaseUrl) notFound();
 
   const themePathParts = slug.slice(1).filter(Boolean);
   const themePath = themePathParts.length ? `/${themePathParts.map(encodeURIComponent).join('/')}` : '/';

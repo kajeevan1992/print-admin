@@ -33,9 +33,10 @@ async function resolveByStorePath(value: string | null) {
   if (!value) return null;
   try {
     const parsed = new URL(value);
+    const tenantIdParam = parsed.searchParams.get('tenantId');
     const parts = parsed.pathname.split('/').filter(Boolean);
     if (parts[0] !== 'stores' || !parts[1] || !parts[2]) return null;
-    const tenantId = await tenantIdFromSlug(parts[1]);
+    const tenantId = tenantIdParam || await tenantIdFromSlug(parts[1]);
     const channelSlug = cleanSlug(parts[2]) || 'default-store';
     if (!tenantId) return null;
     return { tenantId, channelSlug, storePath: parsed.pathname, tenantSlug: cleanSlug(parts[1]) };
@@ -59,8 +60,8 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const resolved = await resolveByHost(url.searchParams.get('host') || request.headers.get('host') || '');
     const storePath = await resolveByStorePath(request.headers.get('referer'));
-    const tenantId = resolved?.tenantId || storePath?.tenantId || await resolveTenantId(url);
-    const channelSlug = resolved?.channelSlug || storePath?.channelSlug || url.searchParams.get('channelSlug') || 'default-store';
+    const tenantId = resolved?.tenantId || url.searchParams.get('tenantId') || storePath?.tenantId || await resolveTenantId(url);
+    const channelSlug = resolved?.channelSlug || url.searchParams.get('channelSlug') || storePath?.channelSlug || 'default-store';
     const data = await getPublicHostedThemeSettings(tenantId, channelSlug);
     return NextResponse.json({ ok: true, source: 'hosted-theme-settings', resolver: storePath ? 'store-path-aware' : 'host-aware', data: { ...data, resolvedHost: resolved, resolvedStorePath: storePath } });
   } catch (error) {

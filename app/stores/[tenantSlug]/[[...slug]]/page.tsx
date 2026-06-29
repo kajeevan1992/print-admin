@@ -32,7 +32,8 @@ function hostedThemeBaseUrl() {
   return (
     process.env.HOSTED_THEME_PUBLIC_URL ||
     process.env.NEXT_PUBLIC_HOSTED_THEME_URL ||
-    'https://hosted-theme.vercel.app'
+    process.env.UPLOADED_THEME_RENDERER_URL ||
+    ''
   ).replace(/\/$/, '');
 }
 
@@ -105,10 +106,23 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
   const validStore = await storeExistsForTenant(tenantIdentity, storeSlug);
   if (!validStore) notFound();
 
+  const themeBaseUrl = hostedThemeBaseUrl();
+  if (!themeBaseUrl) {
+    return (
+      <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24, background: '#f8fafc', color: '#111827', fontFamily: 'Inter, Arial, sans-serif' }}>
+        <div style={{ maxWidth: 680, border: '1px solid #e5e7eb', borderRadius: 24, background: '#ffffff', padding: 32, boxShadow: '0 20px 50px rgba(15,23,42,.08)' }}>
+          <p style={{ margin: '0 0 10px', color: '#18a7d0', fontSize: 12, fontWeight: 900, letterSpacing: '.16em', textTransform: 'uppercase' }}>Theme renderer not configured</p>
+          <h1 style={{ margin: '0 0 12px', fontSize: 32, lineHeight: 1.1 }}>This store is valid, but no uploaded theme renderer URL is configured.</h1>
+          <p style={{ margin: 0, color: '#64748b', lineHeight: 1.7 }}>To keep the standalone hosted theme demo separate, the tenant preview no longer falls back to hosted-theme.vercel.app. Configure HOSTED_THEME_PUBLIC_URL, NEXT_PUBLIC_HOSTED_THEME_URL, or UPLOADED_THEME_RENDERER_URL to a copied/uploaded theme renderer for tenant testing.</p>
+        </div>
+      </main>
+    );
+  }
+
   const themePathParts = slug.slice(1).filter(Boolean);
   const themePath = themePathParts.length ? `/${themePathParts.map(encodeURIComponent).join('/')}` : '/';
 
-  const url = new URL(`${hostedThemeBaseUrl()}${themePath}`);
+  const url = new URL(`${themeBaseUrl}${themePath}`);
   url.searchParams.set('tenantSlug', cleanTenantSlug);
   url.searchParams.set('tenantId', validStore.tenantId || tenantIdentity.canonicalTenantId);
   url.searchParams.set('channelSlug', storeSlug);

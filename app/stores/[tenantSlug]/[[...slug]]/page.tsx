@@ -44,7 +44,6 @@ async function resolveTenantId(tenantSlug: string) {
 
 async function storeExistsForTenant(tenantId: string, storeSlug: string) {
   if (!tenantId || !storeSlug) return false;
-  if (storeSlug === 'default-store') return true;
 
   try {
     const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>(

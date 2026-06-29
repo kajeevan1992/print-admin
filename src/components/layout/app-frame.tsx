@@ -25,8 +25,8 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     if (pathname === '/login' && session) router.replace(session.role === 'super_admin' ? '/super-admin' : '/workspace');
   }, [pathname, ready, router, session, signOut]);
 
-  if (!ready) return <div className="flex min-h-screen items-center justify-center bg-background text-textMuted">Preparing workspace…</div>;
   if (isPublicPage(pathname)) return <AppErrorBoundary>{children}</AppErrorBoundary>;
+  if (!ready) return <div className="flex min-h-screen items-center justify-center bg-background text-textMuted">Preparing workspace…</div>;
   if (!session) return <AppErrorBoundary><LoginScreen /></AppErrorBoundary>;
   if (pathname === '/login' || pathname === '/logout') return <div className="flex min-h-screen items-center justify-center bg-background text-textMuted">Redirecting…</div>;
   if ((pathname ?? '').startsWith('/super-admin') && session.role !== 'super_admin') return <AppErrorBoundary><AdminShell><AccessDenied /></AdminShell></AppErrorBoundary>;

@@ -4,6 +4,21 @@ import { platformPrisma } from '@/core/db/platform-prisma';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type,Accept,X-Tenant-Id,X-Print-Tenant,X-Site-Id,X-Print-Store',
+  'Access-Control-Max-Age': '86400',
+};
+
+function json(payload: unknown, init?: ResponseInit) {
+  return NextResponse.json(payload, { ...init, headers: { ...CORS_HEADERS, ...(init?.headers || {}) } });
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 function clean(value: string) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, '');
 }
@@ -55,9 +70,9 @@ export async function GET(request: Request) {
       );
       const row = rows[0];
       const items = normalize(row?.metadataJson?.items || []);
-      if (items.length) return NextResponse.json({ ok: true, source: 'storefront-menu-v2', data: { items, tenantId: row.tenantId, matched: id, checked: ids, updatedAt: row.updatedAt } });
+      if (items.length) return json({ ok: true, source: 'storefront-menu-v2', data: { items, tenantId: row.tenantId, matched: id, checked: ids, updatedAt: row.updatedAt } });
     } catch {}
   }
 
-  return NextResponse.json({ ok: true, source: 'storefront-menu-v2', data: { items: [], checked: ids } });
+  return json({ ok: true, source: 'storefront-menu-v2', data: { items: [], checked: ids } });
 }

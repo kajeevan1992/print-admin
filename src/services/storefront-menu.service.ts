@@ -8,6 +8,9 @@ export type StorefrontMenuItem = {
   enabled: boolean;
   order: number;
   column: string;
+  parentId?: string;
+  parentSlug?: string;
+  group?: string;
   categoryId?: string;
   categorySlug?: string;
   productId?: string;
@@ -23,9 +26,9 @@ const LOCAL_KEY = 'print-admin-storefront-menu-builder';
 const isBrowser = typeof window !== 'undefined';
 
 const seedItems: StorefrontMenuItem[] = [
-  { id: 'menu-business-cards', label: 'Business Cards', type: 'category', path: '/business-cards', enabled: true, order: 10, column: 'Main menu', categorySlug: 'business-cards', description: 'Business cards and essentials', imageUrl: '/images/business-card-front.svg' },
-  { id: 'menu-flyers', label: 'Flyers', type: 'category', path: '/flyers', enabled: true, order: 20, column: 'Main menu', categorySlug: 'flyers', description: 'Flyers and leaflets', imageUrl: '/images/flyer-front.svg' },
-  { id: 'menu-bespoke', label: 'Bespoke Quote', type: 'page', path: '/bespoke-quote', enabled: true, order: 900, column: 'Main menu', description: 'Custom print support' },
+  { id: 'menu-business-cards', label: 'Business Cards', type: 'category', path: '/business-cards', enabled: true, order: 10, column: 'Main menu', group: 'Products', categorySlug: 'business-cards', description: 'Business cards and essentials', imageUrl: '/images/business-card-front.svg' },
+  { id: 'menu-flyers', label: 'Flyers', type: 'category', path: '/flyers', enabled: true, order: 20, column: 'Main menu', group: 'Products', categorySlug: 'flyers', description: 'Flyers and leaflets', imageUrl: '/images/flyer-front.svg' },
+  { id: 'menu-bespoke', label: 'Bespoke Quote', type: 'page', path: '/bespoke-quote', enabled: true, order: 900, column: 'Main menu', group: 'Support', description: 'Custom print support' },
 ];
 
 function readLocal() {
@@ -45,11 +48,24 @@ function writeLocal(items: StorefrontMenuItem[]) {
   window.localStorage.setItem(LOCAL_KEY, JSON.stringify(items));
 }
 
+function normaliseItem(item: StorefrontMenuItem): StorefrontMenuItem {
+  return {
+    ...item,
+    type: item.type || 'custom',
+    enabled: item.enabled !== false,
+    order: Number(item.order || 999),
+    column: item.column || (item.parentId ? 'Dropdown' : 'Main menu'),
+    group: item.group || item.column || (item.parentId ? 'Menu' : 'Main menu'),
+    parentId: item.parentId || '',
+    parentSlug: item.parentSlug || '',
+  };
+}
+
 async function readRemote() {
   const response = await fetch(`/api/internal/config/${encodeURIComponent(CONFIG_KEY)}/items`, { cache: 'no-store' });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Menu config API failed.');
-  return Array.isArray(payload?.data?.items) ? payload.data.items as StorefrontMenuItem[] : [];
+  return Array.isArray(payload?.data?.items) ? (payload.data.items as StorefrontMenuItem[]).map(normaliseItem) : [];
 }
 
 async function saveRemote(item: StorefrontMenuItem) {
@@ -77,17 +93,17 @@ export const storefrontMenuService = {
       writeLocal(sorted);
       return { items: sorted, source: 'db' as const, message: 'Menu builder connected to internal config API.' };
     } catch (error) {
-      const fallback = readLocal().sort((a, b) => Number(a.order || 999) - Number(b.order || 999));
+      const fallback = readLocal().map(normaliseItem).sort((a, b) => Number(a.order || 999) - Number(b.order || 999));
       return { items: fallback, source: 'local' as const, message: `Using menu fallback: ${error instanceof Error ? error.message : 'unknown error'}` };
     }
   },
   async save(item: Omit<StorefrontMenuItem, 'id' | 'updatedAt'> & { id?: string }) {
-    const next: StorefrontMenuItem = {
+    const next: StorefrontMenuItem = normaliseItem({
       ...item,
       id: item.id || `menu-${Math.random().toString(36).slice(2, 8)}`,
       updatedAt: new Date().toISOString(),
-    };
-    const local = readLocal();
+    } as StorefrontMenuItem);
+    const local = readLocal().map(normaliseItem);
     writeLocal(local.some((row) => row.id === next.id) ? local.map((row) => row.id === next.id ? next : row) : [next, ...local]);
     return saveRemote(next);
   },

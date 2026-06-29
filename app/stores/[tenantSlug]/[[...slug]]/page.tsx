@@ -7,11 +7,20 @@ type PageProps = {
   params: Promise<{ tenantSlug: string; slug?: string[] }>;
 };
 
+type TenantIdentity = {
+  canonicalTenantId: string;
+  identifiers: string[];
+};
+
 function cleanSegment(value: string) {
   return String(value || '')
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+function unique(values: string[]) {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
 }
 
 function hostedThemeBaseUrl() {
@@ -32,36 +41,39 @@ function adminBaseUrl() {
   ).replace(/^https?:\/\//, '').replace(/\/$/, '');
 }
 
-async function resolveTenantId(tenantSlug: string) {
-  const slug = cleanSegment(tenantSlug);
-  if (!slug) return '';
-  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>(
-    'SELECT id FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
-    slug,
+async function resolveTenantIdentity(tenantSlugInput: string): Promise<TenantIdentity | null> {
+  const tenantSlug = cleanSegment(tenantSlugInput);
+  if (!tenantSlug) return null;
+
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
+    'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
+    tenantSlug,
   );
-  return rows[0]?.id || '';
+  const row = rows[0];
+  const identifiers = unique([tenantSlug, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
+  return { canonicalTenantId: row?.id || tenantSlug, identifiers };
 }
 
-async function storeExistsForTenant(tenantId: string, storeSlug: string) {
-  if (!tenantId || !storeSlug) return false;
+async function storeExistsForTenant(identity: TenantIdentity, storeSlug: string) {
+  if (!identity.identifiers.length || !storeSlug) return false;
 
-  try {
-    const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>(
-      'SELECT id FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource IN ($3,$4,$5,$6,$7,$8,$9) LIMIT 1',
-      tenantId,
-      storeSlug,
-      'hosted-theme-settings',
-      'store-domain-bindings',
-      'storefront-stores',
-      'storefront-store',
-      'store-channels',
-      'store-channel',
-      'tenant-stores',
-    );
-    return Boolean(rows[0]?.id);
-  } catch {
-    return false;
-  }
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; tenantId: string }>>(
+    `SELECT id,"tenantId" FROM "CoreCatalogRecord"
+     WHERE "tenantId" = ANY($1::text[])
+       AND slug=$2
+       AND resource IN ($3,$4,$5,$6,$7,$8,$9)
+     LIMIT 1`,
+    identity.identifiers,
+    storeSlug,
+    'store-channels',
+    'hosted-theme-settings',
+    'store-domain-bindings',
+    'storefront-stores',
+    'storefront-store',
+    'store-channel',
+    'tenant-stores',
+  );
+  return rows[0] || null;
 }
 
 export default async function PublicStoreThemeFrame({ params }: PageProps) {
@@ -71,10 +83,10 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
 
   if (!cleanTenantSlug || !storeSlug) notFound();
 
-  const tenantId = await resolveTenantId(cleanTenantSlug);
-  if (!tenantId) notFound();
+  const tenantIdentity = await resolveTenantIdentity(cleanTenantSlug);
+  if (!tenantIdentity) notFound();
 
-  const validStore = await storeExistsForTenant(tenantId, storeSlug);
+  const validStore = await storeExistsForTenant(tenantIdentity, storeSlug);
   if (!validStore) notFound();
 
   const themePathParts = slug.slice(1).filter(Boolean);
@@ -82,6 +94,7 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
 
   const url = new URL(`${hostedThemeBaseUrl()}${themePath}`);
   url.searchParams.set('tenantSlug', cleanTenantSlug);
+  url.searchParams.set('tenantId', validStore.tenantId || tenantIdentity.canonicalTenantId);
   url.searchParams.set('channelSlug', storeSlug);
   url.searchParams.set('storeSlug', storeSlug);
   url.searchParams.set('platformUrl', `https://${adminBaseUrl()}`);

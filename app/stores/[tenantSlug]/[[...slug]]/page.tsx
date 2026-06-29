@@ -24,6 +24,10 @@ type ThemeResolution = {
   reason: string;
 };
 
+const KNOWN_UPLOADED_THEME_RENDERERS: Record<string, string> = {
+  'atlantis-print-hosted': 'https://hosted-theme.vercel.app',
+};
+
 function cleanSegment(value: string) {
   return String(value || '')
     .toLowerCase()
@@ -159,8 +163,11 @@ async function resolveThemeRenderer(store: StoreMatch): Promise<ThemeResolution>
     const themeRenderer = rendererUrlFromMeta(themeMeta);
     if (themeRenderer) return { url: themeRenderer, themeKey, reason: 'platform-theme-renderer-url' };
   } catch {
-    // Fall through to env renderer.
+    // Fall through to known/env renderer.
   }
+
+  const knownRenderer = KNOWN_UPLOADED_THEME_RENDERERS[themeKey];
+  if (knownRenderer) return { url: knownRenderer, themeKey, reason: 'known-uploaded-theme-renderer' };
 
   const envUrl = envThemeBaseUrl();
   if (envUrl) return { url: envUrl, themeKey, reason: 'env-renderer-url' };

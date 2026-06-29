@@ -98,6 +98,7 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
   url.searchParams.set('channelSlug', storeSlug);
   url.searchParams.set('storeSlug', storeSlug);
   url.searchParams.set('platformUrl', `https://${adminBaseUrl()}`);
+  url.searchParams.set('disableHomepageTakeover', '1');
 
   return (
     <main className="holo-public-theme-frame">

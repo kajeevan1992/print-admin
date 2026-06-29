@@ -1,3 +1,6 @@
+import { notFound } from 'next/navigation';
+import { platformPrisma } from '@/core/db/platform-prisma';
+
 export const dynamic = 'force-dynamic';
 
 type PageProps = {
@@ -29,14 +32,57 @@ function adminBaseUrl() {
   ).replace(/^https?:\/\//, '').replace(/\/$/, '');
 }
 
+async function resolveTenantId(tenantSlug: string) {
+  const slug = cleanSegment(tenantSlug);
+  if (!slug) return '';
+  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>(
+    'SELECT id FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
+    slug,
+  );
+  return rows[0]?.id || '';
+}
+
+async function storeExistsForTenant(tenantId: string, storeSlug: string) {
+  if (!tenantId || !storeSlug) return false;
+  if (storeSlug === 'default-store') return true;
+
+  try {
+    const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>(
+      'SELECT id FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource IN ($3,$4,$5,$6,$7,$8,$9) LIMIT 1',
+      tenantId,
+      storeSlug,
+      'hosted-theme-settings',
+      'store-domain-bindings',
+      'storefront-stores',
+      'storefront-store',
+      'store-channels',
+      'store-channel',
+      'tenant-stores',
+    );
+    return Boolean(rows[0]?.id);
+  } catch {
+    return false;
+  }
+}
+
 export default async function PublicStoreThemeFrame({ params }: PageProps) {
   const { tenantSlug, slug = [] } = await params;
-  const storeSlug = cleanSegment(slug[0] || 'default-store') || 'default-store';
+  const cleanTenantSlug = cleanSegment(tenantSlug);
+  const storeSlug = cleanSegment(slug[0] || '');
+
+  if (!cleanTenantSlug || !storeSlug) notFound();
+
+  const tenantId = await resolveTenantId(cleanTenantSlug);
+  if (!tenantId) notFound();
+
+  const validStore = await storeExistsForTenant(tenantId, storeSlug);
+  if (!validStore) notFound();
+
   const themePathParts = slug.slice(1).filter(Boolean);
   const themePath = themePathParts.length ? `/${themePathParts.map(encodeURIComponent).join('/')}` : '/';
 
   const url = new URL(`${hostedThemeBaseUrl()}${themePath}`);
-  url.searchParams.set('tenantSlug', cleanSegment(tenantSlug));
+  url.searchParams.set('tenantSlug', cleanTenantSlug);
   url.searchParams.set('channelSlug', storeSlug);
   url.searchParams.set('storeSlug', storeSlug);
   url.searchParams.set('platformUrl', `https://${adminBaseUrl()}`);
@@ -44,7 +90,7 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
   return (
     <main className="holo-public-theme-frame">
       <iframe
-        title={`${tenantSlug} ${storeSlug} hosted storefront`}
+        title={`${cleanTenantSlug} ${storeSlug} hosted storefront`}
         src={url.toString()}
         className="holo-public-theme-frame__iframe"
         allow="payment *; clipboard-read; clipboard-write"

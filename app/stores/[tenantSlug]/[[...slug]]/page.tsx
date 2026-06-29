@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { platformPrisma } from '@/core/db/platform-prisma';
+import { PublicStoreFrameBridge } from '@/components/storefront/public-store-frame-bridge';
 
 export const dynamic = 'force-dynamic';
 
@@ -215,6 +216,8 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
   url.searchParams.set('platformUrl', `https://${adminBaseUrl()}`);
   url.searchParams.set('disableHomepageTakeover', '1');
 
+  const publicStoreBasePath = `/stores/${cleanTenantSlug}/${storeSlug}`;
+
   return (
     <main className="holo-public-theme-frame">
       <iframe
@@ -223,6 +226,7 @@ export default async function PublicStoreThemeFrame({ params }: PageProps) {
         className="holo-public-theme-frame__iframe"
         allow="payment *; clipboard-read; clipboard-write"
       />
+      <PublicStoreFrameBridge basePath={publicStoreBasePath} />
       <style>{`
         html, body { margin: 0 !important; padding: 0 !important; background: #ffffff !important; }
         .holo-public-theme-frame { position: fixed; inset: 0; min-height: 100vh; width: 100vw; overflow: hidden; background: #ffffff; }

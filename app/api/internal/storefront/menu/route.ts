@@ -18,15 +18,22 @@ function unique(values: string[]) {
 async function tenantIdentifiers(url: URL) {
   const tenantId = url.searchParams.get('tenantId') || '';
   const tenantSlug = cleanSlug(url.searchParams.get('tenantSlug') || url.searchParams.get('tenant') || '');
-  const headerTenant = cleanSlug(url.searchParams.get('xTenant') || '');
-  const seed = unique([tenantId, tenantSlug, headerTenant]);
-  if (!seed.length) return [];
+  const seed = unique([tenantId, tenantSlug]);
+  const identifiers = [...seed];
 
-  const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
-    'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id = ANY($1::text[]) OR slug = ANY($1::text[]) OR "defaultSubdomain" = ANY($1::text[]) LIMIT 5',
-    seed,
-  );
-  return unique([...seed, ...rows.flatMap((row) => [row.id, row.slug || '', row.defaultSubdomain || ''])]);
+  for (const value of seed) {
+    try {
+      const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
+        'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
+        value,
+      );
+      const row = rows[0];
+      if (row) identifiers.push(row.id, row.slug || '', row.defaultSubdomain || '');
+    } catch {
+      // Keep public menu lookup safe. If one identifier fails, try the remaining values.
+    }
+  }
+  return unique(identifiers);
 }
 
 function normaliseItems(items: unknown) {
@@ -58,16 +65,20 @@ export async function GET(request: Request) {
     if (!identifiers.length) return NextResponse.json({ ok: true, source: 'public-storefront-menu', data: { items: [], identifiers: [] } });
 
     for (const tenantId of identifiers) {
-      const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string; metadataJson: any; updatedAt: string }>>(
-        'SELECT "tenantId","metadataJson","updatedAt" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 AND slug=$3 LIMIT 1',
-        tenantId,
-        CONFIG_RESOURCE,
-        CONFIG_KEY,
-      );
-      const row = rows[0];
-      const items = normaliseItems(row?.metadataJson?.items || []);
-      if (items.length) {
-        return NextResponse.json({ ok: true, source: 'public-storefront-menu', data: { items, tenantId: row.tenantId, matchedIdentifier: tenantId, updatedAt: row.updatedAt } });
+      try {
+        const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string; metadataJson: any; updatedAt: string }>>(
+          'SELECT "tenantId","metadataJson","updatedAt" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 AND slug=$3 LIMIT 1',
+          tenantId,
+          CONFIG_RESOURCE,
+          CONFIG_KEY,
+        );
+        const row = rows[0];
+        const items = normaliseItems(row?.metadataJson?.items || []);
+        if (items.length) {
+          return NextResponse.json({ ok: true, source: 'public-storefront-menu', data: { items, tenantId: row.tenantId, matchedIdentifier: tenantId, updatedAt: row.updatedAt } });
+        }
+      } catch {
+        // Try the next tenant identifier.
       }
     }
 

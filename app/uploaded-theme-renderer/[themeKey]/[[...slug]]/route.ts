@@ -4,19 +4,14 @@ import { platformPrisma } from '@/core/db/platform-prisma';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-type Params = {
-  params: Promise<{ themeKey: string; slug?: string[] }>;
-};
+type Params = { params: Promise<{ themeKey: string; slug?: string[] }> };
 
 const KNOWN_UPLOADED_THEME_SOURCES: Record<string, string> = {
   'atlantis-print-hosted': 'https://hosted-theme.vercel.app',
 };
 
-function cleanSegment(value: string) {
-  return String(value || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+function clean(value: string) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 function firstUrl(...values: any[]) {
@@ -64,12 +59,9 @@ async function resolveThemeSource(themeKey: string) {
       'platform-themes',
       themeKey,
     );
-    const meta = rows[0]?.metadataJson || {};
-    const source = sourceUrlFromMeta(meta);
+    const source = sourceUrlFromMeta(rows[0]?.metadataJson || {});
     if (source) return source;
-  } catch {
-    // Fall through to known uploaded source mapping.
-  }
+  } catch {}
   return KNOWN_UPLOADED_THEME_SOURCES[themeKey] || '';
 }
 
@@ -81,8 +73,9 @@ function rewriteHtml(html: string, sourceBase: string, request: Request, themeKe
   const tenantSlug = url.searchParams.get('tenantSlug') || '';
   const tenantId = url.searchParams.get('tenantId') || '';
   const channelSlug = url.searchParams.get('channelSlug') || url.searchParams.get('storeSlug') || 'default-store';
+  const bridgeParams = new URLSearchParams({ tenantSlug, tenantId, channelSlug });
 
-  let next = html
+  const next = html
     .replace(/(src|href)="\/(assets\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${origin}/$2`)
     .replace(/(src|href)="\/(images\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${origin}/$2`)
     .replace(/(src|href)="\/(favicon[^"#?]*|site\.webmanifest|manifest\.json)/g, `$1="${origin}/$2`);
@@ -90,46 +83,34 @@ function rewriteHtml(html: string, sourceBase: string, request: Request, themeKe
   const bridge = `
 <script id="print-admin-uploaded-theme-context">
 (function(){
-  window.__PRINT_ADMIN_UPLOADED_THEME__ = true;
-  window.__PRINT_ADMIN_THEME_KEY__ = ${JSON.stringify(themeKey)};
-  window.__PRINT_ADMIN_THEME_PATH__ = ${JSON.stringify(themePath)};
-  window.__STORE_FRONT_INTERNAL_BASE_URL__ = ${JSON.stringify(platformUrl)};
-  window.__SAAS_INTERNAL_BASE_URL__ = ${JSON.stringify(platformUrl)};
-  window.__HOLO_TENANT_SLUG = ${JSON.stringify(tenantSlug)};
-  window.__HOLO_TENANT_ID = ${JSON.stringify(tenantId)};
-  window.__HOLO_CHANNEL_SLUG = ${JSON.stringify(channelSlug)};
-  var targetPath = ${JSON.stringify(themePath)} || '/';
-  if (targetPath !== '/' && window.location.pathname !== targetPath) {
-    try { window.history.replaceState({}, '', targetPath + window.location.search); } catch (e) {}
-  }
-  function postPath(path) {
-    try {
-      var text = String(path || window.location.pathname || '/');
-      if (text.charAt(0) !== '/') text = '/' + text;
-      window.parent && window.parent.postMessage({ type: 'holo-storefront:navigate', path: text }, '*');
-    } catch (e) {}
-  }
-  var push = history.pushState;
-  var replace = history.replaceState;
-  history.pushState = function(){ var result = push.apply(this, arguments); postPath(arguments[2] || location.pathname); return result; };
-  history.replaceState = function(){ var result = replace.apply(this, arguments); postPath(arguments[2] || location.pathname); return result; };
-  window.addEventListener('popstate', function(){ postPath(location.pathname); });
-  setTimeout(function(){ postPath(location.pathname); }, 300);
+  window.__PRINT_ADMIN_UPLOADED_THEME__=true;
+  window.__PRINT_ADMIN_THEME_KEY__=${JSON.stringify(themeKey)};
+  window.__PRINT_ADMIN_THEME_PATH__=${JSON.stringify(themePath)};
+  window.__STORE_FRONT_INTERNAL_BASE_URL__=${JSON.stringify(platformUrl)};
+  window.__SAAS_INTERNAL_BASE_URL__=${JSON.stringify(platformUrl)};
+  window.__HOLO_TENANT_SLUG=${JSON.stringify(tenantSlug)};
+  window.__HOLO_TENANT_ID=${JSON.stringify(tenantId)};
+  window.__HOLO_CHANNEL_SLUG=${JSON.stringify(channelSlug)};
+  var targetPath=${JSON.stringify(themePath)}||'/';
+  if(targetPath!=='/'&&location.pathname!==targetPath){try{history.replaceState({},'',targetPath+location.search);}catch(e){}}
+  function postPath(path){try{var text=String(path||location.pathname||'/');if(text.charAt(0)!=='/')text='/'+text;parent&&parent.postMessage({type:'holo-storefront:navigate',path:text},'*');}catch(e){}}
+  var push=history.pushState;var replace=history.replaceState;
+  history.pushState=function(){var r=push.apply(this,arguments);postPath(arguments[2]||location.pathname);return r;};
+  history.replaceState=function(){var r=replace.apply(this,arguments);postPath(arguments[2]||location.pathname);return r;};
+  addEventListener('popstate',function(){postPath(location.pathname);});
+  setTimeout(function(){postPath(location.pathname);},300);
 })();
-</script>`;
+</script>
+<script src="/api/internal/storefront/theme-menu-bridge?${bridgeParams.toString()}" defer></script>`;
 
-  if (next.includes('</head>')) return next.replace('</head>', `${bridge}</head>`);
-  return `${bridge}${next}`;
+  return next.includes('</head>') ? next.replace('</head>', `${bridge}</head>`) : `${bridge}${next}`;
 }
 
 export async function GET(request: Request, { params }: Params) {
   const { themeKey: rawThemeKey, slug = [] } = await params;
-  const themeKey = cleanSegment(rawThemeKey);
+  const themeKey = clean(rawThemeKey);
   const sourceBase = await resolveThemeSource(themeKey);
-
-  if (!themeKey || !sourceBase) {
-    return new NextResponse('Uploaded theme source is not configured for this theme.', { status: 404 });
-  }
+  if (!themeKey || !sourceBase) return new NextResponse('Uploaded theme source is not configured for this theme.', { status: 404 });
 
   const themePath = slug.length ? `/${slug.map(encodeURIComponent).join('/')}` : '/';
   const sourceUrl = new URL(`${sourceBase}${themePath}`);
@@ -138,20 +119,11 @@ export async function GET(request: Request, { params }: Params) {
   const body = await upstream.text();
 
   if (!contentType.includes('text/html')) {
-    return new NextResponse(body, {
-      status: upstream.status,
-      headers: {
-        'content-type': contentType || 'text/plain; charset=utf-8',
-        'cache-control': 'no-store',
-      },
-    });
+    return new NextResponse(body, { status: upstream.status, headers: { 'content-type': contentType || 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
   }
 
   return new NextResponse(rewriteHtml(body, sourceBase, request, themeKey, themePath), {
     status: upstream.status,
-    headers: {
-      'content-type': 'text/html; charset=utf-8',
-      'cache-control': 'no-store',
-    },
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
   });
 }

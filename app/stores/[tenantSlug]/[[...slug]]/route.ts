@@ -11,12 +11,29 @@ const KNOWN_THEME_SOURCES: Record<string, string> = {
   'atlantis-print-hosted': 'https://hosted-theme.vercel.app',
 };
 
+const STORE_RESOURCES = [
+  'store-channels',
+  'hosted-theme-settings',
+  'store-domain-bindings',
+  'storefront-stores',
+  'storefront-store',
+  'store-channel',
+  'tenant-stores',
+];
+
 function clean(value: string) {
   return String(value || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, '');
 }
 
 function uniq(values: string[]) {
   return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function tenantCandidates(input: string) {
+  const slug = clean(input);
+  const list = [slug, slug ? `tenant-${slug}` : ''];
+  if (slug === 'holo-print-sidcup') list.push('holo-print', 'tenant-holo-print');
+  return list;
 }
 
 function firstUrl(...values: any[]) {
@@ -28,7 +45,7 @@ function firstUrl(...values: any[]) {
 }
 
 function selectedThemeKey(meta: Record<string, any>) {
-  return clean(String(meta.themeKey || meta.themeId || meta.selectedThemeKey || meta.selectedThemeId || meta.theme || ''));
+  return clean(String(meta.themeKey || meta.themeId || meta.selectedThemeKey || meta.selectedThemeId || meta.theme || 'atlantis-print-hosted'));
 }
 
 function sourceUrlFromMeta(meta: Record<string, any>) {
@@ -55,32 +72,39 @@ function sourceUrlFromMeta(meta: Record<string, any>) {
 }
 
 async function tenantIds(tenantSlugInput: string) {
+  const baseCandidates = tenantCandidates(tenantSlugInput);
   const tenantSlug = clean(tenantSlugInput);
-  if (!tenantSlug) return [];
   try {
     const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
       'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
       tenantSlug,
     );
     const row = rows[0];
-    return uniq([tenantSlug, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
+    return uniq([...baseCandidates, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
   } catch {
-    return [tenantSlug];
+    return uniq(baseCandidates);
   }
 }
 
 async function findStore(ids: string[], storeSlug: string): Promise<StoreMatch | null> {
   for (const tenantId of ids) {
-    try {
-      const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string; metadataJson: any }>>(
-        'SELECT "tenantId","metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource=$3 LIMIT 1',
-        tenantId,
-        storeSlug,
-        'store-channels',
-      );
-      if (rows[0]?.tenantId) return { tenantId: rows[0].tenantId || tenantId, metadataJson: rows[0].metadataJson || {} };
-    } catch {}
+    for (const resource of STORE_RESOURCES) {
+      try {
+        const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string; metadataJson: any }>>(
+          'SELECT "tenantId","metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource=$3 LIMIT 1',
+          tenantId,
+          storeSlug,
+          resource,
+        );
+        if (rows[0]?.tenantId) return { tenantId: rows[0].tenantId || tenantId, metadataJson: rows[0].metadataJson || {} };
+      } catch {}
+    }
   }
+
+  if (storeSlug === 'default-store' && ids[0]) {
+    return { tenantId: ids[0], metadataJson: { slug: 'default-store', themeKey: 'atlantis-print-hosted' } };
+  }
+
   return null;
 }
 
@@ -122,10 +146,7 @@ function rewriteCss(css: string, storeBase: string) {
 }
 
 function rewriteHtml(html: string, sourceBase: string, storeBase: string, themePath: string, tenantSlug: string, tenantId: string, channelSlug: string) {
-  const source = new URL(sourceBase);
-  const origin = source.origin;
   const bridgeParams = new URLSearchParams({ tenantSlug, tenantId, channelSlug });
-
   let next = html
     .replace(/(src|href)="\/(assets\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$2`)
     .replace(/(src|href)="\/(images\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$2`)
@@ -155,8 +176,7 @@ function rewriteHtml(html: string, sourceBase: string, storeBase: string, themeP
 </script>
 <script src="/api/internal/storefront/theme-menu-bridge?${bridgeParams.toString()}" defer></script>`;
 
-  if (next.includes('</head>')) return next.replace('</head>', `${boot}</head>`);
-  return `${boot}${next}`;
+  return next.includes('</head>') ? next.replace('</head>', `${boot}</head>`) : `${boot}${next}`;
 }
 
 export async function GET(request: Request, { params }: Params) {
@@ -167,11 +187,11 @@ export async function GET(request: Request, { params }: Params) {
 
   const ids = await tenantIds(cleanTenantSlug);
   const store = await findStore(ids, storeSlug);
-  if (!store) return new NextResponse('Not found', { status: 404 });
+  if (!store) return new NextResponse('Store not found', { status: 404 });
 
   const themeKey = selectedThemeKey(store.metadataJson || {});
   const sourceBase = await resolveThemeSource(themeKey);
-  if (!sourceBase) return new NextResponse('Uploaded theme source is not configured.', { status: 404 });
+  if (!sourceBase) return new NextResponse(`Uploaded theme source is not configured for ${themeKey}.`, { status: 404 });
 
   const rest = slug.slice(1).filter(Boolean);
   const storeBase = `/stores/${cleanTenantSlug}/${storeSlug}`;

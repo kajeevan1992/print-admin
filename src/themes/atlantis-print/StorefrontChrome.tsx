@@ -1,9 +1,10 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 import { ChevronDown, Search, ShoppingCart, User } from 'lucide-react';
 import type { NavItem } from './types';
 import { BRAND, normalPath } from './theme-nav';
 
-function Shell({ children, narrow = false }: { children: React.ReactNode; narrow?: boolean }) {
+function Shell({ children, narrow = false }: { children: ReactNode; narrow?: boolean }) {
   return <div className={`mx-auto w-full px-4 sm:px-6 lg:px-8 ${narrow ? 'max-w-[1220px]' : 'max-w-[1360px]'}`}>{children}</div>;
 }
 
@@ -17,7 +18,7 @@ function UtilityBar() {
   return <div style={{ backgroundColor: BRAND.black, color: 'white' }}><Shell><div className="flex h-8 items-center justify-between text-[11px] font-medium"><span>Professional print, same day printing, signage and packaging solutions</span><div className="hidden gap-5 sm:flex"><span>Business orders</span><span>Bulk pricing</span><span>Fast turnaround</span><span>Bespoke quote support</span></div></div></Shell></div>;
 }
 
-function IconButton({ children }: { children: React.ReactNode }) {
+function IconButton({ children }: { children: ReactNode }) {
   return <div className="grid h-9 w-9 place-items-center rounded-xl border bg-white" style={{ borderColor: BRAND.line }}>{children}</div>;
 }
 
@@ -33,6 +34,6 @@ function Footer({ storeBase }: { storeBase: string }) {
   return <footer className="mt-8 border-t bg-white" style={{ borderColor: BRAND.line }}><div className="border-b py-3" style={{ borderColor: BRAND.line, backgroundColor: BRAND.primary }}><Shell><div className="flex flex-col items-center justify-between gap-3 text-[12px] font-semibold text-white md:flex-row"><span>Get the very best print solutions for your business, events and brand campaigns — with room to grow into a full admin-connected storefront.</span><div className="flex gap-2"><input className="h-9 w-[250px] rounded-full border-0 bg-white px-4 text-[12px] text-black outline-none" placeholder="Email address" /><button className="rounded-full bg-black px-4 text-[12px] font-bold text-white">Subscribe</button></div></div></Shell></div><Shell><div className="grid gap-3 py-5 md:grid-cols-4">{[['Business printing','20+'],['Event signage','12+'],['Labels & packaging','18+'],['Custom quote support','1:1']].map(([item,count]) => <div key={item} className="rounded-[18px] border px-4 py-3" style={{ borderColor: BRAND.line, color: BRAND.muted, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FBFC 100%)' }}><div className="text-[10px] font-bold uppercase tracking-[0.14em]">{item}</div><div className="mt-1 text-[16px] font-black" style={{ color: BRAND.ink }}>{count}</div></div>)}</div><div className="grid gap-8 py-10 md:grid-cols-[1.25fr_0.8fr_0.8fr_0.8fr_0.8fr]"><div><Link href={storeBase} className="flex items-center gap-0.5 no-underline"><span className="text-[50px] font-black tracking-[-0.055em]" style={{ color: BRAND.primary }}>HOLO</span><span className="text-[50px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>PRINT</span></Link><p className="mt-4 max-w-[360px] text-[12px] leading-7" style={{ color: BRAND.muted }}>A fuller ecommerce print storefront direction with broader navigation, denser sections and a cleaner visual tone.</p></div><FooterCol storeBase={storeBase} title="Products" items={[['Business Cards','/business-cards'],['Flyers','/flyers'],['Posters','/posters-large-format-prints'],['Booklets','/booklets']]} /><FooterCol storeBase={storeBase} title="Categories" items={[['Labels','/all-products'],['Stationery','/stationery'],['Signage','/signage'],['Packaging','/all-products']]} /><FooterCol storeBase={storeBase} title="Business" items={[['Bulk pricing','/bespoke-quote'],['Custom quotes','/bespoke-quote'],['Artwork advice','/bespoke-quote'],['Delivery support','/all-products']]} /><FooterCol storeBase={storeBase} title="Support" items={[['All products','/all-products'],['Cart','/cart'],['Contact','/bespoke-quote'],['Quote request','/bespoke-quote']]} /></div></Shell></footer>;
 }
 
-export default function StorefrontChrome({ currentPath = '/', children, navItems, storeBase }: { currentPath?: string; children: React.ReactNode; navItems: NavItem[]; storeBase: string }) {
+export default function StorefrontChrome({ currentPath = '/', children, navItems, storeBase }: { currentPath?: string; children: ReactNode; navItems: NavItem[]; storeBase: string }) {
   return <div style={{ backgroundColor: BRAND.bg, color: BRAND.ink }}><UtilityBar /><Header currentPath={currentPath} navItems={navItems} storeBase={storeBase} />{children}<Footer storeBase={storeBase} /></div>;
 }

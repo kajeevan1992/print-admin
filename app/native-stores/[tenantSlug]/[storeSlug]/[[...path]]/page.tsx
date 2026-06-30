@@ -4,6 +4,7 @@ import EnhancedHomePage from '@/themes/atlantis-native/EnhancedHomePage';
 import CategoryPage from '@/themes/atlantis-native/CategoryPage';
 import ProductPage from '@/themes/atlantis-native/ProductPage';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
+import { loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
 import type { MenuItem } from '@/themes/atlantis-native/types';
 
 export const dynamic = 'force-dynamic';
@@ -22,43 +23,13 @@ const DEFAULT_MENU: MenuItem[] = [
   { id: 'all-products', slug: 'all-products', label: 'All Products', path: '/all-products', order: 8, parentId: '', parentSlug: '', description: 'Browse every print product.', enabled: true },
   { id: 'bespoke', slug: 'bespoke-quote', label: 'Bespoke Quote', path: '/bespoke-quote', order: 9, parentId: '', parentSlug: '', description: 'Custom sizes and special jobs.', enabled: true },
 ];
-
 function clean(value: string) { return String(value || '').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
 function uniq(values: string[]) { return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean))); }
 function tenantCandidates(input: string) { const slug = clean(input); const list = [slug, slug ? `tenant-${slug}` : '']; if (slug === 'holo-print-sidcup') list.push('holo-print', 'tenant-holo-print'); return list; }
-async function tenantIds(tenantSlugInput: string) {
-  const baseCandidates = tenantCandidates(tenantSlugInput);
-  const tenantSlug = clean(tenantSlugInput);
-  try {
-    const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>('SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1', tenantSlug);
-    const row = rows[0];
-    return uniq([...baseCandidates, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
-  } catch { return uniq(baseCandidates); }
-}
-async function storeExists(ids: string[], storeSlug: string) {
-  for (const tenantId of ids) for (const resource of STORE_RESOURCES) {
-    try {
-      const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string }>>('SELECT "tenantId" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource=$3 LIMIT 1', tenantId, storeSlug, resource);
-      if (rows[0]?.tenantId) return true;
-    } catch {}
-  }
-  return storeSlug === 'default-store' && ids.length > 0;
-}
-function normaliseMenuItem(raw: any, index: number): MenuItem {
-  const label = String(raw?.label || raw?.name || raw?.title || raw?.path || `Menu ${index + 1}`);
-  const path = String(raw?.path || raw?.href || raw?.url || '/');
-  return { id: String(raw?.id || raw?.slug || label), slug: clean(String(raw?.slug || label)), label, path: path.startsWith('/') ? path : `/${path}`, enabled: raw?.enabled !== false && raw?.status !== 'hidden' && raw?.status !== 'disabled', order: Number(raw?.order || raw?.sortOrder || index + 1), parentId: String(raw?.parentId || raw?.parent || raw?.parentKey || ''), parentSlug: clean(String(raw?.parentSlug || raw?.parentLabel || '')), description: String(raw?.description || raw?.featureBody || '') };
-}
-async function loadMenuItems(ids: string[]) {
-  for (const tenantId of ids) {
-    try {
-      const rows = await platformPrisma.$queryRawUnsafe<Array<{ metadataJson: any }>>('SELECT "metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 AND slug=$3 LIMIT 1', tenantId, 'admin-config', 'storefront-menu-builder');
-      const items = Array.isArray(rows[0]?.metadataJson?.items) ? rows[0].metadataJson.items.map(normaliseMenuItem).filter((item: MenuItem) => item.enabled && item.label && item.path).sort((a: MenuItem, b: MenuItem) => a.order - b.order) : [];
-      if (items.length) return items;
-    } catch {}
-  }
-  return DEFAULT_MENU;
-}
+async function tenantIds(tenantSlugInput: string) { const baseCandidates = tenantCandidates(tenantSlugInput); const tenantSlug = clean(tenantSlugInput); try { const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>('SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1', tenantSlug); const row = rows[0]; return uniq([...baseCandidates, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']); } catch { return uniq(baseCandidates); } }
+async function storeExists(ids: string[], storeSlug: string) { for (const tenantId of ids) for (const resource of STORE_RESOURCES) { try { const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string }>>('SELECT "tenantId" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource=$3 LIMIT 1', tenantId, storeSlug, resource); if (rows[0]?.tenantId) return true; } catch {} } return storeSlug === 'default-store' && ids.length > 0; }
+function normaliseMenuItem(raw: any, index: number): MenuItem { const label = String(raw?.label || raw?.name || raw?.title || raw?.path || `Menu ${index + 1}`); const path = String(raw?.path || raw?.href || raw?.url || '/'); return { id: String(raw?.id || raw?.slug || label), slug: clean(String(raw?.slug || label)), label, path: path.startsWith('/') ? path : `/${path}`, enabled: raw?.enabled !== false && raw?.status !== 'hidden' && raw?.status !== 'disabled', order: Number(raw?.order || raw?.sortOrder || index + 1), parentId: String(raw?.parentId || raw?.parent || raw?.parentKey || ''), parentSlug: clean(String(raw?.parentSlug || raw?.parentLabel || '')), description: String(raw?.description || raw?.featureBody || '') }; }
+async function loadMenuItems(ids: string[]) { for (const tenantId of ids) { try { const rows = await platformPrisma.$queryRawUnsafe<Array<{ metadataJson: any }>>('SELECT "metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 AND slug=$3 LIMIT 1', tenantId, 'admin-config', 'storefront-menu-builder'); const items = Array.isArray(rows[0]?.metadataJson?.items) ? rows[0].metadataJson.items.map(normaliseMenuItem).filter((item: MenuItem) => item.enabled && item.label && item.path).sort((a: MenuItem, b: MenuItem) => a.order - b.order) : []; if (items.length) return items; } catch {} } return DEFAULT_MENU; }
 
 export default async function NativeStorePreview({ params }: PageProps) {
   const { tenantSlug, storeSlug, path = [] } = await params;
@@ -68,8 +39,9 @@ export default async function NativeStorePreview({ params }: PageProps) {
   if (!cleanTenantSlug || !cleanStoreSlug || !(await storeExists(ids, cleanStoreSlug))) notFound();
   const storeBase = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`;
   const navItems = buildNavItems(await loadMenuItems(ids));
+  const products = await loadTenantThemeProducts(ids);
   const routeSegments = path.map(clean).filter(Boolean);
   if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} />;
-  if (routeSegments.length >= 2) return <ProductPage storeBase={storeBase} navItems={navItems} category={routeSegments[0]} slug={routeSegments[routeSegments.length - 1]} />;
-  return <CategoryPage storeBase={storeBase} navItems={navItems} slug={routeSegments[0]} />;
+  if (routeSegments.length >= 2) return <ProductPage storeBase={storeBase} navItems={navItems} category={routeSegments[0]} slug={routeSegments[routeSegments.length - 1]} products={products} />;
+  return <CategoryPage storeBase={storeBase} navItems={navItems} slug={routeSegments[0]} products={products} />;
 }

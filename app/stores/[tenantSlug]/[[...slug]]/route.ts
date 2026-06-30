@@ -52,19 +52,7 @@ async function resolveThemeSource(themeKey: string) {
 function normaliseMenuItem(raw: any, index: number) {
   const label = String(raw?.label || raw?.name || raw?.title || raw?.path || `Menu ${index + 1}`);
   const path = String(raw?.path || raw?.href || raw?.url || '/');
-  return {
-    ...raw,
-    id: String(raw?.id || raw?.slug || label),
-    slug: clean(String(raw?.slug || label)),
-    label,
-    path: path.startsWith('/') || /^https?:|mailto:|tel:/i.test(path) ? path : `/${path}`,
-    enabled: raw?.enabled !== false && raw?.status !== 'hidden' && raw?.status !== 'disabled',
-    order: Number(raw?.order || raw?.sortOrder || index + 1),
-    parentId: String(raw?.parentId || raw?.parent || raw?.parentKey || ''),
-    parentSlug: clean(String(raw?.parentSlug || raw?.parentLabel || '')),
-    description: String(raw?.description || ''),
-    imageUrl: String(raw?.imageUrl || raw?.image || ''),
-  };
+  return { ...raw, id: String(raw?.id || raw?.slug || label), slug: clean(String(raw?.slug || label)), label, path: path.startsWith('/') || /^https?:|mailto:|tel:/i.test(path) ? path : `/${path}`, enabled: raw?.enabled !== false && raw?.status !== 'hidden' && raw?.status !== 'disabled', order: Number(raw?.order || raw?.sortOrder || index + 1), parentId: String(raw?.parentId || raw?.parent || raw?.parentKey || ''), parentSlug: clean(String(raw?.parentSlug || raw?.parentLabel || '')), description: String(raw?.description || ''), imageUrl: String(raw?.imageUrl || raw?.image || '') };
 }
 
 async function loadMenuItems(ids: string[]) {
@@ -85,12 +73,7 @@ function rewriteCss(css: string, storeBase: string) { return css.replace(/url\(\
 function rewriteHtml(html: string, storeBase: string, themePath: string, tenantSlug: string, tenantId: string, channelSlug: string, menuItems: any[]) {
   const bridgeParams = new URLSearchParams({ tenantSlug, tenantId, channelSlug });
   const menuJson = JSON.stringify(menuItems).replace(/</g, '\\u003c');
-  const next = html
-    .replace(/(src|href)="\/(assets\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$2`)
-    .replace(/(src|href)="\/(images\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$2`)
-    .replace(/(src|href)="\/(favicon[^"#?]*|site\.webmanifest|manifest\.json)/g, `$1="${storeBase}/__theme-assets/$2`)
-    .replace(/(src|href)="(https?:\/\/[^"/]+)?\/(assets\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$3`)
-    .replace(/(src|href)="(https?:\/\/[^"/]+)?\/(images\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$3`);
+  const next = html.replace(/(src|href)="\/(assets\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$2`).replace(/(src|href)="\/(images\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$2`).replace(/(src|href)="\/(favicon[^"#?]*|site\.webmanifest|manifest\.json)/g, `$1="${storeBase}/__theme-assets/$2`).replace(/(src|href)="(https?:\/\/[^"/]+)?\/(assets\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$3`).replace(/(src|href)="(https?:\/\/[^"/]+)?\/(images\/[^"#?]+(?:\?[^"#]*)?)/g, `$1="${storeBase}/__theme-assets/$3`);
 
   const boot = `
 <style id="print-admin-no-old-nav">header nav{visibility:hidden!important}header nav[data-pa-menu-labels]{visibility:visible!important}</style>
@@ -114,6 +97,7 @@ function rewriteHtml(html: string, storeBase: string, themePath: string, tenantS
   addEventListener('popstate',sync);sync();
 })();
 </script>
+<script src="/api/internal/storefront/theme-menu-fast" defer></script>
 <script src="/api/internal/storefront/theme-menu-bridge?${bridgeParams.toString()}" defer></script>`;
   return next.includes('</head>') ? next.replace('</head>', `${boot}</head>`) : `${boot}${next}`;
 }
@@ -123,35 +107,28 @@ export async function GET(request: Request, { params }: Params) {
   const cleanTenantSlug = clean(tenantSlug);
   const storeSlug = clean(slug[0] || '');
   if (!cleanTenantSlug || !storeSlug) return new NextResponse('Not found', { status: 404 });
-
   const ids = await tenantIds(cleanTenantSlug);
   const store = await findStore(ids, storeSlug);
   if (!store) return new NextResponse('Store not found', { status: 404 });
-
   const themeKey = selectedThemeKey(store.metadataJson || {});
   const sourceBase = await resolveThemeSource(themeKey);
   if (!sourceBase) return new NextResponse(`Uploaded theme source is not configured for ${themeKey}.`, { status: 404 });
-
   const rest = slug.slice(1).filter(Boolean);
   const storeBase = `/stores/${cleanTenantSlug}/${storeSlug}`;
   const isAsset = rest[0] === '__theme-assets';
   const sourcePath = isAsset ? `/${rest.slice(1).map(encodeURIComponent).join('/')}` : (rest.length ? `/${rest.map(encodeURIComponent).join('/')}` : '/');
   const themePath = isAsset ? '/' : sourcePath;
   const sourceUrl = new URL(`${sourceBase}${sourcePath}`);
-
   const upstream = await fetch(sourceUrl.toString(), { cache: 'no-store' });
   const upstreamType = upstream.headers.get('content-type') || '';
   const finalType = contentTypeFor(sourcePath, upstreamType);
-
   if (isAsset) {
     if (finalType.includes('javascript') || sourcePath.endsWith('.js')) return new NextResponse(rewriteJavaScript(await upstream.text()), { status: upstream.status, headers: { 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'no-store' } });
     if (finalType.includes('text/css') || sourcePath.endsWith('.css')) return new NextResponse(rewriteCss(await upstream.text(), storeBase), { status: upstream.status, headers: { 'content-type': 'text/css; charset=utf-8', 'cache-control': 'no-store' } });
     return new NextResponse(await upstream.arrayBuffer(), { status: upstream.status, headers: { 'content-type': finalType, 'cache-control': 'public, max-age=300' } });
   }
-
   const html = await upstream.text();
   if (!finalType.includes('text/html')) return new NextResponse(html, { status: upstream.status, headers: { 'content-type': finalType, 'cache-control': 'no-store' } });
-
   const menuItems = await loadMenuItems(ids);
   return new NextResponse(rewriteHtml(html, storeBase, themePath, cleanTenantSlug, store.tenantId || ids[0] || cleanTenantSlug, storeSlug, menuItems), { status: upstream.status, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }

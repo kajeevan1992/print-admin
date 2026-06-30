@@ -16,5 +16,5 @@ export default function DeliveryPopupInterceptor({ storeBase: _storeBase }: { st
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
   }, []);
-  return <FulfillmentSelector key={openToken} compact forceOpen={openToken > 0} />;
+  return openToken > 0 ? <FulfillmentSelector key={openToken} compact forceOpen onClose={() => setOpenToken(0)} /> : null;
 }

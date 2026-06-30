@@ -1,1 +1,1 @@
-export default function Runtime(){ return null; }
+export default function Runtime(){ return <div />; }

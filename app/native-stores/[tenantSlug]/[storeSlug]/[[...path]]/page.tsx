@@ -3,8 +3,10 @@ import { platformPrisma } from '@/core/db/platform-prisma';
 import EnhancedHomePage from '@/themes/atlantis-native/EnhancedHomePage';
 import CategoryPage from '@/themes/atlantis-native/CategoryPage';
 import ProductPage from '@/themes/atlantis-native/ProductPage';
+import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
 import { loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
+import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import type { MenuItem } from '@/themes/atlantis-native/types';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +43,8 @@ export default async function NativeStorePreview({ params }: PageProps) {
   const navItems = buildNavItems(await loadMenuItems(ids));
   const products = await loadTenantThemeProducts(ids);
   const routeSegments = path.map(clean).filter(Boolean);
-  if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} />;
+  if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} products={products} />;
+  if (routeSegments[0] === 'collection-points') return <CollectionPointsPage storeBase={storeBase} navItems={navItems} points={await loadCollectionPoints(ids)} />;
   if (routeSegments.length >= 2) return <ProductPage storeBase={storeBase} navItems={navItems} category={routeSegments[0]} slug={routeSegments[routeSegments.length - 1]} products={products} />;
   return <CategoryPage storeBase={storeBase} navItems={navItems} slug={routeSegments[0]} products={products} />;
 }

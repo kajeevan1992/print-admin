@@ -1,12 +1,13 @@
 import StorefrontChrome from './StorefrontChrome';
 import type { NavItem } from './types';
-import { BRAND, cleanSlug, storeHref } from './theme-helpers';
+import type { ThemeProductCard } from './catalog-adapter';
+import { BRAND, cleanSlug } from './theme-helpers';
 import { ProductCard, SectionHeading, Shell } from './HomePrimitives';
 import { productCards, titleFromSlug } from './product-data';
 
-export default function CategoryPage({ storeBase, navItems, slug }: { storeBase: string; navItems: NavItem[]; slug: string }) {
+export default function CategoryPage({ storeBase, navItems, slug, products = productCards }: { storeBase: string; navItems: NavItem[]; slug: string; products?: ThemeProductCard[] }) {
   const title = titleFromSlug(slug || 'all-products');
-  const products = productCards.filter((product) => cleanSlug(product.category) === cleanSlug(slug));
-  const shown = products.length ? products : productCards;
+  const matches = products.filter((product) => cleanSlug(product.category) === cleanSlug(slug));
+  const shown = matches.length ? matches : products;
   return <StorefrontChrome currentPath={`/${slug}`} navItems={navItems} storeBase={storeBase}><section className="border-b bg-white" style={{ borderColor: BRAND.line }}><Shell className="py-10 lg:py-14"><div className="overflow-hidden rounded-[28px] border shadow-[0_22px_60px_rgba(0,0,0,0.06)]" style={{ borderColor: BRAND.line, background: `linear-gradient(135deg, ${BRAND.primary} 0%, ${BRAND.primaryDark} 58%, #EAF9FD 58%, #F8FCFF 100%)` }}><div className="grid gap-8 p-7 md:grid-cols-[0.95fr_1.05fr] md:p-10 lg:p-12"><div className="flex flex-col justify-center text-white"><div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80">{title}</div><h1 className="mt-4 max-w-[620px] text-[38px] font-black leading-[0.98] tracking-[-0.055em] md:text-[54px]">{title} printing and product options.</h1><p className="mt-5 max-w-[560px] text-[14px] leading-7 text-white/88">Browse print products, compare options, upload artwork later or request support for bespoke jobs.</p></div><div className="flex items-center justify-center"><div className="relative w-full max-w-[560px] rounded-[26px] border border-white/50 bg-white/70 p-4 shadow-[0_28px_80px_rgba(0,0,0,0.16)] backdrop-blur"><img src="/native-theme-assets/atlantis/hero-slide-2.svg" alt={title} className="h-[280px] w-full rounded-[18px] object-cover" /></div></div></div></div></Shell></section><section className="py-8"><Shell><SectionHeading eyebrow="Products" title={`Choose your ${title.toLowerCase()} product`} body="This native preview keeps the uploaded theme visual language while replacing the old standalone data with print-admin routes." /><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">{shown.map((item) => <ProductCard key={item.slug} item={{ ...item, path: `/${item.category}/${item.slug}` }} compact storeBase={storeBase} />)}</div></Shell></section></StorefrontChrome>;
 }

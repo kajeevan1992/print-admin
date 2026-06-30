@@ -1,0 +1,9 @@
+import { ArrowRight } from 'lucide-react';
+import { BRAND, storeHref } from './theme-helpers';
+import { heroSlides } from './home-data';
+import { PrimaryButton, SecondaryButton, Shell } from './HomePrimitives';
+
+export default function HomeHero({ storeBase }: { storeBase: string }) {
+  const slide = heroSlides[0];
+  return <section className="relative overflow-hidden border-b" style={{ borderColor: BRAND.line, background: 'linear-gradient(135deg, rgba(24,167,208,0.10) 0%, rgba(123,63,228,0.06) 58%, rgba(255,200,61,0.08) 100%)' }}><Shell className="py-10 lg:py-16"><div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center"><div><div className="inline-flex rounded-full bg-white/80 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>{slide.eyebrow}</div><h1 className="mt-5 max-w-[720px] text-[46px] font-black leading-[0.94] tracking-[-0.065em] sm:text-[66px]" style={{ color: BRAND.ink }}>{slide.title}</h1><p className="mt-5 max-w-[620px] text-[14px] leading-7" style={{ color: BRAND.muted }}>{slide.body}</p><div className="mt-7 flex flex-wrap gap-3"><PrimaryButton href={storeHref(storeBase, '/all-products')}>Browse products <ArrowRight className="h-4 w-4" /></PrimaryButton><SecondaryButton href={storeHref(storeBase, '/bespoke-quote')}>Request bespoke quote</SecondaryButton></div><div className="mt-6 flex gap-2"><b className="h-2 w-7 rounded-full" style={{ backgroundColor: BRAND.primary }} /><i className="h-2 w-2 rounded-full bg-[#D6DFE7]" /><i className="h-2 w-2 rounded-full bg-[#D6DFE7]" /></div></div><div className="relative"><div className="rounded-[32px] border bg-white/74 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.10)] backdrop-blur" style={{ borderColor: 'rgba(255,255,255,0.7)' }}><img src={slide.image} alt={slide.title} className="h-[360px] w-full rounded-[24px] object-cover" /></div></div></div></Shell></section>;
+}

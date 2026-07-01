@@ -14,7 +14,15 @@ function catalogCategories(context: StorefrontRuntimeContext) {
   return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, productCount, path: `/${slug}` }));
 }
 
+function selectedCatalogItem(context: StorefrontRuntimeContext) {
+  const [categorySlug, productSlug] = context.routeSegments;
+  const selectedCategory = categorySlug ? catalogCategories(context).find((category) => category.slug === categorySlug) : undefined;
+  const selectedProduct = productSlug ? context.products.find((product) => product.slug === productSlug || (product.category === categorySlug && product.slug === productSlug)) : undefined;
+  return { selectedCategory, selectedProduct };
+}
+
 export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContext) {
+  const selected = selectedCatalogItem(context);
   return {
     theme: context.themeManifest,
     themeKey: context.themeKey,
@@ -28,6 +36,8 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     navItems: context.navItems,
     products: context.products,
     categories: catalogCategories(context),
+    selectedCategory: selected.selectedCategory,
+    selectedProduct: selected.selectedProduct,
   };
 }
 

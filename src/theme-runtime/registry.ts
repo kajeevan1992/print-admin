@@ -1,5 +1,6 @@
 import type { StorefrontRuntimeContext, StorefrontThemeKey, StorefrontThemeManifest } from './types';
 import { renderAtlantisStorefront } from './atlantis-renderer';
+import { renderUploadedStorefrontTheme } from './uploaded-renderer';
 
 export const DEFAULT_STOREFRONT_THEME: StorefrontThemeKey = 'atlantis-print-hosted';
 
@@ -38,10 +39,12 @@ export function getStorefrontThemeManifest(value: string | null | undefined, upl
 
 export async function renderStorefrontTheme(context: StorefrontRuntimeContext) {
   const activeTheme = context.themeManifest || getStorefrontThemeManifest(context.themeKey, context.uploadedThemes);
+  const activeContext = { ...context, themeManifest: activeTheme };
+  if (activeTheme.source === 'uploaded') return renderUploadedStorefrontTheme(activeContext);
   switch (normaliseThemeKey(activeTheme.key)) {
     case 'atlantis-native':
     case 'atlantis-print-hosted':
     default:
-      return renderAtlantisStorefront({ ...context, themeManifest: activeTheme });
+      return renderAtlantisStorefront(activeContext);
   }
 }

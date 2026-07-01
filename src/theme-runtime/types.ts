@@ -4,6 +4,14 @@ import type { ThemeProductCard } from '@/themes/atlantis-native/catalog-adapter'
 
 export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native';
 
+export type StorefrontThemeManifest = {
+  key: StorefrontThemeKey;
+  name: string;
+  version: string;
+  source: 'built-in' | 'uploaded';
+  description?: string;
+};
+
 export type StorefrontRuntimeRequest = {
   tenantSlug: string;
   storeSlug: string;

@@ -8,6 +8,12 @@ function pageType(routeSegments: string[]) {
   return 'category';
 }
 
+function catalogCategories(context: StorefrontRuntimeContext) {
+  const counts = new Map<string, number>();
+  context.products.forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
+  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, productCount, path: `/${slug}` }));
+}
+
 export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContext) {
   return {
     theme: context.themeManifest,
@@ -21,6 +27,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     pageType: pageType(context.routeSegments),
     navItems: context.navItems,
     products: context.products,
+    categories: catalogCategories(context),
   };
 }
 

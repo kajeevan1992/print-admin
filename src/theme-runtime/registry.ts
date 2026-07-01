@@ -1,8 +1,26 @@
-import type { StorefrontRuntimeContext, StorefrontThemeKey } from './types';
+import type { StorefrontRuntimeContext, StorefrontThemeKey, StorefrontThemeManifest } from './types';
 import { renderAtlantisStorefront } from './atlantis-renderer';
 
 export const DEFAULT_STOREFRONT_THEME: StorefrontThemeKey = 'atlantis-print-hosted';
-const SUPPORTED_THEME_KEYS: StorefrontThemeKey[] = ['atlantis-print-hosted', 'atlantis-native'];
+
+export const BUILT_IN_STOREFRONT_THEMES: StorefrontThemeManifest[] = [
+  {
+    key: 'atlantis-print-hosted',
+    name: 'Atlantis Print Hosted',
+    version: '1.0.0',
+    source: 'built-in',
+    description: 'Current print storefront adapter used by the native runtime.',
+  },
+  {
+    key: 'atlantis-native',
+    name: 'Atlantis Native',
+    version: '1.0.0',
+    source: 'built-in',
+    description: 'Native Atlantis renderer while uploaded-theme runtime support is being connected.',
+  },
+];
+
+const SUPPORTED_THEME_KEYS = BUILT_IN_STOREFRONT_THEMES.map((theme) => theme.key);
 
 export function normaliseThemeKey(value: string | null | undefined): StorefrontThemeKey {
   const key = String(value || '').trim() as StorefrontThemeKey;
@@ -11,6 +29,10 @@ export function normaliseThemeKey(value: string | null | undefined): StorefrontT
 
 export function describeThemeSource(value: string | null | undefined) {
   return String(value || '').trim() ? 'tenant-setting' : 'default';
+}
+
+export function getBuiltInStorefrontThemes() {
+  return BUILT_IN_STOREFRONT_THEMES;
 }
 
 export async function renderStorefrontTheme(context: StorefrontRuntimeContext) {

@@ -23,13 +23,17 @@ export function getBuiltInStorefrontThemes() {
   return BUILT_IN_STOREFRONT_THEMES;
 }
 
+export function getRegisteredStorefrontThemes(uploadedThemes: StorefrontThemeManifest[] = []) {
+  return [...BUILT_IN_STOREFRONT_THEMES, ...uploadedThemes.filter((theme) => theme?.key && theme?.name && theme?.version)];
+}
+
 export function getDefaultStorefrontThemeManifest() {
   return getStorefrontThemeManifest(DEFAULT_STOREFRONT_THEME);
 }
 
-export function getStorefrontThemeManifest(value: string | null | undefined) {
-  const key = normaliseThemeKey(value);
-  return BUILT_IN_STOREFRONT_THEMES.find((theme) => theme.key === key) || BUILT_IN_STOREFRONT_THEMES[0];
+export function getStorefrontThemeManifest(value: string | null | undefined, uploadedThemes: StorefrontThemeManifest[] = []) {
+  const key = String(value || normaliseThemeKey(value)).trim();
+  return getRegisteredStorefrontThemes(uploadedThemes).find((theme) => theme.key === key) || BUILT_IN_STOREFRONT_THEMES[0];
 }
 
 export async function renderStorefrontTheme(context: StorefrontRuntimeContext) {

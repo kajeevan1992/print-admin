@@ -37,10 +37,11 @@ export function getStorefrontThemeManifest(value: string | null | undefined, upl
 }
 
 export async function renderStorefrontTheme(context: StorefrontRuntimeContext) {
-  switch (normaliseThemeKey(context.themeKey)) {
+  const activeTheme = context.themeManifest || getStorefrontThemeManifest(context.themeKey, context.uploadedThemes);
+  switch (normaliseThemeKey(activeTheme.key)) {
     case 'atlantis-native':
     case 'atlantis-print-hosted':
     default:
-      return renderAtlantisStorefront(context);
+      return renderAtlantisStorefront({ ...context, themeManifest: activeTheme });
   }
 }

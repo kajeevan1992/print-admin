@@ -2,14 +2,30 @@ import type { ReactNode } from 'react';
 import type { NavItem } from '@/themes/atlantis-native/types';
 import type { ThemeProductCard } from '@/themes/atlantis-native/catalog-adapter';
 
-export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native';
+export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (string & {});
+export type StorefrontThemeSource = 'built-in' | 'uploaded';
+export type StorefrontThemeStatus = 'draft' | 'active' | 'archived' | 'failed';
 
 export type StorefrontThemeManifest = {
   key: StorefrontThemeKey;
   name: string;
   version: string;
-  source: 'built-in' | 'uploaded';
+  source: StorefrontThemeSource;
   description?: string;
+};
+
+export type UploadedStorefrontThemeRecord = {
+  tenantId: string;
+  key: StorefrontThemeKey;
+  name: string;
+  version: string;
+  status: StorefrontThemeStatus;
+  manifest: StorefrontThemeManifest;
+  storagePath: string;
+  assetBasePath: string;
+  entryComponent?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type StorefrontRuntimeRequest = {

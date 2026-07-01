@@ -3,7 +3,7 @@ import { platformPrisma } from '@/core/db/platform-prisma';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
 import { loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
 import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
-import { renderStorefrontTheme } from '@/theme-runtime/registry';
+import { getDefaultStorefrontThemeManifest, renderStorefrontTheme } from '@/theme-runtime/registry';
 import type { StorefrontRuntimeContext } from '@/theme-runtime/types';
 
 export const dynamic = 'force-dynamic';
@@ -31,6 +31,8 @@ export default async function NativeStorePreview({ params }: PageProps) {
     routeSegments: path.map(clean).filter(Boolean),
     themeKey: 'atlantis-print-hosted',
     themeSource: 'default',
+    themeManifest: getDefaultStorefrontThemeManifest(),
+    uploadedThemes: [],
     navItems: buildNavItems(await loadRuntimeMenuItems(ids)),
     products: await loadTenantThemeProducts(ids),
   };

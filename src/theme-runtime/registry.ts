@@ -23,6 +23,10 @@ export function getBuiltInStorefrontThemes() {
   return BUILT_IN_STOREFRONT_THEMES;
 }
 
+export function getDefaultStorefrontThemeManifest() {
+  return getStorefrontThemeManifest(DEFAULT_STOREFRONT_THEME);
+}
+
 export function getStorefrontThemeManifest(value: string | null | undefined) {
   const key = normaliseThemeKey(value);
   return BUILT_IN_STOREFRONT_THEMES.find((theme) => theme.key === key) || BUILT_IN_STOREFRONT_THEMES[0];

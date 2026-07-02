@@ -21,10 +21,14 @@ async function tenantIds(tenantSlugInput: string) { const baseCandidates = tenan
 async function storeExists(ids: string[], storeSlug: string) { for (const tenantId of ids) for (const resource of STORE_RESOURCES) { try { const rows = await platformPrisma.$queryRawUnsafe<Array<{ tenantId: string }>>('SELECT "tenantId" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND slug=$2 AND resource=$3 LIMIT 1', tenantId, storeSlug, resource); if (rows[0]?.tenantId) return true; } catch {} } return storeSlug === 'default-store' && ids.length > 0; }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { tenantSlug, path = [] } = await params;
+  const { tenantSlug, storeSlug, path = [] } = await params;
+  const cleanTenantSlug = clean(tenantSlug);
+  const cleanStoreSlug = clean(storeSlug);
   const cleanPath = path.map(clean).filter(Boolean);
-  const title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : titleFromSlug(clean(tenantSlug));
-  return { title };
+  const title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : titleFromSlug(cleanTenantSlug);
+  const description = cleanPath.length ? `${title} from ${titleFromSlug(cleanTenantSlug)}.` : `${titleFromSlug(cleanTenantSlug)} online print storefront.`;
+  const canonical = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}${cleanPath.length ? `/${cleanPath.join('/')}` : ''}`;
+  return { title, description, alternates: { canonical } };
 }
 
 export default async function NativeStorePreview({ params }: PageProps) {

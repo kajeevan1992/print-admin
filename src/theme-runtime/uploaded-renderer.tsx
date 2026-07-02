@@ -13,10 +13,14 @@ function storeHref(context: StorefrontRuntimeContext, path = '/') {
   return cleanPath === '/' ? context.storeBase : `${context.storeBase}${cleanPath}`;
 }
 
+function titleFromSlug(slug = '') {
+  return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
 function catalogCategories(context: StorefrontRuntimeContext) {
   const counts = new Map<string, number>();
   context.products.forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
-  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, productCount, path: `/${slug}`, href: storeHref(context, `/${slug}`) }));
+  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, title: titleFromSlug(slug), productCount, path: `/${slug}`, href: storeHref(context, `/${slug}`) }));
 }
 
 function productsForCategory(context: StorefrontRuntimeContext, categorySlug?: string) {
@@ -33,9 +37,17 @@ function selectedCatalogItem(context: StorefrontRuntimeContext) {
 
 function breadcrumbs(context: StorefrontRuntimeContext, selected: ReturnType<typeof selectedCatalogItem>) {
   const items = [{ label: 'Home', href: storeHref(context), current: !context.routeSegments.length }];
-  if (selected.selectedCategory) items.push({ label: selected.selectedCategory.slug, href: selected.selectedCategory.href, current: !selected.selectedProduct });
+  if (selected.selectedCategory) items.push({ label: selected.selectedCategory.title, href: selected.selectedCategory.href, current: !selected.selectedProduct });
   if (selected.selectedProduct) items.push({ label: selected.selectedProduct.title, href: selected.selectedProduct.href, current: true });
   return items;
+}
+
+function pageMetadata(context: StorefrontRuntimeContext, selected: ReturnType<typeof selectedCatalogItem>) {
+  const type = pageType(context.routeSegments);
+  if (selected.selectedProduct) return { title: selected.selectedProduct.title, description: selected.selectedProduct.text, canonicalHref: selected.selectedProduct.href };
+  if (selected.selectedCategory) return { title: selected.selectedCategory.title, description: `${selected.selectedCategory.productCount} print products available.`, canonicalHref: selected.selectedCategory.href };
+  if (type === 'collection-points') return { title: 'Collection Points', description: 'Choose a convenient collection point for your print order.', canonicalHref: storeHref(context, '/collection-points') };
+  return { title: 'Print Storefront', description: 'Order print, signage and design products online.', canonicalHref: storeHref(context) };
 }
 
 export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContext) {
@@ -51,6 +63,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     routeSegments: context.routeSegments,
     currentPath: `/${context.routeSegments.join('/')}`,
     pageType: pageType(context.routeSegments),
+    page: pageMetadata(context, selected),
     breadcrumbs: breadcrumbs(context, selected),
     navItems: context.navItems.map((item) => ({ ...item, href: storeHref(context, item.path) })),
     products: context.products.map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })),

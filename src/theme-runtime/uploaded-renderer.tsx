@@ -31,6 +31,13 @@ function selectedCatalogItem(context: StorefrontRuntimeContext) {
   return { selectedCategory, selectedCategoryProducts, selectedProduct };
 }
 
+function breadcrumbs(context: StorefrontRuntimeContext, selected: ReturnType<typeof selectedCatalogItem>) {
+  const items = [{ label: 'Home', href: storeHref(context), current: !context.routeSegments.length }];
+  if (selected.selectedCategory) items.push({ label: selected.selectedCategory.slug, href: selected.selectedCategory.href, current: !selected.selectedProduct });
+  if (selected.selectedProduct) items.push({ label: selected.selectedProduct.title, href: selected.selectedProduct.href, current: true });
+  return items;
+}
+
 export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContext) {
   const selected = selectedCatalogItem(context);
   return {
@@ -44,6 +51,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     routeSegments: context.routeSegments,
     currentPath: `/${context.routeSegments.join('/')}`,
     pageType: pageType(context.routeSegments),
+    breadcrumbs: breadcrumbs(context, selected),
     navItems: context.navItems.map((item) => ({ ...item, href: storeHref(context, item.path) })),
     products: context.products.map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })),
     categories: catalogCategories(context),

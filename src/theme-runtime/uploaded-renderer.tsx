@@ -49,6 +49,10 @@ function productsForCategory(context: StorefrontRuntimeContext, categorySlug?: s
   return categorySlug ? context.products.filter((product) => product.category === categorySlug).map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })) : [];
 }
 
+function collectionPoints(context: StorefrontRuntimeContext) {
+  return (context.collectionPoints || []).map((point) => ({ ...point, href: storeHref(context, `/collection-points#${point.slug}`) }));
+}
+
 function selectedCatalogItem(context: StorefrontRuntimeContext) {
   const [categorySlug, productSlug] = context.routeSegments;
   const selectedCategory = categorySlug ? catalogCategories(context).find((category) => category.slug === categorySlug) : undefined;
@@ -92,6 +96,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     navItems: context.navItems.map((item) => ({ ...item, href: storeHref(context, item.path) })),
     products: context.products.map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })),
     categories: catalogCategories(context),
+    collectionPoints: collectionPoints(context),
     selectedCategory: selected.selectedCategory,
     selectedCategoryProducts: selected.selectedCategoryProducts,
     selectedProduct: selected.selectedProduct,

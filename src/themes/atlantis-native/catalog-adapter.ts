@@ -1,6 +1,5 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { cleanSlug } from './theme-helpers';
-import { productCards } from './product-data';
 
 export type ThemeProductCard = {
   slug: string;
@@ -37,14 +36,8 @@ function priceText(raw: any) {
   return 'Quote ready';
 }
 
-function imageFor(category: string, slug: string, raw: any) {
-  const direct = firstText(raw?.image, raw?.imageUrl, raw?.thumbnail, raw?.thumbnailUrl, raw?.heroImage, raw?.metadata?.image, raw?.metadataJson?.image);
-  if (direct) return direct;
-  const key = `${category} ${slug}`;
-  if (key.includes('flyer')) return '/native-theme-assets/atlantis/flyer-front.svg';
-  if (key.includes('poster') || key.includes('sign') || key.includes('banner')) return '/native-theme-assets/atlantis/poster-main.svg';
-  if (key.includes('booklet') || key.includes('brochure')) return '/native-theme-assets/atlantis/hero-slide-2.svg';
-  return '/native-theme-assets/atlantis/business-card-front.svg';
+function imageFor(raw: any) {
+  return firstText(raw?.image, raw?.imageUrl, raw?.thumbnail, raw?.thumbnailUrl, raw?.heroImage, raw?.metadata?.image, raw?.metadataJson?.image);
 }
 
 function titleFromSlug(slug = '') {
@@ -61,8 +54,8 @@ function toThemeProduct(record: any): ThemeProductCard | null {
     slug,
     category: category || 'all-products',
     title,
-    text: firstText(raw?.description, raw?.shortDescription, raw?.summary, raw?.excerpt, 'Configure this product and choose the right print options.'),
-    image: imageFor(category, slug, raw),
+    text: firstText(raw?.description, raw?.shortDescription, raw?.summary, raw?.excerpt, ''),
+    image: imageFor(raw),
     price: priceText(raw),
   };
 }
@@ -76,7 +69,7 @@ function toThemeCategory(record: any, products: ThemeProductCard[]): ThemeCatego
   return {
     slug,
     title,
-    description: firstText(raw?.description, raw?.shortDescription, raw?.summary, record?.description, `${title} print products.`),
+    description: firstText(raw?.description, raw?.shortDescription, raw?.summary, record?.description, ''),
     productCount,
     sortOrder: Number(raw?.sortOrder ?? raw?.order ?? record?.sortOrder ?? 999),
     image: firstText(raw?.image, raw?.imageUrl, raw?.thumbnail, raw?.heroImage, ''),
@@ -97,10 +90,10 @@ export async function loadTenantThemeProducts(tenantIds: string[]) {
       } catch {}
     }
   }
-  return productCards;
+  return [];
 }
 
-export async function loadTenantThemeCategories(tenantIds: string[], products: ThemeProductCard[] = productCards) {
+export async function loadTenantThemeCategories(tenantIds: string[], products: ThemeProductCard[] = []) {
   const collected: ThemeCategoryCard[] = [];
   for (const tenantId of tenantIds) {
     for (const resource of CATEGORY_RESOURCES) {

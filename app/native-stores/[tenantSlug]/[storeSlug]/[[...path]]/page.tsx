@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
-import { loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
+import { loadTenantThemeCategories, loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
 import { getDefaultStorefrontThemeManifest, renderStorefrontTheme } from '@/theme-runtime/registry';
@@ -24,6 +24,7 @@ export default async function NativeStorePreview({ params }: PageProps) {
   const cleanStoreSlug = clean(storeSlug);
   const ids = await tenantIds(cleanTenantSlug);
   if (!cleanTenantSlug || !cleanStoreSlug || !(await storeExists(ids, cleanStoreSlug))) notFound();
+  const products = await loadTenantThemeProducts(ids);
   const context: StorefrontRuntimeContext = {
     tenantSlug: cleanTenantSlug,
     storeSlug: cleanStoreSlug,
@@ -35,7 +36,8 @@ export default async function NativeStorePreview({ params }: PageProps) {
     themeManifest: getDefaultStorefrontThemeManifest(),
     uploadedThemes: [],
     navItems: buildNavItems(await loadRuntimeMenuItems(ids)),
-    products: await loadTenantThemeProducts(ids),
+    products,
+    categories: await loadTenantThemeCategories(ids, products),
     collectionPoints: await loadCollectionPoints(ids),
   };
   return renderStorefrontTheme(context);

@@ -25,8 +25,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const cleanTenantSlug = clean(tenantSlug);
   const cleanStoreSlug = clean(storeSlug);
   const cleanPath = path.map(clean).filter(Boolean);
-  const title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : titleFromSlug(cleanTenantSlug);
-  const description = cleanPath.length ? `${title} from ${titleFromSlug(cleanTenantSlug)}.` : `${titleFromSlug(cleanTenantSlug)} online print storefront.`;
+  let title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : titleFromSlug(cleanTenantSlug);
+  let description = cleanPath.length ? `${title} from ${titleFromSlug(cleanTenantSlug)}.` : `${titleFromSlug(cleanTenantSlug)} online print storefront.`;
+  try {
+    const ids = await tenantIds(cleanTenantSlug);
+    const products = await loadTenantThemeProducts(ids);
+    const categories = await loadTenantThemeCategories(ids, products);
+    const category = cleanPath[0] ? categories.find((item) => item.slug === cleanPath[0]) : undefined;
+    const product = cleanPath[1] ? products.find((item) => item.category === cleanPath[0] && item.slug === cleanPath[1]) : undefined;
+    title = product?.title || category?.title || title;
+    description = product?.text || category?.description || description;
+  } catch {}
   const canonical = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}${cleanPath.length ? `/${cleanPath.join('/')}` : ''}`;
   return { title, description, alternates: { canonical }, openGraph: { title, description, url: canonical, type: 'website' }, robots: { index: true, follow: true } };
 }

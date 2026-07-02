@@ -8,14 +8,19 @@ function pageType(routeSegments: string[]) {
   return 'category';
 }
 
+function storeHref(context: StorefrontRuntimeContext, path = '/') {
+  const cleanPath = `/${String(path || '/').replace(/^\/+/, '')}`;
+  return cleanPath === '/' ? context.storeBase : `${context.storeBase}${cleanPath}`;
+}
+
 function catalogCategories(context: StorefrontRuntimeContext) {
   const counts = new Map<string, number>();
   context.products.forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
-  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, productCount, path: `/${slug}` }));
+  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, productCount, path: `/${slug}`, href: storeHref(context, `/${slug}`) }));
 }
 
 function productsForCategory(context: StorefrontRuntimeContext, categorySlug?: string) {
-  return categorySlug ? context.products.filter((product) => product.category === categorySlug) : [];
+  return categorySlug ? context.products.filter((product) => product.category === categorySlug).map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })) : [];
 }
 
 function selectedCatalogItem(context: StorefrontRuntimeContext) {
@@ -35,11 +40,12 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     tenantSlug: context.tenantSlug,
     storeSlug: context.storeSlug,
     storeBase: context.storeBase,
+    homeHref: storeHref(context),
     routeSegments: context.routeSegments,
     currentPath: `/${context.routeSegments.join('/')}`,
     pageType: pageType(context.routeSegments),
-    navItems: context.navItems,
-    products: context.products,
+    navItems: context.navItems.map((item) => ({ ...item, href: storeHref(context, item.path) })),
+    products: context.products.map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })),
     categories: catalogCategories(context),
     selectedCategory: selected.selectedCategory,
     selectedCategoryProducts: selected.selectedCategoryProducts,

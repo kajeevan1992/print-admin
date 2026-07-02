@@ -14,11 +14,16 @@ function catalogCategories(context: StorefrontRuntimeContext) {
   return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, productCount, path: `/${slug}` }));
 }
 
+function productsForCategory(context: StorefrontRuntimeContext, categorySlug?: string) {
+  return categorySlug ? context.products.filter((product) => product.category === categorySlug) : [];
+}
+
 function selectedCatalogItem(context: StorefrontRuntimeContext) {
   const [categorySlug, productSlug] = context.routeSegments;
   const selectedCategory = categorySlug ? catalogCategories(context).find((category) => category.slug === categorySlug) : undefined;
-  const selectedProduct = productSlug ? context.products.find((product) => product.slug === productSlug || (product.category === categorySlug && product.slug === productSlug)) : undefined;
-  return { selectedCategory, selectedProduct };
+  const selectedCategoryProducts = productsForCategory(context, categorySlug);
+  const selectedProduct = productSlug ? selectedCategoryProducts.find((product) => product.slug === productSlug) : undefined;
+  return { selectedCategory, selectedCategoryProducts, selectedProduct };
 }
 
 export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContext) {
@@ -37,6 +42,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     products: context.products,
     categories: catalogCategories(context),
     selectedCategory: selected.selectedCategory,
+    selectedCategoryProducts: selected.selectedCategoryProducts,
     selectedProduct: selected.selectedProduct,
   };
 }

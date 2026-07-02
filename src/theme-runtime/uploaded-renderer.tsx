@@ -124,10 +124,34 @@ function breadcrumbs(context: StorefrontRuntimeContext, selected: ReturnType<typ
 
 function pageMetadata(context: StorefrontRuntimeContext, selected: ReturnType<typeof selectedCatalogItem>) {
   const type = pageType(context.routeSegments);
+  const store = storeIdentity(context);
   if (selected.selectedProduct) return { title: selected.selectedProduct.title, description: selected.selectedProduct.text, canonicalHref: selected.selectedProduct.href };
   if (selected.selectedCategory) return { title: selected.selectedCategory.title, description: selected.selectedCategory.description, canonicalHref: selected.selectedCategory.href };
-  if (type === 'collection-points') return { title: 'Collection Points', description: 'Choose a convenient collection point for your print order.', canonicalHref: storeHref(context, '/collection-points') };
-  return { title: 'Print Storefront', description: 'Order print, signage and design products online.', canonicalHref: storeHref(context) };
+  if (type === 'collection-points') return { title: 'Collection Points', description: '', canonicalHref: storeHref(context, '/collection-points') };
+  return { title: store.name, description: '', canonicalHref: storeHref(context) };
+}
+
+function seoMetadata(context: StorefrontRuntimeContext, selected: ReturnType<typeof selectedCatalogItem>) {
+  const page = pageMetadata(context, selected);
+  const store = storeIdentity(context);
+  const crumbs = breadcrumbs(context, selected);
+  const image = selected.selectedProduct?.image || selected.selectedCategory?.image || '';
+  return {
+    title: page.title,
+    description: page.description,
+    canonicalHref: page.canonicalHref,
+    robots: { index: true, follow: true },
+    openGraph: {
+      title: page.title,
+      description: page.description,
+      image,
+      type: selected.selectedProduct ? 'product' : 'website',
+    },
+    structuredData: {
+      organization: { name: store.name, url: store.homeHref },
+      breadcrumbs: crumbs.map((item, index) => ({ position: index + 1, name: item.label, item: item.href })),
+    },
+  };
 }
 
 export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContext) {
@@ -146,6 +170,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     currentPath: `/${context.routeSegments.join('/')}`,
     pageType: pageType(context.routeSegments),
     page: pageMetadata(context, selected),
+    seo: seoMetadata(context, selected),
     breadcrumbs: breadcrumbs(context, selected),
     navItems: context.navItems.map((item) => safeNavItem(item, context)),
     products: storefrontProducts(context),

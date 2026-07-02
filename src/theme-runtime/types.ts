@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { NavItem } from '@/themes/atlantis-native/types';
-import type { ThemeProductCard } from '@/themes/atlantis-native/catalog-adapter';
+import type { ThemeProductCard, ThemeCategoryCard } from '@/themes/atlantis-native/catalog-adapter';
 import type { CollectionPoint } from '@/themes/atlantis-native/collection-points';
 
 export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (string & {});
@@ -15,6 +15,6 @@ export type UploadedThemeValidationResult = { valid: boolean; manifest?: Storefr
 
 export type StorefrontRuntimeRequest = { tenantSlug: string; storeSlug: string; routeBase: string; path: string[]; };
 
-export type StorefrontRuntimeContext = { tenantSlug: string; storeSlug: string; tenantIds: string[]; storeBase: string; routeSegments: string[]; themeKey: StorefrontThemeKey; themeSource: 'tenant-setting' | 'default'; themeManifest?: StorefrontThemeManifest; uploadedThemes?: StorefrontThemeManifest[]; navItems: NavItem[]; products: ThemeProductCard[]; collectionPoints?: CollectionPoint[]; };
+export type StorefrontRuntimeContext = { tenantSlug: string; storeSlug: string; tenantIds: string[]; storeBase: string; routeSegments: string[]; themeKey: StorefrontThemeKey; themeSource: 'tenant-setting' | 'default'; themeManifest?: StorefrontThemeManifest; uploadedThemes?: StorefrontThemeManifest[]; navItems: NavItem[]; products: ThemeProductCard[]; categories?: ThemeCategoryCard[]; collectionPoints?: CollectionPoint[]; };
 
 export type StorefrontThemeRenderer = (context: StorefrontRuntimeContext) => Promise<ReactNode> | ReactNode;

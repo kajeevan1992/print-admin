@@ -28,7 +28,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : titleFromSlug(cleanTenantSlug);
   const description = cleanPath.length ? `${title} from ${titleFromSlug(cleanTenantSlug)}.` : `${titleFromSlug(cleanTenantSlug)} online print storefront.`;
   const canonical = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}${cleanPath.length ? `/${cleanPath.join('/')}` : ''}`;
-  return { title, description, alternates: { canonical } };
+  return { title, description, alternates: { canonical }, openGraph: { title, description, url: canonical, type: 'website' } };
 }
 
 export default async function NativeStorePreview({ params }: PageProps) {

@@ -27,6 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const cleanPath = path.map(clean).filter(Boolean);
   let title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : titleFromSlug(cleanTenantSlug);
   let description = cleanPath.length ? `${title} from ${titleFromSlug(cleanTenantSlug)}.` : `${titleFromSlug(cleanTenantSlug)} online print storefront.`;
+  let image = '';
   try {
     const ids = await tenantIds(cleanTenantSlug);
     const products = await loadTenantThemeProducts(ids);
@@ -35,9 +36,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const product = cleanPath[1] ? products.find((item) => item.category === cleanPath[0] && item.slug === cleanPath[1]) : undefined;
     title = product?.title || category?.title || title;
     description = product?.text || category?.description || description;
+    image = product?.image || category?.image || '';
   } catch {}
   const canonical = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}${cleanPath.length ? `/${cleanPath.join('/')}` : ''}`;
-  return { title, description, alternates: { canonical }, openGraph: { title, description, url: canonical, type: 'website' }, robots: { index: true, follow: true } };
+  const openGraph = { title, description, url: canonical, type: 'website' as const, images: image ? [{ url: image }] : undefined };
+  return { title, description, alternates: { canonical }, openGraph, robots: { index: true, follow: true } };
 }
 
 export default async function NativeStorePreview({ params }: PageProps) {

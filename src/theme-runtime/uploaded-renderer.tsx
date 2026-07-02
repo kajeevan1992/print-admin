@@ -30,6 +30,19 @@ function safeProduct(product: StorefrontRuntimeContext['products'][number], cont
   };
 }
 
+function safeCategory(category: NonNullable<StorefrontRuntimeContext['categories']>[number], context: StorefrontRuntimeContext) {
+  return {
+    slug: category.slug,
+    title: category.title,
+    description: category.description,
+    productCount: category.productCount,
+    sortOrder: category.sortOrder,
+    image: category.image,
+    path: `/${category.slug}`,
+    href: storeHref(context, `/${category.slug}`),
+  };
+}
+
 function safeNavItem(item: StorefrontRuntimeContext['navItems'][number], context: StorefrontRuntimeContext) {
   return {
     label: item.label,
@@ -75,10 +88,15 @@ function storefrontProducts(context: StorefrontRuntimeContext) {
   return context.products.map((product) => safeProduct(product, context));
 }
 
-function catalogCategories(context: StorefrontRuntimeContext) {
+function fallbackCategories(context: StorefrontRuntimeContext) {
   const counts = new Map<string, number>();
   storefrontProducts(context).forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
-  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, title: titleFromSlug(slug), productCount, path: `/${slug}`, href: storeHref(context, `/${slug}`) }));
+  return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, title: titleFromSlug(slug), description: `${productCount} print products available.`, productCount, sortOrder: 999, image: '', path: `/${slug}`, href: storeHref(context, `/${slug}`) }));
+}
+
+function catalogCategories(context: StorefrontRuntimeContext) {
+  const directCategories = (context.categories || []).map((category) => safeCategory(category, context));
+  return directCategories.length ? directCategories : fallbackCategories(context);
 }
 
 function productsForCategory(context: StorefrontRuntimeContext, categorySlug?: string) {
@@ -107,7 +125,7 @@ function breadcrumbs(context: StorefrontRuntimeContext, selected: ReturnType<typ
 function pageMetadata(context: StorefrontRuntimeContext, selected: ReturnType<typeof selectedCatalogItem>) {
   const type = pageType(context.routeSegments);
   if (selected.selectedProduct) return { title: selected.selectedProduct.title, description: selected.selectedProduct.text, canonicalHref: selected.selectedProduct.href };
-  if (selected.selectedCategory) return { title: selected.selectedCategory.title, description: `${selected.selectedCategory.productCount} print products available.`, canonicalHref: selected.selectedCategory.href };
+  if (selected.selectedCategory) return { title: selected.selectedCategory.title, description: selected.selectedCategory.description, canonicalHref: selected.selectedCategory.href };
   if (type === 'collection-points') return { title: 'Collection Points', description: 'Choose a convenient collection point for your print order.', canonicalHref: storeHref(context, '/collection-points') };
   return { title: 'Print Storefront', description: 'Order print, signage and design products online.', canonicalHref: storeHref(context) };
 }

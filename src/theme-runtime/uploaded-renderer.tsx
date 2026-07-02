@@ -13,6 +13,21 @@ function storeHref(context: StorefrontRuntimeContext, path = '/') {
   return cleanPath === '/' ? context.storeBase : `${context.storeBase}${cleanPath}`;
 }
 
+function titleFromSlug(slug = '') {
+  return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function storeIdentity(context: StorefrontRuntimeContext) {
+  return {
+    tenantSlug: context.tenantSlug,
+    storeSlug: context.storeSlug,
+    name: titleFromSlug(context.tenantSlug),
+    storeName: titleFromSlug(context.storeSlug),
+    baseHref: context.storeBase,
+    homeHref: storeHref(context),
+  };
+}
+
 function standardRoutes(context: StorefrontRuntimeContext) {
   return {
     home: storeHref(context),
@@ -22,10 +37,6 @@ function standardRoutes(context: StorefrontRuntimeContext) {
     account: storeHref(context, '/account'),
     search: storeHref(context, '/search'),
   };
-}
-
-function titleFromSlug(slug = '') {
-  return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
 function catalogCategories(context: StorefrontRuntimeContext) {
@@ -70,6 +81,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     tenantSlug: context.tenantSlug,
     storeSlug: context.storeSlug,
     storeBase: context.storeBase,
+    store: storeIdentity(context),
     homeHref: storeHref(context),
     routes: standardRoutes(context),
     routeSegments: context.routeSegments,

@@ -40,7 +40,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   } catch {}
   const canonical = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}${cleanPath.length ? `/${cleanPath.join('/')}` : ''}`;
   const openGraph = { title, description, url: canonical, type: 'website' as const, images: image ? [{ url: image }] : undefined };
-  return { title, description, alternates: { canonical }, openGraph, robots: { index: true, follow: true } };
+  const twitter = { card: 'summary_large_image' as const, title, description, images: image ? [image] : undefined };
+  return { title, description, alternates: { canonical }, openGraph, twitter, robots: { index: true, follow: true } };
 }
 
 export default async function NativeStorePreview({ params }: PageProps) {

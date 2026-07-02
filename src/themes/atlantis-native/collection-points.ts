@@ -17,14 +17,14 @@ function firstText(...values: any[]) {
 
 function normalise(row: any): CollectionPoint | null {
   const raw = row?.metadataJson || row || {};
-  const name = firstText(raw?.name, raw?.label, raw?.title, row?.slug, 'Holo Print Sidcup');
+  const name = firstText(raw?.name, raw?.label, raw?.title, row?.slug);
   const slug = firstText(raw?.slug, row?.slug, name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
   if (!slug || !name) return null;
   return {
     slug,
     name,
-    address: firstText(raw?.address, raw?.fullAddress, raw?.location, raw?.line1, 'Sidcup High Street collection point'),
-    note: firstText(raw?.note, raw?.description, raw?.openingNote, 'Choose this point for local collection once your order is approved.'),
+    address: firstText(raw?.address, raw?.fullAddress, raw?.location, raw?.line1),
+    note: firstText(raw?.note, raw?.description, raw?.openingNote),
     status: firstText(raw?.status, raw?.availability, 'Available'),
   };
 }
@@ -49,5 +49,5 @@ export async function loadCollectionPoints(tenantIds: string[]) {
       } catch {}
     }
   }
-  return [{ slug: 'holo-print-sidcup', name: 'Holo Print Sidcup', address: 'Sidcup High Street collection point', note: 'Default preview collection point. Replace with tenant collection-point records when ready.', status: 'Available' }];
+  return [];
 }

@@ -17,6 +17,38 @@ function titleFromSlug(slug = '') {
   return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
+function safeProduct(product: StorefrontRuntimeContext['products'][number], context: StorefrontRuntimeContext) {
+  return {
+    slug: product.slug,
+    category: product.category,
+    title: product.title,
+    text: product.text,
+    image: product.image,
+    badge: product.badge,
+    price: product.price,
+    href: storeHref(context, `/${product.category}/${product.slug}`),
+  };
+}
+
+function safeNavItem(item: StorefrontRuntimeContext['navItems'][number], context: StorefrontRuntimeContext) {
+  return {
+    label: item.label,
+    path: item.path,
+    href: storeHref(context, item.path),
+  };
+}
+
+function safeCollectionPoint(point: NonNullable<StorefrontRuntimeContext['collectionPoints']>[number], context: StorefrontRuntimeContext) {
+  return {
+    slug: point.slug,
+    name: point.name,
+    address: point.address,
+    note: point.note,
+    status: point.status,
+    href: storeHref(context, `/collection-points#${point.slug}`),
+  };
+}
+
 function storeIdentity(context: StorefrontRuntimeContext) {
   return {
     tenantSlug: context.tenantSlug,
@@ -39,18 +71,22 @@ function standardRoutes(context: StorefrontRuntimeContext) {
   };
 }
 
+function storefrontProducts(context: StorefrontRuntimeContext) {
+  return context.products.map((product) => safeProduct(product, context));
+}
+
 function catalogCategories(context: StorefrontRuntimeContext) {
   const counts = new Map<string, number>();
-  context.products.forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
+  storefrontProducts(context).forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
   return Array.from(counts.entries()).map(([slug, productCount]) => ({ slug, title: titleFromSlug(slug), productCount, path: `/${slug}`, href: storeHref(context, `/${slug}`) }));
 }
 
 function productsForCategory(context: StorefrontRuntimeContext, categorySlug?: string) {
-  return categorySlug ? context.products.filter((product) => product.category === categorySlug).map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })) : [];
+  return categorySlug ? storefrontProducts(context).filter((product) => product.category === categorySlug) : [];
 }
 
 function collectionPoints(context: StorefrontRuntimeContext) {
-  return (context.collectionPoints || []).map((point) => ({ ...point, href: storeHref(context, `/collection-points#${point.slug}`) }));
+  return (context.collectionPoints || []).map((point) => safeCollectionPoint(point, context));
 }
 
 function selectedCatalogItem(context: StorefrontRuntimeContext) {
@@ -93,8 +129,8 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     pageType: pageType(context.routeSegments),
     page: pageMetadata(context, selected),
     breadcrumbs: breadcrumbs(context, selected),
-    navItems: context.navItems.map((item) => ({ ...item, href: storeHref(context, item.path) })),
-    products: context.products.map((product) => ({ ...product, href: storeHref(context, `/${product.category}/${product.slug}`) })),
+    navItems: context.navItems.map((item) => safeNavItem(item, context)),
+    products: storefrontProducts(context),
     categories: catalogCategories(context),
     collectionPoints: collectionPoints(context),
     selectedCategory: selected.selectedCategory,

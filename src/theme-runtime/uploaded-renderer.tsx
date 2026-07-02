@@ -13,6 +13,17 @@ function storeHref(context: StorefrontRuntimeContext, path = '/') {
   return cleanPath === '/' ? context.storeBase : `${context.storeBase}${cleanPath}`;
 }
 
+function standardRoutes(context: StorefrontRuntimeContext) {
+  return {
+    home: storeHref(context),
+    collectionPoints: storeHref(context, '/collection-points'),
+    cart: storeHref(context, '/cart'),
+    login: storeHref(context, '/login'),
+    account: storeHref(context, '/account'),
+    search: storeHref(context, '/search'),
+  };
+}
+
 function titleFromSlug(slug = '') {
   return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
@@ -60,6 +71,7 @@ export function getUploadedThemeRuntimeContract(context: StorefrontRuntimeContex
     storeSlug: context.storeSlug,
     storeBase: context.storeBase,
     homeHref: storeHref(context),
+    routes: standardRoutes(context),
     routeSegments: context.routeSegments,
     currentPath: `/${context.routeSegments.join('/')}`,
     pageType: pageType(context.routeSegments),

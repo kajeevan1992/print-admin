@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
 import { loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
+import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
 import { getDefaultStorefrontThemeManifest, renderStorefrontTheme } from '@/theme-runtime/registry';
 import type { StorefrontRuntimeContext } from '@/theme-runtime/types';
@@ -35,6 +36,7 @@ export default async function NativeStorePreview({ params }: PageProps) {
     uploadedThemes: [],
     navItems: buildNavItems(await loadRuntimeMenuItems(ids)),
     products: await loadTenantThemeProducts(ids),
+    collectionPoints: await loadCollectionPoints(ids),
   };
   return renderStorefrontTheme(context);
 }

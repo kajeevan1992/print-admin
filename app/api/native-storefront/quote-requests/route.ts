@@ -57,5 +57,5 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.redirect(new URL(`/native-stores/${tenantSlug}/${storeSlug}/quote-thank-you`, request.url), { status: 303 });
+  return NextResponse.redirect(new URL(`/native-stores/${tenantSlug}/${storeSlug}/${categorySlug}/${productSlug}`, request.url), { status: 303 });
 }

@@ -1,6 +1,7 @@
 import EnhancedHomePage from '@/themes/atlantis-native/EnhancedHomePage';
 import CategoryPage from '@/themes/atlantis-native/CategoryPage';
 import ProductPage from '@/themes/atlantis-native/ProductPage';
+import QuoteRequestPage from '@/themes/atlantis-native/QuoteRequestPage';
 import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import type { StorefrontRuntimeContext } from './types';

@@ -8,6 +8,8 @@ export type ThemeProductCard = {
   text: string;
   image: string;
   price: string;
+  productType?: string;
+  buyingMode?: 'cart' | 'quote';
 };
 
 export type ThemeCategoryCard = {
@@ -40,6 +42,14 @@ function imageFor(raw: any) {
   return firstText(raw?.image, raw?.imageUrl, raw?.thumbnail, raw?.thumbnailUrl, raw?.heroImage, raw?.metadata?.image, raw?.metadataJson?.image);
 }
 
+function buyingModeFor(raw: any): 'cart' | 'quote' {
+  const value = firstText(raw?.buyingMode, raw?.orderMode, raw?.storefrontAction, raw?.ctaMode, raw?.pricingMode, raw?.metadata?.buyingMode, raw?.metadataJson?.buyingMode).toLowerCase();
+  const productType = firstText(raw?.productType, raw?.type, raw?.metadata?.productType, raw?.metadataJson?.productType).toUpperCase();
+  if (['quote', 'request-quote', 'quote-only', 'quote_led', 'quote-led'].includes(value)) return 'quote';
+  if (productType === 'QUOTE_LED') return 'quote';
+  return 'cart';
+}
+
 function titleFromSlug(slug = '') {
   return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
@@ -57,6 +67,8 @@ function toThemeProduct(record: any): ThemeProductCard | null {
     text: firstText(raw?.description, raw?.shortDescription, raw?.summary, raw?.excerpt, ''),
     image: imageFor(raw),
     price: priceText(raw),
+    productType: firstText(raw?.productType, raw?.type, raw?.metadata?.productType, raw?.metadataJson?.productType),
+    buyingMode: buyingModeFor(raw),
   };
 }
 

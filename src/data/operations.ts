@@ -6,6 +6,8 @@ export type QuoteRecord = {
   status: 'draft' | 'sent' | 'approved' | 'expired';
   total: number;
   updatedAt: string;
+  source?: string;
+  metadataJson?: Record<string, unknown>;
 };
 
 export type CustomerRecord = {

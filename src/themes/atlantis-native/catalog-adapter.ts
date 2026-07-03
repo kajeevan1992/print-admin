@@ -1,6 +1,9 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { cleanSlug } from './theme-helpers';
 
+export type ThemeProductOptionValue = { slug: string; label: string };
+export type ThemeProductOptionGroup = { key: string; label: string; values: ThemeProductOptionValue[] };
+
 export type ThemeProductCard = {
   slug: string;
   category: string;
@@ -10,6 +13,7 @@ export type ThemeProductCard = {
   price: string;
   productType?: string;
   buyingMode?: 'cart' | 'quote';
+  optionGroups?: ThemeProductOptionGroup[];
 };
 
 export type ThemeCategoryCard = {
@@ -42,6 +46,24 @@ function imageFor(raw: any) {
   return firstText(raw?.image, raw?.imageUrl, raw?.thumbnail, raw?.thumbnailUrl, raw?.heroImage, raw?.metadata?.image, raw?.metadataJson?.image);
 }
 
+function optionValue(item: any): ThemeProductOptionValue | null {
+  const label = firstText(item?.label, item?.name, item?.title, item?.value, item);
+  const value = firstText(item?.slug, item?.key, item?.value, label);
+  if (!label || !value) return null;
+  return { slug: cleanSlug(value), label };
+}
+
+function optionGroupsFor(raw: any): ThemeProductOptionGroup[] {
+  const groups = raw?.optionGroups || raw?.options || raw?.metadata?.optionGroups || raw?.metadataJson?.optionGroups || [];
+  if (!Array.isArray(groups)) return [];
+  return groups.map((group: any) => {
+    const label = firstText(group?.label, group?.name, group?.title, group?.key);
+    const key = cleanSlug(firstText(group?.key, group?.slug, label));
+    const values = Array.isArray(group?.values) ? group.values.map(optionValue).filter(Boolean) as ThemeProductOptionValue[] : [];
+    return key && label && values.length ? { key, label, values } : null;
+  }).filter(Boolean) as ThemeProductOptionGroup[];
+}
+
 function buyingModeFor(raw: any): 'cart' | 'quote' {
   const value = firstText(raw?.buyingMode, raw?.orderMode, raw?.storefrontAction, raw?.ctaMode, raw?.pricingMode, raw?.metadata?.buyingMode, raw?.metadataJson?.buyingMode).toLowerCase();
   const productType = firstText(raw?.productType, raw?.type, raw?.metadata?.productType, raw?.metadataJson?.productType).toUpperCase();
@@ -69,6 +91,7 @@ function toThemeProduct(record: any): ThemeProductCard | null {
     price: priceText(raw),
     productType: firstText(raw?.productType, raw?.type, raw?.metadata?.productType, raw?.metadataJson?.productType),
     buyingMode: buyingModeFor(raw),
+    optionGroups: optionGroupsFor(raw),
   };
 }
 

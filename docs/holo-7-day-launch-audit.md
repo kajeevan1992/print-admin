@@ -185,21 +185,21 @@ Launch decision:
 
 ### Quote request storage endpoint
 
-Status: **exists, newly added but needs review**
+Status: **aligned for launch**
 
 Evidence:
 
 - `app/api/native-storefront/quote-requests/route.ts` creates `CoreCatalogRecord` records with resource `storefront-quote-requests`.
 - It stores metadataJson including customer, product, store and status.
-
-Concern:
-
-- It writes into `platformPrisma.coreCatalogRecord` using tenantSlug as tenantId. Existing catalog writes normally use tenant context and tenant database helpers.
+- L3B changed it to resolve the real tenant record by id, slug or defaultSubdomain before saving.
+- Quote records now save with `tenantId` equal to the real tenant id where available, while preserving `tenantSlug` and `storeSlug` in metadataJson.
 
 Launch decision:
 
-- Before building admin quote inbox, decide whether quote requests should live in platform CoreCatalogRecord or tenant DB using existing catalog service pattern.
-- Do not build a second quote system until this is decided.
+- For the 7-day launch, quote requests stay in platform `CoreCatalogRecord` under resource `storefront-quote-requests`.
+- Do not create a new quote table.
+- Do not create a separate order system yet.
+- The future admin quote inbox must read this same resource and tenant id convention.
 
 ## L3A Admin pattern audit findings
 
@@ -226,6 +226,27 @@ Launch decision:
 - Preferred path is to reuse the existing internal catalog CRUD/API pattern for a new resource view, not create a new quote database model.
 - If no reusable admin UI is found, build the smallest possible quote inbox page that reads the same `CoreCatalogRecord` resource used by the quote endpoint.
 
+## L3B Quote request storage alignment
+
+Status: **completed**
+
+Decision:
+
+- Use existing platform `CoreCatalogRecord` for launch quote requests.
+- Resource name is fixed as `storefront-quote-requests`.
+- Store with resolved real tenant id where possible.
+- Preserve tenantSlug, storeSlug, productSlug and categorySlug in metadataJson for storefront/admin display.
+
+Reason:
+
+- Existing generic tenant DB catalog write path requires a tenant database connection.
+- A public quote form should not fail just because the tenant DB connection is not configured.
+- Platform `CoreCatalogRecord` already exists in Prisma schema and is enough for a launch enquiry inbox.
+
+Next required build:
+
+- L3C minimal quote inbox must read platform `CoreCatalogRecord` where resource is `storefront-quote-requests` and tenantId matches the verified tenant context.
+
 ## 7-day launch checklist matrix
 
 | Feature | Status | Reuse existing? | Next action |
@@ -239,8 +260,8 @@ Launch decision:
 | Materials/finishes | Resource exists | Yes | Map existing resources if records exist |
 | Shipping/collection methods | Resource exists | Yes | Map shipping-methods and collection-points if records exist |
 | Artwork requirements | Resource exists | Yes | Map artwork-profiles into quote/order form |
-| Quote intake | Partial/new | Maybe | Review storage location and connect admin visibility |
-| Admin quote inbox | Not verified | Unknown | Build minimal inbox only after storage alignment decision |
+| Quote intake | Aligned for launch | Yes | Build minimal inbox against platform CoreCatalogRecord |
+| Admin quote inbox | Not built | No reusable UI verified | Build minimal inbox only, no new data model |
 | Dedicated order system | Not verified in schema | Unknown | Search/fetch before any order build |
 | Cart | Not verified | Unknown | Search/fetch before any cart build |
 | Checkout/payment | Not verified | Unknown | Search/fetch before any payment build |
@@ -252,18 +273,12 @@ Launch decision:
 
 ### Decision 1: Where should quote requests live?
 
-Options:
+Resolved for launch:
 
-1. Platform CoreCatalogRecord resource `storefront-quote-requests`
-2. Tenant DB CoreCatalogRecord resource `storefront-quote-requests`
-3. Future dedicated quote/order table
-
-Current code uses option 1. Existing product/category catalog logic uses tenant DB where configured.
-
-Recommendation for 7-day launch:
-
-- Use the existing catalog service pattern where possible.
-- If we keep quote requests in CoreCatalogRecord, create admin UI around that same resource and do not create a second quote table.
+- Platform CoreCatalogRecord resource `storefront-quote-requests`.
+- Stored under real tenant id where available.
+- No new quote table.
+- No duplicate quote/order system.
 
 ### Decision 2: Is quote request an order or enquiry?
 
@@ -281,30 +296,13 @@ Next build should **not** create a new system.
 
 Correct next build:
 
-1. Align quote request storage with existing catalog/tenant pattern, or document keeping platform storage for launch.
-2. Then reuse that same storage for a minimal quote inbox.
-3. Do not create an Order model, quote model, or new payment flow until the existing system audit proves it is missing.
+1. Build the smallest possible quote inbox API/page using platform CoreCatalogRecord `storefront-quote-requests`.
+2. Do not create an Order model, quote model, or payment flow yet.
+3. Keep the inbox read-only first.
 
 ## Next verified build plan
 
-### Build L3B: Quote request storage alignment
-
-Goal:
-
-- Fix the biggest risk before admin inbox: quote request storage location.
-- Current endpoint stores quote requests in platform CoreCatalogRecord using tenantSlug as tenantId.
-- Existing catalog CRUD prefers tenant context and tenant DB where configured.
-
-Preferred launch-safe approach:
-
-- For quote requests, use a single resource name: `storefront-quote-requests`.
-- Store and read from one place only.
-- If we keep platform storage for speed, the admin inbox must read platform storage using the same tenantSlug/tenantId convention.
-- If we move to tenant DB storage, update endpoint and future inbox to use existing catalog service pattern.
-
 ### Build L3C: Minimal Quote Inbox UI/API
-
-Only after L3B.
 
 Minimum UI:
 

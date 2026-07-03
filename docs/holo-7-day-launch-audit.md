@@ -19,6 +19,12 @@ Every future build must reference this checklist and should be a connection/fix 
 - `app/api/native-storefront/quote-requests/route.ts`
 - `src/themes/atlantis-native/QuoteRequestPage.tsx`
 - `src/theme-runtime/atlantis-renderer.tsx`
+- Admin pattern audit attempted paths/searches:
+  - `app/admin/page.tsx` not found
+  - `app/dashboard/page.tsx` not found
+  - `app/admin/catalog/products/page.tsx` not found
+  - `app/(admin)/catalog/products/page.tsx` not found
+  - repository searches for admin table/list patterns returned no reliable results through the connector
 
 ## Current database / SaaS foundation
 
@@ -195,6 +201,31 @@ Launch decision:
 - Before building admin quote inbox, decide whether quote requests should live in platform CoreCatalogRecord or tenant DB using existing catalog service pattern.
 - Do not build a second quote system until this is decided.
 
+## L3A Admin pattern audit findings
+
+Status: **admin quote inbox pattern not verified yet**
+
+What was checked:
+
+- Direct fetch attempts for common admin page paths did not find:
+  - `app/admin/page.tsx`
+  - `app/dashboard/page.tsx`
+  - `app/admin/catalog/products/page.tsx`
+  - `app/(admin)/catalog/products/page.tsx`
+- Code search attempts for generic admin table/list terms did not return reliable results via the connector.
+
+Finding:
+
+- Existing admin APIs for catalog resources are verified.
+- Existing reusable admin UI/table/list component is **not yet verified** from available connector results.
+- Therefore we should not assume an admin table pattern exists, but also should not build a large new admin system.
+
+Launch decision:
+
+- Next build should be minimal and reversible.
+- Preferred path is to reuse the existing internal catalog CRUD/API pattern for a new resource view, not create a new quote database model.
+- If no reusable admin UI is found, build the smallest possible quote inbox page that reads the same `CoreCatalogRecord` resource used by the quote endpoint.
+
 ## 7-day launch checklist matrix
 
 | Feature | Status | Reuse existing? | Next action |
@@ -209,7 +240,7 @@ Launch decision:
 | Shipping/collection methods | Resource exists | Yes | Map shipping-methods and collection-points if records exist |
 | Artwork requirements | Resource exists | Yes | Map artwork-profiles into quote/order form |
 | Quote intake | Partial/new | Maybe | Review storage location and connect admin visibility |
-| Admin quote inbox | Missing/not verified | Unknown | First audit existing admin list patterns, then build minimal view if missing |
+| Admin quote inbox | Not verified | Unknown | Build minimal inbox only after storage alignment decision |
 | Dedicated order system | Not verified in schema | Unknown | Search/fetch before any order build |
 | Cart | Not verified | Unknown | Search/fetch before any cart build |
 | Checkout/payment | Not verified | Unknown | Search/fetch before any payment build |
@@ -250,32 +281,30 @@ Next build should **not** create a new system.
 
 Correct next build:
 
-1. Verify admin UI/list patterns for existing CoreCatalogRecord resources.
-2. Reuse that pattern to display `storefront-quote-requests`.
-3. If no admin list pattern exists, build the smallest possible quote inbox reading the same storage created by the quote endpoint.
+1. Align quote request storage with existing catalog/tenant pattern, or document keeping platform storage for launch.
+2. Then reuse that same storage for a minimal quote inbox.
+3. Do not create an Order model, quote model, or new payment flow until the existing system audit proves it is missing.
 
 ## Next verified build plan
 
-### Build L3A: Admin pattern audit
-
-Check existing admin pages/components for catalog resource listing and detail screens.
+### Build L3B: Quote request storage alignment
 
 Goal:
 
-- Find reusable table/list UI.
-- Find existing tenant context method.
-- Avoid custom quote inbox system if a generic catalog resource admin already exists.
+- Fix the biggest risk before admin inbox: quote request storage location.
+- Current endpoint stores quote requests in platform CoreCatalogRecord using tenantSlug as tenantId.
+- Existing catalog CRUD prefers tenant context and tenant DB where configured.
 
-### Build L3B: Quote request storage alignment
+Preferred launch-safe approach:
 
-Either:
+- For quote requests, use a single resource name: `storefront-quote-requests`.
+- Store and read from one place only.
+- If we keep platform storage for speed, the admin inbox must read platform storage using the same tenantSlug/tenantId convention.
+- If we move to tenant DB storage, update endpoint and future inbox to use existing catalog service pattern.
 
-- update quote request endpoint to use existing tenant catalog service pattern, or
-- document why platform CoreCatalogRecord is acceptable for launch.
+### Build L3C: Minimal Quote Inbox UI/API
 
-### Build L3C: Quote inbox UI
-
-Build only after L3A and L3B.
+Only after L3B.
 
 Minimum UI:
 

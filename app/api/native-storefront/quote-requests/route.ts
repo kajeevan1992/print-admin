@@ -9,6 +9,8 @@ function clean(value: FormDataEntryValue | null) { return String(value || '').tr
 function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
 function stamp() { return new Date().toISOString().slice(0, 16).replace('T', ' '); }
 function titleFromSlug(value: string) { return String(value || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '); }
+function parseSelectedOptions(value: string) { try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
+function optionSummary(items: any[]) { return items.map((item) => `${item?.label || item?.key}: ${item?.value || item?.slug}`).filter(Boolean).join(', '); }
 
 async function resolveTenantId(tenantSlug: string) {
   const tenant = await platformPrisma.tenant.findFirst({ where: { OR: [{ id: tenantSlug }, { slug: tenantSlug }, { defaultSubdomain: tenantSlug }] }, select: { id: true } });
@@ -40,6 +42,8 @@ export async function POST(request: NextRequest) {
   const deadline = clean(form.get('deadline'));
   const artworkStatus = clean(form.get('artworkStatus'));
   const notes = clean(form.get('notes'));
+  const selectedOptions = parseSelectedOptions(clean(form.get('selectedOptions')));
+  const selectedOptionsSummary = optionSummary(selectedOptions);
 
   if (!tenantSlug || !storeSlug || !productSlug || !customerName || (!email && !phone)) return NextResponse.json({ ok: false, error: 'Missing required quote request details.' }, { status: 400 });
 
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
     total: 0,
     updatedAt: stamp(),
     source: 'native-storefront',
-    metadataJson: { tenantId, tenantSlug, storeSlug, categorySlug, productSlug, customerName, email, phone, quantity, deadline, artworkStatus, notes },
+    metadataJson: { tenantId, tenantSlug, storeSlug, categorySlug, productSlug, customerName, email, phone, quantity, deadline, artworkStatus, notes, selectedOptions, selectedOptionsSummary },
   };
 
   const items = await existingQuotes(tenantId);

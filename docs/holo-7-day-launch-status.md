@@ -4,13 +4,74 @@ Last updated: 2026-07-06
 
 ## Current launch focus
 
-Yes — the build is still focused on the 7 day launch. The recent work has been on the foundation that must exist before the storefront can launch safely: product option URLs, cart handoff, quote-led products, and quote admin visibility.
+Yes — the build is still focused on the 7 day launch. The current target is no longer quote-only. The HOLO launch target is:
+
+- Real SaaS admin product data entered by the store owner.
+- Online-order products where customers can configure product options.
+- Artwork upload or artwork attachment/instruction flow.
+- Stripe card payment.
+- Internal order creation inside the existing SaaS admin.
+- VAT disabled for HOLO because HOLO is not VAT registered yet.
 
 ## Current progress estimate
 
-Overall launch readiness: about 55%.
+Overall launch readiness: about 65% for a controlled HOLO soft launch.
 
-This is not 55% of the whole long-term SaaS. It is 55% of a usable first storefront launch for HOLO Print.
+This is not 65% of the full long-term SaaS. It is the readiness of a first public HOLO storefront using existing SaaS admin systems.
+
+## Code scan findings
+
+### Product data
+
+Product data will be entered through the SaaS admin. This is not a code blocker.
+
+### Stripe / payments
+
+Stripe is already present in the codebase.
+
+- `stripe` package is installed.
+- Internal orders support Stripe fields:
+  - `stripeCheckoutSessionId`
+  - `stripePaymentIntentId`
+  - payment provider/reference/status fields.
+- Internal order payment API supports `create-payment-link`.
+- Stripe service can create Checkout Sessions.
+- Stripe service can apply Checkout Session payment results to orders.
+- Stripe refund service exists.
+
+Launch bridge still needed:
+
+- Native storefront cart/order page must create an internal order.
+- Native storefront must request/create a Stripe Checkout Session for that order.
+- Native storefront needs payment success/cancel return screens.
+- Stripe webhook route still needs to be confirmed or added if not present.
+
+### Artwork
+
+Artwork support exists in the order system, but storefront upload connection still needs confirming/building.
+
+Found:
+
+- Internal order save flow can extract artwork upload IDs.
+- Orders store `artworkUploadIds` in order notes metadata.
+- Catalogue has `artwork-profiles` for artwork/preflight rules.
+- Order save flow supports `artworkPreflight` metadata.
+
+Still needed:
+
+- Confirm exact admin artwork upload route/module name.
+- Connect native storefront order flow to artwork upload ID or artwork instructions.
+- Decide whether payment happens before or after artwork upload.
+
+### VAT
+
+VAT engine exists and can be disabled.
+
+For HOLO launch:
+
+- VAT should be turned off because HOLO is not VAT registered yet.
+- Storefront order payload should either use global VAT disabled or force zero VAT/tax for HOLO orders.
+- Public price wording should avoid VAT-inclusive language until registration status changes.
 
 ## Done
 
@@ -18,7 +79,8 @@ This is not 55% of the whole long-term SaaS. It is 55% of a usable first storefr
 - Existing iframe storefront route `/stores/holo-print-sidcup/default-store` has not been touched.
 - Product pages can use SaaS product data instead of hardcoded demo products.
 - Product buying mode supports online order vs quote-led products.
-- Shareable product option URLs now work for configured products.
+- Shareable product option URLs work for configured products.
+- Product option links are now cleaned so unrelated params like quote refs do not pollute share URLs.
 - Product options can flow into cart links.
 - Cart page can show selected product configuration.
 - Cart edit link can return to the configured product URL.
@@ -27,64 +89,106 @@ This is not 55% of the whole long-term SaaS. It is 55% of a usable first storefr
 - Existing `/quotes` admin module shows storefront quote metadata and selected options.
 - Quote conversion can carry selected options into order and production ticket notes.
 - Quote request success state shows on product page with reference ID.
+- Quote form has an Edit options link back to the configured product URL.
 
 ## Partial / needs strengthening
 
-- Cart exists as a handoff page, but full checkout is not complete.
+- Cart exists as a handoff page, but full checkout/order/payment is not connected yet.
+- Stripe exists in internal order admin, but native storefront does not yet create Stripe sessions directly.
 - Product options display if option groups are present in SaaS product metadata; option group shape may still need mapping to every admin product setup variation.
-- Quote submit redirect confirms quote ID, but preserving selected option parameters after submit is still not fully patched because connector safety blocked the API redirect change.
 - Pricing display is still basic and not yet a full live storefront price calculator.
-- Storefront product/category content depends on real SaaS data being configured.
+- Storefront product/category content depends on real SaaS admin configuration.
+- Artwork IDs are supported by orders, but native storefront upload/attachment step still needs confirming/building.
 
 ## Main blockers before public launch
 
-1. Real product data for launch products.
+1. Native storefront online order bridge.
+   - Cart/configured product -> internal order.
+   - Internal order -> Stripe Checkout Session.
+   - Stripe return -> success/cancel page.
+
+2. Artwork upload or artwork instruction bridge.
+   - Either upload artwork before payment.
+   - Or let customer pay first and upload later.
+   - Or allow “artwork ready / send later / need design help” for launch.
+
+3. HOLO VAT-off configuration.
+   - Disable VAT for HOLO launch.
+   - Remove VAT wording from public prices.
+
+4. Launch product setup by store owner.
    - Business cards.
    - Flyers/leaflets.
    - Posters.
    - Banners/signage.
    - Stickers/labels if launching with them.
 
-2. Cart/checkout decision.
-   - Either launch quote-first with no payment.
-   - Or finish cart, checkout, payment and order creation.
-
-3. Artwork upload or artwork instruction flow.
-   - Required for real print orders.
-
-4. VAT and price display checks.
-   - Zero-rated and standard-rated products must not be mixed incorrectly.
-
-5. Launch QA.
+5. Mobile and journey QA.
    - Home page.
    - Category pages.
    - Product pages.
-   - Quote request.
-   - Cart handoff.
-   - Admin quote visibility.
-   - Mobile layout.
+   - Cart.
+   - Order creation.
+   - Artwork step.
+   - Stripe payment.
+   - Admin order visibility.
+
+## Checkout/cart decision needed
+
+The main decision is:
+
+### Option A — Upload artwork before payment
+
+Best when artwork quality affects price or approval.
+
+Flow:
+
+1. Customer configures product.
+2. Customer uploads artwork or chooses send later/design help.
+3. System creates order.
+4. Customer pays by Stripe if order is fixed-price and not blocked.
+5. Admin receives order with artwork reference.
+
+### Option B — Pay first, upload later
+
+Fastest checkout.
+
+Flow:
+
+1. Customer configures product.
+2. System creates order.
+3. Customer pays by Stripe.
+4. Success page asks customer to upload artwork or email it.
+
+### Option C — Hybrid launch
+
+Recommended for HOLO first public launch.
+
+- Fixed-price products: allow pay now with Stripe.
+- Risky/custom products: route to quote/review first.
+- Artwork can be ready/send later/need design help at launch.
 
 ## Recommended 7 day launch plan
 
 ### Day 1 — Product data
 
-Configure the first launch products in the SaaS product setup. Keep the list small and real.
+Store owner configures the first real launch products in SaaS admin.
 
-### Day 2 — Quote-first launch path
+### Day 2 — Native order bridge
 
-Make quote-led flow solid enough for public use. This is safer than trying to force full checkout too early.
+Build configured product cart -> internal order creation.
 
-### Day 3 — Cart/order path decision
+### Day 3 — Stripe bridge
 
-Decide whether online ordering launches now or after the first public quote launch.
+Connect native order -> Stripe Checkout Session -> success/cancel return.
 
-### Day 4 — Artwork flow
+### Day 4 — Artwork bridge
 
-Add a basic artwork-upload or clear artwork-instruction flow.
+Connect storefront artwork upload/instruction to internal order artwork fields.
 
-### Day 5 — Storefront copy and SEO basics
+### Day 5 — HOLO VAT-off and price wording
 
-Check product titles, descriptions, category copy, page metadata, and local HOLO Print positioning.
+Disable VAT for HOLO launch and remove VAT-inclusive wording from storefront prices.
 
 ### Day 6 — QA and mobile fixes
 
@@ -96,10 +200,14 @@ Launch to a small group first, collect issues, then promote publicly.
 
 ## Current recommendation
 
-The safest first launch should be quote-first, not full checkout-first.
+Launch with Hybrid checkout:
 
-Reason: the quote system now connects to the existing admin `/quotes` module, so customers can enquire and staff can handle jobs manually while checkout/payment/order automation is finished properly.
+- Standard fixed-price products can take online payment through Stripe.
+- Products that need approval stay quote-led.
+- Artwork can be uploaded/attached or marked as send later/need design help.
 
 ## Next best build
 
-Add a clear storefront launch checklist or status panel inside the admin so the launch blockers can be tracked from the application, not only from this document.
+Build the native storefront online order bridge:
+
+`configured cart product -> internal order -> Stripe checkout session`

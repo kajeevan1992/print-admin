@@ -11,6 +11,8 @@ export type ThemeProductCard = {
   text: string;
   image: string;
   price: string;
+  priceFromMinor?: number;
+  currency?: string;
   productType?: string;
   buyingMode?: 'cart' | 'quote';
   optionGroups?: ThemeProductOptionGroup[];
@@ -35,10 +37,27 @@ function firstText(...values: any[]) {
   return '';
 }
 
+function firstNumber(...values: any[]) {
+  for (const value of values) {
+    const next = Number(value);
+    if (Number.isFinite(next) && next >= 0) return Math.round(next);
+  }
+  return 0;
+}
+
+function priceMinorFor(raw: any) {
+  const minor = firstNumber(raw?.priceFromMinor, raw?.basePriceMinor, raw?.startingPriceMinor, raw?.unitPriceMinor, raw?.pricing?.priceFromMinor, raw?.metadata?.priceFromMinor, raw?.metadataJson?.priceFromMinor, raw?.metadataJson?.pricing?.priceFromMinor);
+  if (minor > 0) return minor;
+  const pounds = firstNumber(raw?.priceFrom, raw?.fromPrice, raw?.startingPrice, raw?.basePrice, raw?.price, raw?.pricing?.priceFrom);
+  return pounds > 0 && pounds < 10000 ? pounds * 100 : 0;
+}
+
 function priceText(raw: any) {
   const amount = raw?.priceFrom ?? raw?.fromPrice ?? raw?.startingPrice ?? raw?.basePrice ?? raw?.price;
   if (typeof amount === 'number' && Number.isFinite(amount)) return `From £${amount.toFixed(2)}`;
   if (typeof amount === 'string' && amount.trim()) return amount.trim().startsWith('£') || amount.toLowerCase().includes('quote') ? amount.trim() : `From ${amount.trim()}`;
+  const minor = priceMinorFor(raw);
+  if (minor > 0) return `From £${(minor / 100).toFixed(2)}`;
   return 'Quote ready';
 }
 
@@ -89,6 +108,8 @@ function toThemeProduct(record: any): ThemeProductCard | null {
     text: firstText(raw?.description, raw?.shortDescription, raw?.summary, raw?.excerpt, ''),
     image: imageFor(raw),
     price: priceText(raw),
+    priceFromMinor: priceMinorFor(raw),
+    currency: firstText(raw?.currency, raw?.pricing?.currency, raw?.metadataJson?.currency, 'GBP'),
     productType: firstText(raw?.productType, raw?.type, raw?.metadata?.productType, raw?.metadataJson?.productType),
     buyingMode: buyingModeFor(raw),
     optionGroups: optionGroupsFor(raw),

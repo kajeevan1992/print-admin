@@ -17,6 +17,7 @@ export type NativePricingInput = {
   productSlug: string;
   selectedOptions?: NativeSelectedOptionRow[];
   quantity?: string | number | null;
+  delivery?: string | null;
   customSize?: Record<string, unknown> | null;
 };
 
@@ -176,7 +177,7 @@ export async function calculateNativeStorefrontPrice(input: NativePricingInput) 
   const selectedOptions = input.selectedOptions || [];
   const selections = selectionsFromRows(selectedOptions, input.customSize);
   const requestedQuantity = Math.max(1, Math.round(Number(input.quantity || 1)));
-  const resolvedConfig = resolveProductConfig(product, { selections, quantity: requestedQuantity });
+  const resolvedConfig = resolveProductConfig(product, { selections, quantity: requestedQuantity, delivery: input.delivery || undefined });
   const matchedRow = resolvedConfig.matchedRow as Record<string, any> | null;
   const calculatedMinor = moneyMinor(rowPriceMinor(matchedRow)) || moneyMinor(resolvedConfig.priceMinor);
 

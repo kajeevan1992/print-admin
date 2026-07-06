@@ -1,7 +1,7 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { cleanSlug } from './theme-helpers';
 
-export type ThemeProductOptionValue = { slug: string; label: string };
+export type ThemeProductOptionValue = { slug: string; label: string; value?: string };
 export type ThemeProductOptionGroup = { key: string; label: string; values: ThemeProductOptionValue[] };
 
 export type ThemeProductCard = {
@@ -67,9 +67,9 @@ function imageFor(raw: any) {
 
 function optionValue(item: any): ThemeProductOptionValue | null {
   const label = firstText(item?.label, item?.name, item?.title, item?.value, item);
-  const value = firstText(item?.slug, item?.key, item?.value, label);
-  if (!label || !value) return null;
-  return { slug: cleanSlug(value), label };
+  const rawValue = firstText(item?.value, item?.slug, item?.key, label);
+  if (!label || !rawValue) return null;
+  return { slug: cleanSlug(rawValue), label, value: rawValue };
 }
 
 function optionGroupsFor(raw: any): ThemeProductOptionGroup[] {

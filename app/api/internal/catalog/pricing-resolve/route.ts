@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
 import { resolveProductConfig, rowPriceMinor } from '@/core/storefront/product-config-engine';
+import { calculateVatLine } from '@/core/tax/vat-rules';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -11,7 +12,10 @@ type PricingRow = {
   oldSku?: string;
   quantity?: number | string | null;
   options?: Record<string, string>;
+  taxSettings?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   vatRate?: number;
+  taxRate?: number;
   supplierPriceMinor?: number;
   priceMinor?: number;
   currency?: string;
@@ -94,6 +98,42 @@ function findAlternatives(rows: PricingRow[], selections: Record<string, string>
     .map((item) => item.row);
 }
 
+function backendObject(...values: unknown[]) {
+  return values.find((value) => value && typeof value === 'object' && !Array.isArray(value)) as Record<string, any> | undefined;
+}
+
+function numberOrUndefined(...values: unknown[]) {
+  for (const value of values) {
+    const next = Number(value);
+    if (Number.isFinite(next) && next >= 0) return next;
+  }
+  return undefined;
+}
+
+function taxSettingsFor(product: any, match: PricingRow) {
+  return backendObject(
+    match.taxSettings,
+    match.metadata?.taxSettings,
+    product?.taxSettings,
+    product?.metadataJson?.taxSettings,
+    product?.metadataJson?.pricing?.taxSettings,
+    product?.metadataJson?.product?.taxSettings,
+  );
+}
+
+function vatRateFor(product: any, match: PricingRow) {
+  return numberOrUndefined(
+    match.vatRate,
+    match.taxRate,
+    match.metadata?.vatRate,
+    product?.vatRate,
+    product?.taxRate,
+    product?.metadataJson?.vatRate,
+    product?.metadataJson?.taxRate,
+    product?.metadataJson?.pricing?.vatRate,
+  );
+}
+
 async function readBody(request: Request) {
   const body = await request.json().catch(() => ({}));
   return body && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
@@ -105,7 +145,7 @@ export async function POST(request: Request) {
     const productId = String(body.productId || body.productSlug || body.slug || '').trim();
     if (!productId) throw new Error('Pricing resolve requires productId or productSlug.');
 
-    const product = await getInternalCatalogRecord(tenantContextFromRequest(request), 'products', productId);
+    const product = await getInternalCatalogRecord(tenantContextFromRequest(request), 'products', productId) as any;
     const rows = rowsFromProduct(product);
     if (!rows.length) throw new Error(`Product ${productId} does not have an imported CSV pricing matrix.`);
 
@@ -135,9 +175,38 @@ export async function POST(request: Request) {
     }
 
     const priceMinor = Number(rowPriceMinor(match) || 0);
-    const vatRate = Number(match.vatRate ?? 20);
-    const vatMinor = Math.round(priceMinor * (vatRate / 100));
-    const totalMinor = priceMinor + vatMinor;
+    const quantity = Math.max(1, Math.round(Number(resolvedConfig.selectedQuantity || match.quantity || body.quantity || 1)));
+    const taxSettings = taxSettingsFor(product, match);
+    const explicitVatRate = vatRateFor(product, match);
+    const taxLine = calculateVatLine({
+      productId: product.id || product.slug || productId,
+      productSlug: product.slug || productId,
+      productName: product.name || product.title || productId,
+      titleSnapshot: product.name || product.title || productId,
+      sku: match.sku || match.oldSku || '',
+      categoryName: product.categoryName || product.metadataJson?.categoryName || '',
+      categorySlug: product.categorySlug || product.metadataJson?.categorySlug || '',
+      totalPriceMinor: priceMinor,
+      taxSettings,
+      vatRate: explicitVatRate,
+      resolverSnapshot: {
+        product: {
+          id: product.id,
+          slug: product.slug,
+          name: product.name || product.title,
+          title: product.title || product.name,
+          categoryName: product.categoryName || '',
+          categorySlug: product.categorySlug || '',
+          taxSettings,
+          vatRate: explicitVatRate,
+        },
+        pricing: {
+          source: 'internal-catalog-pricing-resolver',
+          matchedRow: match,
+          selected: { vatRate: explicitVatRate },
+        },
+      },
+    }, quantity, priceMinor);
 
     return NextResponse.json({
       ok: true,
@@ -150,16 +219,19 @@ export async function POST(request: Request) {
         },
         sku: match.sku,
         oldSku: match.oldSku,
-        quantity: resolvedConfig.selectedQuantity || match.quantity,
+        quantity,
         delivery: resolvedConfig.selectedDelivery,
         options: match.options,
         selections: resolvedConfig.selections,
-        currency: match.currency || 'GBP',
-        netMinor: priceMinor,
-        vatRate,
-        vatMinor,
-        grossMinor: totalMinor,
+        currency: match.currency || product.currency || product.metadataJson?.pricingMatrix?.currency || 'GBP',
+        netMinor: taxLine.netMinor,
+        vatRate: taxLine.vatRate,
+        vatClass: taxLine.vatClass,
+        vatReason: taxLine.vatReason,
+        vatMinor: taxLine.vatMinor,
+        grossMinor: taxLine.grossMinor,
         supplierPriceMinor: match.supplierPriceMinor || null,
+        taxSettings: taxSettings || null,
         matchedRow: match,
         resolvedConfig,
         quantityRows: resolvedConfig.quantityRows,

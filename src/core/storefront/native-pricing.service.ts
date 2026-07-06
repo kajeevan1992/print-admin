@@ -1,6 +1,7 @@
 import { getInternalCatalogRecord, listInternalCatalog } from '@/core/catalog/internal-catalog.service';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { resolveProductConfig, rowPriceMinor } from '@/core/storefront/product-config-engine';
+import { calculateVatLine } from '@/core/tax/vat-rules';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 
 export type NativeSelectedOptionRow = {
@@ -130,6 +131,46 @@ function productVatRate(product: Record<string, any>, matchedRow: Record<string,
   return undefined;
 }
 
+function taxLineForResolvedPrice(params: {
+  product: Record<string, any>;
+  matchedRow: Record<string, any>;
+  grossMinor: number;
+  quantity: number;
+  taxSettings?: Record<string, any>;
+  vatRate?: number;
+}) {
+  const product = params.product;
+  return calculateVatLine({
+    productId: product.id || product.slug || '',
+    productSlug: product.slug || product.id || '',
+    productName: product.name || product.title || product.slug || 'Storefront product',
+    titleSnapshot: product.name || product.title || product.slug || 'Storefront product',
+    sku: params.matchedRow?.sku || params.matchedRow?.oldSku || '',
+    categoryName: product.categoryName || product.metadataJson?.categoryName || '',
+    categorySlug: product.categorySlug || product.metadataJson?.categorySlug || '',
+    totalPriceMinor: params.grossMinor,
+    taxSettings: params.taxSettings,
+    vatRate: params.vatRate,
+    resolverSnapshot: {
+      product: {
+        id: product.id,
+        slug: product.slug,
+        name: product.name || product.title,
+        title: product.title || product.name,
+        categoryName: product.categoryName || '',
+        categorySlug: product.categorySlug || '',
+        taxSettings: params.taxSettings,
+        vatRate: params.vatRate,
+      },
+      pricing: {
+        source: 'saas-pricing-engine',
+        matchedRow: params.matchedRow,
+        selected: { vatRate: params.vatRate },
+      },
+    },
+  }, params.quantity, params.grossMinor);
+}
+
 export async function calculateNativeStorefrontPrice(input: NativePricingInput) {
   const product = await loadProductForNativePricing(input.request, input.tenantSlug, input.productSlug);
   const selectedOptions = input.selectedOptions || [];
@@ -146,6 +187,7 @@ export async function calculateNativeStorefrontPrice(input: NativePricingInput) 
   const selectedQuantity = Math.max(1, Math.round(Number(resolvedConfig.selectedQuantity || requestedQuantity)));
   const taxSettings = productTaxSettings(product, matchedRow);
   const vatRate = productVatRate(product, matchedRow);
+  const taxLine = taxLineForResolvedPrice({ product, matchedRow, grossMinor: calculatedMinor, quantity: selectedQuantity, taxSettings, vatRate });
 
   return {
     product,
@@ -153,10 +195,15 @@ export async function calculateNativeStorefrontPrice(input: NativePricingInput) 
     matchedRow,
     selectedOptions,
     quantity: selectedQuantity,
-    finalPriceMinor: calculatedMinor,
+    finalPriceMinor: taxLine.grossMinor,
+    netPriceMinor: taxLine.netMinor,
+    vatMinor: taxLine.vatMinor,
     currency: String(matchedRow.currency || product.currency || product.metadataJson?.pricingMatrix?.currency || 'GBP'),
     taxSettings,
-    vatRate,
+    vatRate: taxLine.vatRate,
+    vatClass: taxLine.vatClass,
+    vatReason: taxLine.vatReason,
+    taxLine,
     pricingSource: 'saas-pricing-engine',
   };
 }

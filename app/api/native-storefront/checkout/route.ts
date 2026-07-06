@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveOrder } from '@/core/orders/orders.service';
 import { createStripeCheckoutSession } from '@/core/payments/stripe.service';
+import { upsertArtworkProductionTicket } from '@/core/storefront/artwork-production-bridge.service';
 import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 import { saveArtworkUpload, type StoredArtworkUpload } from '@/core/storefront/internal-artwork-storage';
 import { calculateNativeStorefrontPrice, type NativeSelectedOptionRow } from '@/core/storefront/native-pricing.service';
@@ -100,6 +101,7 @@ export async function POST(request: NextRequest) {
     const origin = new URL(request.url).origin;
     const storeBase = `/native-stores/${tenantSlug}/${storeSlug}`;
     const tenantRequest = tenantScopedRequest(request, tenantSlug);
+    const tenantCtx = tenantContextFromRequest(tenantRequest);
     const price = await calculateNativeStorefrontPrice({ request: tenantRequest, tenantSlug, productSlug, selectedOptions, quantity: requestedQuantity, delivery: selectedDelivery || null });
     const orderNumber = `WEB-${Date.now()}`;
     const lineQuantity = price.quantity;
@@ -109,7 +111,8 @@ export async function POST(request: NextRequest) {
     const backendTax = taxPatch(price);
     const priceSnapshotAudit = snapshotCheck(priceSnapshot, finalPriceMinor);
     const artworkUpload = await saveCheckoutArtwork(tenantRequest, { productSlug, orderNumber, file: artworkUploadFile }).catch((error) => ({ upload: null, storage: null, error: error instanceof Error ? error.message : 'Artwork upload could not be saved.' }));
-    const savedUpload = compactUpload(artworkUpload.upload as StoredArtworkUpload | null);
+    const savedUploadFull = artworkUpload.upload as StoredArtworkUpload | null;
+    const savedUpload = compactUpload(savedUploadFull);
     const artworkSnapshot = {
       status: artworkStatus,
       label: artworkLabel(artworkStatus),
@@ -197,6 +200,23 @@ export async function POST(request: NextRequest) {
         resolvedConfig: price.resolvedConfig,
       },
     });
+
+    await upsertArtworkProductionTicket({
+      ctx: tenantCtx,
+      orderId: order.id,
+      orderNumber,
+      customerName,
+      customerEmail,
+      productName: resolvedProductTitle,
+      productSlug,
+      categorySlug,
+      quantity: lineQuantity,
+      selectedDelivery,
+      artworkStatus,
+      artworkNotes,
+      upload: savedUploadFull,
+      priceMinor: finalPriceMinor,
+    }).catch(() => null);
 
     const successUrl = `${origin}${storeBase}/checkout-success?orderId=${encodeURIComponent(order.id)}&session_id={CHECKOUT_SESSION_ID}`;
     const cancelParams = new URLSearchParams({ product: productSlug, category: categorySlug, payment: 'cancel' });

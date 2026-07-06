@@ -13,6 +13,26 @@ function parseSnapshot(value: string): Record<string, any> | null { try { const 
 function tenantScopedRequest(request: NextRequest, tenantSlug: string) { const url = new URL(request.url); url.searchParams.set('tenantId', tenantSlug); return new Request(url, { headers: request.headers }); }
 function productName(product: Record<string, any>, fallback: string) { return String(product.name || product.title || product.metadataJson?.name || product.metadataJson?.title || fallback); }
 
+function fileMeta(value: FormDataEntryValue | null) {
+  if (!value || typeof value === 'string') return null;
+  const file = value as File;
+  if (!file.name || file.size <= 0) return null;
+  return {
+    fileName: file.name,
+    sizeBytes: file.size,
+    mimeType: file.type || 'application/octet-stream',
+    uploadedAt: new Date().toISOString(),
+    storageStatus: 'metadata-recorded',
+    preflightStatus: 'pending',
+  };
+}
+
+function artworkLabel(status: string) {
+  if (status === 'ready') return 'Artwork uploaded now';
+  if (status === 'need-design') return 'Customer needs design help';
+  return 'Customer will send artwork later';
+}
+
 function taxPatch(price: Awaited<ReturnType<typeof calculateNativeStorefrontPrice>>) {
   return {
     ...(price.taxSettings ? { taxSettings: price.taxSettings } : {}),
@@ -44,6 +64,8 @@ export async function POST(request: NextRequest) {
     const customerEmail = clean(form.get('customerEmail'));
     const customerPhone = clean(form.get('customerPhone'));
     const artworkStatus = clean(form.get('artworkStatus')) || 'send-later';
+    const artworkNotes = clean(form.get('artworkNotes'));
+    const artworkFile = fileMeta(form.get('artworkFile'));
     const selectedOptions = parseSelectedOptions(clean(form.get('selectedOptions')));
     const priceSnapshot = parseSnapshot(clean(form.get('priceSnapshot')));
     const selectedDelivery = clean(form.get('delivery')) || clean(form.get('selectedDelivery')) || clean(form.get('turnaround'));
@@ -62,6 +84,15 @@ export async function POST(request: NextRequest) {
     const resolvedProductTitle = productName(price.product, productTitle);
     const backendTax = taxPatch(price);
     const priceSnapshotAudit = snapshotCheck(priceSnapshot, finalPriceMinor);
+    const artworkSnapshot = {
+      status: artworkStatus,
+      label: artworkLabel(artworkStatus),
+      notes: artworkNotes,
+      file: artworkFile,
+      requiresFollowUp: artworkStatus !== 'ready' || !artworkFile,
+      preflightStatus: artworkFile ? 'pending' : 'not-started',
+      source: 'native-storefront-checkout',
+    };
 
     const order = await saveOrder(tenantRequest, {
       orderNumber,
@@ -76,10 +107,12 @@ export async function POST(request: NextRequest) {
       payment_method: 'Pay now by card',
       source: 'native-storefront',
       storeName: storeSlug,
-      notes: `Native storefront online order. Artwork: ${artworkStatus}.`,
+      notes: `Native storefront online order. Artwork: ${artworkSnapshot.label}.${artworkNotes ? ` Notes: ${artworkNotes}` : ''}`,
       internalNotes: [
         `Created from native storefront ${tenantSlug}/${storeSlug}.`,
-        `Artwork status: ${artworkStatus}.`,
+        `Artwork status: ${artworkSnapshot.label}.`,
+        artworkFile ? `Artwork file metadata captured: ${artworkFile.fileName} (${artworkFile.mimeType}, ${artworkFile.sizeBytes} bytes).` : 'No artwork file metadata captured at checkout.',
+        artworkNotes ? `Artwork notes: ${artworkNotes}.` : '',
         selectedDelivery ? `Selected delivery/turnaround: ${selectedDelivery}.` : '',
         'Checkout price recalculated server-side by backend pricing engine before order creation.',
         'Tax/VAT handled from backend admin product tax settings and global tax rules.',
@@ -97,6 +130,7 @@ export async function POST(request: NextRequest) {
         productSlug,
         selectedOptions,
         artworkStatus,
+        artworkSnapshot,
         sku: price.matchedRow.sku || price.matchedRow.oldSku || '',
         resolverSnapshot: {
           source: 'native-storefront-saas-pricing-engine',
@@ -108,6 +142,7 @@ export async function POST(request: NextRequest) {
           priceMinor: finalPriceMinor,
           vatRate: price.vatRate ?? null,
           priceSnapshotAudit,
+          artworkSnapshot,
         },
         ...backendTax,
       }],
@@ -121,6 +156,7 @@ export async function POST(request: NextRequest) {
         selectedOptions,
         selectedDelivery,
         requestedQuantity,
+        artwork: artworkSnapshot,
         calculatedFinalPriceMinor: finalPriceMinor,
         pricingSource: price.pricingSource,
         frontendPriceSnapshot: priceSnapshot,

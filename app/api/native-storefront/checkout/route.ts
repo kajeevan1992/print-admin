@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveOrder } from '@/core/orders/orders.service';
 import { createStripeCheckoutSession } from '@/core/payments/stripe.service';
+import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
+import { saveArtworkUpload, type StoredArtworkUpload } from '@/core/storefront/internal-artwork-storage';
 import { calculateNativeStorefrontPrice, type NativeSelectedOptionRow } from '@/core/storefront/native-pricing.service';
+import { tenantContextFromRequest } from '@/core/tenant/context';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,20 +15,7 @@ function parseSelectedOptions(value: string): NativeSelectedOptionRow[] { try { 
 function parseSnapshot(value: string): Record<string, any> | null { try { const parsed = JSON.parse(value || 'null'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, any> : null; } catch { return null; } }
 function tenantScopedRequest(request: NextRequest, tenantSlug: string) { const url = new URL(request.url); url.searchParams.set('tenantId', tenantSlug); return new Request(url, { headers: request.headers }); }
 function productName(product: Record<string, any>, fallback: string) { return String(product.name || product.title || product.metadataJson?.name || product.metadataJson?.title || fallback); }
-
-function fileMeta(value: FormDataEntryValue | null) {
-  if (!value || typeof value === 'string') return null;
-  const file = value as File;
-  if (!file.name || file.size <= 0) return null;
-  return {
-    fileName: file.name,
-    sizeBytes: file.size,
-    mimeType: file.type || 'application/octet-stream',
-    uploadedAt: new Date().toISOString(),
-    storageStatus: 'metadata-recorded',
-    preflightStatus: 'pending',
-  };
-}
+function checkoutFile(value: FormDataEntryValue | null) { return value && typeof value !== 'string' && value.name && value.size > 0 ? value as File : null; }
 
 function artworkLabel(status: string) {
   if (status === 'ready') return 'Artwork uploaded now';
@@ -52,6 +42,40 @@ function snapshotCheck(priceSnapshot: Record<string, any> | null, finalPriceMino
   };
 }
 
+function compactUpload(upload: StoredArtworkUpload | null) {
+  if (!upload) return null;
+  return {
+    id: upload.id,
+    productId: upload.productId,
+    orderId: upload.orderId,
+    originalName: upload.originalName,
+    mimeType: upload.mimeType,
+    sizeBytes: upload.sizeBytes,
+    extension: upload.extension,
+    pageCount: upload.pageCount,
+    widthMm: upload.widthMm,
+    heightMm: upload.heightMm,
+    fileUrl: upload.fileUrl,
+    downloadUrl: upload.downloadUrl,
+    preflight: upload.preflight,
+    reviewStatus: upload.reviewStatus,
+    createdAt: upload.createdAt,
+  };
+}
+
+async function saveCheckoutArtwork(request: Request, params: { productSlug: string; orderNumber: string; file: File | null }) {
+  if (!params.file) return { upload: null, storage: null, error: null };
+  const ctx = tenantContextFromRequest(request);
+  const uploadForm = new FormData();
+  uploadForm.set('file', params.file, params.file.name || 'artwork.pdf');
+  uploadForm.set('productId', params.productSlug);
+  uploadForm.set('orderId', params.orderNumber);
+  const upload = await saveArtworkUpload(ctx, uploadForm);
+  const dbUpload = await saveArtworkMetadataDb(upload, ctx).catch(() => null);
+  const storage = await artworkStorageStatus(ctx).catch(() => ({ mode: 'file-fallback', dbReady: false }));
+  return { upload: dbUpload || upload, storage, error: null };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const form = await request.formData();
@@ -65,7 +89,7 @@ export async function POST(request: NextRequest) {
     const customerPhone = clean(form.get('customerPhone'));
     const artworkStatus = clean(form.get('artworkStatus')) || 'send-later';
     const artworkNotes = clean(form.get('artworkNotes'));
-    const artworkFile = fileMeta(form.get('artworkFile'));
+    const artworkUploadFile = checkoutFile(form.get('artworkFile'));
     const selectedOptions = parseSelectedOptions(clean(form.get('selectedOptions')));
     const priceSnapshot = parseSnapshot(clean(form.get('priceSnapshot')));
     const selectedDelivery = clean(form.get('delivery')) || clean(form.get('selectedDelivery')) || clean(form.get('turnaround'));
@@ -84,14 +108,18 @@ export async function POST(request: NextRequest) {
     const resolvedProductTitle = productName(price.product, productTitle);
     const backendTax = taxPatch(price);
     const priceSnapshotAudit = snapshotCheck(priceSnapshot, finalPriceMinor);
+    const artworkUpload = await saveCheckoutArtwork(tenantRequest, { productSlug, orderNumber, file: artworkUploadFile }).catch((error) => ({ upload: null, storage: null, error: error instanceof Error ? error.message : 'Artwork upload could not be saved.' }));
+    const savedUpload = compactUpload(artworkUpload.upload as StoredArtworkUpload | null);
     const artworkSnapshot = {
       status: artworkStatus,
       label: artworkLabel(artworkStatus),
       notes: artworkNotes,
-      file: artworkFile,
-      requiresFollowUp: artworkStatus !== 'ready' || !artworkFile,
-      preflightStatus: artworkFile ? 'pending' : 'not-started',
-      source: 'native-storefront-checkout',
+      upload: savedUpload,
+      storage: artworkUpload.storage,
+      uploadError: artworkUpload.error,
+      requiresFollowUp: artworkStatus !== 'ready' || !savedUpload || savedUpload.reviewStatus === 'replacement-requested',
+      preflightStatus: (savedUpload?.preflight as any)?.preflight?.status || (savedUpload ? 'checking' : 'not-started'),
+      source: 'native-storefront-existing-artwork-upload',
     };
 
     const order = await saveOrder(tenantRequest, {
@@ -111,7 +139,9 @@ export async function POST(request: NextRequest) {
       internalNotes: [
         `Created from native storefront ${tenantSlug}/${storeSlug}.`,
         `Artwork status: ${artworkSnapshot.label}.`,
-        artworkFile ? `Artwork file metadata captured: ${artworkFile.fileName} (${artworkFile.mimeType}, ${artworkFile.sizeBytes} bytes).` : 'No artwork file metadata captured at checkout.',
+        savedUpload ? `Artwork upload saved: ${savedUpload.id} (${savedUpload.originalName}).` : 'No artwork upload saved at checkout.',
+        artworkUpload.error ? `Artwork upload error: ${artworkUpload.error}.` : '',
+        savedUpload?.preflight ? `Artwork preflight: ${artworkSnapshot.preflightStatus}.` : '',
         artworkNotes ? `Artwork notes: ${artworkNotes}.` : '',
         selectedDelivery ? `Selected delivery/turnaround: ${selectedDelivery}.` : '',
         'Checkout price recalculated server-side by backend pricing engine before order creation.',
@@ -130,6 +160,7 @@ export async function POST(request: NextRequest) {
         productSlug,
         selectedOptions,
         artworkStatus,
+        artworkUploadId: savedUpload?.id || null,
         artworkSnapshot,
         sku: price.matchedRow.sku || price.matchedRow.oldSku || '',
         resolverSnapshot: {

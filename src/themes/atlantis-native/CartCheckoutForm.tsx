@@ -4,18 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { BRAND } from './theme-helpers';
 
 type SelectedOptionRow = { key: string; label: string; value: string; slug: string };
-
-type Props = {
-  tenantSlug: string;
-  storeSlug: string;
-  productSlug: string;
-  categorySlug: string;
-  productTitle: string;
-  selectedOptions: SelectedOptionRow[];
-  defaultQuantity: number;
-  selectedDelivery?: string;
-};
-
+type Props = { tenantSlug: string; storeSlug: string; productSlug: string; categorySlug: string; productTitle: string; selectedOptions: SelectedOptionRow[]; defaultQuantity: number; selectedDelivery?: string };
 type PriceState = { loading: boolean; ok: boolean; formattedPrice?: string; error?: string; snapshot?: Record<string, any> | null };
 
 export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, categorySlug, productTitle, selectedOptions, defaultQuantity, selectedDelivery = '' }: Props) {
@@ -29,24 +18,14 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
   useEffect(() => {
     let alive = true;
     setPrice({ loading: true, ok: false, snapshot: null });
-    fetch('/api/internal/storefront/price', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantSlug, storeSlug, productSlug, categorySlug, selectedOptions, quantity, delivery }),
-    })
+    fetch('/api/internal/storefront/price', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tenantSlug, storeSlug, productSlug, categorySlug, selectedOptions, quantity, delivery }) })
       .then((response) => response.json())
-      .then((payload) => {
-        if (!alive) return;
-        if (payload?.ok) setPrice({ loading: false, ok: true, formattedPrice: payload.data?.formattedPrice, snapshot: payload.data });
-        else setPrice({ loading: false, ok: false, error: payload?.error?.message || payload?.error || 'Price unavailable', snapshot: null });
-      })
-      .catch((error) => {
-        if (alive) setPrice({ loading: false, ok: false, error: error instanceof Error ? error.message : 'Price unavailable', snapshot: null });
-      });
+      .then((payload) => { if (!alive) return; if (payload?.ok) setPrice({ loading: false, ok: true, formattedPrice: payload.data?.formattedPrice, snapshot: payload.data }); else setPrice({ loading: false, ok: false, error: payload?.error?.message || payload?.error || 'Price unavailable', snapshot: null }); })
+      .catch((error) => { if (alive) setPrice({ loading: false, ok: false, error: error instanceof Error ? error.message : 'Price unavailable', snapshot: null }); });
     return () => { alive = false; };
   }, [tenantSlug, storeSlug, productSlug, categorySlug, selectedOptions, quantity, delivery]);
 
-  return <form action="/api/native-storefront/checkout-artwork" method="post" encType="multipart/form-data" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
+  return <form action="/api/native-storefront/checkout" method="post" encType="multipart/form-data" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
     <input type="hidden" name="tenantSlug" value={tenantSlug} />
     <input type="hidden" name="storeSlug" value={storeSlug} />
     <input type="hidden" name="productSlug" value={productSlug} />
@@ -62,7 +41,6 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
       <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.muted }}>Backend basket total</div>
       <div className="mt-1 text-[26px] font-black tracking-[-0.05em]" style={{ color: BRAND.ink }}>{price.loading ? 'Checking price…' : price.ok ? price.formattedPrice : 'Price unavailable'}</div>
       {!price.loading && !price.ok ? <div className="mt-2 text-[12px]" style={{ color: BRAND.muted }}>{price.error}</div> : null}
-      {price.snapshot?.vatReason ? <div className="mt-2 text-[11px]" style={{ color: BRAND.muted }}>Tax rule: {String(price.snapshot.vatReason)}</div> : null}
     </div>
 
     <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -74,24 +52,12 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
 
     <div className="mt-5 rounded-[20px] border p-4" style={{ borderColor: BRAND.line }}>
       <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Artwork</div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        {[
-          ['ready', 'Upload now'],
-          ['send-later', 'Send later'],
-          ['need-design', 'Need design help'],
-        ].map(([value, label]) => <label key={value} className="cursor-pointer rounded-[16px] border p-3 text-[12px] font-black" style={{ borderColor: artworkStatus === value ? BRAND.primary : BRAND.line, color: artworkStatus === value ? BRAND.primary : BRAND.ink, backgroundColor: artworkStatus === value ? 'rgba(24,167,208,0.08)' : 'white' }}>
-          <input className="mr-2" type="radio" name="artworkStatus" value={value} checked={artworkStatus === value} onChange={() => setArtworkStatus(value)} />{label}
-        </label>)}
-      </div>
-      {artworkStatus === 'ready' ? <div className="mt-4">
-        <label className="block text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Upload artwork file</label>
-        <input name="artworkFile" type="file" accept=".pdf,.ai,.eps,.psd,.jpg,.jpeg,.png,.tif,.tiff" className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
-        <p className="mt-2 text-[11px]" style={{ color: BRAND.muted }}>The file details are attached to the order for artwork/preflight follow-up.</p>
-      </div> : null}
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">{[['ready', 'Upload now'], ['send-later', 'Send later'], ['need-design', 'Need design help']].map(([value, label]) => <label key={value} className="cursor-pointer rounded-[16px] border p-3 text-[12px] font-black" style={{ borderColor: artworkStatus === value ? BRAND.primary : BRAND.line, color: artworkStatus === value ? BRAND.primary : BRAND.ink, backgroundColor: artworkStatus === value ? 'rgba(24,167,208,0.08)' : 'white' }}><input className="mr-2" type="radio" name="artworkStatus" value={value} checked={artworkStatus === value} onChange={() => setArtworkStatus(value)} />{label}</label>)}</div>
+      {artworkStatus === 'ready' ? <div className="mt-4"><label className="block text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Upload artwork file</label><input name="artworkFile" type="file" accept=".pdf,.ai,.eps,.psd,.jpg,.jpeg,.png,.tif,.tiff" className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} /><p className="mt-2 text-[11px]" style={{ color: BRAND.muted }}>Artwork goes into the existing upload and preflight system.</p></div> : null}
       <textarea name="artworkNotes" placeholder={artworkStatus === 'need-design' ? 'Tell us what design help you need' : 'Artwork notes or instructions'} className="mt-4 min-h-[90px] w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
     </div>
 
     <button disabled={!price.ok} className="mt-5 w-full rounded-full px-5 py-3 text-[12px] font-black text-white disabled:opacity-50" style={{ backgroundColor: BRAND.primary }}>Continue to checkout</button>
-    <p className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>Price, tax and artwork status are recorded on the backend order before payment.</p>
+    <p className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>Price, tax and artwork are handled by existing backend services before payment.</p>
   </form>;
 }

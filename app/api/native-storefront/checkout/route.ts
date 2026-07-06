@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 function clean(value: FormDataEntryValue | null) { return String(value || '').trim(); }
 function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
 function number(value: FormDataEntryValue | null, fallback = 0) { const next = Number(value); return Number.isFinite(next) && next >= 0 ? Math.round(next) : fallback; }
-function parseJson(value: string) { try { return JSON.parse(value || '[]'); } catch { return []; } }
+function parseJson(value: string) { try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
 function tenantScopedRequest(request: NextRequest, tenantSlug: string) { const url = new URL(request.url); url.searchParams.set('tenantId', tenantSlug); return new Request(url, { headers: request.headers }); }
 
 export async function POST(request: NextRequest) {
@@ -25,9 +25,11 @@ export async function POST(request: NextRequest) {
     const quantity = Math.max(1, number(form.get('quantity'), 1));
     const unitPriceMinor = number(form.get('unitPriceMinor'));
     const selectedOptions = parseJson(clean(form.get('selectedOptions')));
+    const hasSelectedOptions = selectedOptions.length > 0;
 
     if (!tenantSlug || !storeSlug || !productSlug || !customerName || !customerEmail) return NextResponse.json({ ok: false, error: 'Missing checkout customer or product details.' }, { status: 400 });
-    if (!unitPriceMinor || unitPriceMinor <= 0) return NextResponse.json({ ok: false, error: 'This product needs a valid fixed price before online payment can start.' }, { status: 400 });
+    if (hasSelectedOptions) return NextResponse.json({ ok: false, error: 'Online payment is blocked for option-priced products until the server-side SaaS pricing calculation is connected. This prevents charging the base/from price by mistake.' }, { status: 400 });
+    if (!unitPriceMinor || unitPriceMinor <= 0) return NextResponse.json({ ok: false, error: 'This product needs a valid server-calculated price before online payment can start.' }, { status: 400 });
 
     const origin = new URL(request.url).origin;
     const storeBase = `/native-stores/${tenantSlug}/${storeSlug}`;
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
       source: 'native-storefront',
       storeName: storeSlug,
       notes: `Native storefront online order. Artwork: ${artworkStatus}.`,
-      internalNotes: [`Created from native storefront ${tenantSlug}/${storeSlug}.`, `Artwork status: ${artworkStatus}.`],
+      internalNotes: [`Created from native storefront ${tenantSlug}/${storeSlug}.`, `Artwork status: ${artworkStatus}.`, 'Checkout price accepted only because no product option pricing was present.'],
       items: [{
         id: `${productSlug}-${Date.now()}`,
         productId: productSlug,
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
         vatRate: 0,
         vatClass: 'zero',
       }],
-      rawCheckout: { tenantSlug, storeSlug, categorySlug, productSlug, productTitle, quantity, unitPriceMinor, selectedOptions, artworkStatus },
+      rawCheckout: { tenantSlug, storeSlug, categorySlug, productSlug, productTitle, quantity, unitPriceMinor, selectedOptions, artworkStatus, pricingSource: 'static-no-options-only' },
     });
 
     const successUrl = `${origin}${storeBase}/checkout-success?orderId=${encodeURIComponent(order.id)}&session_id={CHECKOUT_SESSION_ID}`;

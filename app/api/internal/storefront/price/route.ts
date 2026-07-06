@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     const productSlug = slug(body.productSlug || body.productId || body.slug || '');
     const selectedOptions = arrayValue(body.selectedOptions).length ? arrayValue(body.selectedOptions) : objectOptionsToRows(body.options || body.selections);
     const quantity = body.quantity || body.qty || 1;
+    const delivery = clean(body.delivery || body.selectedDelivery || body.turnaround || '');
 
     if (!tenantSlug || !productSlug) {
       return NextResponse.json({ ok: false, source: 'internal-storefront-price', error: 'Missing tenantSlug/tenantId or productSlug/productId.' }, { status: 400 });
@@ -33,6 +34,7 @@ export async function POST(request: NextRequest) {
       productSlug,
       selectedOptions,
       quantity,
+      delivery: delivery || null,
       customSize: body.customSize || body.size || null,
     });
 

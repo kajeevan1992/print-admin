@@ -6,7 +6,7 @@ import { Shell } from './HomePrimitives';
 
 function queryString(values: Record<string, string>, prefix: '?' | '&' = '?') {
   const params = new URLSearchParams();
-  Object.entries(values).forEach(([key, value]) => { if (key && value) params.set(key, value); });
+  Object.entries(values).forEach(([key, value]) => { if (key && value && key !== 'quote') params.set(key, value); });
   const query = params.toString();
   return query ? `${prefix}${query}` : '';
 }

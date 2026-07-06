@@ -8,7 +8,8 @@ export const dynamic = 'force-dynamic';
 function clean(value: FormDataEntryValue | null) { return String(value || '').trim(); }
 function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
 function number(value: FormDataEntryValue | null, fallback = 0) { const next = Number(value); return Number.isFinite(next) && next >= 0 ? Math.round(next) : fallback; }
-function parseJson(value: string): NativeSelectedOptionRow[] { try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed as NativeSelectedOptionRow[] : []; } catch { return []; } }
+function parseSelectedOptions(value: string): NativeSelectedOptionRow[] { try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed as NativeSelectedOptionRow[] : []; } catch { return []; } }
+function parseSnapshot(value: string): Record<string, any> | null { try { const parsed = JSON.parse(value || 'null'); return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, any> : null; } catch { return null; } }
 function tenantScopedRequest(request: NextRequest, tenantSlug: string) { const url = new URL(request.url); url.searchParams.set('tenantId', tenantSlug); return new Request(url, { headers: request.headers }); }
 function productName(product: Record<string, any>, fallback: string) { return String(product.name || product.title || product.metadataJson?.name || product.metadataJson?.title || fallback); }
 
@@ -16,6 +17,18 @@ function taxPatch(price: Awaited<ReturnType<typeof calculateNativeStorefrontPric
   return {
     ...(price.taxSettings ? { taxSettings: price.taxSettings } : {}),
     ...(price.vatRate !== undefined && price.vatRate !== null ? { vatRate: price.vatRate } : {}),
+  };
+}
+
+function snapshotCheck(priceSnapshot: Record<string, any> | null, finalPriceMinor: number) {
+  if (!priceSnapshot) return { provided: false, matched: false, differenceMinor: null };
+  const snapshotTotal = Number(priceSnapshot.finalPriceMinor ?? priceSnapshot.grossMinor ?? priceSnapshot.totalMinor ?? 0);
+  return {
+    provided: true,
+    matched: Number.isFinite(snapshotTotal) && Math.abs(snapshotTotal - finalPriceMinor) <= 1,
+    snapshotTotalMinor: Number.isFinite(snapshotTotal) ? Math.round(snapshotTotal) : 0,
+    backendTotalMinor: finalPriceMinor,
+    differenceMinor: Number.isFinite(snapshotTotal) ? Math.round(finalPriceMinor - snapshotTotal) : null,
   };
 }
 
@@ -31,7 +44,9 @@ export async function POST(request: NextRequest) {
     const customerEmail = clean(form.get('customerEmail'));
     const customerPhone = clean(form.get('customerPhone'));
     const artworkStatus = clean(form.get('artworkStatus')) || 'send-later';
-    const selectedOptions = parseJson(clean(form.get('selectedOptions')));
+    const selectedOptions = parseSelectedOptions(clean(form.get('selectedOptions')));
+    const priceSnapshot = parseSnapshot(clean(form.get('priceSnapshot')));
+    const selectedDelivery = clean(form.get('delivery')) || clean(form.get('selectedDelivery')) || clean(form.get('turnaround'));
     const requestedQuantity = Math.max(1, number(form.get('quantity'), 1));
 
     if (!tenantSlug || !storeSlug || !productSlug || !customerName || !customerEmail) return NextResponse.json({ ok: false, error: 'Missing checkout customer or product details.' }, { status: 400 });
@@ -39,13 +54,14 @@ export async function POST(request: NextRequest) {
     const origin = new URL(request.url).origin;
     const storeBase = `/native-stores/${tenantSlug}/${storeSlug}`;
     const tenantRequest = tenantScopedRequest(request, tenantSlug);
-    const price = await calculateNativeStorefrontPrice({ request: tenantRequest, tenantSlug, productSlug, selectedOptions, quantity: requestedQuantity });
+    const price = await calculateNativeStorefrontPrice({ request: tenantRequest, tenantSlug, productSlug, selectedOptions, quantity: requestedQuantity, delivery: selectedDelivery || null });
     const orderNumber = `WEB-${Date.now()}`;
     const lineQuantity = price.quantity;
     const finalPriceMinor = price.finalPriceMinor;
     const unitPriceMinor = Math.max(1, Math.round(finalPriceMinor / lineQuantity));
     const resolvedProductTitle = productName(price.product, productTitle);
     const backendTax = taxPatch(price);
+    const priceSnapshotAudit = snapshotCheck(priceSnapshot, finalPriceMinor);
 
     const order = await saveOrder(tenantRequest, {
       orderNumber,
@@ -64,9 +80,11 @@ export async function POST(request: NextRequest) {
       internalNotes: [
         `Created from native storefront ${tenantSlug}/${storeSlug}.`,
         `Artwork status: ${artworkStatus}.`,
-        'Checkout price calculated by backend pricing engine from selected options and quantity.',
+        selectedDelivery ? `Selected delivery/turnaround: ${selectedDelivery}.` : '',
+        'Checkout price recalculated server-side by backend pricing engine before order creation.',
         'Tax/VAT handled from backend admin product tax settings and global tax rules.',
-      ],
+        priceSnapshotAudit.provided ? `Frontend price snapshot match: ${priceSnapshotAudit.matched ? 'yes' : 'no'}.` : 'No frontend price snapshot was provided.',
+      ].filter(Boolean),
       items: [{
         id: `${productSlug}-${Date.now()}`,
         productId: productSlug,
@@ -89,6 +107,7 @@ export async function POST(request: NextRequest) {
           matchedRow: price.matchedRow,
           priceMinor: finalPriceMinor,
           vatRate: price.vatRate ?? null,
+          priceSnapshotAudit,
         },
         ...backendTax,
       }],
@@ -100,9 +119,12 @@ export async function POST(request: NextRequest) {
         productTitle: resolvedProductTitle,
         quantity: lineQuantity,
         selectedOptions,
+        selectedDelivery,
         requestedQuantity,
         calculatedFinalPriceMinor: finalPriceMinor,
         pricingSource: price.pricingSource,
+        frontendPriceSnapshot: priceSnapshot,
+        priceSnapshotAudit,
         backendTaxSettings: price.taxSettings || null,
         backendVatRate: price.vatRate ?? null,
         resolvedConfig: price.resolvedConfig,
@@ -110,7 +132,9 @@ export async function POST(request: NextRequest) {
     });
 
     const successUrl = `${origin}${storeBase}/checkout-success?orderId=${encodeURIComponent(order.id)}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${origin}${storeBase}/cart?product=${encodeURIComponent(productSlug)}&category=${encodeURIComponent(categorySlug)}&payment=cancel`;
+    const cancelParams = new URLSearchParams({ product: productSlug, category: categorySlug, payment: 'cancel' });
+    if (selectedDelivery) cancelParams.set('delivery', selectedDelivery);
+    const cancelUrl = `${origin}${storeBase}/cart?${cancelParams.toString()}`;
     const sessionResult = await createStripeCheckoutSession(tenantRequest, { orderId: order.id, customerEmail, successUrl, cancelUrl });
     const paymentUrl = sessionResult.session?.url;
     if (!paymentUrl) return NextResponse.json({ ok: false, error: 'Stripe did not return a payment URL.' }, { status: 500 });

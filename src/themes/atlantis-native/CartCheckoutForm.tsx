@@ -21,6 +21,7 @@ type PriceState = { loading: boolean; ok: boolean; formattedPrice?: string; erro
 export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, categorySlug, productTitle, selectedOptions, defaultQuantity, selectedDelivery = '' }: Props) {
   const [quantity, setQuantity] = useState(Math.max(1, Number(defaultQuantity || 1)));
   const [delivery, setDelivery] = useState(selectedDelivery || '');
+  const [artworkStatus, setArtworkStatus] = useState('send-later');
   const [price, setPrice] = useState<PriceState>({ loading: true, ok: false, snapshot: null });
   const selectedOptionsJson = useMemo(() => JSON.stringify(selectedOptions || []), [selectedOptions]);
   const priceSnapshotJson = useMemo(() => JSON.stringify(price.snapshot || null), [price.snapshot]);
@@ -45,7 +46,7 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
     return () => { alive = false; };
   }, [tenantSlug, storeSlug, productSlug, categorySlug, selectedOptions, quantity, delivery]);
 
-  return <form action="/api/native-storefront/checkout" method="post" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
+  return <form action="/api/native-storefront/checkout" method="post" encType="multipart/form-data" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
     <input type="hidden" name="tenantSlug" value={tenantSlug} />
     <input type="hidden" name="storeSlug" value={storeSlug} />
     <input type="hidden" name="productSlug" value={productSlug} />
@@ -68,15 +69,29 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
       <input required name="customerName" placeholder="Name" className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
       <input required name="customerEmail" type="email" placeholder="Email" className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
       <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} type="number" min="1" className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
-      <select name="artworkStatus" defaultValue="send-later" className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }}>
-        <option value="ready">Artwork ready</option>
-        <option value="send-later">Send artwork later</option>
-        <option value="need-design">Need design help</option>
-      </select>
-      {delivery ? <input value={delivery} onChange={(event) => setDelivery(event.target.value)} placeholder="Delivery / turnaround" className="rounded-2xl border px-4 py-3 text-sm sm:col-span-2" style={{ borderColor: BRAND.line }} /> : null}
+      {delivery ? <input value={delivery} onChange={(event) => setDelivery(event.target.value)} placeholder="Delivery / turnaround" className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} /> : null}
+    </div>
+
+    <div className="mt-5 rounded-[20px] border p-4" style={{ borderColor: BRAND.line }}>
+      <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Artwork</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {[
+          ['ready', 'Upload now'],
+          ['send-later', 'Send later'],
+          ['need-design', 'Need design help'],
+        ].map(([value, label]) => <label key={value} className="cursor-pointer rounded-[16px] border p-3 text-[12px] font-black" style={{ borderColor: artworkStatus === value ? BRAND.primary : BRAND.line, color: artworkStatus === value ? BRAND.primary : BRAND.ink, backgroundColor: artworkStatus === value ? 'rgba(24,167,208,0.08)' : 'white' }}>
+          <input className="mr-2" type="radio" name="artworkStatus" value={value} checked={artworkStatus === value} onChange={() => setArtworkStatus(value)} />{label}
+        </label>)}
+      </div>
+      {artworkStatus === 'ready' ? <div className="mt-4">
+        <label className="block text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Upload artwork file</label>
+        <input name="artworkFile" type="file" accept=".pdf,.ai,.eps,.psd,.jpg,.jpeg,.png,.tif,.tiff" className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
+        <p className="mt-2 text-[11px]" style={{ color: BRAND.muted }}>The file details are attached to the order for artwork/preflight follow-up.</p>
+      </div> : null}
+      <textarea name="artworkNotes" placeholder={artworkStatus === 'need-design' ? 'Tell us what design help you need' : 'Artwork notes or instructions'} className="mt-4 min-h-[90px] w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
     </div>
 
     <button disabled={!price.ok} className="mt-5 w-full rounded-full px-5 py-3 text-[12px] font-black text-white disabled:opacity-50" style={{ backgroundColor: BRAND.primary }}>Continue to checkout</button>
-    <p className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>Price and tax are recalculated by the backend again before the order is created.</p>
+    <p className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>Price, tax and artwork status are recorded on the backend order before payment.</p>
   </form>;
 }

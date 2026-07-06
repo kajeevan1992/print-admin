@@ -62,7 +62,7 @@ export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, ca
   useEffect(() => {
     let alive = true;
     setPrice({ loading: true, ok: false });
-    fetch('/api/native-storefront/price', {
+    fetch('/api/internal/storefront/price', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tenantSlug, storeSlug, productSlug: slug, categorySlug: category, selectedOptions: rows, quantity }),
@@ -71,7 +71,7 @@ export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, ca
       .then((payload) => {
         if (!alive) return;
         if (payload?.ok) setPrice({ loading: false, ok: true, formattedPrice: payload.data?.formattedPrice });
-        else setPrice({ loading: false, ok: false, error: payload?.error || 'Price unavailable' });
+        else setPrice({ loading: false, ok: false, error: payload?.error || payload?.error?.message || 'Price unavailable' });
       })
       .catch((error) => {
         if (alive) setPrice({ loading: false, ok: false, error: error instanceof Error ? error.message : 'Price unavailable' });
@@ -81,7 +81,7 @@ export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, ca
 
   return <div className="rounded-[26px] border bg-white p-6 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}>
     <div className="text-[22px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>Order setup</div>
-    <div className="mt-2 text-[13px] font-bold" style={{ color: BRAND.muted }}>Choose your options and quantity. The live price comes from the SaaS backend.</div>
+    <div className="mt-2 text-[13px] font-bold" style={{ color: BRAND.muted }}>Choose your options and quantity. The live price comes from the internal storefront pricing contract.</div>
 
     {optionGroups.length ? <div className="mt-5 space-y-4">{optionGroups.map((group) => <div key={group.key}>
       <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>{group.label}</div>
@@ -95,12 +95,12 @@ export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, ca
     <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} min="1" type="number" className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
 
     <div className="mt-5 rounded-[20px] border p-5" style={{ borderColor: BRAND.line }}>
-      <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.muted }}>Live price</div>
+      <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.muted }}>Live backend price</div>
       <div className="mt-1 text-[28px] font-black tracking-[-0.05em]" style={{ color: BRAND.ink }}>{price.loading ? 'Checking price…' : price.ok ? price.formattedPrice : 'Price unavailable'}</div>
       {!price.loading && !price.ok ? <div className="mt-2 text-[12px]" style={{ color: BRAND.muted }}>{price.error}</div> : null}
     </div>
 
     {price.ok ? <a href={addToBasketHref} className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Add to basket</a> : <button disabled className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white opacity-50" style={{ backgroundColor: BRAND.primary }}>Add to basket</button>}
-    <div className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>{title} pricing is controlled by admin product setup, pricing matrix and tax settings.</div>
+    <div className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>{title} pricing and VAT are controlled by the backend product setup, pricing matrix, tax settings and global VAT rules.</div>
   </div>;
 }

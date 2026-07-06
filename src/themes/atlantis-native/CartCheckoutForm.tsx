@@ -46,7 +46,7 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
     return () => { alive = false; };
   }, [tenantSlug, storeSlug, productSlug, categorySlug, selectedOptions, quantity, delivery]);
 
-  return <form action="/api/native-storefront/checkout" method="post" encType="multipart/form-data" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
+  return <form action="/api/native-storefront/checkout-artwork" method="post" encType="multipart/form-data" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
     <input type="hidden" name="tenantSlug" value={tenantSlug} />
     <input type="hidden" name="storeSlug" value={storeSlug} />
     <input type="hidden" name="productSlug" value={productSlug} />

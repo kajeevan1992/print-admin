@@ -45,7 +45,7 @@ function publicMessage(stage: string, ticket: Store | null, plannerJob: Store | 
   if (block) return block;
   if (ticket?.customerProofStatus === 'revision-requested') return 'We need revised artwork before this order can continue.';
   if (ticket?.customerProofStatus === 'pending-customer-approval') return 'Your proof is ready and waiting for approval.';
-  if (ticket?.artworkStatus === 'preflight-fail') return 'Artwork has a preflight issue. Our team will contact you or request replacement artwork.';
+  if (ticket?.artworkStatus === 'preflight-fail') return 'Artwork has a preflight issue. Please upload replacement artwork.';
   if (ticket?.artworkStatus === 'preflight-warning') return 'Artwork needs a final review before print release.';
   if (stage === 'production') return 'Your order has been released to production.';
   if (stage === 'dispatch') return 'Your order is being packed or prepared for handover.';
@@ -67,16 +67,16 @@ function progress(stage: string) {
 function compactOrder(order: Store) {
   return { id: order.id, orderNumber: order.orderNumber, status: order.status, total: order.total, currency: order.currency, createdAt: order.createdAt, updatedAt: order.updatedAt, customerName: order.customerName, items: (order.items || []).map((item: Store) => ({ productName: item.productName, quantity: item.quantity, totalPrice: item.totalPrice, sku: item.sku })) };
 }
-function proofActionUrl(order: Store, ticket: Store | null) {
-  if (!ticket) return '';
+function customerUrl(order: Store, path: string) {
   const params = new URLSearchParams({ orderId: String(order.orderNumber || order.id) });
   if (order.customerEmail) params.set('email', String(order.customerEmail));
-  return `/proof-action?${params.toString()}`;
+  return `${path}?${params.toString()}`;
 }
 function compactTicket(ticket: Store | null, order: Store) {
   if (!ticket) return null;
   const needsCustomerDecision = ticket.customerProofStatus === 'pending-customer-approval' || ['preflight-pass', 'preflight-warning'].includes(String(ticket.artworkStatus));
-  return { id: ticket.id, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, dueDate: ticket.dueDate, artworkUploadId: ticket.artworkUploadId, updatedAt: ticket.updatedAt, needsCustomerDecision, proofActionUrl: proofActionUrl(order, ticket) };
+  const needsReplacementArtwork = ticket.customerProofStatus === 'revision-requested' || ['changes-requested', 'preflight-fail'].includes(String(ticket.artworkStatus));
+  return { id: ticket.id, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, dueDate: ticket.dueDate, artworkUploadId: ticket.artworkUploadId, updatedAt: ticket.updatedAt, needsCustomerDecision, needsReplacementArtwork, proofActionUrl: customerUrl(order, '/proof-action'), uploadArtworkUrl: customerUrl(order, '/storefront/upload-artwork') };
 }
 function compactPlanner(job: Store | null) {
   if (!job) return null;

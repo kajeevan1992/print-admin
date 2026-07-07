@@ -13,6 +13,15 @@ const nextConfig = {
     cpus: 1,
     workerThreads: false,
   },
+  async redirects() {
+    return [
+      {
+        source: '/upload-artwork',
+        destination: '/storefront/upload-artwork',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

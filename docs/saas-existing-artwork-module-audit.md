@@ -22,8 +22,8 @@ This note records the existing SaaS modules that must be extended before adding 
 
 - `src/components/storefront/upload-order-attachment-panel.tsx`
   - Existing order attachment panel.
-  - Current state: visual workflow options only.
-  - Next build target: reflect live order/proof ticket attachment state.
+  - Current state: live customer order/proof attachment panel connected to `/api/native-storefront/order-status`.
+  - Reads `orderId` / `orderNumber` from the page URL and shows order attachment, artwork, preflight, proof, and production gate state.
 
 - `app/api/native-storefront/artwork-revision/route.ts`
   - Existing live customer replacement artwork endpoint.

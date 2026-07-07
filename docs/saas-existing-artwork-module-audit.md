@@ -25,6 +25,11 @@ This note records the existing SaaS modules that must be extended before adding 
   - Current state: live customer order/proof attachment panel connected to `/api/native-storefront/order-status`.
   - Reads `orderId` / `orderNumber` from the page URL and shows order attachment, artwork, preflight, proof, and production gate state.
 
+- `src/core/storefront/customer-order-status.service.ts`
+  - Existing customer order tracking/status aggregator.
+  - Current state: exposes proof decision and canonical SaaS artwork upload action links.
+  - Returns `artwork.needsCustomerDecision`, `artwork.proofActionUrl`, `artwork.needsReplacementArtwork`, and `artwork.uploadArtworkUrl`.
+
 - `app/api/native-storefront/artwork-revision/route.ts`
   - Existing live customer replacement artwork endpoint.
   - Current state: validates order/email, saves file through the existing artwork upload service, runs existing preflight, updates proof ticket, records revision history, and keeps matching planner job blocked until approval.

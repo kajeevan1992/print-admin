@@ -36,5 +36,5 @@ export const operationsService = {
   saveArtworkProof: async (proof: ArtworkProof) => upsert(KEYS.artworkProofs, proof, 'Artwork Proofs'),
   deleteArtworkProof: async (id: string) => remove<ArtworkProof>(KEYS.artworkProofs, id, 'Artwork Proofs'),
   getGeneralSettings: async (): Promise<GeneralSetting[]> => readDbList(KEYS.settings),
-  saveGeneralSetting: async (setting: GeneralSetting) => upsert(KEYS.settings, 'General Settings' as any)
+  saveGeneralSetting: async (setting: GeneralSetting) => upsert(KEYS.settings, setting, 'General Settings')
 };

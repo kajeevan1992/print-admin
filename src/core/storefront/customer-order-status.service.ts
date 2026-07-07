@@ -28,9 +28,7 @@ function findForOrder(items: Store[], order: Store) {
   const keys = [order.id, order.orderNumber, ...(Array.isArray(order.artworkUploadIds) ? order.artworkUploadIds : [])].filter(Boolean).map(String);
   return items.find((item) => keys.some((key) => [item.orderId, item.orderNumber, item.id, item.artworkUploadId, item.productionTicketId, item.workflowId].filter(Boolean).map(String).includes(key))) || null;
 }
-function stageIndex(value: string) {
-  return ['order', 'artwork', 'proof', 'production', 'dispatch', 'complete'].indexOf(value);
-}
+function stageIndex(value: string) { return ['order', 'artwork', 'proof', 'production', 'dispatch', 'complete'].indexOf(value); }
 function deriveCurrentStage(order: Store, ticket: Store | null, plannerJob: Store | null) {
   const orderStatus = cleanStatus(order.status);
   if (plannerJob?.stage === 'completed' || ['delivered', 'dispatched'].includes(orderStatus)) return 'complete';
@@ -67,21 +65,18 @@ function progress(stage: string) {
   ].map((step) => ({ ...step, state: stageIndex(step.key) < active ? 'done' : stageIndex(step.key) === active ? 'active' : 'pending' }));
 }
 function compactOrder(order: Store) {
-  return {
-    id: order.id,
-    orderNumber: order.orderNumber,
-    status: order.status,
-    total: order.total,
-    currency: order.currency,
-    createdAt: order.createdAt,
-    updatedAt: order.updatedAt,
-    customerName: order.customerName,
-    items: (order.items || []).map((item: Store) => ({ productName: item.productName, quantity: item.quantity, totalPrice: item.totalPrice, sku: item.sku })),
-  };
+  return { id: order.id, orderNumber: order.orderNumber, status: order.status, total: order.total, currency: order.currency, createdAt: order.createdAt, updatedAt: order.updatedAt, customerName: order.customerName, items: (order.items || []).map((item: Store) => ({ productName: item.productName, quantity: item.quantity, totalPrice: item.totalPrice, sku: item.sku })) };
 }
-function compactTicket(ticket: Store | null) {
+function proofActionUrl(order: Store, ticket: Store | null) {
+  if (!ticket) return '';
+  const params = new URLSearchParams({ orderId: String(order.orderNumber || order.id) });
+  if (order.customerEmail) params.set('email', String(order.customerEmail));
+  return `/proof-action?${params.toString()}`;
+}
+function compactTicket(ticket: Store | null, order: Store) {
   if (!ticket) return null;
-  return { id: ticket.id, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, dueDate: ticket.dueDate, artworkUploadId: ticket.artworkUploadId, updatedAt: ticket.updatedAt };
+  const needsCustomerDecision = ticket.customerProofStatus === 'pending-customer-approval' || ['preflight-pass', 'preflight-warning'].includes(String(ticket.artworkStatus));
+  return { id: ticket.id, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, dueDate: ticket.dueDate, artworkUploadId: ticket.artworkUploadId, updatedAt: ticket.updatedAt, needsCustomerDecision, proofActionUrl: proofActionUrl(order, ticket) };
 }
 function compactPlanner(job: Store | null) {
   if (!job) return null;
@@ -101,14 +96,5 @@ export async function resolveCustomerOrderStatus(request: Request, orderId: stri
   const ticket = findForOrder(tickets, order as Store);
   const plannerJob = findForOrder(Array.isArray((planner as any).jobs) ? (planner as any).jobs : [], { ...(order as Store), productionTicketId: ticket?.id || '', workflowId: ticket ? `ticket-${ticket.id || ticket.orderNumber}` : '' });
   const currentStage = deriveCurrentStage(order as Store, ticket, plannerJob);
-  return {
-    order: compactOrder(order as Store),
-    currentStage,
-    message: publicMessage(currentStage, ticket, plannerJob),
-    progress: progress(currentStage),
-    artwork: compactTicket(ticket),
-    production: compactPlanner(plannerJob),
-    dispatch: compactDispatch(plannerJob),
-    generatedAt: new Date().toISOString(),
-  };
+  return { order: compactOrder(order as Store), currentStage, message: publicMessage(currentStage, ticket, plannerJob), progress: progress(currentStage), artwork: compactTicket(ticket, order as Store), production: compactPlanner(plannerJob), dispatch: compactDispatch(plannerJob), generatedAt: new Date().toISOString() };
 }

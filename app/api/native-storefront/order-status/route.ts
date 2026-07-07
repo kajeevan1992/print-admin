@@ -11,6 +11,12 @@ function corsHeaders() {
   };
 }
 function json(data: unknown, init?: ResponseInit) { return NextResponse.json(data, { ...init, headers: { ...corsHeaders(), ...(init?.headers || {}) } }); }
+function normalizedStatus(status: any) {
+  const actions = [];
+  if (status?.artwork?.needsReplacementArtwork && status.artwork.uploadArtworkUrl) actions.push({ type: 'upload-artwork', label: 'Upload artwork', title: 'Replacement artwork needed', href: status.artwork.uploadArtworkUrl, priority: 'high' });
+  if (status?.artwork?.needsCustomerDecision && status.artwork.proofActionUrl) actions.push({ type: 'proof-review', label: 'Review proof', title: 'Proof approval needed', href: status.artwork.proofActionUrl, priority: 'high' });
+  return { ...status, actions, nextAction: status?.nextAction || actions[0] || null };
+}
 
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: corsHeaders() }); }
 
@@ -22,7 +28,7 @@ export async function GET(request: NextRequest) {
     const status = await resolveCustomerOrderStatus(request, orderId, email);
     if (!status) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
     if ((status as any).forbidden) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
-    return json({ ok: true, source: 'native-storefront-order-status', data: status });
+    return json({ ok: true, source: 'native-storefront-order-status', data: normalizedStatus(status) });
   } catch (error) {
     return json({ ok: false, source: 'native-storefront-order-status', error: error instanceof Error ? error.message : 'Order status failed.' }, { status: 500 });
   }

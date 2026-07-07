@@ -16,8 +16,9 @@ This note records the existing SaaS modules that must be extended before adding 
 
 - `src/components/storefront/upload-records-panel.tsx`
   - Existing recent uploads panel.
-  - Current state: seed data from `artworkUploadSeed`.
-  - Next build target: connect this panel to live artwork upload records instead of seed data.
+  - Current state: live client panel connected to `/api/internal/storefront/artwork/uploads`.
+  - Reads `orderId` / `orderNumber` from the page URL and filters uploads for the customer order.
+  - Falls back to seed data only when no order filter is supplied and no live records are found.
 
 - `src/components/storefront/upload-order-attachment-panel.tsx`
   - Existing order attachment panel.

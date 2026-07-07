@@ -20,16 +20,16 @@ type BridgeInput = {
   artworkNotes?: string;
   upload?: StoredArtworkUpload | null;
   priceMinor?: number;
+  paymentStatus?: string;
+  paymentProvider?: string;
+  orderStatus?: string;
 };
 
-function todayPlus(days: number) {
-  return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
-}
-
+function todayPlus(days: number) { return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10); }
+function normalisePayment(value?: string) { return String(value || '').trim().toLowerCase() || 'unknown'; }
 function statusFromUpload(input: BridgeInput) {
   if (input.artworkStatus === 'need-design') return { artworkStatus: 'design-required', preflightStatus: 'not-started', stage: 'proofing', status: 'artwork-check', handoffState: 'blocked', risk: 'high' };
   if (input.artworkStatus !== 'ready' || !input.upload) return { artworkStatus: 'missing', preflightStatus: 'not-started', stage: 'proofing', status: 'artwork-check', handoffState: 'needs-artwork', risk: 'medium' };
-
   const preflightStatus = String((input.upload.preflight as any)?.preflight?.status || '').toLowerCase();
   if (preflightStatus === 'blocked' || input.upload.reviewStatus === 'replacement-requested') return { artworkStatus: 'preflight-fail', preflightStatus: 'fail', stage: 'proofing', status: 'blocked', handoffState: 'blocked', risk: 'high' };
   if (preflightStatus === 'warning') return { artworkStatus: 'preflight-warning', preflightStatus: 'warning', stage: 'proofing', status: 'artwork-check', handoffState: 'needs-artwork', risk: 'medium' };
@@ -55,20 +55,8 @@ async function readItems(ctx: TenantContext) {
     throw error;
   }
 }
-
 async function saveItems(ctx: TenantContext, items: Record<string, any>[]) {
-  return upsertInternalCatalogRecord(ctx, CONFIG_RESOURCE, {
-    id: TICKETS_KEY,
-    slug: TICKETS_KEY,
-    name: 'Production Job Tickets',
-    description: 'Manufacturing job tickets with storefront artwork/preflight handoff',
-    metadataJson: {
-      items,
-      savedAt: new Date().toISOString(),
-      storageKey: TICKETS_KEY,
-      source: 'storefront-artwork-production-bridge',
-    },
-  } as any);
+  return upsertInternalCatalogRecord(ctx, CONFIG_RESOURCE, { id: TICKETS_KEY, slug: TICKETS_KEY, name: 'Production Job Tickets', description: 'Manufacturing job tickets with storefront artwork, preflight, payment and production handoff', metadataJson: { items, savedAt: new Date().toISOString(), storageKey: TICKETS_KEY, source: 'storefront-artwork-production-bridge' } } as any);
 }
 
 export async function upsertArtworkProductionTicket(input: BridgeInput) {
@@ -76,6 +64,7 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
   const state = statusFromUpload(input);
   const warnings = preflightMessages(input.upload);
   const id = `pj-${input.orderNumber}`.replace(/[^a-zA-Z0-9._-]+/g, '-');
+  const paymentStatus = normalisePayment(input.paymentStatus || 'pending');
   const ticket = {
     id,
     orderId: input.orderId || null,
@@ -88,6 +77,10 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
     quantity: input.quantity || 1,
     selectedDelivery: input.selectedDelivery || '',
     priceMinor: input.priceMinor || 0,
+    orderStatus: input.orderStatus || 'AWAITING_PAYMENT',
+    paymentStatus,
+    paymentProvider: input.paymentProvider || 'stripe',
+    paymentGate: ['paid', 'captured', 'authorized'].includes(paymentStatus) ? 'paid' : 'awaiting-payment',
     plant: 'Default Production',
     stage: state.stage,
     status: state.status,
@@ -101,11 +94,7 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
     assignedOperator: 'Prepress Team',
     owner: 'Prepress Team',
     priority: state.risk === 'high' ? 'rush' : 'standard',
-    productionNotes: [
-      input.artworkNotes,
-      input.upload ? `Artwork upload ${input.upload.id}: ${input.upload.originalName}` : 'Artwork not uploaded at checkout.',
-      warnings.length ? warnings.join(' ') : '',
-    ].filter(Boolean).join(' '),
+    productionNotes: [input.artworkNotes, input.upload ? `Artwork upload ${input.upload.id}: ${input.upload.originalName}` : 'Artwork not uploaded at checkout.', `Payment status: ${paymentStatus}.`, warnings.length ? warnings.join(' ') : ''].filter(Boolean).join(' '),
     artworkUploadId: input.upload?.id || null,
     artworkFileUrl: input.upload?.fileUrl || null,
     artworkDownloadUrl: input.upload?.downloadUrl || null,
@@ -114,7 +103,6 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
     updatedAt: now,
     source: 'native-storefront-checkout',
   };
-
   const items = await readItems(input.ctx);
   const next = [ticket, ...items.filter((item) => String(item.orderNumber || item.id) !== input.orderNumber && String(item.id) !== id)];
   await saveItems(input.ctx, next);

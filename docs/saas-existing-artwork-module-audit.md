@@ -6,23 +6,26 @@ This note records the existing SaaS modules that must be extended before adding 
 
 - `app/storefront/upload-artwork/page.tsx`
   - Existing customer-facing storefront artwork page.
-  - Current state: frontend foundation shell.
-  - Uses the existing storefront layout and upload panels.
+  - Current state: live customer replacement upload page using the existing storefront layout and upload panels.
+  - Uses `UploadDropzoneCard`, which now posts to `/api/native-storefront/artwork-revision`.
 
 - `src/components/storefront/upload-dropzone-card.tsx`
   - Existing upload card component.
-  - Current state: visual shell, no real file input/API submit.
+  - Current state: live file picker and order upload form.
+  - Handles order number, optional email, optional note, file upload, success/error state, and latest upload/preflight summary.
 
 - `src/components/storefront/upload-records-panel.tsx`
   - Existing recent uploads panel.
   - Current state: seed data from `artworkUploadSeed`.
+  - Next build target: connect this panel to live artwork upload records instead of seed data.
 
 - `src/components/storefront/upload-order-attachment-panel.tsx`
   - Existing order attachment panel.
   - Current state: visual workflow options only.
+  - Next build target: reflect live order/proof ticket attachment state.
 
 - `app/api/native-storefront/artwork-revision/route.ts`
-  - Existing live customer replacement artwork endpoint added in the recent workflow builds.
+  - Existing live customer replacement artwork endpoint.
   - Current state: validates order/email, saves file through the existing artwork upload service, runs existing preflight, updates proof ticket, records revision history, and keeps matching planner job blocked until approval.
 
 - `app/api/internal/storefront/artwork/upload/route.ts`
@@ -45,13 +48,13 @@ This note records the existing SaaS modules that must be extended before adding 
 
 Do not create another standalone customer artwork upload module without first checking these files.
 
-The next implementation should connect `app/storefront/upload-artwork/page.tsx` and its existing components to `/api/native-storefront/artwork-revision` instead of relying on the duplicate `/upload-artwork` route.
+Extend `app/storefront/upload-artwork/page.tsx` and its existing components before adding any new customer upload route.
 
-## Duplicate to remove or redirect
+## Duplicate route cleanup
 
 - `app/upload-artwork/page.tsx`
-  - This was added as a temporary live customer upload page.
-  - It should be replaced by the existing SaaS route or redirected to `app/storefront/upload-artwork/page.tsx` once the existing route is connected.
+  - Status: removed.
+  - The old `/upload-artwork` URL now redirects to `/storefront/upload-artwork` from `next.config.mjs`.
 
 ## Desired final flow
 

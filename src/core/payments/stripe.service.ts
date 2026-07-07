@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 import { canCreatePaymentSessionForOrder } from '@/core/payments/payment-rules';
@@ -9,6 +10,8 @@ type StripeEvent = { id?: string; type?: string; data?: { object?: any } };
 
 const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 const SIGNATURE_TOLERANCE_SECONDS = 300;
+const CONFIG_RESOURCE = 'admin-config' as any;
+const TICKETS_KEY = 'production-job-tickets';
 
 function secretKey() { return process.env.STRIPE_SECRET_KEY || ''; }
 export function stripePublicConfig() { return { publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '', enabled: Boolean(process.env.STRIPE_SECRET_KEY), mode: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test' }; }
@@ -16,14 +19,12 @@ function assertStripeConfigured() { if (!secretKey()) throw new Error('Stripe is
 function form(params: Record<string, string | number | boolean | undefined | null>) { const body = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') body.append(key, String(value)); }); return body; }
 function appBase(request: Request) { const url = new URL(request.url); return `${url.protocol}//${url.host}`; }
 function defaultReturnUrl(request: Request, path: string, orderId: string) { const base = String(process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || appBase(request)).replace(/\/$/, ''); return `${base}${path}?orderId=${encodeURIComponent(orderId)}&session_id={CHECKOUT_SESSION_ID}`; }
+function paymentGate(status: string) { return ['paid', 'captured', 'authorized'].includes(String(status || '').toLowerCase()) ? 'paid' : 'awaiting-payment'; }
+async function readTickets(request: Request) { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, TICKETS_KEY); const items = (record as any)?.metadataJson?.items; return Array.isArray(items) ? items as Record<string, any>[] : []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
+async function writeTickets(request: Request, items: Record<string, any>[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: TICKETS_KEY, slug: TICKETS_KEY, name: 'Production Job Tickets', description: 'Manufacturing job tickets with storefront artwork, preflight, payment and production handoff', metadataJson: { items, savedAt: new Date().toISOString(), storageKey: TICKETS_KEY, source: 'stripe-payment-sync' } } as any); }
+async function syncTicketPayment(request: Request, order: any, status: string, note: string) { const items = await readTickets(request).catch(() => []); if (!items.length) return { updated: false, reason: 'no tickets' }; let changed = false; const now = new Date().toISOString(); const next = items.map((ticket) => { const match = [ticket.orderId, ticket.orderNumber, ticket.id].filter(Boolean).map(String).includes(String(order.id)) || [ticket.orderId, ticket.orderNumber].filter(Boolean).map(String).includes(String(order.orderNumber)); if (!match) return ticket; changed = true; return { ...ticket, paymentStatus: status, paymentGate: paymentGate(status), paymentProvider: 'stripe', orderStatus: order.status, paidAt: status === 'paid' ? now : ticket.paidAt || '', updatedAt: now, productionNotes: [ticket.productionNotes, note].filter(Boolean).join(' ') }; }); if (changed) await writeTickets(request, next); return { updated: changed }; }
 
-async function stripePost(path: string, params: Record<string, string | number | boolean | undefined | null>) {
-  assertStripeConfigured();
-  const response = await fetch(`${STRIPE_API_BASE}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${secretKey()}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(params) });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`);
-  return payload;
-}
+async function stripePost(path: string, params: Record<string, string | number | boolean | undefined | null>) { assertStripeConfigured(); const response = await fetch(`${STRIPE_API_BASE}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${secretKey()}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(params) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`); return payload; }
 async function stripeGet(path: string) { assertStripeConfigured(); const response = await fetch(`${STRIPE_API_BASE}${path}`, { headers: { Authorization: `Bearer ${secretKey()}` } }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`); return payload; }
 
 export async function createStripeCheckoutSession(request: Request, input: StripeSessionInput) {
@@ -35,17 +36,9 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
   const successUrl = input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
   const cancelUrl = input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);
   const email = input.customerEmail || order.customerEmail || undefined;
-  const session = await stripePost('/checkout/sessions', {
-    mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id,
-    'line_items[0][quantity]': 1,
-    'line_items[0][price_data][currency]': String(order.currency || 'GBP').toLowerCase(),
-    'line_items[0][price_data][unit_amount]': order.totalMinor,
-    'line_items[0][price_data][product_data][name]': `Order ${order.orderNumber}`,
-    'line_items[0][price_data][product_data][description]': `${order.items?.length || 0} print item(s)`,
-    'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[tenantId]': tenant.tenantId || '',
-    'payment_intent_data[metadata][orderId]': order.id, 'payment_intent_data[metadata][orderNumber]': order.orderNumber, 'payment_intent_data[metadata][tenantId]': tenant.tenantId || '',
-  });
+  const session = await stripePost('/checkout/sessions', { mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id, 'line_items[0][quantity]': 1, 'line_items[0][price_data][currency]': String(order.currency || 'GBP').toLowerCase(), 'line_items[0][price_data][unit_amount]': order.totalMinor, 'line_items[0][price_data][product_data][name]': `Order ${order.orderNumber}`, 'line_items[0][price_data][product_data][description]': `${order.items?.length || 0} print item(s)`, 'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[tenantId]': tenant.tenantId || '', 'payment_intent_data[metadata][orderId]': order.id, 'payment_intent_data[metadata][orderNumber]': order.orderNumber, 'payment_intent_data[metadata][tenantId]': tenant.tenantId || '' });
   await updateOrder(request, order.id, { paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paymentFailureReason: '', internalNotes: [...(order.internalNotes || []), `Stripe checkout session created: ${session.id}`] });
+  await syncTicketPayment(request, order, 'pending', `Stripe checkout session created: ${session.id}.`).catch(() => null);
   return { session, order };
 }
 
@@ -56,47 +49,14 @@ export async function markStripeCheckoutCancelled(request: Request, input: { ord
   if (!order) throw new Error('Order not found.');
   if (String(order.paymentStatus || '').toLowerCase() === 'paid') return { ok: true, order, skipped: true, reason: 'Order is already paid.' };
   const note = `Stripe checkout cancelled by ${input.actor || 'customer'}.${input.sessionId ? ` Session: ${input.sessionId}.` : ''}`;
-  const updated = await updateOrder(request, order.id, {
-    status: order.status === 'AWAITING_PAYMENT' ? 'AWAITING_PAYMENT' : order.status,
-    paymentStatus: 'cancelled',
-    paymentProvider: order.paymentProvider || 'stripe',
-    stripeCheckoutSessionId: input.sessionId || order.stripeCheckoutSessionId || '',
-    paymentFailureReason: 'customer-cancelled-checkout',
-    internalNotes: [...(order.internalNotes || []), note],
-  });
+  const updated = await updateOrder(request, order.id, { status: order.status === 'AWAITING_PAYMENT' ? 'AWAITING_PAYMENT' : order.status, paymentStatus: 'cancelled', paymentProvider: order.paymentProvider || 'stripe', stripeCheckoutSessionId: input.sessionId || order.stripeCheckoutSessionId || '', paymentFailureReason: 'customer-cancelled-checkout', internalNotes: [...(order.internalNotes || []), note] });
+  await syncTicketPayment(request, updated, 'cancelled', note).catch(() => null);
   return { ok: true, order: updated, cancelled: true };
 }
 
-async function resolvePaymentIntentForOrder(request: Request, order: any) {
-  if (order.stripePaymentIntentId) return String(order.stripePaymentIntentId);
-  if (order.stripeCheckoutSessionId) {
-    const session = await getStripeCheckoutSession(String(order.stripeCheckoutSessionId));
-    if (session?.payment_intent) {
-      await updateOrder(request, order.id, { stripePaymentIntentId: session.payment_intent, paymentProvider: 'stripe', internalNotes: [...(order.internalNotes || []), `Stripe payment intent resolved from session ${session.id}: ${session.payment_intent}`] });
-      return String(session.payment_intent);
-    }
-  }
-  return '';
-}
+async function resolvePaymentIntentForOrder(request: Request, order: any) { if (order.stripePaymentIntentId) return String(order.stripePaymentIntentId); if (order.stripeCheckoutSessionId) { const session = await getStripeCheckoutSession(String(order.stripeCheckoutSessionId)); if (session?.payment_intent) { await updateOrder(request, order.id, { stripePaymentIntentId: session.payment_intent, paymentProvider: 'stripe', internalNotes: [...(order.internalNotes || []), `Stripe payment intent resolved from session ${session.id}: ${session.payment_intent}`] }); return String(session.payment_intent); } } return ''; }
 
-export async function createStripeRefundForOrder(request: Request, input: StripeRefundInput) {
-  const order = await getOrder(request, input.orderId);
-  if (!order) throw new Error('Order not found.');
-  const paymentIntentId = await resolvePaymentIntentForOrder(request, order);
-  if (!paymentIntentId) throw new Error('No Stripe payment intent is linked to this order, so a real Stripe refund cannot be created. Use refund note for manual/offline refunds.');
-  const amountMinor = Number(input.amountMinor || 0);
-  if (amountMinor < 0) throw new Error('Refund amount cannot be negative.');
-  const refund = await stripePost('/refunds', {
-    payment_intent: paymentIntentId,
-    amount: amountMinor > 0 ? Math.round(amountMinor) : undefined,
-    reason: input.reason || 'requested_by_customer',
-    'metadata[orderId]': order.id,
-    'metadata[orderNumber]': order.orderNumber,
-    'metadata[actor]': input.actor || 'admin',
-    'metadata[note]': input.note || '',
-  });
-  return { refund, order, paymentIntentId };
-}
+export async function createStripeRefundForOrder(request: Request, input: StripeRefundInput) { const order = await getOrder(request, input.orderId); if (!order) throw new Error('Order not found.'); const paymentIntentId = await resolvePaymentIntentForOrder(request, order); if (!paymentIntentId) throw new Error('No Stripe payment intent is linked to this order, so a real Stripe refund cannot be created. Use refund note for manual/offline refunds.'); const amountMinor = Number(input.amountMinor || 0); if (amountMinor < 0) throw new Error('Refund amount cannot be negative.'); const refund = await stripePost('/refunds', { payment_intent: paymentIntentId, amount: amountMinor > 0 ? Math.round(amountMinor) : undefined, reason: input.reason || 'requested_by_customer', 'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[actor]': input.actor || 'admin', 'metadata[note]': input.note || '' }); return { refund, order, paymentIntentId }; }
 
 export async function applyStripeCheckoutSessionToOrder(request: Request, session: any, eventType = 'manual') {
   const orderId = session?.metadata?.orderId || session?.client_reference_id;
@@ -109,27 +69,10 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   const nextPaymentStatus = paid ? 'paid' : failed ? 'failed' : session.payment_status || 'pending';
   const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : failed ? `Stripe payment failed or expired. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
   const updated = await updateOrder(request, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: [...(order.internalNotes || []), note] });
+  await syncTicketPayment(request, updated, nextPaymentStatus, note).catch(() => null);
   return { ok: true, order: updated, paid, failed, eventType };
 }
 
 function parseStripeSignature(header: string) { return header.split(',').reduce((acc, part) => { const [key, value] = part.split('='); if (key && value) { if (!acc[key]) acc[key] = []; acc[key].push(value); } return acc; }, {} as Record<string, string[]>); }
-function verifyStripeSignature(raw: string, header: string, secret: string) {
-  const parsed = parseStripeSignature(header);
-  const timestamp = Number(parsed.t?.[0] || 0);
-  const signatures = parsed.v1 || [];
-  if (!timestamp || !signatures.length) throw new Error('Invalid Stripe signature header.');
-  const age = Math.abs(Math.floor(Date.now() / 1000) - timestamp);
-  if (age > SIGNATURE_TOLERANCE_SECONDS) throw new Error('Stripe webhook timestamp is outside tolerance.');
-  const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${raw}`, 'utf8').digest('hex');
-  const expectedBuffer = Buffer.from(expected, 'hex');
-  const valid = signatures.some((signature) => { const actualBuffer = Buffer.from(signature, 'hex'); return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer); });
-  if (!valid) throw new Error('Stripe webhook signature verification failed.');
-}
-
-export async function parseStripeWebhookEvent(request: Request): Promise<StripeEvent> {
-  const raw = await request.text();
-  const signingSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
-  const signature = request.headers.get('stripe-signature') || '';
-  if (signingSecret) verifyStripeSignature(raw, signature, signingSecret);
-  return JSON.parse(raw || '{}');
-}
+function verifyStripeSignature(raw: string, header: string, secret: string) { const parsed = parseStripeSignature(header); const timestamp = Number(parsed.t?.[0] || 0); const signatures = parsed.v1 || []; if (!timestamp || !signatures.length) throw new Error('Invalid Stripe signature header.'); const age = Math.abs(Math.floor(Date.now() / 1000) - timestamp); if (age > SIGNATURE_TOLERANCE_SECONDS) throw new Error('Stripe webhook timestamp is outside tolerance.'); const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${raw}`, 'utf8').digest('hex'); const expectedBuffer = Buffer.from(expected, 'hex'); const valid = signatures.some((signature) => { const actualBuffer = Buffer.from(signature, 'hex'); return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer); }); if (!valid) throw new Error('Stripe webhook signature verification failed.'); }
+export async function parseStripeWebhookEvent(request: Request): Promise<StripeEvent> { const raw = await request.text(); const signingSecret = process.env.STRIPE_WEBHOOK_SECRET || ''; const signature = request.headers.get('stripe-signature') || ''; if (signingSecret) verifyStripeSignature(raw, signature, signingSecret); return JSON.parse(raw || '{}'); }

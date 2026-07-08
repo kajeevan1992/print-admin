@@ -18,15 +18,17 @@ function plannerRisk(job: any) { if (job.stage === 'blocked' || job.productionBl
 function dispatchStage(ticket: any) { if (ticket.status === 'dispatched') return 'handover'; if (ticket.dispatch?.manifestNumber) return 'manifested'; if (ticket.status === 'packing') return 'ready'; return 'ready'; }
 function serviceFromMethod(method: string) { const value = method.toLowerCase(); if (value.includes('same')) return 'same-day'; if (value.includes('royal')) return 'tracked-24'; if (value.includes('courier') || value.includes('local')) return 'next-day'; if (value.includes('collection')) return 'collection'; return 'tracked-24'; }
 function carrierFromMethod(method: string) { const value = method.toLowerCase(); if (value.includes('royal')) return 'Royal Mail'; if (value.includes('ups')) return 'UPS'; if (value.includes('dhl')) return 'DHL'; return 'DPD'; }
-function isPlannerReleased(job: any) { return !(job.stage === 'blocked' || job.productionBlocked || job.handoffState === 'blocked') && ['dispatch', 'completed'].includes(String(job.stage)); }
+function paymentReleased(job: any) { const status = String(job.paymentStatus || job.paymentGate || '').toLowerCase(); return ['paid', 'captured', 'authorized', 'manual-paid'].includes(status) || String(job.paymentGate || '').toLowerCase() === 'paid'; }
+function isPaymentBlocked(job: any) { return Boolean(job.stage === 'blocked' || job.productionBlocked || job.handoffState === 'blocked') && String(job.blockReason || '').toLowerCase().includes('payment'); }
+function isPlannerReleased(job: any) { return !(job.stage === 'blocked' || job.productionBlocked || job.handoffState === 'blocked') && paymentReleased(job) && ['dispatch', 'completed'].includes(String(job.stage)); }
 function toShipment(ticket: any) {
   const dispatch = ticket.dispatch || {};
-  return { id: ticket.id, productionJobId: ticket.id, source: 'production-ticket', batchCode: dispatch.dispatchBatchId || `JOB-${ticket.orderNumber || ticket.id}`, orderCount: 1, orderNumber: ticket.orderNumber, productName: ticket.productName, customerName: ticket.customerName, carrier: dispatch.carrier || 'DPD', service: dispatch.service || 'tracked-24', dock: dispatch.dock || 'North Dock', stage: dispatchStage(ticket), risk: riskFor(ticket), destinationZone: dispatch.destinationZone || 'UK', scanStatus: dispatch.scanStatus || (ticket.status === 'dispatched' ? 'complete' : 'partial'), cutoffAt: dispatch.cutoffAt || '15:00', trackingNumber: dispatch.trackingNumber || '', manifestNumber: dispatch.manifestNumber || '', status: ticket.status, storageSource: ticket.storageSource, notes: ticket.operatorNotes || ticket.notes || '', updatedAt: ticket.updatedAt };
+  return { id: ticket.id, productionJobId: ticket.id, source: 'production-ticket', batchCode: dispatch.dispatchBatchId || `JOB-${ticket.orderNumber || ticket.id}`, orderCount: 1, orderNumber: ticket.orderNumber, productName: ticket.productName, customerName: ticket.customerName, carrier: dispatch.carrier || 'DPD', service: dispatch.service || 'tracked-24', dock: dispatch.dock || 'North Dock', stage: dispatchStage(ticket), risk: riskFor(ticket), destinationZone: dispatch.destinationZone || 'UK', scanStatus: dispatch.scanStatus || (ticket.status === 'dispatched' ? 'complete' : 'partial'), cutoffAt: dispatch.cutoffAt || '15:00', trackingNumber: dispatch.trackingNumber || '', manifestNumber: dispatch.manifestNumber || '', status: ticket.status, storageSource: ticket.storageSource, paymentStatus: ticket.paymentStatus || ticket.paymentGate || '', paymentGate: ticket.paymentGate || '', notes: ticket.operatorNotes || ticket.notes || '', updatedAt: ticket.updatedAt };
 }
 function toPlannerShipment(job: any) {
   const method = text(job.dispatchMethod || job.selectedDelivery || job.delivery || 'courier');
   const stage = job.stage === 'completed' ? 'handover' : job.manifestNumber ? 'manifested' : 'ready';
-  return { id: `planner-dispatch-${job.id}`, plannerJobId: job.id, productionJobId: job.id, source: 'production-planner', batchCode: job.dispatchBatchId || `JOB-${job.orderNumber || job.id}`, orderCount: 1, orderNumber: job.orderNumber, productName: job.productName || job.product || job.productSlug, customerName: job.customerName || job.customer, carrier: job.carrier || carrierFromMethod(method), service: job.service || serviceFromMethod(method), dock: job.dock || (method.toLowerCase().includes('collection') ? 'Front Counter' : 'North Dock'), stage, risk: plannerRisk(job), destinationZone: job.destinationZone || 'UK', scanStatus: job.stage === 'completed' ? 'complete' : job.scanStatus || 'partial', cutoffAt: job.cutoffAt || '15:00', trackingNumber: job.trackingNumber || '', manifestNumber: job.manifestNumber || '', status: job.status || job.stage, storageSource: job.source || 'production-planner', artworkUploadId: job.artworkUploadId || null, notes: job.blockReason || job.productionNotes || 'Released from artwork-gated production planner.', updatedAt: job.updatedAt };
+  return { id: `planner-dispatch-${job.id}`, plannerJobId: job.id, productionJobId: job.id, source: 'production-planner', batchCode: job.dispatchBatchId || `JOB-${job.orderNumber || job.id}`, orderCount: 1, orderNumber: job.orderNumber, productName: job.productName || job.product || job.productSlug, customerName: job.customerName || job.customer, carrier: job.carrier || carrierFromMethod(method), service: job.service || serviceFromMethod(method), dock: job.dock || (method.toLowerCase().includes('collection') ? 'Front Counter' : 'North Dock'), stage, risk: plannerRisk(job), destinationZone: job.destinationZone || 'UK', scanStatus: job.stage === 'completed' ? 'complete' : job.scanStatus || 'partial', cutoffAt: job.cutoffAt || '15:00', trackingNumber: job.trackingNumber || '', manifestNumber: job.manifestNumber || '', status: job.status || job.stage, storageSource: job.source || 'production-planner', artworkUploadId: job.artworkUploadId || null, paymentStatus: job.paymentStatus || '', paymentGate: job.paymentGate || '', notes: job.blockReason || job.productionNotes || 'Released from proof/payment-gated production planner.', updatedAt: job.updatedAt };
 }
 function mergeShipments(items: any[]) { const byKey = new Map<string, any>(); for (const item of items) { const key = String(item.orderNumber || item.productionJobId || item.id); if (!byKey.has(key)) byKey.set(key, item); else byKey.set(key, { ...byKey.get(key), ...item }); } return Array.from(byKey.values()); }
 
@@ -34,11 +36,14 @@ export async function OPTIONS() { return new NextResponse(null, { status: 204, h
 
 export async function GET(request: Request) {
   const [tickets, planner] = await Promise.all([listProductionJobTickets(request).catch(() => []), syncPlannerFromWorkflow(request).catch(() => ({ jobs: [] }))]);
+  const plannerJobs = Array.isArray((planner as any).jobs) ? (planner as any).jobs : [];
   const ticketShipments = tickets.filter((ticket: any) => ['packing', 'dispatched'].includes(ticket.status)).map(toShipment);
-  const plannerShipments = (Array.isArray((planner as any).jobs) ? (planner as any).jobs : []).filter(isPlannerReleased).map(toPlannerShipment);
+  const plannerShipments = plannerJobs.filter(isPlannerReleased).map(toPlannerShipment);
   const items = mergeShipments([...ticketShipments, ...plannerShipments]);
-  const held = (Array.isArray((planner as any).jobs) ? (planner as any).jobs : []).filter((job: any) => job.stage === 'blocked' || job.productionBlocked || job.handoffState === 'blocked').length;
-  return json({ ok: true, source: 'dispatch-from-production-tickets-and-artwork-gated-planner', data: { items, count: items.length, heldByArtworkGate: held } });
+  const heldJobs = plannerJobs.filter((job: any) => job.stage === 'blocked' || job.productionBlocked || job.handoffState === 'blocked');
+  const heldByPaymentGate = heldJobs.filter(isPaymentBlocked).length;
+  const heldByArtworkGate = heldJobs.length - heldByPaymentGate;
+  return json({ ok: true, source: 'dispatch-from-production-tickets-and-proof-payment-gated-planner', data: { items, count: items.length, heldByArtworkGate, heldByPaymentGate, heldTotal: heldJobs.length } });
 }
 
 export async function POST(request: Request) {
@@ -50,7 +55,8 @@ export async function POST(request: Request) {
     const planner = await syncPlannerFromWorkflow(request).catch(() => ({ jobs: [] }));
     const plannerJob = (Array.isArray((planner as any).jobs) ? (planner as any).jobs : []).find((job: any) => String(job.id) === id || String(job.orderNumber) === id);
     if (plannerJob) {
-      if (plannerJob.stage === 'blocked' || plannerJob.productionBlocked || plannerJob.handoffState === 'blocked') return json({ ok: false, source: 'production-planner', error: plannerJob.blockReason || 'Artwork approval is required before dispatch.' }, { status: 400 });
+      if (plannerJob.stage === 'blocked' || plannerJob.productionBlocked || plannerJob.handoffState === 'blocked') return json({ ok: false, source: 'production-planner', error: plannerJob.blockReason || 'Proof approval and captured payment are required before dispatch.' }, { status: 400 });
+      if (!paymentReleased(plannerJob)) return json({ ok: false, source: 'production-planner', error: 'Payment has not been captured or authorised before dispatch.' }, { status: 400 });
       if (action === 'mark-dispatched' || body.stage === 'handover') {
         const result = await updatePlannerJob(request, { jobId: plannerJob.id, action: 'complete', note: 'Marked dispatched from Dispatch Center.' });
         const updated = (result.jobs || []).find((job: any) => String(job.id) === String(plannerJob.id)) || result.job || plannerJob;

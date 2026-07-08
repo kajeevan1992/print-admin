@@ -1,7 +1,7 @@
 import type { Id } from '@/types/common';
 
 export type OrderStatus = 'draft' | 'pending' | 'approved' | 'in-production' | 'shipped' | 'completed' | 'cancelled';
-export type PaymentStatus = 'unpaid' | 'authorized' | 'paid' | 'failed' | 'refund-pending' | 'refunded';
+export type PaymentStatus = 'unpaid' | 'pending' | 'authorized' | 'captured' | 'paid' | 'failed' | 'cancelled' | 'refund-pending' | 'refunded';
 export type ProductionStage = 'prepress' | 'proofing' | 'queued' | 'printing' | 'finishing' | 'dispatch';
 
 export type OrderLineItem = {

@@ -1,11 +1,14 @@
 import { prisma } from '@/lib/prisma';
+import { getInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { listFulfilmentLocations } from '@/core/locations/location-manager.service';
 import { resolveSeoForPath, buildSitemapXml } from '@/core/seo/seo-public-output.service';
 import { getTenantEmailSettings } from '@/core/email/email-outbox-sender.service';
+import { emailOutboxStorageStatus, listInternalEmails, smtpStatusForRequest } from '@/core/email/internal-email.service';
 import { listCollectionPasses } from '@/core/collection/collection-handover.service';
 import { listCollectionNotifications } from '@/core/collection/collection-notifications.service';
 import { readyCollectionStatuses } from '@/core/collection/ready-collection-automation.service';
+import { stripePublicConfig } from '@/core/payments/stripe.service';
 import { calculateDeliveryVat, calculateVatLine } from '@/core/tax/vat-rules';
 import { buildOrderVatSummary } from '@/core/tax/order-vat-summary';
 
@@ -26,6 +29,11 @@ type RunnerOptions = {
   productSlug?: string;
   locationSlug?: string;
 };
+
+const CONFIG_RESOURCE = 'admin-config' as any;
+const STRIPE_WEBHOOK_EVENTS_KEY = 'stripe-webhook-events';
+const REQUIRED_ORDER_EMAIL_TYPES = ['customer-order-confirmation', 'admin-new-order', 'customer-payment-received', 'customer-payment-link'];
+const REQUIRED_STRIPE_EVENTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'payment_intent.succeeded', 'payment_intent.payment_failed', 'refund.created', 'refund.updated'];
 
 function clean(value: unknown) {
   return String(value || '').trim();
@@ -53,6 +61,11 @@ function moneyMinor(value: number) {
 
 function safeMessage(error: unknown) {
   return error instanceof Error ? error.message : 'Check failed.';
+}
+
+function appBase(request: Request) {
+  const url = new URL(request.url);
+  return `${url.protocol}//${url.host}`;
 }
 
 async function tenantRecord(request: Request) {
@@ -188,6 +201,44 @@ async function collectionChecks(request: Request): Promise<LaunchReadinessCheck[
   return checks;
 }
 
+async function readStripeWebhookEvents(request: Request) {
+  try {
+    const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, STRIPE_WEBHOOK_EVENTS_KEY);
+    const events = (record as any)?.metadataJson?.events;
+    return Array.isArray(events) ? events : [];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message.includes('was not found')) return [];
+    throw error;
+  }
+}
+
+async function paymentChecks(request: Request): Promise<LaunchReadinessCheck[]> {
+  const checks: LaunchReadinessCheck[] = [];
+  try {
+    const config = stripePublicConfig();
+    const webhookSecret = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
+    const webhookUrl = `${appBase(request)}/api/webhooks/stripe`;
+    const events = await readStripeWebhookEvents(request).catch(() => []);
+
+    if (config.enabled) checks.push(pass('stripe-secret-key', 'Payments', 'Stripe secret key', `Stripe secret key is configured in ${config.mode} mode.`, { mode: config.mode }, '/api/internal/payments/stripe/status'));
+    else checks.push(fail('stripe-secret-key', 'Payments', 'Stripe secret key', 'STRIPE_SECRET_KEY is not configured.', 'Add Stripe secret key before taking live card payments.', { mode: config.mode }, '/api/internal/payments/stripe/status'));
+
+    if (config.publishableKey) checks.push(pass('stripe-publishable-key', 'Payments', 'Stripe publishable key', 'Stripe publishable key is configured.', { mode: config.mode }, '/api/internal/payments/stripe/status'));
+    else checks.push(fail('stripe-publishable-key', 'Payments', 'Stripe publishable key', 'Stripe publishable key is missing.', 'Add NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY or STRIPE_PUBLISHABLE_KEY.', undefined, '/api/internal/payments/stripe/status'));
+
+    if (webhookSecret) checks.push(pass('stripe-webhook-secret', 'Payments', 'Stripe webhook signing secret', 'STRIPE_WEBHOOK_SECRET is configured.', { webhookUrl }, '/api/internal/payments/stripe/status'));
+    else checks.push(fail('stripe-webhook-secret', 'Payments', 'Stripe webhook signing secret', 'STRIPE_WEBHOOK_SECRET is missing.', `Add the webhook signing secret for ${webhookUrl}.`, { webhookUrl, requiredEvents: REQUIRED_STRIPE_EVENTS }, '/api/internal/payments/stripe/status'));
+
+    checks.push(pass('stripe-webhook-endpoint', 'Payments', 'Stripe webhook endpoint', `Webhook endpoint is available at ${webhookUrl}.`, { webhookUrl, requiredEvents: REQUIRED_STRIPE_EVENTS }, '/api/webhooks/stripe'));
+    if (events.length) checks.push(pass('stripe-webhook-events', 'Payments', 'Stripe webhook event log', `${events.length} recent Stripe webhook event(s) recorded.`, { sample: events.slice(0, 5) }, '/api/internal/payments/stripe/status'));
+    else checks.push(warn('stripe-webhook-events', 'Payments', 'Stripe webhook event log', 'No Stripe webhook events have been recorded yet.', 'After setting the Stripe webhook, send a test event or complete a test checkout and confirm it appears here.', { requiredEvents: REQUIRED_STRIPE_EVENTS }, '/api/internal/payments/stripe/status'));
+  } catch (error) {
+    checks.push(fail('stripe-payment-status', 'Payments', 'Stripe payment readiness', safeMessage(error), 'Check Stripe status endpoint and environment variables.', undefined, '/api/internal/payments/stripe/status'));
+  }
+  return checks;
+}
+
 async function emailChecks(request: Request): Promise<LaunchReadinessCheck[]> {
   const checks: LaunchReadinessCheck[] = [];
   try {
@@ -196,6 +247,27 @@ async function emailChecks(request: Request): Promise<LaunchReadinessCheck[]> {
     else checks.push(warn('email-settings', 'Email', 'Tenant email settings', 'SMTP is not fully configured. Queue-only mode is safe, but live emails will not send.', 'Add SMTP settings or tenant email settings before launch.', { settings: email.safe }, '/email-settings'));
   } catch (error) {
     checks.push(fail('email-settings', 'Email', 'Tenant email settings', safeMessage(error), 'Check email settings/outbox service.', undefined, '/email-settings'));
+  }
+
+  try {
+    const [emails, smtp, storage] = await Promise.all([listInternalEmails(request), smtpStatusForRequest(request), emailOutboxStorageStatus(request)]);
+    const failed = emails.filter((item) => item.status === 'failed');
+    const smtpNotConfigured = emails.filter((item) => item.status === 'smtp-not-configured');
+    const missingRecipient = emails.filter((item) => item.status === 'needs-email-address');
+    const queued = emails.filter((item) => item.status === 'queued');
+    const orderTypeCounts = Object.fromEntries(REQUIRED_ORDER_EMAIL_TYPES.map((type) => [type, emails.filter((item) => item.type === type).length]));
+    checks.push(pass('email-outbox-storage', 'Email', 'Email outbox storage', `Email outbox loaded in ${storage.mode} mode with ${emails.length} email(s).`, { storage, total: emails.length, queued: queued.length }, '/api/internal/email/status'));
+
+    if (smtp.configured) checks.push(pass('email-smtp-runtime', 'Email', 'SMTP runtime status', `SMTP runtime is configured from ${smtp.source}.`, { smtp }, '/api/internal/email/status'));
+    else checks.push(warn('email-smtp-runtime', 'Email', 'SMTP runtime status', 'SMTP runtime is not configured, so queued emails will not send.', 'Configure SMTP before public launch or keep launch in monitored queue-only mode.', { smtp }, '/email-send-controls'));
+
+    const blocking = failed.length + smtpNotConfigured.length + missingRecipient.length;
+    if (blocking === 0) checks.push(pass('email-outbox-blockers', 'Email', 'Email outbox blockers', 'No failed, missing-recipient or SMTP-not-configured emails are currently blocking launch.', { failed: 0, smtpNotConfigured: 0, missingRecipient: 0 }, '/api/internal/email/status'));
+    else checks.push(warn('email-outbox-blockers', 'Email', 'Email outbox blockers', `${blocking} email issue(s) need review before launch.`, 'Open Email Send Controls and fix failed/missing-recipient emails before launch.', { failed: failed.slice(0, 5), smtpNotConfigured: smtpNotConfigured.length, missingRecipient: missingRecipient.length }, '/email-send-controls'));
+
+    checks.push(pass('email-order-template-types', 'Email', 'Order email templates/types', 'Order confirmation, admin order, payment received and payment link email types are available in the notification service.', { requiredTypes: REQUIRED_ORDER_EMAIL_TYPES, counts: orderTypeCounts }, '/api/internal/email/status'));
+  } catch (error) {
+    checks.push(fail('email-outbox-status', 'Email', 'Email outbox status', safeMessage(error), 'Check email outbox storage and launch email status endpoint.', undefined, '/api/internal/email/status'));
   }
   return checks;
 }
@@ -239,6 +311,7 @@ export async function runLaunchReadinessRunner(request: Request, options: Runner
     ...(await seoChecks(request, options)),
     ...(await storefrontChecks(request, options)),
     ...(await collectionChecks(request)),
+    ...(await paymentChecks(request)),
     ...(await emailChecks(request)),
     ...vatChecks(),
   ];

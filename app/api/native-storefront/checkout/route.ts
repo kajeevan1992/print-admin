@@ -21,8 +21,22 @@ function checkoutFile(value: FormDataEntryValue | null) { return value && typeof
 function artworkLabel(status: string) { if (status === 'ready') return 'Artwork uploaded now'; if (status === 'need-design') return 'Customer needs design help'; return 'Customer will send artwork later'; }
 function taxPatch(price: Awaited<ReturnType<typeof calculateNativeStorefrontPrice>>) { return { ...(price.taxSettings ? { taxSettings: price.taxSettings } : {}), ...(price.vatRate !== undefined && price.vatRate !== null ? { vatRate: price.vatRate } : {}) }; }
 function snapshotCheck(priceSnapshot: Record<string, any> | null, finalPriceMinor: number) { if (!priceSnapshot) return { provided: false, matched: false, differenceMinor: null }; const snapshotTotal = Number(priceSnapshot.finalPriceMinor ?? priceSnapshot.grossMinor ?? priceSnapshot.totalMinor ?? 0); return { provided: true, matched: Number.isFinite(snapshotTotal) && Math.abs(snapshotTotal - finalPriceMinor) <= 1, snapshotTotalMinor: Number.isFinite(snapshotTotal) ? Math.round(snapshotTotal) : 0, backendTotalMinor: finalPriceMinor, differenceMinor: Number.isFinite(snapshotTotal) ? Math.round(finalPriceMinor - snapshotTotal) : null }; }
+function wantsJson(request: NextRequest) { return request.headers.get('accept')?.includes('application/json') || request.headers.get('x-checkout-mode') === 'json'; }
+function json(data: Record<string, any>, init?: ResponseInit) { return NextResponse.json(data, init); }
 function compactUpload(upload: StoredArtworkUpload | null) { if (!upload) return null; return { id: upload.id, productId: upload.productId, orderId: upload.orderId, originalName: upload.originalName, mimeType: upload.mimeType, sizeBytes: upload.sizeBytes, extension: upload.extension, pageCount: upload.pageCount, widthMm: upload.widthMm, heightMm: upload.heightMm, fileUrl: upload.fileUrl, downloadUrl: upload.downloadUrl, preflight: upload.preflight, reviewStatus: upload.reviewStatus, createdAt: upload.createdAt }; }
 async function saveCheckoutArtwork(request: Request, params: { productSlug: string; orderNumber: string; file: File | null }) { if (!params.file) return { upload: null, storage: null, error: null }; const ctx = tenantContextFromRequest(request); const uploadForm = new FormData(); uploadForm.set('file', params.file, params.file.name || 'artwork.pdf'); uploadForm.set('productId', params.productSlug); uploadForm.set('orderId', params.orderNumber); const upload = await saveArtworkUpload(ctx, uploadForm); const dbUpload = await saveArtworkMetadataDb(upload, ctx).catch(() => null); const storage = await artworkStorageStatus(ctx).catch(() => ({ mode: 'file-fallback', dbReady: false })); return { upload: dbUpload || upload, storage, error: null }; }
+function uploadNow(status: string) { return ['ready', 'upload-now', 'upload_artwork', 'upload-artwork'].includes(String(status || '').toLowerCase()); }
+function preflightSummary(upload: StoredArtworkUpload | null, uploadError: unknown = null) {
+  const preflight = (upload?.preflight as any)?.preflight || {};
+  const errors = Array.isArray(preflight.errors) ? preflight.errors.map(String) : [];
+  const warnings = Array.isArray(preflight.warnings) ? preflight.warnings.map(String) : [];
+  const status = String(preflight.status || (upload ? 'checking' : 'not-started'));
+  const blocked = Boolean(uploadError || status === 'blocked' || errors.length || upload?.reviewStatus === 'replacement-requested');
+  return { status, blocked, passed: Boolean(preflight.passed && !blocked), requiresManualReview: Boolean(preflight.requiresManualReview), errors: uploadError ? [String(uploadError)] : errors, warnings, acceptedFileTypes: preflight.acceptedFileTypes || [], customerInstructions: preflight.customerInstructions || '', upload: compactUpload(upload) };
+}
+function preflightGatePayload(message: string, preflight: ReturnType<typeof preflightSummary>, switchToDesign = true) {
+  return { ok: false, code: 'ARTWORK_PREFLIGHT_BLOCKED', source: 'native-storefront-checkout', error: message, preflight, actions: { reupload: true, switchToDesignHelp: switchToDesign, uploadLater: true } };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +56,8 @@ export async function POST(request: NextRequest) {
     const priceSnapshot = parseSnapshot(clean(form.get('priceSnapshot')));
     const selectedDelivery = clean(form.get('delivery')) || clean(form.get('selectedDelivery')) || clean(form.get('turnaround'));
     const requestedQuantity = Math.max(1, number(form.get('quantity'), 1));
-    if (!tenantSlug || !storeSlug || !productSlug || !customerName || !customerEmail) return NextResponse.json({ ok: false, error: 'Missing checkout customer or product details.' }, { status: 400 });
+    if (!tenantSlug || !storeSlug || !productSlug || !customerName || !customerEmail) return json({ ok: false, error: 'Missing checkout customer or product details.' }, { status: 400 });
+    if (uploadNow(artworkStatus) && !artworkUploadFile) return json(preflightGatePayload('Please upload your artwork file before payment, or choose upload later/design help.', { status: 'missing-file', blocked: true, passed: false, requiresManualReview: false, errors: ['No artwork file was uploaded.'], warnings: [], acceptedFileTypes: [], customerInstructions: '', upload: null }), { status: 422 });
 
     const origin = new URL(request.url).origin;
     const storeBase = `/native-stores/${tenantSlug}/${storeSlug}`;
@@ -59,7 +74,9 @@ export async function POST(request: NextRequest) {
     const artworkUpload = await saveCheckoutArtwork(tenantRequest, { productSlug, orderNumber, file: artworkUploadFile }).catch((error) => ({ upload: null, storage: null, error: error instanceof Error ? error.message : 'Artwork upload could not be saved.' }));
     const savedUploadFull = artworkUpload.upload as StoredArtworkUpload | null;
     const savedUpload = compactUpload(savedUploadFull);
-    const artworkSnapshot = { status: artworkStatus, label: artworkLabel(artworkStatus), notes: artworkNotes, upload: savedUpload, storage: artworkUpload.storage, uploadError: artworkUpload.error, requiresFollowUp: artworkStatus !== 'ready' || !savedUpload || savedUpload.reviewStatus === 'replacement-requested', preflightStatus: (savedUpload?.preflight as any)?.preflight?.status || (savedUpload ? 'checking' : 'not-started'), source: 'native-storefront-existing-artwork-upload' };
+    const preflight = preflightSummary(savedUploadFull, artworkUpload.error);
+    if (uploadNow(artworkStatus) && preflight.blocked) return json(preflightGatePayload('Artwork preflight failed. Please fix the issues and reupload before payment, or switch to design help/upload later.', preflight), { status: 422 });
+    const artworkSnapshot = { status: artworkStatus, label: artworkLabel(artworkStatus), notes: artworkNotes, upload: savedUpload, storage: artworkUpload.storage, uploadError: artworkUpload.error, requiresFollowUp: artworkStatus !== 'ready' || !savedUpload || savedUpload.reviewStatus === 'replacement-requested' || preflight.requiresManualReview, preflightStatus: preflight.status, preflight, source: 'native-storefront-existing-artwork-upload' };
 
     const order = await saveOrder(tenantRequest, {
       orderNumber, customerName, customerEmail, customerPhone,
@@ -72,7 +89,7 @@ export async function POST(request: NextRequest) {
       source: 'native-storefront',
       storeName: storeSlug,
       notes: `Native storefront online order. Artwork: ${artworkSnapshot.label}.${artworkNotes ? ` Notes: ${artworkNotes}` : ''}`,
-      internalNotes: [`Created from native storefront ${tenantSlug}/${storeSlug}.`, `Artwork status: ${artworkSnapshot.label}.`, savedUpload ? `Artwork upload saved: ${savedUpload.id} (${savedUpload.originalName}).` : 'No artwork upload saved at checkout.', artworkUpload.error ? `Artwork upload error: ${artworkUpload.error}.` : '', savedUpload?.preflight ? `Artwork preflight: ${artworkSnapshot.preflightStatus}.` : '', artworkNotes ? `Artwork notes: ${artworkNotes}.` : '', selectedDelivery ? `Selected delivery/turnaround: ${selectedDelivery}.` : '', 'Checkout price recalculated server-side by backend pricing engine before order creation.', 'Tax/VAT handled from backend admin product tax settings and global tax rules.', priceSnapshotAudit.provided ? `Frontend price snapshot match: ${priceSnapshotAudit.matched ? 'yes' : 'no'}.` : 'No frontend price snapshot was provided.'].filter(Boolean),
+      internalNotes: [`Created from native storefront ${tenantSlug}/${storeSlug}.`, `Artwork status: ${artworkSnapshot.label}.`, savedUpload ? `Artwork upload saved: ${savedUpload.id} (${savedUpload.originalName}).` : 'No artwork upload saved at checkout.', artworkUpload.error ? `Artwork upload error: ${artworkUpload.error}.` : '', savedUpload?.preflight ? `Artwork preflight: ${artworkSnapshot.preflightStatus}.` : '', preflight.warnings.length ? `Artwork preflight warnings: ${preflight.warnings.join(' | ')}.` : '', artworkNotes ? `Artwork notes: ${artworkNotes}.` : '', selectedDelivery ? `Selected delivery/turnaround: ${selectedDelivery}.` : '', 'Checkout price recalculated server-side by backend pricing engine before order creation.', 'Tax/VAT handled from backend admin product tax settings and global tax rules.', priceSnapshotAudit.provided ? `Frontend price snapshot match: ${priceSnapshotAudit.matched ? 'yes' : 'no'}.` : 'No frontend price snapshot was provided.'].filter(Boolean),
       items: [{ id: `${productSlug}-${Date.now()}`, productId: productSlug, productName: resolvedProductTitle, titleSnapshot: resolvedProductTitle, quantity: lineQuantity, unitPriceMinor, totalPriceMinor: finalPriceMinor, categorySlug, productSlug, selectedOptions, artworkStatus, artworkUploadId: savedUpload?.id || null, artworkSnapshot, sku: price.matchedRow.sku || price.matchedRow.oldSku || '', resolverSnapshot: { source: 'native-storefront-saas-pricing-engine', product: { id: price.product.id, slug: price.product.slug, name: resolvedProductTitle, taxSettings: price.taxSettings || null }, selections: price.resolvedConfig.selections, selectedQuantity: price.resolvedConfig.selectedQuantity, selectedDelivery: price.resolvedConfig.selectedDelivery, matchedRow: price.matchedRow, priceMinor: finalPriceMinor, vatRate: price.vatRate ?? null, priceSnapshotAudit, artworkSnapshot }, ...backendTax }],
       rawCheckout: { tenantSlug, storeSlug, categorySlug, productSlug, productTitle: resolvedProductTitle, quantity: lineQuantity, selectedOptions, selectedDelivery, requestedQuantity, artwork: artworkSnapshot, calculatedFinalPriceMinor: finalPriceMinor, pricingSource: price.pricingSource, frontendPriceSnapshot: priceSnapshot, priceSnapshotAudit, backendTaxSettings: price.taxSettings || null, backendVatRate: price.vatRate ?? null, resolvedConfig: price.resolvedConfig },
     });
@@ -85,10 +102,11 @@ export async function POST(request: NextRequest) {
     const cancelUrl = `${origin}${storeBase}/cart?${cancelParams.toString()}`;
     const sessionResult = await createStripeCheckoutSession(tenantRequest, { orderId: order.id, customerEmail, successUrl, cancelUrl });
     const paymentUrl = sessionResult.session?.url;
-    if (!paymentUrl) return NextResponse.json({ ok: false, error: 'Stripe did not return a payment URL.' }, { status: 500 });
+    if (!paymentUrl) return json({ ok: false, error: 'Stripe did not return a payment URL.' }, { status: 500 });
     await queueOrderPlacedEmails(tenantRequest, { ...order, paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: sessionResult.session?.id || order.stripeCheckoutSessionId || '', paymentUrl }).catch(() => null);
+    if (wantsJson(request)) return json({ ok: true, source: 'native-storefront-checkout', paymentUrl, orderId: order.id, orderNumber, artwork: artworkSnapshot, stripeSessionId: sessionResult.session?.id || '' });
     return NextResponse.redirect(paymentUrl, { status: 303 });
   } catch (error) {
-    return NextResponse.json({ ok: false, source: 'native-storefront-checkout', error: error instanceof Error ? error.message : 'Checkout failed.' }, { status: 500 });
+    return json({ ok: false, source: 'native-storefront-checkout', error: error instanceof Error ? error.message : 'Checkout failed.' }, { status: 500 });
   }
 }

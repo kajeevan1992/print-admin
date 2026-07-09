@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
+import { queueOrderCustomerEmail } from '@/core/email/order-notifications.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 import { canCreatePaymentSessionForOrder } from '@/core/payments/payment-rules';
@@ -13,6 +14,7 @@ const SIGNATURE_TOLERANCE_SECONDS = 300;
 const CONFIG_RESOURCE = 'admin-config' as any;
 const TICKETS_KEY = 'production-job-tickets';
 const WEBHOOK_EVENTS_KEY = 'stripe-webhook-events';
+const PAYMENT_RECEIVED_EMAIL_MARKER = 'customer-payment-received email queued';
 
 function secretKey() { return process.env.STRIPE_SECRET_KEY || ''; }
 export function stripePublicConfig() { return { publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || '', enabled: Boolean(process.env.STRIPE_SECRET_KEY), mode: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_') ? 'live' : 'test' }; }
@@ -24,6 +26,7 @@ function paymentGate(status: string) { return ['paid', 'captured', 'authorized']
 function stripeObjectOrderId(object: any) { return String(object?.metadata?.orderId || object?.client_reference_id || object?.orderId || '').trim(); }
 function stripeObjectTenantId(object: any) { return String(object?.metadata?.tenantId || object?.tenantId || '').trim(); }
 function noteList(order: any, note: string) { return [...(Array.isArray(order?.internalNotes) ? order.internalNotes : []), note].filter(Boolean); }
+function hasNote(order: any, marker: string) { return (Array.isArray(order?.internalNotes) ? order.internalNotes : []).some((note: unknown) => String(note || '').toLowerCase().includes(marker.toLowerCase())); }
 function requestWithStripeTenant(request: Request, object: any) {
   const tenantId = stripeObjectTenantId(object);
   if (!tenantId) return request;
@@ -51,6 +54,14 @@ async function syncTicketPayment(request: Request, order: any, status: string, n
   });
   if (changed) await writeTickets(request, next);
   return { updated: changed };
+}
+async function queuePaymentReceivedNotification(request: Request, order: any, source: string) {
+  if (!order?.customerEmail) return { skipped: true, reason: 'missing customer email' };
+  if (hasNote(order, PAYMENT_RECEIVED_EMAIL_MARKER)) return { skipped: true, reason: 'already queued' };
+  const email = await queueOrderCustomerEmail(request, 'customer-payment-received', order, { actor: 'stripe', note: source }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Payment received email queue failed.' }));
+  const marker = `${PAYMENT_RECEIVED_EMAIL_MARKER} from ${source}.`;
+  const updated = await updateOrder(request, order.id, { internalNotes: noteList(order, marker) }).catch(() => order);
+  return { queued: true, email, order: updated };
 }
 async function readWebhookEvents(request: Request) { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, WEBHOOK_EVENTS_KEY); const events = (record as any)?.metadataJson?.events; return Array.isArray(events) ? events as Record<string, any>[] : []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
 async function writeWebhookEvents(request: Request, events: Record<string, any>[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: WEBHOOK_EVENTS_KEY, slug: WEBHOOK_EVENTS_KEY, name: 'Stripe Webhook Events', description: 'Recent Stripe webhook events processed for payment lifecycle idempotency', metadataJson: { events: events.slice(0, 100), savedAt: new Date().toISOString(), storageKey: WEBHOOK_EVENTS_KEY, source: 'stripe-webhook' } } as any); }
@@ -94,7 +105,8 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : failed ? `Stripe payment failed or expired. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
   const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || order.stripePaymentIntentId || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
-  return { ok: true, order: updated, paid, failed, eventType, tenantId: stripeObjectTenantId(session) || '' };
+  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-session-${session.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
+  return { ok: true, order: (paymentEmail as any)?.order || updated, paid, failed, eventType, tenantId: stripeObjectTenantId(session) || '', paymentEmail };
 }
 
 export async function applyStripePaymentIntentToOrder(request: Request, intent: any, eventType = 'manual') {
@@ -112,7 +124,8 @@ export async function applyStripePaymentIntentToOrder(request: Request, intent: 
   const note = `Stripe payment intent update (${eventType}). Intent: ${intent.id}. Status: ${intent.status || 'unknown'}.`;
   const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripePaymentIntentId: intent.id || order.stripePaymentIntentId || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
-  return { ok: true, order: updated, paid, authorized, failed, eventType, tenantId: stripeObjectTenantId(intent) || '' };
+  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-payment-intent-${intent.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
+  return { ok: true, order: (paymentEmail as any)?.order || updated, paid, authorized, failed, eventType, tenantId: stripeObjectTenantId(intent) || '', paymentEmail };
 }
 
 export async function applyStripeRefundToOrder(request: Request, refund: any, eventType = 'manual') {

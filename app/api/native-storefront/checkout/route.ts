@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { queueOrderPlacedEmails } from '@/core/email/order-notifications.service';
 import { saveOrder } from '@/core/orders/orders.service';
 import { createStripeCheckoutSession } from '@/core/payments/stripe.service';
 import { upsertArtworkProductionTicket } from '@/core/storefront/artwork-production-bridge.service';
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
     const sessionResult = await createStripeCheckoutSession(tenantRequest, { orderId: order.id, customerEmail, successUrl, cancelUrl });
     const paymentUrl = sessionResult.session?.url;
     if (!paymentUrl) return NextResponse.json({ ok: false, error: 'Stripe did not return a payment URL.' }, { status: 500 });
+    await queueOrderPlacedEmails(tenantRequest, { ...order, paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: sessionResult.session?.id || order.stripeCheckoutSessionId || '', paymentUrl }).catch(() => null);
     return NextResponse.redirect(paymentUrl, { status: 303 });
   } catch (error) {
     return NextResponse.json({ ok: false, source: 'native-storefront-checkout', error: error instanceof Error ? error.message : 'Checkout failed.' }, { status: 500 });

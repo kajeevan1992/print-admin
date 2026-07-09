@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { applyStripeCheckoutSessionToOrder, applyStripePaymentIntentToOrder, applyStripeRefundToOrder, parseStripeWebhookEvent } from '@/core/payments/stripe.service';
+import { applyStripeCheckoutSessionToOrder, applyStripePaymentIntentToOrder, applyStripeRefundToOrder, checkStripeWebhookEventProcessed, parseStripeWebhookEvent, recordStripeWebhookEventProcessed } from '@/core/payments/stripe.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,8 +23,10 @@ export async function POST(request: Request) {
     const event = await parseStripeWebhookEvent(request);
     const type = String(event.type || '').trim();
     const object = event.data?.object || {};
-    let result: any = { ok: true, skipped: true, reason: `Unhandled Stripe event: ${type}` };
+    const idempotency = await checkStripeWebhookEventProcessed(request, event.id, object).catch((error) => ({ processed: false, error: error instanceof Error ? error.message : 'Webhook idempotency check failed.' }));
+    if (idempotency.processed) return json({ ok: true, source: 'stripe-webhook', eventId: event.id || '', eventType: type, duplicate: true, skipped: true });
 
+    let result: any = { ok: true, skipped: true, reason: `Unhandled Stripe event: ${type}` };
     if (type.startsWith('checkout.session.')) {
       result = await applyStripeCheckoutSessionToOrder(request, object, type);
     } else if (type.startsWith('payment_intent.')) {
@@ -33,7 +35,8 @@ export async function POST(request: Request) {
       result = await applyStripeRefundToOrder(request, object, type);
     }
 
-    return json({ ok: true, source: 'stripe-webhook', eventId: event.id || '', eventType: type, result });
+    const recorded = await recordStripeWebhookEventProcessed(request, event, result, object).catch((error) => ({ recorded: false, error: error instanceof Error ? error.message : 'Webhook event record failed.' }));
+    return json({ ok: true, source: 'stripe-webhook', eventId: event.id || '', eventType: type, idempotency, recorded, result });
   } catch (error) {
     return json({ ok: false, source: 'stripe-webhook', error: error instanceof Error ? error.message : 'Stripe webhook failed.' }, { status: 400 });
   }

@@ -7,10 +7,13 @@ const CONFIG_RESOURCE = 'admin-config' as any;
 const TICKETS_KEY = 'production-job-tickets';
 const REVISIONS_KEY = 'customer-proof-revisions-v377';
 
+const PAYMENT_RELEASED = ['paid', 'captured', 'authorized', 'manual-paid'];
+
 type Store = Record<string, any>;
 
 function nowIso() { return new Date().toISOString(); }
 function text(value: unknown) { return String(value || '').trim(); }
+function lower(value: unknown) { return text(value).toLowerCase(); }
 function readItems(record: any) { const json = record?.metadataJson || {}; if (Array.isArray(json.items)) return json.items as Store[]; if (Array.isArray(json.store?.items)) return json.store.items as Store[]; return []; }
 async function readConfigItems(request: Request, key: string) {
   try { return readItems(await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key)); }
@@ -21,43 +24,60 @@ async function writeConfigItems(request: Request, key: string, title: string, it
 }
 function matchTicket(ticket: Store, order: Store) { const keys = [order.id, order.orderNumber, ...(Array.isArray(order.artworkUploadIds) ? order.artworkUploadIds : [])].filter(Boolean).map(String); return keys.some((key) => [ticket.id, ticket.orderId, ticket.orderNumber, ticket.artworkUploadId].filter(Boolean).map(String).includes(key)); }
 function plannerMatches(job: Store, ticket: Store, order: Store) { const keys = [ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => [job.productionTicketId, job.orderId, job.orderNumber, job.workflowId, job.id].filter(Boolean).map(String).includes(key) || String(job.workflowId || '') === `ticket-${key}`); }
-function canApprove(ticket: Store) { const status = text(ticket.preflightStatus || ticket.artworkStatus).toLowerCase(); return !['fail', 'failed', 'blocked', 'preflight-fail', 'replacement-requested'].includes(status); }
-function approvalPatch(action: string, note: string, actorEmail: string) {
-  if (action === 'approve') return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'ready-for-print', status: 'ready-to-print', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, productionNotes: note || 'Customer approved proof for print.' };
-  return { artworkStatus: 'changes-requested', customerProofStatus: 'revision-requested', handoffState: 'blocked', status: 'blocked', proofRevisionRequestedAt: nowIso(), proofRevisionRequestedBy: actorEmail, productionNotes: note || 'Customer requested proof changes.' };
+function canApprove(ticket: Store) { const status = lower(ticket.preflightStatus || ticket.artworkStatus); return !['fail', 'failed', 'blocked', 'preflight-fail', 'replacement-requested'].includes(status); }
+function paymentReleased(ticket: Store) { const status = lower(ticket.paymentStatus || ticket.paymentGate); return PAYMENT_RELEASED.includes(status) || lower(ticket.paymentGate) === 'paid' || ticket.paymentReleased === true; }
+function paymentLabel(ticket: Store) { return text(ticket.paymentStatus || ticket.paymentGate || 'awaiting-payment'); }
+function paymentHoldReason(ticket: Store) { return `Customer approved proof, but payment is ${paymentLabel(ticket)}. Production remains held until payment is paid, captured or authorised.`; }
+function approvalPatch(ticket: Store, action: string, note: string, actorEmail: string) {
+  if (action !== 'approve') return { artworkStatus: 'changes-requested', customerProofStatus: 'revision-requested', handoffState: 'blocked', status: 'blocked', proofRevisionRequestedAt: nowIso(), proofRevisionRequestedBy: actorEmail, blockReason: note || 'Customer requested proof changes.', productionNotes: note || 'Customer requested proof changes.' };
+  if (paymentReleased(ticket)) return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'ready-for-print', status: 'ready-to-print', paymentGate: lower(ticket.paymentGate) === 'paid' ? ticket.paymentGate : 'paid', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, blockReason: '', productionNotes: note || 'Customer approved proof for print.' };
+  const reason = paymentHoldReason(ticket);
+  return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'blocked', status: 'payment-hold', paymentGate: ticket.paymentGate || 'awaiting-payment', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, blockReason: reason, productionNotes: [note || 'Customer approved proof for print.', reason].filter(Boolean).join(' ') };
 }
 async function syncPlannerTicketState(request: Request, ticket: Store, order: Store, action: string, note: string) {
   const planner = await readPlannerStore(request).catch(() => null);
   if (!planner) return null;
-  const released = action === 'approve';
+  const approved = action === 'approve';
+  const paid = paymentReleased(ticket);
+  const released = approved && paid;
+  const paymentHold = approved && !paid;
   let changed = false;
-  const updatedJobs = planner.jobs.map((job: Store) => {
+  const jobs = Array.isArray(planner.jobs) ? planner.jobs : [];
+  const updatedJobs = jobs.map((job: Store) => {
     if (!plannerMatches(job, ticket, order)) return job;
     changed = true;
     const at = nowIso();
+    const blockReason = paymentHold ? paymentHoldReason(ticket) : note || 'Customer requested proof changes.';
     return {
       ...job,
       stage: released && job.stage === 'blocked' ? 'queued' : released ? job.stage : 'blocked',
-      status: released ? 'queued-for-production' : 'blocked-artwork-revision',
+      status: released ? 'queued-for-production' : paymentHold ? 'blocked-payment-hold' : 'blocked-artwork-revision',
       productionBlocked: !released,
-      blockReason: released ? '' : note || 'Customer requested proof changes.',
-      artworkStatus: released ? 'approved' : 'changes-requested',
-      customerProofStatus: released ? 'approved' : 'revision-requested',
+      blockReason: released ? '' : blockReason,
+      artworkStatus: approved ? 'approved' : 'changes-requested',
+      customerProofStatus: approved ? 'approved' : 'revision-requested',
+      paymentStatus: ticket.paymentStatus || job.paymentStatus || '',
+      paymentGate: released ? 'paid' : ticket.paymentGate || job.paymentGate || 'awaiting-payment',
       handoffState: released ? 'ready-for-print' : 'blocked',
       liveStatus: released ? 'waiting' : 'blocked',
       updatedAt: at,
-      history: [{ at, action: released ? 'customer-proof-approved' : 'customer-revision-requested', from: job.stage, to: released ? 'queued' : 'blocked', note: note || null }, ...(Array.isArray(job.history) ? job.history : [])].slice(0, 100),
+      history: [{ at, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : 'customer-revision-requested', from: job.stage, to: released ? 'queued' : 'blocked', note: released ? note || 'Customer approved proof and payment gate is released.' : blockReason }, ...(Array.isArray(job.history) ? job.history : [])].slice(0, 100),
     };
   });
   if (!changed) return null;
-  await savePlannerStore(request, { ...planner, jobs: updatedJobs, actions: [{ id: `planner-action-${Date.now()}`, action: released ? 'customer-proof-approved' : 'customer-revision-requested', orderId: order.id, orderNumber: order.orderNumber, productionTicketId: ticket.id, at: nowIso(), note }, ...planner.actions].slice(0, 400) });
-  return { updated: true };
+  await savePlannerStore(request, { ...planner, jobs: updatedJobs, actions: [{ id: `planner-action-${Date.now()}`, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : 'customer-revision-requested', orderId: order.id, orderNumber: order.orderNumber, productionTicketId: ticket.id, at: nowIso(), note: released ? note : paymentHold ? paymentHoldReason(ticket) : note }, ...(Array.isArray(planner.actions) ? planner.actions : [])].slice(0, 400) });
+  return { updated: true, released, paymentHold };
 }
 async function addRevision(request: Request, ticket: Store, order: Store, action: string, note: string, actorEmail: string) {
   const revisions = await readConfigItems(request, REVISIONS_KEY).catch(() => []);
-  const item = { id: `rev-${Date.now()}`, orderNumber: order.orderNumber, productionTicketId: ticket.id, action: action === 'approve' ? 'approved' : 'revision-requested', customer: order.customerName || ticket.customerName || 'Customer', customerEmail: actorEmail, comment: note || (action === 'approve' ? 'Customer approved proof.' : 'Customer requested changes.'), timestamp: nowIso(), version: revisions.filter((row) => row.orderNumber === order.orderNumber).length + 1, source: 'customer-proof-action' };
+  const item = { id: `rev-${Date.now()}`, orderNumber: order.orderNumber, productionTicketId: ticket.id, action: action === 'approve' ? 'approved' : 'revision-requested', customer: order.customerName || ticket.customerName || 'Customer', customerEmail: actorEmail, comment: note || (action === 'approve' ? 'Customer approved proof.' : 'Customer requested changes.'), timestamp: nowIso(), version: revisions.filter((row) => row.orderNumber === order.orderNumber).length + 1, source: 'customer-proof-action', paymentGate: ticket.paymentGate || '', paymentStatus: ticket.paymentStatus || '', handoffState: ticket.handoffState || '' };
   await writeConfigItems(request, REVISIONS_KEY, 'Customer Proof Revisions', [item, ...revisions]);
   return item;
+}
+function customerMessage(action: string, ticket: Store) {
+  if (action !== 'approve') return 'Revision request received. Production is blocked until artwork is updated.';
+  if (paymentReleased(ticket)) return 'Proof approved. Your order has been released to production.';
+  return 'Proof approved. Your order is still waiting for payment before production starts.';
 }
 
 export async function submitCustomerProofAction(request: Request, input: Store) {
@@ -77,12 +97,12 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   const current = tickets[index];
   if (action === 'approve' && !canApprove(current)) throw new Error('This proof cannot be approved because artwork is blocked or failed preflight.');
   const actorEmail = email || orderEmail || text(current.customerEmail);
-  const patch = approvalPatch(action, note, actorEmail);
+  const patch = approvalPatch(current, action, note, actorEmail);
   const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || 'Customer requested proof changes.'])) : current.warnings || [] };
   const nextTickets = [...tickets];
   nextTickets[index] = updatedTicket;
   await writeConfigItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);
   const revision = await addRevision(request, updatedTicket, order as Store, action, note, actorEmail).catch(() => null);
   const plannerSync = await syncPlannerTicketState(request, updatedTicket, order as Store, action, note).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Planner sync failed.' }));
-  return { ticket: updatedTicket, orderNumber: (order as Store).orderNumber, action, revision, plannerSync, message: action === 'approve' ? 'Proof approved. Your order has been released to production.' : 'Revision request received. Production is blocked until artwork is updated.' };
+  return { ticket: updatedTicket, orderNumber: (order as Store).orderNumber, action, revision, plannerSync, paymentReleased: paymentReleased(updatedTicket), message: customerMessage(action, updatedTicket) };
 }

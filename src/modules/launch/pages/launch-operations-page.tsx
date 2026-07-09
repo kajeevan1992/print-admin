@@ -1,12 +1,16 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Activity, ClipboardCheck, Mail, Map, PackageCheck, Rocket, ShieldCheck, Trash2 } from 'lucide-react';
+import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, CreditCard, Mail, Map, PackageCheck, RefreshCw, Rocket, ShieldCheck, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/buttons';
+
+type StatusPayload = Record<string, any> & { ok?: boolean; readyForLivePayments?: boolean; readyForLaunchEmails?: boolean; mode?: string; summary?: Record<string, any>; checks?: Array<Record<string, any>> };
 
 const tools = [
-  ['Launch Readiness', '/launch-readiness', ShieldCheck, 'Run read-only launch checks across locations, SEO, collection, email and VAT.'],
+  ['Launch Readiness', '/launch-readiness', ShieldCheck, 'Run read-only launch checks across foundation, locations, SEO, storefront, collection, payments, email and VAT.'],
   ['Launch Test Order', '/launch-test-order', PackageCheck, 'Create an opt-in test order to verify VAT, collection pass and notification queueing.'],
   ['Test Data Cleanup', '/launch-test-data-cleanup', Trash2, 'Preview and clean only TEST-HOLO / Build 67 launch test data.'],
   ['Location Manager', '/location-manager', Map, 'Manage stores, branches, collection points and service areas.'],
@@ -15,16 +19,87 @@ const tools = [
   ['Email Send Controls', '/email-send-controls', Mail, 'Process queued outbox emails through tenant SMTP settings.'],
 ] as const;
 
+const statusCards = [
+  { key: 'stripe', title: 'Stripe payments', href: '/api/internal/payments/stripe/status', icon: CreditCard, readyKey: 'readyForLivePayments', readyLabel: 'Ready for live payments', blockedLabel: 'Payment setup needs review' },
+  { key: 'email', title: 'Email notifications', href: '/api/internal/email/status', icon: Mail, readyKey: 'readyForLaunchEmails', readyLabel: 'Ready for launch emails', blockedLabel: 'Email setup needs review' },
+] as const;
+
+async function loadJson(path: string) {
+  const response = await fetch(path, { cache: 'no-store' });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload?.ok === false) throw new Error(payload?.error || `Failed to load ${path}`);
+  return payload.data || payload;
+}
+
+function StatusPill({ ready }: { ready: boolean }) {
+  return <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${ready ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'}`}>{ready ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}{ready ? 'ready' : 'review'}</span>;
+}
+
+function LaunchStatusCard({ config, data, error }: { config: typeof statusCards[number]; data?: StatusPayload; error?: string }) {
+  const Icon = config.icon;
+  const ready = Boolean(data?.[config.readyKey]);
+  const checks = Array.isArray(data?.checks) ? data.checks : [];
+  const failed = checks.filter((check) => check.ok === false).length;
+  const summary = data?.summary || {};
+  return (
+    <Card className="h-full border-white/10 bg-white/[0.03]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-sky-200"><Icon size={18} /></div>
+          <div>
+            <h3 className="text-base font-semibold text-white">{config.title}</h3>
+            <p className="mt-1 text-sm text-textMuted">{error ? error : ready ? config.readyLabel : config.blockedLabel}</p>
+          </div>
+        </div>
+        <StatusPill ready={ready} />
+      </div>
+      <div className="mt-4 grid gap-2 text-xs text-textMuted sm:grid-cols-3">
+        <div className="rounded-xl border border-white/8 bg-panelMuted p-3"><p className="uppercase tracking-wide">Mode</p><p className="mt-1 font-semibold text-white">{data?.mode || '—'}</p></div>
+        <div className="rounded-xl border border-white/8 bg-panelMuted p-3"><p className="uppercase tracking-wide">Checks</p><p className="mt-1 font-semibold text-white">{checks.length || '—'}</p></div>
+        <div className="rounded-xl border border-white/8 bg-panelMuted p-3"><p className="uppercase tracking-wide">Issues</p><p className="mt-1 font-semibold text-white">{failed || summary.blocking || 0}</p></div>
+      </div>
+      {config.key === 'email' ? <p className="mt-3 text-xs text-textMuted">Queued {summary.queued || 0} · Failed {summary.failed || 0} · SMTP missing {summary.smtpNotConfigured || 0}</p> : null}
+      {config.key === 'stripe' ? <p className="mt-3 text-xs text-textMuted">Webhook: {data?.webhookUrl || 'not loaded yet'}</p> : null}
+      <Link className="mt-4 inline-flex text-xs font-semibold text-sky-200 hover:text-white" href={config.href}>Open status endpoint</Link>
+    </Card>
+  );
+}
+
 export function LaunchOperationsPage() {
+  const [statuses, setStatuses] = useState<Record<string, StatusPayload>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(false);
+
+  async function refreshStatuses() {
+    setLoading(true);
+    const next: Record<string, StatusPayload> = {};
+    const nextErrors: Record<string, string> = {};
+    for (const card of statusCards) {
+      try {
+        next[card.key] = await loadJson(card.href);
+      } catch (error) {
+        nextErrors[card.key] = error instanceof Error ? error.message : 'Status check failed.';
+      }
+    }
+    setStatuses(next);
+    setErrors(nextErrors);
+    setLoading(false);
+  }
+
+  useEffect(() => { void refreshStatuses(); }, []);
+
   return (
     <div>
       <PageHeader
         title="Launch Operations"
-        subtitle="Quick access to the Holo Print launch tools for readiness checks, test orders, cleanup, locations, collection handover and email sending."
-        actions={<Link href="/launch-readiness" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black">Run Launch Readiness</Link>}
+        subtitle="Quick access to the Holo Print launch tools for readiness checks, test orders, cleanup, locations, collection handover, payments and email sending."
+        actions={<><Button onClick={() => void refreshStatuses()} disabled={loading}><RefreshCw size={14} /> Refresh status</Button><Link href="/launch-readiness" className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black">Run Launch Readiness</Link></>}
       />
       <div className="mb-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-sm text-sky-100">
         <Rocket className="mr-2 inline h-4 w-4" /> These links reuse existing modules. No duplicate workflows are created here.
+      </div>
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+        {statusCards.map((card) => <LaunchStatusCard key={card.key} config={card} data={statuses[card.key]} error={errors[card.key]} />)}
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
         {tools.map(([title, href, Icon, body]) => (

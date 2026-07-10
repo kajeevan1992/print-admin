@@ -1,6 +1,6 @@
 import { queueInternalEmail } from './internal-email.service';
 
-export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link';
+export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link' | 'customer-design-quote-payment-link';
 
 type EmailOrder = Record<string, any> & {
   id?: string;
@@ -55,6 +55,7 @@ function subjectFor(type: OrderEmailType, order: EmailOrder) {
   if (type === 'admin-new-order') return `New Holo Print order: ${num}`;
   if (type === 'customer-payment-received') return `Payment received for ${num}`;
   if (type === 'customer-payment-link') return `Payment link for ${num}`;
+  if (type === 'customer-design-quote-payment-link') return `Design quote payment link for ${num}`;
   return `Holo Print order received: ${num}`;
 }
 
@@ -74,6 +75,10 @@ function bodyFor(type: OrderEmailType, order: EmailOrder, options: QueueOptions 
 
   if (type === 'customer-payment-link') {
     return `Hi ${name},\n\nYour Holo Print quote/order ${num} has been approved and is ready for payment.\n\nTotal: ${total}\n\nPay securely here:\n${options.paymentUrl || 'Payment link will be sent shortly.'}\n\nOnce payment is complete, we will move your job into artwork check and production.\n\nKind regards,\nHolo Print`;
+  }
+
+  if (type === 'customer-design-quote-payment-link') {
+    return `Hi ${name},\n\nOur design team has reviewed your design brief for order ${num}.\n\nExtra design charge: ${total}\n\nPlease pay the design quote securely here:\n${options.paymentUrl || 'Payment link will be sent shortly.'}\n\nOnce this design payment is complete, our team can start the design work. Print production will still remain on hold until the final design/proof is approved.\n\n${options.note ? `Note from our team:\n${options.note}\n\n` : ''}Kind regards,\nHolo Print`;
   }
 
   return `Hi ${name},\n\nThank you — we have received your Holo Print order ${num}.\n\nStatus: ${order.status || 'pending'}\nPayment: ${order.paymentStatus || 'unpaid'}\nTotal: ${total}\n\nItems:\n${lines}\n\nIf this order needs manual approval or a quote, we will confirm the final details and send a payment link.\n\nKind regards,\nHolo Print`;

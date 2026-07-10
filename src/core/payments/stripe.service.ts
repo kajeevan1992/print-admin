@@ -13,6 +13,7 @@ const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 const CONFIG_RESOURCE = 'admin-config' as any;
 const TICKETS_KEY = 'production-job-tickets';
+const DESIGN_BRIEFS_KEY = 'customer-design-briefs-v1';
 const WEBHOOK_EVENTS_KEY = 'stripe-webhook-events';
 const PAYMENT_RECEIVED_EMAIL_MARKER = 'customer-payment-received email queued';
 
@@ -25,8 +26,11 @@ function defaultReturnUrl(request: Request, path: string, orderId: string) { con
 function paymentGate(status: string) { return ['paid', 'captured', 'authorized'].includes(String(status || '').toLowerCase()) ? 'paid' : 'awaiting-payment'; }
 function stripeObjectOrderId(object: any) { return String(object?.metadata?.orderId || object?.client_reference_id || object?.orderId || '').trim(); }
 function stripeObjectTenantId(object: any) { return String(object?.metadata?.tenantId || object?.tenantId || '').trim(); }
+function stripeObjectPaymentType(object: any) { return String(object?.metadata?.paymentType || object?.metadata?.type || object?.paymentType || '').trim().toLowerCase(); }
+function stripeObjectDesignBriefId(object: any) { return String(object?.metadata?.designBriefId || object?.designBriefId || '').trim(); }
 function noteList(order: any, note: string) { return [...(Array.isArray(order?.internalNotes) ? order.internalNotes : []), note].filter(Boolean); }
 function hasNote(order: any, marker: string) { return (Array.isArray(order?.internalNotes) ? order.internalNotes : []).some((note: unknown) => String(note || '').toLowerCase().includes(marker.toLowerCase())); }
+function nowIso() { return new Date().toISOString(); }
 function requestWithStripeTenant(request: Request, object: any) {
   const tenantId = stripeObjectTenantId(object);
   if (!tenantId) return request;
@@ -36,13 +40,18 @@ function requestWithStripeTenant(request: Request, object: any) {
   headers.set('x-tenant-id', tenantId);
   return new Request(url.toString(), { method: 'GET', headers });
 }
-async function readTickets(request: Request) { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, TICKETS_KEY); const items = (record as any)?.metadataJson?.items; return Array.isArray(items) ? items as Record<string, any>[] : []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
-async function writeTickets(request: Request, items: Record<string, any>[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: TICKETS_KEY, slug: TICKETS_KEY, name: 'Production Job Tickets', description: 'Manufacturing job tickets with storefront artwork, preflight, payment and production handoff', metadataJson: { items, savedAt: new Date().toISOString(), storageKey: TICKETS_KEY, source: 'stripe-payment-sync' } } as any); }
+async function readConfigItems(request: Request, key: string) { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key); const metadata = (record as any)?.metadataJson || {}; if (Array.isArray(metadata.items)) return metadata.items as Record<string, any>[]; if (Array.isArray(metadata.store?.items)) return metadata.store.items as Record<string, any>[]; return []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
+async function writeConfigItems(request: Request, key: string, title: string, items: Record<string, any>[], source = 'stripe-payment-sync') { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: key, slug: key, name: title, title, description: title, metadataJson: { items, savedAt: nowIso(), storageKey: key, source } } as any); }
+async function readTickets(request: Request) { return readConfigItems(request, TICKETS_KEY); }
+async function writeTickets(request: Request, items: Record<string, any>[]) { return writeConfigItems(request, TICKETS_KEY, 'Production Job Tickets', items, 'stripe-payment-sync'); }
+async function readDesignBriefs(request: Request) { return readConfigItems(request, DESIGN_BRIEFS_KEY); }
+async function writeDesignBriefs(request: Request, items: Record<string, any>[]) { return writeConfigItems(request, DESIGN_BRIEFS_KEY, 'Customer Design Briefs', items, 'stripe-design-quote-sync'); }
+function designTicketMatch(ticket: Record<string, any>, brief: Record<string, any>) { const keys = [brief.id, brief.orderId, brief.orderNumber, brief.stripeDesignQuoteSessionId, brief.stripeDesignQuotePaymentIntentId].filter(Boolean).map(String); return keys.some((key) => [ticket.designBriefId, ticket.orderId, ticket.orderNumber, ticket.stripeDesignQuoteSessionId, ticket.stripeDesignQuotePaymentIntentId, ticket.id].filter(Boolean).map(String).includes(key)); }
 async function syncTicketPayment(request: Request, order: any, status: string, note: string) {
   const items = await readTickets(request).catch(() => []);
   if (!items.length) return { updated: false, reason: 'no tickets' };
   let changed = false;
-  const now = new Date().toISOString();
+  const now = nowIso();
   const next = items.map((ticket) => {
     const match = [ticket.orderId, ticket.orderNumber, ticket.id].filter(Boolean).map(String).includes(String(order.id)) || [ticket.orderId, ticket.orderNumber].filter(Boolean).map(String).includes(String(order.orderNumber));
     if (!match) return ticket;
@@ -55,6 +64,55 @@ async function syncTicketPayment(request: Request, order: any, status: string, n
   if (changed) await writeTickets(request, next);
   return { updated: changed };
 }
+async function syncDesignQuotePayment(request: Request, object: any, eventType: string, status: 'paid' | 'pending' | 'failed' | 'cancelled') {
+  const scopedRequest = requestWithStripeTenant(request, object);
+  const briefId = stripeObjectDesignBriefId(object);
+  const sessionId = String(object?.object === 'checkout.session' ? object?.id || '' : object?.checkout_session || '').trim();
+  const paymentIntentId = String(object?.object === 'payment_intent' ? object?.id || '' : object?.payment_intent || '').trim();
+  if (!briefId && !sessionId && !paymentIntentId) return { ok: false, skipped: true, reason: 'Stripe design quote object has no brief/session/payment intent reference.' };
+  const briefs = await readDesignBriefs(scopedRequest).catch(() => []);
+  const current = briefs.find((brief) => String(brief.id) === briefId || (sessionId && String(brief.stripeDesignQuoteSessionId || '') === sessionId) || (paymentIntentId && String(brief.stripeDesignQuotePaymentIntentId || '') === paymentIntentId));
+  if (!current) return { ok: false, skipped: true, reason: `Design brief not found for Stripe design quote event ${briefId || sessionId || paymentIntentId}.` };
+  const at = nowIso();
+  const paid = status === 'paid';
+  const failed = ['failed', 'cancelled'].includes(status);
+  const note = paid ? `Stripe design quote paid. Event: ${eventType}.` : failed ? `Stripe design quote payment ${status}. Event: ${eventType}.` : `Stripe design quote payment update: ${status}. Event: ${eventType}.`;
+  const updatedBrief = {
+    ...current,
+    designQuotePaymentStatus: status,
+    designQuotePaidAt: paid ? at : current.designQuotePaidAt || '',
+    designQuoteStatus: paid ? 'approved-to-design' : failed ? 'quote-sent' : current.designQuoteStatus || 'quote-sent',
+    stripeDesignQuoteSessionId: sessionId || current.stripeDesignQuoteSessionId || '',
+    stripeDesignQuotePaymentIntentId: paymentIntentId || current.stripeDesignQuotePaymentIntentId || '',
+    updatedAt: at,
+    history: [{ at, action: paid ? 'design-quote-paid' : `design-quote-${status}`, note, stripeSessionId: sessionId, stripePaymentIntentId: paymentIntentId }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 100),
+  };
+  await writeDesignBriefs(scopedRequest, briefs.map((brief) => String(brief.id) === String(current.id) ? updatedBrief : brief));
+  const tickets = await readTickets(scopedRequest).catch(() => []);
+  let ticketUpdated = false;
+  const nextTickets = tickets.map((ticket) => {
+    if (!designTicketMatch(ticket, updatedBrief)) return ticket;
+    ticketUpdated = true;
+    return {
+      ...ticket,
+      designBriefId: updatedBrief.id,
+      designBriefStatus: 'submitted',
+      designQuoteStatus: paid ? 'approved-to-design' : ticket.designQuoteStatus || 'quote-sent',
+      designQuotePaymentStatus: status,
+      designQuotePaidAt: paid ? at : ticket.designQuotePaidAt || '',
+      stripeDesignQuoteSessionId: sessionId || ticket.stripeDesignQuoteSessionId || '',
+      stripeDesignQuotePaymentIntentId: paymentIntentId || ticket.stripeDesignQuotePaymentIntentId || '',
+      status: paid ? 'design-ready' : ticket.status || 'artwork-check',
+      artworkStatus: paid ? 'design-ready' : ticket.artworkStatus || 'design-brief-submitted',
+      handoffState: 'blocked',
+      blockReason: paid ? 'Design quote paid. Design can start; print production remains blocked until final design proof is approved.' : ticket.blockReason || 'Waiting for design quote payment.',
+      productionNotes: [ticket.productionNotes, note].filter(Boolean).join(' '),
+      updatedAt: at,
+    };
+  });
+  if (ticketUpdated) await writeTickets(scopedRequest, nextTickets);
+  return { ok: true, source: 'stripe-design-quote-sync', paid, failed, status, brief: updatedBrief, ticketUpdated, tenantId: stripeObjectTenantId(object) || '' };
+}
 async function queuePaymentReceivedNotification(request: Request, order: any, source: string) {
   if (!order?.customerEmail) return { skipped: true, reason: 'missing customer email' };
   if (hasNote(order, PAYMENT_RECEIVED_EMAIL_MARKER)) return { skipped: true, reason: 'already queued' };
@@ -63,10 +121,10 @@ async function queuePaymentReceivedNotification(request: Request, order: any, so
   const updated = await updateOrder(request, order.id, { internalNotes: noteList(order, marker) }).catch(() => order);
   return { queued: true, email, order: updated };
 }
-async function readWebhookEvents(request: Request) { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, WEBHOOK_EVENTS_KEY); const events = (record as any)?.metadataJson?.events; return Array.isArray(events) ? events as Record<string, any>[] : []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
-async function writeWebhookEvents(request: Request, events: Record<string, any>[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: WEBHOOK_EVENTS_KEY, slug: WEBHOOK_EVENTS_KEY, name: 'Stripe Webhook Events', description: 'Recent Stripe webhook events processed for payment lifecycle idempotency', metadataJson: { events: events.slice(0, 100), savedAt: new Date().toISOString(), storageKey: WEBHOOK_EVENTS_KEY, source: 'stripe-webhook' } } as any); }
+async function readWebhookEvents(request: Request) { return readConfigItems(request, WEBHOOK_EVENTS_KEY); }
+async function writeWebhookEvents(request: Request, events: Record<string, any>[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: WEBHOOK_EVENTS_KEY, slug: WEBHOOK_EVENTS_KEY, name: 'Stripe Webhook Events', description: 'Recent Stripe webhook events processed for payment lifecycle idempotency', metadataJson: { events: events.slice(0, 100), savedAt: nowIso(), storageKey: WEBHOOK_EVENTS_KEY, source: 'stripe-webhook' } } as any); }
 export async function checkStripeWebhookEventProcessed(request: Request, eventId?: string, object?: any) { const scoped = requestWithStripeTenant(request, object || {}); const id = String(eventId || '').trim(); if (!id) return { processed: false, scopedRequest: scoped, reason: 'no event id' }; const events = await readWebhookEvents(scoped).catch(() => []); return { processed: events.some((event) => String(event.id) === id), scopedRequest: scoped, eventCount: events.length }; }
-export async function recordStripeWebhookEventProcessed(request: Request, event: StripeEvent, result: any, object?: any) { const scoped = requestWithStripeTenant(request, object || event.data?.object || {}); const id = String(event.id || '').trim(); if (!id) return { recorded: false, reason: 'no event id' }; const events = await readWebhookEvents(scoped).catch(() => []); const next = [{ id, type: event.type || '', orderId: stripeObjectOrderId(object || event.data?.object || {}), tenantId: stripeObjectTenantId(object || event.data?.object || {}), processedAt: new Date().toISOString(), ok: result?.ok !== false }, ...events.filter((item) => String(item.id) !== id)]; await writeWebhookEvents(scoped, next).catch(() => null); return { recorded: true, id, count: next.length };
+export async function recordStripeWebhookEventProcessed(request: Request, event: StripeEvent, result: any, object?: any) { const scoped = requestWithStripeTenant(request, object || event.data?.object || {}); const id = String(event.id || '').trim(); if (!id) return { recorded: false, reason: 'no event id' }; const events = await readWebhookEvents(scoped).catch(() => []); const next = [{ id, type: event.type || '', orderId: stripeObjectOrderId(object || event.data?.object || {}), tenantId: stripeObjectTenantId(object || event.data?.object || {}), paymentType: stripeObjectPaymentType(object || event.data?.object || {}), designBriefId: stripeObjectDesignBriefId(object || event.data?.object || {}), processedAt: nowIso(), ok: result?.ok !== false }, ...events.filter((item) => String(item.id) !== id)]; await writeWebhookEvents(scoped, next).catch(() => null); return { recorded: true, id, count: next.length };
 }
 
 async function stripePost(path: string, params: Record<string, string | number | boolean | undefined | null>) { assertStripeConfigured(); const response = await fetch(`${STRIPE_API_BASE}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${secretKey()}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(params) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`); return payload; }
@@ -81,7 +139,7 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
   const successUrl = input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
   const cancelUrl = input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);
   const email = input.customerEmail || order.customerEmail || undefined;
-  const session = await stripePost('/checkout/sessions', { mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id, 'line_items[0][quantity]': 1, 'line_items[0][price_data][currency]': String(order.currency || 'GBP').toLowerCase(), 'line_items[0][price_data][unit_amount]': order.totalMinor, 'line_items[0][product_data][name]': undefined, 'line_items[0][price_data][product_data][name]': `Order ${order.orderNumber}`, 'line_items[0][price_data][product_data][description]': `${order.items?.length || 0} print item(s)`, 'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[tenantId]': tenant.tenantId || '', 'payment_intent_data[metadata][orderId]': order.id, 'payment_intent_data[metadata][orderNumber]': order.orderNumber, 'payment_intent_data[metadata][tenantId]': tenant.tenantId || '' });
+  const session = await stripePost('/checkout/sessions', { mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id, 'line_items[0][quantity]': 1, 'line_items[0][price_data][currency]': String(order.currency || 'GBP').toLowerCase(), 'line_items[0][price_data][unit_amount]': order.totalMinor, 'line_items[0][price_data][product_data][name]': `Order ${order.orderNumber}`, 'line_items[0][price_data][product_data][description]': `${order.items?.length || 0} print item(s)`, 'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[tenantId]': tenant.tenantId || '', 'payment_intent_data[metadata][orderId]': order.id, 'payment_intent_data[metadata][orderNumber]': order.orderNumber, 'payment_intent_data[metadata][tenantId]': tenant.tenantId || '' });
   await updateOrder(request, order.id, { paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paymentFailureReason: '', internalNotes: noteList(order, `Stripe checkout session created: ${session.id}`) });
   await syncTicketPayment(request, order, 'pending', `Stripe checkout session created: ${session.id}.`).catch(() => null);
   return { session, order };
@@ -93,6 +151,10 @@ async function resolvePaymentIntentForOrder(request: Request, order: any) { if (
 export async function createStripeRefundForOrder(request: Request, input: StripeRefundInput) { const order = await getOrder(request, input.orderId); if (!order) throw new Error('Order not found.'); const paymentIntentId = await resolvePaymentIntentForOrder(request, order); if (!paymentIntentId) throw new Error('No Stripe payment intent is linked to this order, so a real Stripe refund cannot be created. Use refund note for manual/offline refunds.'); const amountMinor = Number(input.amountMinor || 0); if (amountMinor < 0) throw new Error('Refund amount cannot be negative.'); const refund = await stripePost('/refunds', { payment_intent: paymentIntentId, amount: amountMinor > 0 ? Math.round(amountMinor) : undefined, reason: input.reason || 'requested_by_customer', 'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[actor]': input.actor || 'admin', 'metadata[note]': input.note || '' }); return { refund, order, paymentIntentId }; }
 
 export async function applyStripeCheckoutSessionToOrder(request: Request, session: any, eventType = 'manual') {
+  if (stripeObjectPaymentType(session) === 'design-quote') {
+    const status = session.payment_status === 'paid' || eventType === 'checkout.session.completed' || eventType === 'checkout.session.async_payment_succeeded' ? 'paid' : eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed' || session.status === 'expired' ? 'failed' : 'pending';
+    return syncDesignQuotePayment(request, session, eventType, status as 'paid' | 'pending' | 'failed' | 'cancelled');
+  }
   const scopedRequest = requestWithStripeTenant(request, session);
   const orderId = stripeObjectOrderId(session);
   if (!orderId) return { ok: false, skipped: true, reason: 'Stripe session has no order metadata.' };
@@ -103,13 +165,18 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   const nextStatus = paid ? (order.status === 'AWAITING_PAYMENT' ? 'ARTWORK_CHECK' : order.status) : order.status;
   const nextPaymentStatus = paid ? 'paid' : failed ? 'failed' : session.payment_status || 'pending';
   const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : failed ? `Stripe payment failed or expired. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
-  const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || order.stripePaymentIntentId || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
+  const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
   const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-session-${session.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
   return { ok: true, order: (paymentEmail as any)?.order || updated, paid, failed, eventType, tenantId: stripeObjectTenantId(session) || '', paymentEmail };
 }
 
 export async function applyStripePaymentIntentToOrder(request: Request, intent: any, eventType = 'manual') {
+  if (stripeObjectPaymentType(intent) === 'design-quote') {
+    const rawStatus = String(intent.status || '').toLowerCase();
+    const status = eventType === 'payment_intent.succeeded' || rawStatus === 'succeeded' ? 'paid' : eventType === 'payment_intent.payment_failed' || rawStatus === 'requires_payment_method' || rawStatus === 'canceled' ? 'failed' : rawStatus === 'processing' ? 'pending' : 'pending';
+    return syncDesignQuotePayment(request, intent, eventType, status as 'paid' | 'pending' | 'failed' | 'cancelled');
+  }
   const scopedRequest = requestWithStripeTenant(request, intent);
   const orderId = stripeObjectOrderId(intent);
   if (!orderId) return { ok: false, skipped: true, reason: 'Stripe payment intent has no order metadata.' };
@@ -122,7 +189,7 @@ export async function applyStripePaymentIntentToOrder(request: Request, intent: 
   const nextPaymentStatus = paid ? 'paid' : authorized ? 'authorized' : failed ? 'failed' : status === 'processing' ? 'pending' : order.paymentStatus || 'pending';
   const nextStatus = ['paid', 'authorized'].includes(nextPaymentStatus) && order.status === 'AWAITING_PAYMENT' ? 'ARTWORK_CHECK' : order.status;
   const note = `Stripe payment intent update (${eventType}). Intent: ${intent.id}. Status: ${intent.status || 'unknown'}.`;
-  const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripePaymentIntentId: intent.id || order.stripePaymentIntentId || '', paidAt: paid ? new Date().toISOString() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
+  const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripePaymentIntentId: intent.id || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
   const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-payment-intent-${intent.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
   return { ok: true, order: (paymentEmail as any)?.order || updated, paid, authorized, failed, eventType, tenantId: stripeObjectTenantId(intent) || '', paymentEmail };
@@ -138,7 +205,7 @@ export async function applyStripeRefundToOrder(request: Request, refund: any, ev
   const succeeded = refundStatus === 'succeeded';
   const nextPaymentStatus = succeeded ? 'refunded' : 'refund-pending';
   const note = `Stripe refund update (${eventType}). Refund: ${refund.id}. Status: ${refund.status || 'unknown'}.`;
-  const updated = await updateOrder(scopedRequest, order.id, { paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeRefundId: refund.id || order.stripeRefundId || '', stripeRefundStatus: refund.status || order.stripeRefundStatus || '', refundAmountMinor: refund.amount || order.refundAmountMinor || '', refundedAt: succeeded ? new Date().toISOString() : order.refundedAt, refundNote: refund.reason || order.refundNote || '', internalNotes: noteList(order, note) });
+  const updated = await updateOrder(scopedRequest, order.id, { paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeRefundId: refund.id || order.stripeRefundId || '', stripeRefundStatus: refund.status || order.stripeRefundStatus || '', refundAmountMinor: refund.amount || order.refundAmountMinor || '', refundedAt: succeeded ? nowIso() : order.refundedAt, refundNote: refund.reason || order.refundNote || '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
   return { ok: true, order: updated, refunded: succeeded, eventType, tenantId: stripeObjectTenantId(refund) || '' };
 }

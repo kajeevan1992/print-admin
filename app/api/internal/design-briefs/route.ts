@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
+import { queueOrderCustomerEmail } from '@/core/email/order-notifications.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +67,24 @@ async function createDesignQuoteSession(request: Request, brief: Store, amountMi
   });
   return { id: session.id, url: session.url || '', paymentIntentId: session.payment_intent || '', amountMinor };
 }
+function designQuoteEmailOrder(brief: Store) {
+  return {
+    id: text(brief.orderId || brief.orderNumber || brief.id),
+    orderNumber: text(brief.orderNumber || brief.orderId || brief.id),
+    customerName: text(brief.customerName || 'Customer'),
+    customerEmail: customerEmail(brief),
+    currency: 'GBP',
+    totalMinor: moneyMinor(brief.quoteAmountMinor || brief.designQuoteAmountMinor || 0),
+    status: 'DESIGN_QUOTE_SENT',
+    paymentStatus: brief.designQuotePaymentStatus || 'pending',
+    items: [{ productName: `Design work${brief.productName ? ` - ${brief.productName}` : ''}`, quantity: 1 }],
+  };
+}
+async function queueDesignQuotePaymentEmail(request: Request, brief: Store, paymentUrl: string, staffNote: string) {
+  if (!paymentUrl) return { ok: false, skipped: true, reason: 'Missing design quote payment URL.' };
+  if (!customerEmail(brief)) return { ok: false, skipped: true, reason: 'Missing customer email.' };
+  return queueOrderCustomerEmail(request, 'customer-design-quote-payment-link', designQuoteEmailOrder(brief), { paymentUrl, note: staffNote, actor: 'design-brief-review' });
+}
 async function readItems(request: Request, key: string) {
   try {
     const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key);
@@ -106,6 +125,7 @@ function enrichBrief(brief: Store, tickets: Store[]) {
       designQuoteStatus: ticket.designQuoteStatus || brief.designQuoteStatus || 'needs-review',
       designQuotePaymentStatus: ticket.designQuotePaymentStatus || brief.designQuotePaymentStatus || '',
       designQuotePaymentUrl: ticket.designQuotePaymentUrl || brief.designQuotePaymentUrl || '',
+      designQuoteEmailQueuedAt: ticket.designQuoteEmailQueuedAt || brief.designQuoteEmailQueuedAt || '',
       blockReason: ticket.blockReason || '',
       owner: ticket.owner || ticket.assignedOperator || 'Prepress Team',
       updatedAt: ticket.updatedAt || '',
@@ -155,6 +175,7 @@ export async function POST(request: Request) {
     const staffNote = text(body.staffNote || body.note);
     const quoteAmountMinor = moneyMinor(body.quoteAmountMinor || 0);
     const generatePaymentLink = body.generatePaymentLink !== false;
+    const sendCustomerEmail = body.sendCustomerEmail !== false;
     if (!id) return json({ ok: false, error: 'brief id is required.' }, { status: 400 });
     if (!allowedQuoteStatus(designQuoteStatus)) return json({ ok: false, error: `Unsupported design quote status: ${designQuoteStatus}` }, { status: 400 });
     const briefs = await readItems(request, DESIGN_BRIEFS_KEY);
@@ -165,6 +186,11 @@ export async function POST(request: Request) {
     if (designQuoteStatus === 'quote-sent' && quoteAmountMinor > 0 && generatePaymentLink) {
       paymentSession = await createDesignQuoteSession(request, { ...current, quoteAmountMinor }, quoteAmountMinor);
     }
+    const emailTargetUrl = paymentSession?.url || current.designQuotePaymentUrl || '';
+    const emailResult = designQuoteStatus === 'quote-sent' && quoteAmountMinor > 0 && sendCustomerEmail
+      ? await queueDesignQuotePaymentEmail(request, { ...current, quoteAmountMinor }, emailTargetUrl, staffNote).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Design quote email queue failed.' }))
+      : { skipped: true };
+    const emailQueued = Boolean((emailResult as any)?.ok && !(emailResult as any)?.skipped);
     const updatedBrief = {
       ...current,
       designQuoteStatus,
@@ -172,9 +198,10 @@ export async function POST(request: Request) {
       quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0,
       staffNote: staffNote || current.staffNote || '',
       ...(paymentSession ? { designQuotePaymentUrl: paymentSession.url, stripeDesignQuoteSessionId: paymentSession.id, stripeDesignQuotePaymentIntentId: paymentSession.paymentIntentId || current.stripeDesignQuotePaymentIntentId || '', designQuotePaymentStatus: 'pending', designQuotePaymentRequestedAt: at } : {}),
+      ...(emailQueued ? { designQuoteEmailQueuedAt: at, designQuoteEmailStatus: 'queued' } : { designQuoteEmailStatus: (emailResult as any)?.error ? 'failed' : current.designQuoteEmailStatus || '' }),
       reviewedAt: at,
       reviewedBy: body.actor || 'staff',
-      history: [{ at, action: `design-brief-${designQuoteStatus}`, note: staffNote, quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0, stripeDesignQuoteSessionId: paymentSession?.id || '' }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
+      history: [{ at, action: `design-brief-${designQuoteStatus}`, note: staffNote, quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0, stripeDesignQuoteSessionId: paymentSession?.id || '', designQuoteEmailStatus: emailQueued ? 'queued' : (emailResult as any)?.skipped ? 'skipped' : (emailResult as any)?.error ? 'failed' : '' }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
       updatedAt: at,
     };
     const nextBriefs = briefs.map((brief) => String(brief.id) === id ? updatedBrief : brief);
@@ -186,10 +213,10 @@ export async function POST(request: Request) {
     const nextTickets = tickets.map((ticket) => {
       if (!matchTicket(ticket, updatedBrief)) return ticket;
       ticketUpdated = true;
-      return { ...ticket, ...patch, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designStaffNote: staffNote || ticket.designStaffNote || '', designQuoteAmountMinor: updatedBrief.quoteAmountMinor || ticket.designQuoteAmountMinor || 0, designQuotePaymentStatus: updatedBrief.designQuotePaymentStatus || ticket.designQuotePaymentStatus || '', designQuotePaymentUrl: updatedBrief.designQuotePaymentUrl || ticket.designQuotePaymentUrl || '', stripeDesignQuoteSessionId: updatedBrief.stripeDesignQuoteSessionId || ticket.stripeDesignQuoteSessionId || '', productionNotes: [ticket.productionNotes, staffNote ? `Design staff note: ${staffNote}` : '', `Design quote status: ${designQuoteStatus}.`, paymentSession?.url ? `Design quote payment link created: ${paymentSession.url}` : ''].filter(Boolean).join(' '), updatedAt: at };
+      return { ...ticket, ...patch, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designStaffNote: staffNote || ticket.designStaffNote || '', designQuoteAmountMinor: updatedBrief.quoteAmountMinor || ticket.designQuoteAmountMinor || 0, designQuotePaymentStatus: updatedBrief.designQuotePaymentStatus || ticket.designQuotePaymentStatus || '', designQuotePaymentUrl: updatedBrief.designQuotePaymentUrl || ticket.designQuotePaymentUrl || '', stripeDesignQuoteSessionId: updatedBrief.stripeDesignQuoteSessionId || ticket.stripeDesignQuoteSessionId || '', designQuoteEmailQueuedAt: updatedBrief.designQuoteEmailQueuedAt || ticket.designQuoteEmailQueuedAt || '', designQuoteEmailStatus: updatedBrief.designQuoteEmailStatus || ticket.designQuoteEmailStatus || '', productionNotes: [ticket.productionNotes, staffNote ? `Design staff note: ${staffNote}` : '', `Design quote status: ${designQuoteStatus}.`, paymentSession?.url ? `Design quote payment link created: ${paymentSession.url}` : '', emailQueued ? 'Design quote payment email queued for customer.' : ''].filter(Boolean).join(' '), updatedAt: at };
     });
     if (ticketUpdated) await writeItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);
-    return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, paymentSession, ticketUpdated, message: paymentSession?.url ? 'Design quote payment link created.' : 'Design brief review state updated.' });
+    return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, paymentSession, emailResult, ticketUpdated, message: paymentSession?.url ? (emailQueued ? 'Design quote payment link created and emailed to customer.' : 'Design quote payment link created.') : 'Design brief review state updated.' });
   } catch (error) {
     return json({ ok: false, source: 'internal-design-brief-review', error: error instanceof Error ? error.message : 'Design brief review update failed.' }, { status: 500 });
   }

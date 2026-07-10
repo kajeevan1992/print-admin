@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 const CONFIG_RESOURCE = 'admin-config' as any;
 const DESIGN_BRIEFS_KEY = 'customer-design-briefs-v1';
 const TICKETS_KEY = 'production-job-tickets';
+const STRIPE_API_BASE = 'https://api.stripe.com/v1';
 
 type Store = Record<string, any>;
 
@@ -20,6 +21,51 @@ function corsHeaders() {
 function json(data: unknown, init?: ResponseInit) { return NextResponse.json(data, { ...init, headers: { ...corsHeaders(), ...(init?.headers || {}) } }); }
 function nowIso() { return new Date().toISOString(); }
 function text(value: unknown) { return String(value || '').trim(); }
+function moneyMinor(value: unknown) { const next = Number(value || 0); return Number.isFinite(next) && next > 0 ? Math.round(next) : 0; }
+function form(params: Record<string, string | number | boolean | undefined | null>) { const body = new URLSearchParams(); Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') body.append(key, String(value)); }); return body; }
+function stripeSecret() { return process.env.STRIPE_SECRET_KEY || ''; }
+function appBase(request: Request) { const url = new URL(request.url); return `${url.protocol}//${url.host}`; }
+function customerEmail(brief: Store) { return text(brief.customerEmail || brief.customer?.email).toLowerCase(); }
+function designBriefUrl(request: Request, brief: Store, state: 'success' | 'cancel') {
+  const base = String(process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || appBase(request)).replace(/\/$/, '');
+  const params = new URLSearchParams({ orderId: String(brief.orderNumber || brief.orderId || ''), designQuote: state, session_id: '{CHECKOUT_SESSION_ID}' });
+  if (customerEmail(brief)) params.set('email', customerEmail(brief));
+  return `${base}/design-brief?${params.toString()}`;
+}
+async function stripePost(path: string, params: Record<string, string | number | boolean | undefined | null>) {
+  if (!stripeSecret()) throw new Error('Stripe is not configured. Add STRIPE_SECRET_KEY to create design quote payment links.');
+  const response = await fetch(`${STRIPE_API_BASE}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${stripeSecret()}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(params) });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`);
+  return payload;
+}
+async function createDesignQuoteSession(request: Request, brief: Store, amountMinor: number) {
+  const tenant = tenantContextFromRequest(request);
+  const orderNumber = text(brief.orderNumber || brief.orderId);
+  const session = await stripePost('/checkout/sessions', {
+    mode: 'payment',
+    success_url: designBriefUrl(request, brief, 'success'),
+    cancel_url: designBriefUrl(request, brief, 'cancel'),
+    customer_email: customerEmail(brief) || undefined,
+    client_reference_id: text(brief.orderId || brief.orderNumber || brief.id),
+    'line_items[0][quantity]': 1,
+    'line_items[0][price_data][currency]': 'gbp',
+    'line_items[0][price_data][unit_amount]': amountMinor,
+    'line_items[0][price_data][product_data][name]': `Design work for order ${orderNumber}`,
+    'line_items[0][price_data][product_data][description]': text(brief.productName || brief.designType || 'Design support'),
+    'metadata[paymentType]': 'design-quote',
+    'metadata[designBriefId]': brief.id,
+    'metadata[orderId]': brief.orderId || '',
+    'metadata[orderNumber]': brief.orderNumber || '',
+    'metadata[tenantId]': tenant.tenantId || '',
+    'payment_intent_data[metadata][paymentType]': 'design-quote',
+    'payment_intent_data[metadata][designBriefId]': brief.id,
+    'payment_intent_data[metadata][orderId]': brief.orderId || '',
+    'payment_intent_data[metadata][orderNumber]': brief.orderNumber || '',
+    'payment_intent_data[metadata][tenantId]': tenant.tenantId || '',
+  });
+  return { id: session.id, url: session.url || '', paymentIntentId: session.payment_intent || '', amountMinor };
+}
 async function readItems(request: Request, key: string) {
   try {
     const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key);
@@ -58,6 +104,8 @@ function enrichBrief(brief: Store, tickets: Store[]) {
       handoffState: ticket.handoffState,
       paymentStatus: ticket.paymentStatus,
       designQuoteStatus: ticket.designQuoteStatus || brief.designQuoteStatus || 'needs-review',
+      designQuotePaymentStatus: ticket.designQuotePaymentStatus || brief.designQuotePaymentStatus || '',
+      designQuotePaymentUrl: ticket.designQuotePaymentUrl || brief.designQuotePaymentUrl || '',
       blockReason: ticket.blockReason || '',
       owner: ticket.owner || ticket.assignedOperator || 'Prepress Team',
       updatedAt: ticket.updatedAt || '',
@@ -70,6 +118,7 @@ function summary(items: Store[]) {
     needsReview: items.filter((item) => text(item.designQuoteStatus || item.status) === 'needs-review' || text(item.status) === 'submitted').length,
     quoteRequired: items.filter((item) => text(item.designQuoteStatus) === 'quote-required').length,
     quoteSent: items.filter((item) => text(item.designQuoteStatus) === 'quote-sent').length,
+    quotePaid: items.filter((item) => text(item.designQuotePaymentStatus) === 'paid').length,
     readyForDesign: items.filter((item) => ['no-extra-charge', 'approved-to-design', 'design-in-progress'].includes(text(item.designQuoteStatus))).length,
   };
 }
@@ -104,22 +153,28 @@ export async function POST(request: Request) {
     const id = text(body.id || body.briefId);
     const designQuoteStatus = text(body.designQuoteStatus || body.status || 'needs-review');
     const staffNote = text(body.staffNote || body.note);
-    const quoteAmountMinor = Number(body.quoteAmountMinor || 0);
+    const quoteAmountMinor = moneyMinor(body.quoteAmountMinor || 0);
+    const generatePaymentLink = body.generatePaymentLink !== false;
     if (!id) return json({ ok: false, error: 'brief id is required.' }, { status: 400 });
     if (!allowedQuoteStatus(designQuoteStatus)) return json({ ok: false, error: `Unsupported design quote status: ${designQuoteStatus}` }, { status: 400 });
     const briefs = await readItems(request, DESIGN_BRIEFS_KEY);
     const current = briefs.find((brief) => String(brief.id) === id);
     if (!current) return json({ ok: false, error: 'Design brief was not found.' }, { status: 404 });
     const at = nowIso();
+    let paymentSession: Store | null = null;
+    if (designQuoteStatus === 'quote-sent' && quoteAmountMinor > 0 && generatePaymentLink) {
+      paymentSession = await createDesignQuoteSession(request, { ...current, quoteAmountMinor }, quoteAmountMinor);
+    }
     const updatedBrief = {
       ...current,
       designQuoteStatus,
       status: current.status || 'submitted',
-      quoteAmountMinor: Number.isFinite(quoteAmountMinor) && quoteAmountMinor > 0 ? Math.round(quoteAmountMinor) : current.quoteAmountMinor || 0,
+      quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0,
       staffNote: staffNote || current.staffNote || '',
+      ...(paymentSession ? { designQuotePaymentUrl: paymentSession.url, stripeDesignQuoteSessionId: paymentSession.id, stripeDesignQuotePaymentIntentId: paymentSession.paymentIntentId || current.stripeDesignQuotePaymentIntentId || '', designQuotePaymentStatus: 'pending', designQuotePaymentRequestedAt: at } : {}),
       reviewedAt: at,
       reviewedBy: body.actor || 'staff',
-      history: [{ at, action: `design-brief-${designQuoteStatus}`, note: staffNote, quoteAmountMinor: Number.isFinite(quoteAmountMinor) ? quoteAmountMinor : 0 }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
+      history: [{ at, action: `design-brief-${designQuoteStatus}`, note: staffNote, quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0, stripeDesignQuoteSessionId: paymentSession?.id || '' }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
       updatedAt: at,
     };
     const nextBriefs = briefs.map((brief) => String(brief.id) === id ? updatedBrief : brief);
@@ -131,10 +186,10 @@ export async function POST(request: Request) {
     const nextTickets = tickets.map((ticket) => {
       if (!matchTicket(ticket, updatedBrief)) return ticket;
       ticketUpdated = true;
-      return { ...ticket, ...patch, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designStaffNote: staffNote || ticket.designStaffNote || '', designQuoteAmountMinor: updatedBrief.quoteAmountMinor || ticket.designQuoteAmountMinor || 0, productionNotes: [ticket.productionNotes, staffNote ? `Design staff note: ${staffNote}` : '', `Design quote status: ${designQuoteStatus}.`].filter(Boolean).join(' '), updatedAt: at };
+      return { ...ticket, ...patch, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designStaffNote: staffNote || ticket.designStaffNote || '', designQuoteAmountMinor: updatedBrief.quoteAmountMinor || ticket.designQuoteAmountMinor || 0, designQuotePaymentStatus: updatedBrief.designQuotePaymentStatus || ticket.designQuotePaymentStatus || '', designQuotePaymentUrl: updatedBrief.designQuotePaymentUrl || ticket.designQuotePaymentUrl || '', stripeDesignQuoteSessionId: updatedBrief.stripeDesignQuoteSessionId || ticket.stripeDesignQuoteSessionId || '', productionNotes: [ticket.productionNotes, staffNote ? `Design staff note: ${staffNote}` : '', `Design quote status: ${designQuoteStatus}.`, paymentSession?.url ? `Design quote payment link created: ${paymentSession.url}` : ''].filter(Boolean).join(' '), updatedAt: at };
     });
     if (ticketUpdated) await writeItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);
-    return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, ticketUpdated, message: 'Design brief review state updated.' });
+    return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, paymentSession, ticketUpdated, message: paymentSession?.url ? 'Design quote payment link created.' : 'Design brief review state updated.' });
   } catch (error) {
     return json({ ok: false, source: 'internal-design-brief-review', error: error instanceof Error ? error.message : 'Design brief review update failed.' }, { status: 500 });
   }

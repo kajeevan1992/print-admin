@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 type Brief = Record<string, any>;
-type Summary = { total?: number; needsReview?: number; quoteRequired?: number; quoteSent?: number; readyForDesign?: number };
+type Summary = { total?: number; needsReview?: number; quoteRequired?: number; quoteSent?: number; quotePaid?: number; readyForDesign?: number };
 
 const statusOptions = [
   ['needs-review', 'Needs review'],
@@ -38,6 +38,8 @@ function field(brief: Brief, key: string, label: string) {
   if (!value) return null;
   return <div className="rounded-2xl border border-slate-200 bg-white p-3"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-800">{value}</p></div>;
 }
+function paymentUrl(brief: Brief) { return String(brief.designQuotePaymentUrl || brief.ticket?.designQuotePaymentUrl || '').trim(); }
+function paymentStatus(brief: Brief) { return String(brief.designQuotePaymentStatus || brief.ticket?.designQuotePaymentStatus || '').trim() || 'not-requested'; }
 
 function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }) {
   const [status, setStatus] = useState(String(brief.designQuoteStatus || 'needs-review'));
@@ -45,7 +47,9 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
   const [note, setNote] = useState(String(brief.staffNote || ''));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [latestPaymentUrl, setLatestPaymentUrl] = useState(paymentUrl(brief));
   const ticket = brief.ticket || {};
+  const visiblePaymentUrl = latestPaymentUrl || paymentUrl(brief);
 
   async function save() {
     setSaving(true);
@@ -58,13 +62,20 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Update failed');
-      setMessage('Updated');
+      const url = payload.paymentSession?.url || payload.brief?.designQuotePaymentUrl || '';
+      if (url) setLatestPaymentUrl(url);
+      setMessage(url ? 'Updated and payment link created' : 'Updated');
       onUpdated();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Update failed');
     } finally {
       setSaving(false);
     }
+  }
+  async function copyLink() {
+    if (!visiblePaymentUrl) return;
+    await navigator.clipboard?.writeText(visiblePaymentUrl).catch(() => null);
+    setMessage('Payment link copied');
   }
 
   return <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -77,11 +88,18 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       <div className={`rounded-full border px-4 py-2 text-xs font-black ${statusTone(String(brief.designQuoteStatus || 'needs-review'))}`}>{brief.designQuoteStatus || 'needs-review'}</div>
     </div>
 
-    <div className="mt-5 grid gap-3 lg:grid-cols-3">
+    <div className="mt-5 grid gap-3 lg:grid-cols-4">
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Ticket</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.status || 'No ticket linked'}</p><p className="mt-1 text-xs text-slate-500">{ticket.blockReason || 'No block reason recorded'}</p></div>
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Payment</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.paymentStatus || 'Unknown'}</p><p className="mt-1 text-xs text-slate-500">Print order payment state</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Print payment</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.paymentStatus || 'Unknown'}</p><p className="mt-1 text-xs text-slate-500">Print order payment state</p></div>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Design quote</p><p className="mt-1 text-sm font-black text-slate-900">{moneyMinor(brief.quoteAmountMinor)}</p><p className="mt-1 text-xs text-slate-500">Extra design charge, if required</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Quote payment</p><p className="mt-1 text-sm font-black text-slate-900">{paymentStatus(brief)}</p><p className="mt-1 text-xs text-slate-500">Stripe design quote payment state</p></div>
     </div>
+
+    {visiblePaymentUrl ? <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Customer payment link</p>
+      <p className="mt-2 break-all text-xs font-semibold text-sky-900">{visiblePaymentUrl}</p>
+      <div className="mt-3 flex flex-wrap gap-2"><button onClick={copyLink} className="rounded-full bg-sky-700 px-4 py-2 text-xs font-black text-white">Copy link</button><a href={visiblePaymentUrl} target="_blank" rel="noreferrer" className="rounded-full border border-sky-200 bg-white px-4 py-2 text-xs font-black text-sky-800 no-underline">Open link</a></div>
+    </div> : null}
 
     <div className="mt-5 grid gap-3 md:grid-cols-2">
       {field(brief, 'designType', 'Design type')}
@@ -101,8 +119,9 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
         <label className="text-sm font-bold text-slate-700">Review state<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">{statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="text-sm font-bold text-slate-700">Extra quote £<input value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="0" step="0.01" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
         <label className="text-sm font-bold text-slate-700">Staff note<input value={note} onChange={(event) => setNote(event.target.value)} placeholder="What did you decide / what is needed next?" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
-        <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save review'}</button>
+        <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : status === 'quote-sent' ? 'Save + create link' : 'Save review'}</button>
       </div>
+      {status === 'quote-sent' ? <p className="mt-3 text-xs font-semibold text-slate-500">When quote amount is above £0, saving creates a Stripe payment link for the extra design charge.</p> : null}
       {message ? <p className="mt-3 text-xs font-bold text-slate-500">{message}</p> : null}
     </div>
   </article>;
@@ -138,11 +157,11 @@ export default function DesignBriefsPage() {
     <section className="mx-auto max-w-7xl space-y-6">
       <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-[11px] font-black uppercase tracking-[0.25em] text-sky-600">Design operations</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em]">Customer design briefs</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">Review submitted design-help briefs, decide if an extra design quote is needed, and keep print production blocked until design is ready/proof approved.</p></div>
+          <div><p className="text-[11px] font-black uppercase tracking-[0.25em] text-sky-600">Design operations</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em]">Customer design briefs</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">Review submitted design-help briefs, decide if an extra design quote is needed, create Stripe design quote links, and keep print production blocked until design is ready/proof approved.</p></div>
           <button onClick={() => void load()} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Refresh</button>
         </div>
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {[['Total', summary.total || 0], ['Needs review', summary.needsReview || 0], ['Quote required', summary.quoteRequired || 0], ['Quote sent', summary.quoteSent || 0], ['Ready for design', summary.readyForDesign || 0]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+          {[['Total', summary.total || 0], ['Needs review', summary.needsReview || 0], ['Quote required', summary.quoteRequired || 0], ['Quote sent', summary.quoteSent || 0], ['Quote paid', summary.quotePaid || 0], ['Ready for design', summary.readyForDesign || 0]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
         </div>
       </div>
 

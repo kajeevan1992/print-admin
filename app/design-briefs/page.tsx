@@ -41,9 +41,33 @@ function field(brief: Brief, key: string, label: string) {
   if (!value) return null;
   return <div className="rounded-2xl border border-slate-200 bg-white p-3"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p><p className="mt-1 whitespace-pre-wrap text-sm font-semibold text-slate-800">{value}</p></div>;
 }
-function paymentUrl(brief: Brief) { return String(brief.designQuotePaymentUrl || brief.ticket?.designQuotePaymentUrl || '').trim(); }
-function paymentStatus(brief: Brief) { return String(brief.designQuotePaymentStatus || brief.ticket?.designQuotePaymentStatus || '').trim() || 'not-requested'; }
-function proofUrl(brief: Brief) { return String(brief.designProofUrl || brief.ticket?.designProofUrl || '').trim(); }
+function text(value: unknown) { return String(value || '').trim(); }
+function paymentUrl(brief: Brief) { return text(brief.designQuotePaymentUrl || brief.ticket?.designQuotePaymentUrl); }
+function paymentStatus(brief: Brief) { return text(brief.designQuotePaymentStatus || brief.ticket?.designQuotePaymentStatus) || 'not-requested'; }
+function proofUrl(brief: Brief) { return text(brief.designProofUrl || brief.ticket?.designProofUrl); }
+function proofVersion(brief: Brief) { const value = Number(brief.ticket?.proofVersion || brief.proofVersion || 0); return Number.isFinite(value) && value > 0 ? value : 0; }
+function proofToken(brief: Brief) { return text(brief.ticket?.proofToken || brief.proofToken); }
+function decidedVersion(brief: Brief) { const value = Number(brief.decidedProofVersion || brief.ticket?.decidedProofVersion || 0); return Number.isFinite(value) && value > 0 ? value : 0; }
+function decidedToken(brief: Brief) { return text(brief.decidedProofToken || brief.ticket?.decidedProofToken); }
+function proofReviewUrl(brief: Brief) {
+  const orderId = text(brief.orderNumber || brief.orderId || brief.ticket?.orderNumber || brief.ticket?.orderId);
+  if (!orderId) return '';
+  const params = new URLSearchParams({ orderId });
+  const email = text(brief.customerEmail || brief.customer?.email);
+  const token = proofToken(brief);
+  const version = proofVersion(brief);
+  if (email) params.set('email', email);
+  if (token) params.set('proofToken', token);
+  if (version) params.set('proofVersion', String(version));
+  return `/proof-action?${params.toString()}`;
+}
+function proofDecisionLabel(brief: Brief) {
+  const currentVersion = proofVersion(brief);
+  const decisionVersion = decidedVersion(brief);
+  if (!decisionVersion) return 'No customer decision yet';
+  if (!currentVersion) return `Decision recorded on v${decisionVersion}`;
+  return decisionVersion === currentVersion ? `Decision matches current v${currentVersion}` : `Decision was on old v${decisionVersion}; current is v${currentVersion}`;
+}
 
 function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }) {
   const [status, setStatus] = useState(String(brief.designQuoteStatus || 'needs-review'));
@@ -56,6 +80,12 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
   const ticket = brief.ticket || {};
   const visiblePaymentUrl = latestPaymentUrl || paymentUrl(brief);
   const visibleProofUrl = designProofUrl || proofUrl(brief);
+  const currentProofVersion = proofVersion(brief);
+  const currentProofToken = proofToken(brief);
+  const customerDecisionVersion = decidedVersion(brief);
+  const customerDecisionToken = decidedToken(brief);
+  const reviewHref = proofReviewUrl(brief);
+  const decisionMatchesCurrent = Boolean(customerDecisionVersion && currentProofVersion && customerDecisionVersion === currentProofVersion && (!customerDecisionToken || !currentProofToken || customerDecisionToken === currentProofToken));
 
   async function save() {
     setSaving(true);
@@ -71,7 +101,7 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       const url = payload.paymentSession?.url || payload.brief?.designQuotePaymentUrl || '';
       if (url) setLatestPaymentUrl(url);
       if (payload.brief?.designProofUrl) setDesignProofUrl(payload.brief.designProofUrl);
-      setMessage(status === 'proof-sent' ? 'Design proof sent for customer approval' : status === 'revision-in-progress' ? 'Design revision marked in progress' : url ? 'Updated and payment link created' : 'Updated');
+      setMessage(status === 'proof-sent' ? `Design proof v${payload.brief?.proofVersion || 'new'} sent for customer approval` : status === 'revision-in-progress' ? 'Design revision marked in progress' : url ? 'Updated and payment link created' : 'Updated');
       onUpdated();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Update failed');
@@ -79,10 +109,11 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       setSaving(false);
     }
   }
-  async function copyLink(value = visiblePaymentUrl) {
+  async function copyLink(value = visiblePaymentUrl, label = 'Link') {
     if (!value) return;
-    await navigator.clipboard?.writeText(value).catch(() => null);
-    setMessage('Link copied');
+    const fullUrl = value.startsWith('/') ? `${window.location.origin}${value}` : value;
+    await navigator.clipboard?.writeText(fullUrl).catch(() => null);
+    setMessage(`${label} copied`);
   }
 
   return <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -95,11 +126,12 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       <div className={`rounded-full border px-4 py-2 text-xs font-black ${statusTone(String(brief.designQuoteStatus || 'needs-review'))}`}>{brief.designQuoteStatus || 'needs-review'}</div>
     </div>
 
-    <div className="mt-5 grid gap-3 lg:grid-cols-4">
+    <div className="mt-5 grid gap-3 lg:grid-cols-5">
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Ticket</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.status || 'No ticket linked'}</p><p className="mt-1 text-xs text-slate-500">{ticket.blockReason || 'No block reason recorded'}</p></div>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Print payment</p><p className="mt-1 text-sm font-black text-slate-900">{ticket.paymentStatus || 'Unknown'}</p><p className="mt-1 text-xs text-slate-500">Print order payment state</p></div>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Design quote</p><p className="mt-1 text-sm font-black text-slate-900">{moneyMinor(brief.quoteAmountMinor)}</p><p className="mt-1 text-xs text-slate-500">Extra design charge, if required</p></div>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Quote payment</p><p className="mt-1 text-sm font-black text-slate-900">{paymentStatus(brief)}</p><p className="mt-1 text-xs text-slate-500">Stripe design quote payment state</p></div>
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Proof version</p><p className="mt-1 text-sm font-black text-slate-900">{currentProofVersion ? `v${currentProofVersion}` : 'Not sent'}</p><p className={`mt-1 text-xs font-semibold ${decisionMatchesCurrent ? 'text-emerald-700' : customerDecisionVersion ? 'text-amber-700' : 'text-slate-500'}`}>{proofDecisionLabel(brief)}</p></div>
     </div>
 
     {String(brief.designQuoteStatus || '') === 'revision-requested' ? <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-black">Customer requested design changes</p><p className="mt-1">Move this to <strong>Revision in progress</strong> when a designer starts revising. Then use <strong>Proof sent / waiting approval</strong> again with the updated proof URL.</p></div> : null}
@@ -107,13 +139,24 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
     {visiblePaymentUrl ? <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
       <p className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Customer payment link</p>
       <p className="mt-2 break-all text-xs font-semibold text-sky-900">{visiblePaymentUrl}</p>
-      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(visiblePaymentUrl)} className="rounded-full bg-sky-700 px-4 py-2 text-xs font-black text-white">Copy link</button><a href={visiblePaymentUrl} target="_blank" rel="noreferrer" className="rounded-full border border-sky-200 bg-white px-4 py-2 text-xs font-black text-sky-800 no-underline">Open link</a></div>
+      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(visiblePaymentUrl, 'Payment link')} className="rounded-full bg-sky-700 px-4 py-2 text-xs font-black text-white">Copy link</button><a href={visiblePaymentUrl} target="_blank" rel="noreferrer" className="rounded-full border border-sky-200 bg-white px-4 py-2 text-xs font-black text-sky-800 no-underline">Open link</a></div>
     </div> : null}
 
     {visibleProofUrl ? <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50 p-4">
-      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Design proof link</p>
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">Design proof file</p>
       <p className="mt-2 break-all text-xs font-semibold text-violet-900">{visibleProofUrl}</p>
-      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(visibleProofUrl)} className="rounded-full bg-violet-700 px-4 py-2 text-xs font-black text-white">Copy proof link</button><a href={visibleProofUrl} target="_blank" rel="noreferrer" className="rounded-full border border-violet-200 bg-white px-4 py-2 text-xs font-black text-violet-800 no-underline">Open proof</a></div>
+      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(visibleProofUrl, 'Proof file link')} className="rounded-full bg-violet-700 px-4 py-2 text-xs font-black text-white">Copy proof file</button><a href={visibleProofUrl} target="_blank" rel="noreferrer" className="rounded-full border border-violet-200 bg-white px-4 py-2 text-xs font-black text-violet-800 no-underline">Open proof</a></div>
+    </div> : null}
+
+    {reviewHref ? <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">Current customer review link</p>
+      <p className="mt-2 break-all text-xs font-semibold text-indigo-900">{reviewHref}</p>
+      <div className="mt-2 grid gap-2 md:grid-cols-3">
+        <div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">Current version</p><p className="mt-1 text-sm font-black text-indigo-950">{currentProofVersion ? `v${currentProofVersion}` : 'Not set'}</p></div>
+        <div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">Decision version</p><p className="mt-1 text-sm font-black text-indigo-950">{customerDecisionVersion ? `v${customerDecisionVersion}` : 'None yet'}</p></div>
+        <div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">Token check</p><p className="mt-1 text-xs font-bold text-indigo-950">{currentProofToken ? currentProofToken : 'No token'}</p></div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(reviewHref, 'Review link')} className="rounded-full bg-indigo-700 px-4 py-2 text-xs font-black text-white">Copy review link</button><a href={reviewHref} target="_blank" rel="noreferrer" className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-black text-indigo-800 no-underline">Open review page</a></div>
     </div> : null}
 
     <div className="mt-5 grid gap-3 md:grid-cols-2">
@@ -133,6 +176,8 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       {field(brief, 'proofRevisionNote', 'Revision request')}
       {field(brief, 'productionReleaseState', 'Production release state')}
       {field(brief, 'proofDecisionAt', 'Proof decision at')}
+      {field(brief, 'proofApprovedAt', 'Proof approved at')}
+      {field(brief, 'proofRevisionRequestedAt', 'Revision requested at')}
     </div>
 
     <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -140,11 +185,11 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
         <label className="text-sm font-bold text-slate-700">Review state<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">{statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="text-sm font-bold text-slate-700">Extra quote £<input value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="0" step="0.01" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
         <label className="text-sm font-bold text-slate-700">Staff note<input value={note} onChange={(event) => setNote(event.target.value)} placeholder="What did you decide / what is needed next?" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
-        <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : status === 'quote-sent' ? 'Save + create link' : status === 'proof-sent' ? 'Send proof state' : status === 'revision-in-progress' ? 'Start revision' : 'Save review'}</button>
+        <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : status === 'quote-sent' ? 'Save + create link' : status === 'proof-sent' ? 'Send new proof version' : status === 'revision-in-progress' ? 'Start revision' : 'Save review'}</button>
       </div>
       <label className="mt-3 block text-sm font-bold text-slate-700">Design proof URL<input value={designProofUrl} onChange={(event) => setDesignProofUrl(event.target.value)} placeholder="Link to PDF/proof preview for customer approval" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
       {status === 'quote-sent' ? <p className="mt-3 text-xs font-semibold text-slate-500">When quote amount is above £0, saving creates a Stripe payment link for the extra design charge.</p> : null}
-      {status === 'proof-sent' ? <p className="mt-3 text-xs font-semibold text-slate-500">This moves the ticket to customer proof approval and keeps print production blocked until the customer approves.</p> : null}
+      {status === 'proof-sent' ? <p className="mt-3 text-xs font-semibold text-slate-500">This creates a new proof version and proof token, emails the customer, and keeps print production blocked until approval.</p> : null}
       {status === 'revision-in-progress' ? <p className="mt-3 text-xs font-semibold text-slate-500">Use this after a customer requests design proof changes. When the revised design is ready, choose Proof sent / waiting approval and add the new proof URL.</p> : null}
       {message ? <p className="mt-3 text-xs font-bold text-slate-500">{message}</p> : null}
     </div>
@@ -181,7 +226,7 @@ export default function DesignBriefsPage() {
     <section className="mx-auto max-w-7xl space-y-6">
       <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-[11px] font-black uppercase tracking-[0.25em] text-sky-600">Design operations</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em]">Customer design briefs</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">Review submitted design-help briefs, decide if an extra design quote is needed, create Stripe design quote links, send design proofs for approval, handle revisions, and keep print production blocked until proof approval.</p></div>
+          <div><p className="text-[11px] font-black uppercase tracking-[0.25em] text-sky-600">Design operations</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em]">Customer design briefs</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">Review submitted design-help briefs, decide if an extra design quote is needed, create Stripe design quote links, send versioned design proofs for approval, handle revisions, and keep print production blocked until proof approval.</p></div>
           <button onClick={() => void load()} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Refresh</button>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">

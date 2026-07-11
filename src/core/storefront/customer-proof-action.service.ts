@@ -31,8 +31,12 @@ function canApprove(ticket: Store) { const status = lower(ticket.preflightStatus
 function paymentReleased(ticket: Store) { const status = lower(ticket.paymentStatus || ticket.paymentGate); return PAYMENT_RELEASED.includes(status) || lower(ticket.paymentGate) === 'paid' || ticket.paymentReleased === true; }
 function paymentLabel(ticket: Store) { return text(ticket.paymentStatus || ticket.paymentGate || 'awaiting-payment'); }
 function paymentHoldReason(ticket: Store) { return `Customer approved proof, but payment is ${paymentLabel(ticket)}. Production remains held until payment is paid, captured or authorised.`; }
+function isDesignHelpTicket(ticket: Store) { return Boolean(ticket.designBriefId || ticket.designProofUrl || lower(ticket.designQuoteStatus).includes('design') || lower(ticket.artworkStatus).includes('design') || lower(ticket.status).includes('design')); }
 function approvalPatch(ticket: Store, action: string, note: string, actorEmail: string) {
-  if (action !== 'approve') return { artworkStatus: 'changes-requested', customerProofStatus: 'revision-requested', handoffState: 'blocked', status: 'blocked', proofRevisionRequestedAt: nowIso(), proofRevisionRequestedBy: actorEmail, blockReason: note || 'Customer requested proof changes.', productionNotes: note || 'Customer requested proof changes.' };
+  if (action !== 'approve') {
+    if (isDesignHelpTicket(ticket)) return { artworkStatus: 'design-revision-requested', customerProofStatus: 'revision-requested', designQuoteStatus: 'revision-requested', designWorkState: 'proof-revision-requested', handoffState: 'blocked', status: 'design-in-progress', proofRevisionRequestedAt: nowIso(), proofRevisionRequestedBy: actorEmail, blockReason: 'Customer requested design proof changes. Design team must revise and send a new proof.', productionNotes: note || 'Customer requested design proof changes.' };
+    return { artworkStatus: 'changes-requested', customerProofStatus: 'revision-requested', handoffState: 'blocked', status: 'blocked', proofRevisionRequestedAt: nowIso(), proofRevisionRequestedBy: actorEmail, blockReason: note || 'Customer requested proof changes.', productionNotes: note || 'Customer requested proof changes.' };
+  }
   if (paymentReleased(ticket)) return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'ready-for-print', status: 'ready-to-print', paymentGate: lower(ticket.paymentGate) === 'paid' ? ticket.paymentGate : 'paid', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, blockReason: '', productionNotes: note || 'Customer approved proof for print.' };
   const reason = paymentHoldReason(ticket);
   return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'blocked', status: 'payment-hold', paymentGate: ticket.paymentGate || 'awaiting-payment', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, blockReason: reason, productionNotes: [note || 'Customer approved proof for print.', reason].filter(Boolean).join(' ') };
@@ -50,30 +54,31 @@ async function syncPlannerTicketState(request: Request, ticket: Store, order: St
     if (!plannerMatches(job, ticket, order)) return job;
     changed = true;
     const at = nowIso();
-    const blockReason = paymentHold ? paymentHoldReason(ticket) : note || 'Customer requested proof changes.';
+    const designRevision = !approved && isDesignHelpTicket(ticket);
+    const blockReason = paymentHold ? paymentHoldReason(ticket) : designRevision ? 'Customer requested design proof changes. Design team must revise and send a new proof.' : note || 'Customer requested proof changes.';
     return {
       ...job,
       stage: released && job.stage === 'blocked' ? 'queued' : released ? job.stage : 'blocked',
-      status: released ? 'queued-for-production' : paymentHold ? 'blocked-payment-hold' : 'blocked-artwork-revision',
+      status: released ? 'queued-for-production' : paymentHold ? 'blocked-payment-hold' : designRevision ? 'blocked-design-revision' : 'blocked-artwork-revision',
       productionBlocked: !released,
       blockReason: released ? '' : blockReason,
-      artworkStatus: approved ? 'approved' : 'changes-requested',
+      artworkStatus: approved ? 'approved' : designRevision ? 'design-revision-requested' : 'changes-requested',
       customerProofStatus: approved ? 'approved' : 'revision-requested',
       paymentStatus: ticket.paymentStatus || job.paymentStatus || '',
       paymentGate: released ? 'paid' : ticket.paymentGate || job.paymentGate || 'awaiting-payment',
       handoffState: released ? 'ready-for-print' : 'blocked',
       liveStatus: released ? 'waiting' : 'blocked',
       updatedAt: at,
-      history: [{ at, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : 'customer-revision-requested', from: job.stage, to: released ? 'queued' : 'blocked', note: released ? note || 'Customer approved proof and payment gate is released.' : blockReason }, ...(Array.isArray(job.history) ? job.history : [])].slice(0, 100),
+      history: [{ at, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : designRevision ? 'customer-design-proof-revision-requested' : 'customer-revision-requested', from: job.stage, to: released ? 'queued' : 'blocked', note: released ? note || 'Customer approved proof and payment gate is released.' : blockReason }, ...(Array.isArray(job.history) ? job.history : [])].slice(0, 100),
     };
   });
   if (!changed) return null;
-  await savePlannerStore(request, { ...planner, jobs: updatedJobs, actions: [{ id: `planner-action-${Date.now()}`, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : 'customer-revision-requested', orderId: order.id, orderNumber: order.orderNumber, productionTicketId: ticket.id, at: nowIso(), note: released ? note : paymentHold ? paymentHoldReason(ticket) : note }, ...(Array.isArray(planner.actions) ? planner.actions : [])].slice(0, 400) });
+  await savePlannerStore(request, { ...planner, jobs: updatedJobs, actions: [{ id: `planner-action-${Date.now()}`, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : isDesignHelpTicket(ticket) && !approved ? 'customer-design-proof-revision-requested' : 'customer-revision-requested', orderId: order.id, orderNumber: order.orderNumber, productionTicketId: ticket.id, at: nowIso(), note: released ? note : paymentHold ? paymentHoldReason(ticket) : isDesignHelpTicket(ticket) && !approved ? 'Customer requested design proof changes.' : note }, ...(Array.isArray(planner.actions) ? planner.actions : [])].slice(0, 400) });
   return { updated: true, released, paymentHold };
 }
 async function addRevision(request: Request, ticket: Store, order: Store, action: string, note: string, actorEmail: string) {
   const revisions = await readConfigItems(request, REVISIONS_KEY).catch(() => []);
-  const item = { id: `rev-${Date.now()}`, orderNumber: order.orderNumber, productionTicketId: ticket.id, action: action === 'approve' ? 'approved' : 'revision-requested', customer: order.customerName || ticket.customerName || 'Customer', customerEmail: actorEmail, comment: note || (action === 'approve' ? 'Customer approved proof.' : 'Customer requested changes.'), timestamp: nowIso(), version: revisions.filter((row) => row.orderNumber === order.orderNumber).length + 1, source: 'customer-proof-action', paymentGate: ticket.paymentGate || '', paymentStatus: ticket.paymentStatus || '', handoffState: ticket.handoffState || '' };
+  const item = { id: `rev-${Date.now()}`, orderNumber: order.orderNumber, productionTicketId: ticket.id, action: action === 'approve' ? 'approved' : isDesignHelpTicket(ticket) ? 'design-revision-requested' : 'revision-requested', customer: order.customerName || ticket.customerName || 'Customer', customerEmail: actorEmail, comment: note || (action === 'approve' ? 'Customer approved proof.' : isDesignHelpTicket(ticket) ? 'Customer requested design proof changes.' : 'Customer requested changes.'), timestamp: nowIso(), version: revisions.filter((row) => row.orderNumber === order.orderNumber).length + 1, source: 'customer-proof-action', paymentGate: ticket.paymentGate || '', paymentStatus: ticket.paymentStatus || '', handoffState: ticket.handoffState || '' };
   await writeConfigItems(request, REVISIONS_KEY, 'Customer Proof Revisions', [item, ...revisions]);
   return item;
 }
@@ -95,7 +100,7 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
     proofDecisionNote: note || 'Customer approved proof.',
     productionReleaseState: paymentReleased(ticket) ? 'released-to-production' : 'payment-hold',
   } : {
-    designQuoteStatus: 'waiting-customer',
+    designQuoteStatus: 'revision-requested',
     designWorkState: 'proof-revision-requested',
     customerProofStatus: 'revision-requested',
     proofRevisionRequestedAt: ticket.proofRevisionRequestedAt || at,
@@ -104,7 +109,7 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
     proofDecisionAt: at,
     proofDecisionBy: actorEmail,
     proofDecisionNote: note || 'Customer requested proof changes.',
-    productionReleaseState: 'blocked-revision',
+    productionReleaseState: 'blocked-design-revision',
   };
   const updatedBrief = {
     ...current,
@@ -122,7 +127,7 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
   return { updated: true, briefId: updatedBrief.id, status: updatedBrief.designQuoteStatus, designWorkState: updatedBrief.designWorkState };
 }
 function customerMessage(action: string, ticket: Store) {
-  if (action !== 'approve') return 'Revision request received. Production is blocked until artwork is updated.';
+  if (action !== 'approve') return isDesignHelpTicket(ticket) ? 'Revision request received. Our design team will revise the proof and send it back for approval.' : 'Revision request received. Production is blocked until artwork is updated.';
   if (paymentReleased(ticket)) return 'Proof approved. Your order has been released to production.';
   return 'Proof approved. Your order is still waiting for payment before production starts.';
 }
@@ -140,12 +145,12 @@ function proofDecisionEmailOrder(order: Store, ticket: Store, action: string, no
     status: order.status,
     paymentStatus: ticket.paymentStatus || order.paymentStatus || '',
     items: Array.isArray(order.items) ? order.items : [],
-    proofDecision: approved ? 'approved' : 'revision requested',
+    proofDecision: approved ? 'approved' : isDesignHelpTicket(ticket) ? 'design revision requested' : 'revision requested',
     customerProofStatus: ticket.customerProofStatus || '',
     ticketStatus: ticket.status || '',
     paymentReleased: paymentReleased(ticket),
-    productionReleaseState: approved ? (plannerReleased || paymentReleased(ticket) ? 'released-to-production' : 'payment-hold') : 'blocked-revision',
-    proofDecisionNote: note || (approved ? 'Customer approved proof.' : 'Customer requested proof changes.'),
+    productionReleaseState: approved ? (plannerReleased || paymentReleased(ticket) ? 'released-to-production' : 'payment-hold') : isDesignHelpTicket(ticket) ? 'blocked-design-revision' : 'blocked-revision',
+    proofDecisionNote: note || (approved ? 'Customer approved proof.' : isDesignHelpTicket(ticket) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.'),
     designBriefSyncStatus: designBriefSync?.updated ? `updated (${designBriefSync.designWorkState || designBriefSync.status || 'synced'})` : designBriefSync?.reason || designBriefSync?.error || 'not updated',
     plannerSyncStatus: plannerSync?.updated ? (plannerSync.released ? 'released to production' : plannerSync.paymentHold ? 'payment hold' : 'updated') : plannerSync?.error || 'not updated',
   };
@@ -169,7 +174,7 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   if (action === 'approve' && !canApprove(current)) throw new Error('This proof cannot be approved because artwork is blocked or failed preflight.');
   const actorEmail = email || orderEmail || text(current.customerEmail);
   const patch = approvalPatch(current, action, note, actorEmail);
-  const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || 'Customer requested proof changes.'])) : current.warnings || [] };
+  const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || (isDesignHelpTicket(current) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.')])) : current.warnings || [] };
   const nextTickets = [...tickets];
   nextTickets[index] = updatedTicket;
   await writeConfigItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);

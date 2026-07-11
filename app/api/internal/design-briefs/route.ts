@@ -27,11 +27,16 @@ function form(params: Record<string, string | number | boolean | undefined | nul
 function stripeSecret() { return process.env.STRIPE_SECRET_KEY || ''; }
 function appBase(request: Request) { const url = new URL(request.url); return `${url.protocol}//${url.host}`; }
 function customerEmail(brief: Store) { return text(brief.customerEmail || brief.customer?.email).toLowerCase(); }
+function storefrontBase(request: Request) { return String(process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || appBase(request)).replace(/\/$/, ''); }
 function designBriefUrl(request: Request, brief: Store, state: 'success' | 'cancel') {
-  const base = String(process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || appBase(request)).replace(/\/$/, '');
   const params = new URLSearchParams({ orderId: String(brief.orderNumber || brief.orderId || ''), designQuote: state, session_id: '{CHECKOUT_SESSION_ID}' });
   if (customerEmail(brief)) params.set('email', customerEmail(brief));
-  return `${base}/design-brief?${params.toString()}`;
+  return `${storefrontBase(request)}/design-brief?${params.toString()}`;
+}
+function proofReviewUrl(request: Request, brief: Store) {
+  const params = new URLSearchParams({ orderId: String(brief.orderNumber || brief.orderId || '') });
+  if (customerEmail(brief)) params.set('email', customerEmail(brief));
+  return `${storefrontBase(request)}/proof-action?${params.toString()}`;
 }
 async function stripePost(path: string, params: Record<string, string | number | boolean | undefined | null>) {
   if (!stripeSecret()) throw new Error('Stripe is not configured. Add STRIPE_SECRET_KEY to create design quote payment links.');
@@ -80,10 +85,27 @@ function designQuoteEmailOrder(brief: Store) {
     items: [{ productName: `Design work${brief.productName ? ` - ${brief.productName}` : ''}`, quantity: 1 }],
   };
 }
+function proofReviewEmailOrder(brief: Store) {
+  return {
+    id: text(brief.orderId || brief.orderNumber || brief.id),
+    orderNumber: text(brief.orderNumber || brief.orderId || brief.id),
+    customerName: text(brief.customerName || 'Customer'),
+    customerEmail: customerEmail(brief),
+    currency: 'GBP',
+    totalMinor: 0,
+    status: 'PROOF_READY_FOR_REVIEW',
+    paymentStatus: brief.paymentStatus || 'paid',
+    items: [{ productName: `Proof review${brief.productName ? ` - ${brief.productName}` : ''}`, quantity: 1 }],
+  };
+}
 async function queueDesignQuotePaymentEmail(request: Request, brief: Store, paymentUrl: string, staffNote: string) {
   if (!paymentUrl) return { ok: false, skipped: true, reason: 'Missing design quote payment URL.' };
   if (!customerEmail(brief)) return { ok: false, skipped: true, reason: 'Missing customer email.' };
   return queueOrderCustomerEmail(request, 'customer-design-quote-payment-link', designQuoteEmailOrder(brief), { paymentUrl, note: staffNote, actor: 'design-brief-review' });
+}
+async function queueProofReviewEmail(request: Request, brief: Store, proofUrl: string, staffNote: string) {
+  if (!customerEmail(brief)) return { ok: false, skipped: true, reason: 'Missing customer email.' };
+  return queueOrderCustomerEmail(request, 'customer-proof-review-ready', proofReviewEmailOrder(brief), { proofUrl, reviewUrl: proofReviewUrl(request, brief), note: staffNote, actor: 'design-proof-review' });
 }
 async function readItems(request: Request, key: string) {
   try {
@@ -128,6 +150,8 @@ function enrichBrief(brief: Store, tickets: Store[]) {
       designQuotePaymentStatus: ticket.designQuotePaymentStatus || brief.designQuotePaymentStatus || '',
       designQuotePaymentUrl: ticket.designQuotePaymentUrl || brief.designQuotePaymentUrl || '',
       designQuoteEmailQueuedAt: ticket.designQuoteEmailQueuedAt || brief.designQuoteEmailQueuedAt || '',
+      proofEmailQueuedAt: ticket.proofEmailQueuedAt || brief.proofEmailQueuedAt || '',
+      proofEmailStatus: ticket.proofEmailStatus || brief.proofEmailStatus || '',
       designProofUrl: ticket.designProofUrl || brief.designProofUrl || '',
       blockReason: ticket.blockReason || '',
       owner: ticket.owner || ticket.assignedOperator || 'Prepress Team',
@@ -192,10 +216,14 @@ export async function POST(request: Request) {
       paymentSession = await createDesignQuoteSession(request, { ...current, quoteAmountMinor }, quoteAmountMinor);
     }
     const emailTargetUrl = paymentSession?.url || current.designQuotePaymentUrl || '';
-    const emailResult = designQuoteStatus === 'quote-sent' && quoteAmountMinor > 0 && sendCustomerEmail
+    const quoteEmailResult = designQuoteStatus === 'quote-sent' && quoteAmountMinor > 0 && sendCustomerEmail
       ? await queueDesignQuotePaymentEmail(request, { ...current, quoteAmountMinor }, emailTargetUrl, staffNote).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Design quote email queue failed.' }))
       : { skipped: true };
-    const emailQueued = Boolean((emailResult as any)?.ok && !(emailResult as any)?.skipped);
+    const quoteEmailQueued = Boolean((quoteEmailResult as any)?.ok && !(quoteEmailResult as any)?.skipped);
+    const proofEmailResult = designQuoteStatus === 'proof-sent' && sendCustomerEmail
+      ? await queueProofReviewEmail(request, { ...current, designProofUrl: designProofUrl || current.designProofUrl || '' }, designProofUrl || current.designProofUrl || '', staffNote).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Proof review email queue failed.' }))
+      : { skipped: true };
+    const proofEmailQueued = Boolean((proofEmailResult as any)?.ok && !(proofEmailResult as any)?.skipped);
     const updatedBrief = {
       ...current,
       designQuoteStatus,
@@ -205,10 +233,11 @@ export async function POST(request: Request) {
       designProofUrl: designProofUrl || current.designProofUrl || '',
       proofSentAt: designQuoteStatus === 'proof-sent' ? at : current.proofSentAt || '',
       ...(paymentSession ? { designQuotePaymentUrl: paymentSession.url, stripeDesignQuoteSessionId: paymentSession.id, stripeDesignQuotePaymentIntentId: paymentSession.paymentIntentId || current.stripeDesignQuotePaymentIntentId || '', designQuotePaymentStatus: 'pending', designQuotePaymentRequestedAt: at } : {}),
-      ...(emailQueued ? { designQuoteEmailQueuedAt: at, designQuoteEmailStatus: 'queued' } : { designQuoteEmailStatus: (emailResult as any)?.error ? 'failed' : current.designQuoteEmailStatus || '' }),
+      ...(quoteEmailQueued ? { designQuoteEmailQueuedAt: at, designQuoteEmailStatus: 'queued' } : { designQuoteEmailStatus: (quoteEmailResult as any)?.error ? 'failed' : current.designQuoteEmailStatus || '' }),
+      ...(proofEmailQueued ? { proofEmailQueuedAt: at, proofEmailStatus: 'queued' } : { proofEmailStatus: (proofEmailResult as any)?.error ? 'failed' : current.proofEmailStatus || '' }),
       reviewedAt: at,
       reviewedBy: body.actor || 'staff',
-      history: [{ at, action: `design-brief-${designQuoteStatus}`, note: staffNote, quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0, stripeDesignQuoteSessionId: paymentSession?.id || '', designProofUrl: designProofUrl || '', designQuoteEmailStatus: emailQueued ? 'queued' : (emailResult as any)?.skipped ? 'skipped' : (emailResult as any)?.error ? 'failed' : '' }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
+      history: [{ at, action: `design-brief-${designQuoteStatus}`, note: staffNote, quoteAmountMinor: quoteAmountMinor || current.quoteAmountMinor || 0, stripeDesignQuoteSessionId: paymentSession?.id || '', designProofUrl: designProofUrl || current.designProofUrl || '', designQuoteEmailStatus: quoteEmailQueued ? 'queued' : (quoteEmailResult as any)?.skipped ? 'skipped' : (quoteEmailResult as any)?.error ? 'failed' : '', proofEmailStatus: proofEmailQueued ? 'queued' : (proofEmailResult as any)?.skipped ? 'skipped' : (proofEmailResult as any)?.error ? 'failed' : '' }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
       updatedAt: at,
     };
     const nextBriefs = briefs.map((brief) => String(brief.id) === id ? updatedBrief : brief);
@@ -220,10 +249,10 @@ export async function POST(request: Request) {
     const nextTickets = tickets.map((ticket) => {
       if (!matchTicket(ticket, updatedBrief)) return ticket;
       ticketUpdated = true;
-      return { ...ticket, ...patch, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designStaffNote: staffNote || ticket.designStaffNote || '', designQuoteAmountMinor: updatedBrief.quoteAmountMinor || ticket.designQuoteAmountMinor || 0, designQuotePaymentStatus: updatedBrief.designQuotePaymentStatus || ticket.designQuotePaymentStatus || '', designQuotePaymentUrl: updatedBrief.designQuotePaymentUrl || ticket.designQuotePaymentUrl || '', stripeDesignQuoteSessionId: updatedBrief.stripeDesignQuoteSessionId || ticket.stripeDesignQuoteSessionId || '', designProofUrl: updatedBrief.designProofUrl || ticket.designProofUrl || '', designQuoteEmailQueuedAt: updatedBrief.designQuoteEmailQueuedAt || ticket.designQuoteEmailQueuedAt || '', designQuoteEmailStatus: updatedBrief.designQuoteEmailStatus || ticket.designQuoteEmailStatus || '', productionNotes: [ticket.productionNotes, staffNote ? `Design staff note: ${staffNote}` : '', `Design quote status: ${designQuoteStatus}.`, updatedBrief.designProofUrl && designQuoteStatus === 'proof-sent' ? `Design proof URL sent for approval: ${updatedBrief.designProofUrl}` : '', paymentSession?.url ? `Design quote payment link created: ${paymentSession.url}` : '', emailQueued ? 'Design quote payment email queued for customer.' : ''].filter(Boolean).join(' '), updatedAt: at };
+      return { ...ticket, ...patch, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designStaffNote: staffNote || ticket.designStaffNote || '', designQuoteAmountMinor: updatedBrief.quoteAmountMinor || ticket.designQuoteAmountMinor || 0, designQuotePaymentStatus: updatedBrief.designQuotePaymentStatus || ticket.designQuotePaymentStatus || '', designQuotePaymentUrl: updatedBrief.designQuotePaymentUrl || ticket.designQuotePaymentUrl || '', stripeDesignQuoteSessionId: updatedBrief.stripeDesignQuoteSessionId || ticket.stripeDesignQuoteSessionId || '', designProofUrl: updatedBrief.designProofUrl || ticket.designProofUrl || '', designQuoteEmailQueuedAt: updatedBrief.designQuoteEmailQueuedAt || ticket.designQuoteEmailQueuedAt || '', designQuoteEmailStatus: updatedBrief.designQuoteEmailStatus || ticket.designQuoteEmailStatus || '', proofEmailQueuedAt: updatedBrief.proofEmailQueuedAt || ticket.proofEmailQueuedAt || '', proofEmailStatus: updatedBrief.proofEmailStatus || ticket.proofEmailStatus || '', productionNotes: [ticket.productionNotes, staffNote ? `Design staff note: ${staffNote}` : '', `Design quote status: ${designQuoteStatus}.`, updatedBrief.designProofUrl && designQuoteStatus === 'proof-sent' ? `Design proof URL sent for approval: ${updatedBrief.designProofUrl}` : '', paymentSession?.url ? `Design quote payment link created: ${paymentSession.url}` : '', quoteEmailQueued ? 'Design quote payment email queued for customer.' : '', proofEmailQueued ? 'Design proof review email queued for customer.' : ''].filter(Boolean).join(' '), updatedAt: at };
     });
     if (ticketUpdated) await writeItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);
-    return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, paymentSession, emailResult, ticketUpdated, message: designQuoteStatus === 'proof-sent' ? 'Design proof marked as sent for customer approval.' : paymentSession?.url ? (emailQueued ? 'Design quote payment link created and emailed to customer.' : 'Design quote payment link created.') : 'Design brief review state updated.' });
+    return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, paymentSession, emailResult: designQuoteStatus === 'proof-sent' ? proofEmailResult : quoteEmailResult, quoteEmailResult, proofEmailResult, ticketUpdated, message: designQuoteStatus === 'proof-sent' ? (proofEmailQueued ? 'Design proof marked as sent and emailed to customer for approval.' : 'Design proof marked as sent for customer approval.') : paymentSession?.url ? (quoteEmailQueued ? 'Design quote payment link created and emailed to customer.' : 'Design quote payment link created.') : 'Design brief review state updated.' });
   } catch (error) {
     return json({ ok: false, source: 'internal-design-brief-review', error: error instanceof Error ? error.message : 'Design brief review update failed.' }, { status: 500 });
   }

@@ -38,6 +38,16 @@ function proofDecisionOpen(ticket: Store) {
   const readyProof = proofStatus === 'pending-customer-approval' && (['design-proof-ready', 'preflight-pass', 'preflight-warning'].includes(artworkStatus) || ['pass', 'warning'].includes(preflightStatus));
   return readyProof && !closed && !blocked;
 }
+function proofLinkMatches(ticket: Store, input: Store) {
+  const expectedToken = text(ticket.proofToken || ticket.currentProofToken);
+  const providedToken = text(input.proofToken || input.currentProofToken || input.token);
+  const expectedVersion = text(ticket.proofVersion || '');
+  const providedVersion = text(input.proofVersion || input.version || '');
+  if (expectedToken && expectedToken !== providedToken) return false;
+  if (expectedToken && expectedVersion && expectedVersion !== providedVersion) return false;
+  if (!expectedToken && expectedVersion && providedVersion && expectedVersion !== providedVersion) return false;
+  return true;
+}
 function paymentReleased(ticket: Store) { const status = lower(ticket.paymentStatus || ticket.paymentGate); return PAYMENT_RELEASED.includes(status) || lower(ticket.paymentGate) === 'paid' || ticket.paymentReleased === true; }
 function paymentLabel(ticket: Store) { return text(ticket.paymentStatus || ticket.paymentGate || 'awaiting-payment'); }
 function paymentHoldReason(ticket: Store) { return `Customer approved proof, but payment is ${paymentLabel(ticket)}. Production remains held until payment is paid, captured or authorised.`; }
@@ -78,17 +88,18 @@ async function syncPlannerTicketState(request: Request, ticket: Store, order: St
       paymentGate: released ? 'paid' : ticket.paymentGate || job.paymentGate || 'awaiting-payment',
       handoffState: released ? 'ready-for-print' : 'blocked',
       liveStatus: released ? 'waiting' : 'blocked',
+      proofVersion: ticket.proofVersion || job.proofVersion || 0,
       updatedAt: at,
       history: [{ at, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : designRevision ? 'customer-design-proof-revision-requested' : 'customer-revision-requested', from: job.stage, to: released ? 'queued' : 'blocked', note: released ? note || 'Customer approved proof and payment gate is released.' : blockReason }, ...(Array.isArray(job.history) ? job.history : [])].slice(0, 100),
     };
   });
   if (!changed) return null;
-  await savePlannerStore(request, { ...planner, jobs: updatedJobs, actions: [{ id: `planner-action-${Date.now()}`, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : isDesignHelpTicket(ticket) && !approved ? 'customer-design-proof-revision-requested' : 'customer-revision-requested', orderId: order.id, orderNumber: order.orderNumber, productionTicketId: ticket.id, at: nowIso(), note: released ? note : paymentHold ? paymentHoldReason(ticket) : isDesignHelpTicket(ticket) && !approved ? 'Customer requested design proof changes.' : note }, ...(Array.isArray(planner.actions) ? planner.actions : [])].slice(0, 400) });
+  await savePlannerStore(request, { ...planner, jobs: updatedJobs, actions: [{ id: `planner-action-${Date.now()}`, action: released ? 'customer-proof-approved-payment-released' : paymentHold ? 'customer-proof-approved-payment-hold' : isDesignHelpTicket(ticket) && !approved ? 'customer-design-proof-revision-requested' : 'customer-revision-requested', orderId: order.id, orderNumber: order.orderNumber, productionTicketId: ticket.id, at: nowIso(), note: released ? note : paymentHold ? paymentHoldReason(ticket) : isDesignHelpTicket(ticket) && !approved ? `Customer requested design proof v${ticket.proofVersion || ''} changes.` : note }, ...(Array.isArray(planner.actions) ? planner.actions : [])].slice(0, 400) });
   return { updated: true, released, paymentHold };
 }
 async function addRevision(request: Request, ticket: Store, order: Store, action: string, note: string, actorEmail: string) {
   const revisions = await readConfigItems(request, REVISIONS_KEY).catch(() => []);
-  const item = { id: `rev-${Date.now()}`, orderNumber: order.orderNumber, productionTicketId: ticket.id, action: action === 'approve' ? 'approved' : isDesignHelpTicket(ticket) ? 'design-revision-requested' : 'revision-requested', customer: order.customerName || ticket.customerName || 'Customer', customerEmail: actorEmail, comment: note || (action === 'approve' ? 'Customer approved proof.' : isDesignHelpTicket(ticket) ? 'Customer requested design proof changes.' : 'Customer requested changes.'), timestamp: nowIso(), version: revisions.filter((row) => row.orderNumber === order.orderNumber).length + 1, source: 'customer-proof-action', paymentGate: ticket.paymentGate || '', paymentStatus: ticket.paymentStatus || '', handoffState: ticket.handoffState || '' };
+  const item = { id: `rev-${Date.now()}`, orderNumber: order.orderNumber, productionTicketId: ticket.id, action: action === 'approve' ? 'approved' : isDesignHelpTicket(ticket) ? 'design-revision-requested' : 'revision-requested', customer: order.customerName || ticket.customerName || 'Customer', customerEmail: actorEmail, comment: note || (action === 'approve' ? 'Customer approved proof.' : isDesignHelpTicket(ticket) ? 'Customer requested design proof changes.' : 'Customer requested changes.'), timestamp: nowIso(), version: revisions.filter((row) => row.orderNumber === order.orderNumber).length + 1, source: 'customer-proof-action', proofVersion: ticket.proofVersion || 0, proofToken: ticket.proofToken || '', paymentGate: ticket.paymentGate || '', paymentStatus: ticket.paymentStatus || '', handoffState: ticket.handoffState || '' };
   await writeConfigItems(request, REVISIONS_KEY, 'Customer Proof Revisions', [item, ...revisions]);
   return item;
 }
@@ -108,6 +119,8 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
     proofDecisionAt: at,
     proofDecisionBy: actorEmail,
     proofDecisionNote: note || 'Customer approved proof.',
+    decidedProofVersion: ticket.proofVersion || current.proofVersion || 0,
+    decidedProofToken: ticket.proofToken || current.proofToken || '',
     productionReleaseState: paymentReleased(ticket) ? 'released-to-production' : 'payment-hold',
   } : {
     designQuoteStatus: 'revision-requested',
@@ -119,6 +132,8 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
     proofDecisionAt: at,
     proofDecisionBy: actorEmail,
     proofDecisionNote: note || 'Customer requested proof changes.',
+    decidedProofVersion: ticket.proofVersion || current.proofVersion || 0,
+    decidedProofToken: ticket.proofToken || current.proofToken || '',
     productionReleaseState: 'blocked-design-revision',
   };
   const updatedBrief = {
@@ -129,7 +144,7 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
     orderId: current.orderId || order.id || '',
     orderNumber: current.orderNumber || order.orderNumber || '',
     updatedAt: at,
-    history: [{ at, action: approved ? 'customer-design-proof-approved' : 'customer-design-proof-revision-requested', note: note || '', customerEmail: actorEmail, productionTicketId: ticket.id || '', paymentReleased: paymentReleased(ticket) }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 100),
+    history: [{ at, action: approved ? 'customer-design-proof-approved' : 'customer-design-proof-revision-requested', note: note || '', customerEmail: actorEmail, productionTicketId: ticket.id || '', proofVersion: ticket.proofVersion || '', paymentReleased: paymentReleased(ticket) }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 100),
   };
   const next = [...briefs];
   next[index] = updatedBrief;
@@ -155,7 +170,7 @@ function proofDecisionEmailOrder(order: Store, ticket: Store, action: string, no
     status: order.status,
     paymentStatus: ticket.paymentStatus || order.paymentStatus || '',
     items: Array.isArray(order.items) ? order.items : [],
-    proofDecision: approved ? 'approved' : isDesignHelpTicket(ticket) ? 'design revision requested' : 'revision requested',
+    proofDecision: approved ? `approved proof v${ticket.proofVersion || ''}` : isDesignHelpTicket(ticket) ? `design revision requested on proof v${ticket.proofVersion || ''}` : 'revision requested',
     customerProofStatus: ticket.customerProofStatus || '',
     ticketStatus: ticket.status || '',
     paymentReleased: paymentReleased(ticket),
@@ -182,9 +197,10 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   if (index < 0) throw new Error('Proof ticket was not found for this order.');
   const current = tickets[index];
   if (!proofDecisionOpen(current)) throw new Error('This proof is no longer open for customer approval or revision. Please wait for the latest proof version.');
+  if (!proofLinkMatches(current, input)) throw new Error('This proof link is not for the current proof version. Please use the latest proof email/link.');
   const actorEmail = email || orderEmail || text(current.customerEmail);
   const patch = approvalPatch(current, action, note, actorEmail);
-  const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || (isDesignHelpTicket(current) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.')])) : current.warnings || [] };
+  const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, decidedProofToken: current.proofToken || '', decidedProofVersion: current.proofVersion || 0, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || (isDesignHelpTicket(current) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.')])) : current.warnings || [] };
   const nextTickets = [...tickets];
   nextTickets[index] = updatedTicket;
   await writeConfigItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);

@@ -1,6 +1,6 @@
 import { queueInternalEmail } from './internal-email.service';
 
-export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link' | 'customer-design-quote-payment-link';
+export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link' | 'customer-design-quote-payment-link' | 'customer-proof-review-ready';
 
 type EmailOrder = Record<string, any> & {
   id?: string;
@@ -18,6 +18,8 @@ type EmailOrder = Record<string, any> & {
 
 type QueueOptions = {
   paymentUrl?: string;
+  proofUrl?: string;
+  reviewUrl?: string;
   note?: string;
   actor?: string;
 };
@@ -56,6 +58,7 @@ function subjectFor(type: OrderEmailType, order: EmailOrder) {
   if (type === 'customer-payment-received') return `Payment received for ${num}`;
   if (type === 'customer-payment-link') return `Payment link for ${num}`;
   if (type === 'customer-design-quote-payment-link') return `Design quote payment link for ${num}`;
+  if (type === 'customer-proof-review-ready') return `Proof ready to review for ${num}`;
   return `Holo Print order received: ${num}`;
 }
 
@@ -79,6 +82,10 @@ function bodyFor(type: OrderEmailType, order: EmailOrder, options: QueueOptions 
 
   if (type === 'customer-design-quote-payment-link') {
     return `Hi ${name},\n\nOur design team has reviewed your design brief for order ${num}.\n\nExtra design charge: ${total}\n\nPlease pay the design quote securely here:\n${options.paymentUrl || 'Payment link will be sent shortly.'}\n\nOnce this design payment is complete, our team can start the design work. Print production will still remain on hold until the final design/proof is approved.\n\n${options.note ? `Note from our team:\n${options.note}\n\n` : ''}Kind regards,\nHolo Print`;
+  }
+
+  if (type === 'customer-proof-review-ready') {
+    return `Hi ${name},\n\nYour proof for order ${num} is ready to review.\n\nReview and approve/request changes here:\n${options.reviewUrl || 'Proof review link will be sent shortly.'}\n\n${options.proofUrl ? `Open the proof preview here:\n${options.proofUrl}\n\n` : ''}Please check the proof carefully before approving. Production will only be released after proof approval and payment gates are clear.\n\n${options.note ? `Note from our team:\n${options.note}\n\n` : ''}Kind regards,\nHolo Print`;
   }
 
   return `Hi ${name},\n\nThank you — we have received your Holo Print order ${num}.\n\nStatus: ${order.status || 'pending'}\nPayment: ${order.paymentStatus || 'unpaid'}\nTotal: ${total}\n\nItems:\n${lines}\n\nIf this order needs manual approval or a quote, we will confirm the final details and send a payment link.\n\nKind regards,\nHolo Print`;

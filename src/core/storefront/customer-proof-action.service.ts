@@ -16,6 +16,7 @@ type Store = Record<string, any>;
 function nowIso() { return new Date().toISOString(); }
 function text(value: unknown) { return String(value || '').trim(); }
 function lower(value: unknown) { return text(value).toLowerCase(); }
+function clean(value: unknown) { return lower(value).replace(/_/g, '-'); }
 function readItems(record: any) { const json = record?.metadataJson || {}; if (Array.isArray(json.items)) return json.items as Store[]; if (Array.isArray(json.store?.items)) return json.store.items as Store[]; return []; }
 async function readConfigItems(request: Request, key: string) {
   try { return readItems(await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key)); }
@@ -27,7 +28,16 @@ async function writeConfigItems(request: Request, key: string, title: string, it
 function matchTicket(ticket: Store, order: Store) { const keys = [order.id, order.orderNumber, ...(Array.isArray(order.artworkUploadIds) ? order.artworkUploadIds : [])].filter(Boolean).map(String); return keys.some((key) => [ticket.id, ticket.orderId, ticket.orderNumber, ticket.artworkUploadId].filter(Boolean).map(String).includes(key)); }
 function plannerMatches(job: Store, ticket: Store, order: Store) { const keys = [ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => [job.productionTicketId, job.orderId, job.orderNumber, job.workflowId, job.id].filter(Boolean).map(String).includes(key) || String(job.workflowId || '') === `ticket-${key}`); }
 function matchDesignBrief(brief: Store, ticket: Store, order: Store) { const keys = [brief.id, brief.designBriefId, brief.orderId, brief.orderNumber, brief.productionTicketId].filter(Boolean).map(String); const targets = [ticket.designBriefId, ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => targets.includes(key)); }
-function canApprove(ticket: Store) { const status = lower(ticket.preflightStatus || ticket.artworkStatus); return !['fail', 'failed', 'blocked', 'preflight-fail', 'replacement-requested'].includes(status); }
+function proofDecisionOpen(ticket: Store) {
+  const proofStatus = clean(ticket.customerProofStatus);
+  const artworkStatus = clean(ticket.artworkStatus);
+  const preflightStatus = clean(ticket.preflightStatus);
+  const designStatus = clean(ticket.designQuoteStatus || ticket.designWorkState);
+  const closed = ['approved', 'revision-requested'].includes(proofStatus) || ['approved', 'changes-requested', 'design-revision-requested'].includes(artworkStatus) || ['revision-requested', 'proof-revision-requested'].includes(designStatus);
+  const blocked = ['fail', 'failed', 'blocked', 'preflight-fail', 'replacement-requested'].includes(preflightStatus || artworkStatus);
+  const readyProof = proofStatus === 'pending-customer-approval' && (['design-proof-ready', 'preflight-pass', 'preflight-warning'].includes(artworkStatus) || ['pass', 'warning'].includes(preflightStatus));
+  return readyProof && !closed && !blocked;
+}
 function paymentReleased(ticket: Store) { const status = lower(ticket.paymentStatus || ticket.paymentGate); return PAYMENT_RELEASED.includes(status) || lower(ticket.paymentGate) === 'paid' || ticket.paymentReleased === true; }
 function paymentLabel(ticket: Store) { return text(ticket.paymentStatus || ticket.paymentGate || 'awaiting-payment'); }
 function paymentHoldReason(ticket: Store) { return `Customer approved proof, but payment is ${paymentLabel(ticket)}. Production remains held until payment is paid, captured or authorised.`; }
@@ -171,7 +181,7 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   const index = tickets.findIndex((ticket) => matchTicket(ticket, order as Store));
   if (index < 0) throw new Error('Proof ticket was not found for this order.');
   const current = tickets[index];
-  if (action === 'approve' && !canApprove(current)) throw new Error('This proof cannot be approved because artwork is blocked or failed preflight.');
+  if (!proofDecisionOpen(current)) throw new Error('This proof is no longer open for customer approval or revision. Please wait for the latest proof version.');
   const actorEmail = email || orderEmail || text(current.customerEmail);
   const patch = approvalPatch(current, action, note, actorEmail);
   const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || (isDesignHelpTicket(current) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.')])) : current.warnings || [] };

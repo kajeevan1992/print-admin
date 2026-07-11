@@ -14,6 +14,7 @@ export default function DesignBriefPage() {
   const [order, setOrder] = useState<OrderState | null>(null);
   const [existingBriefs, setExistingBriefs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [syncingPayment, setSyncingPayment] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -28,15 +29,38 @@ export default function DesignBriefPage() {
     const id = text(params.get('orderId') || params.get('orderNumber'));
     const mail = text(params.get('email'));
     const designQuote = text(params.get('designQuote'));
+    const sessionId = text(params.get('session_id'));
     if (id) setOrderId(id);
     if (mail) setEmail(mail);
-    if (designQuote === 'success') setSuccess('Design quote payment received. If the payment is still processing, this page will update after Stripe confirms it.');
+    if (designQuote === 'success' && sessionId) void syncReturnPayment(sessionId, id, mail);
+    else if (designQuote === 'success') setSuccess('Design quote payment received. If the payment is still processing, this page will update after Stripe confirms it.');
     if (designQuote === 'cancel') setError('No design quote payment was taken. You can use the payment link again when ready.');
     if (id) void lookup(id, mail);
   }, []);
 
+  async function syncReturnPayment(sessionId: string, id = orderId, mail = email) {
+    setSyncingPayment(true);
+    setError('');
+    setSuccess('Confirming your design quote payment with Stripe…');
+    try {
+      const params = new URLSearchParams({ action: 'success', session_id: sessionId });
+      if (id) params.set('orderId', id);
+      const response = await fetch(`/api/native-storefront/payment-return?${params.toString()}`, { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false || payload.result?.ok === false) throw new Error(payload.error || payload.result?.reason || 'Could not confirm the design quote payment yet.');
+      if (payload.result?.paid) setSuccess('Design quote payment confirmed. Design can now start; print production will stay held until final proof approval.');
+      else setSuccess('Design quote payment is being checked. This page will update after Stripe confirms it.');
+      if (id) await lookup(id, mail);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not confirm the design quote payment yet.');
+      if (id) await lookup(id, mail);
+    } finally {
+      setSyncingPayment(false);
+    }
+  }
+
   async function lookup(id = orderId, mail = email) {
-    setLoading(true); setError(''); setSuccess((current) => current);
+    setLoading(true); setError((current) => current); setSuccess((current) => current);
     try {
       const params = new URLSearchParams({ orderId: id });
       if (mail) params.set('email', mail);
@@ -71,6 +95,7 @@ export default function DesignBriefPage() {
 
     <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-4"><div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"><input value={orderId} onChange={(event) => setOrderId(event.target.value)} placeholder="Order number or order ID" className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" /><input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email optional" className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500" /><button onClick={() => void lookup()} disabled={loading || !orderId.trim()} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-950 disabled:opacity-50">{loading ? <Loader2 className="animate-spin" size={16}/> : <Search size={16}/>} Find order</button></div></section>
 
+    {syncingPayment ? <div className="flex items-center gap-3 rounded-2xl border border-sky-400/25 bg-sky-400/10 p-4 text-sm text-sky-100"><Loader2 className="animate-spin" size={18}/> Confirming design quote payment…</div> : null}
     {error ? <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 p-4 text-sm text-rose-100">{error}</div> : null}
     {success ? <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/10 p-4 text-sm text-emerald-100"><CheckCircle2 size={18}/>{success}</div> : null}
 

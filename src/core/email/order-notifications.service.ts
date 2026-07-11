@@ -1,6 +1,6 @@
 import { queueInternalEmail } from './internal-email.service';
 
-export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link' | 'customer-design-quote-payment-link' | 'customer-proof-review-ready';
+export type OrderEmailType = 'customer-order-confirmation' | 'admin-new-order' | 'customer-payment-received' | 'customer-payment-link' | 'customer-design-quote-payment-link' | 'customer-proof-review-ready' | 'admin-proof-decision';
 
 type EmailOrder = Record<string, any> & {
   id?: string;
@@ -55,6 +55,7 @@ function itemLines(order: EmailOrder) {
 function subjectFor(type: OrderEmailType, order: EmailOrder) {
   const num = orderNumber(order);
   if (type === 'admin-new-order') return `New Holo Print order: ${num}`;
+  if (type === 'admin-proof-decision') return `Customer proof ${order.proofDecision || 'decision'}: ${num}`;
   if (type === 'customer-payment-received') return `Payment received for ${num}`;
   if (type === 'customer-payment-link') return `Payment link for ${num}`;
   if (type === 'customer-design-quote-payment-link') return `Design quote payment link for ${num}`;
@@ -70,6 +71,12 @@ function bodyFor(type: OrderEmailType, order: EmailOrder, options: QueueOptions 
 
   if (type === 'admin-new-order') {
     return `New Holo Print order received.\n\nOrder: ${num}\nCustomer: ${name}\nEmail: ${customerEmail(order) || 'not provided'}\nCompany: ${order.customerCompany || order.customer?.company || 'not provided'}\nStatus: ${order.status || 'pending'}\nPayment: ${order.paymentStatus || 'unpaid'}\nTotal: ${total}\n\nItems:\n${lines}\n\nNext step: open the admin order detail page to check artwork, quote/payment state and production readiness.`;
+  }
+
+  if (type === 'admin-proof-decision') {
+    const decision = order.proofDecision || 'decision received';
+    const releaseState = order.productionReleaseState || (order.paymentReleased ? 'released-to-production' : 'blocked');
+    return `Customer proof decision received.\n\nOrder: ${num}\nCustomer: ${name}\nEmail: ${customerEmail(order) || 'not provided'}\nDecision: ${decision}\nProof status: ${order.customerProofStatus || 'not set'}\nTicket status: ${order.ticketStatus || 'not set'}\nPayment: ${order.paymentStatus || 'unpaid'}\nProduction release: ${releaseState}\n\nCustomer note:\n${options.note || order.proofDecisionNote || 'No note provided.'}\n\nDesign brief sync: ${order.designBriefSyncStatus || 'not checked'}\nPlanner sync: ${order.plannerSyncStatus || 'not checked'}\n\nNext step: open /design-briefs or the production board. If the customer requested changes, revise the design/proof and send a new proof. If approved, confirm payment/production gates before printing.`;
   }
 
   if (type === 'customer-payment-received') {
@@ -111,12 +118,16 @@ async function createOutboxEmail(request: Request, type: OrderEmailType, to: str
   return { ok: true, email };
 }
 
-export async function queueOrderCustomerEmail(request: Request, type: Exclude<OrderEmailType, 'admin-new-order'>, order: EmailOrder, options: QueueOptions = {}) {
+export async function queueOrderCustomerEmail(request: Request, type: Exclude<OrderEmailType, 'admin-new-order' | 'admin-proof-decision'>, order: EmailOrder, options: QueueOptions = {}) {
   return createOutboxEmail(request, type, customerEmail(order), order, options);
 }
 
 export async function queueAdminNewOrderEmail(request: Request, order: EmailOrder, options: QueueOptions = {}) {
   return createOutboxEmail(request, 'admin-new-order', adminEmail(), order, options);
+}
+
+export async function queueAdminProofDecisionEmail(request: Request, order: EmailOrder, options: QueueOptions = {}) {
+  return createOutboxEmail(request, 'admin-proof-decision', adminEmail(), order, options);
 }
 
 export async function queueOrderPlacedEmails(request: Request, order: EmailOrder) {

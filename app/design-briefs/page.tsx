@@ -13,6 +13,8 @@ const statusOptions = [
   ['approved-to-design', 'Approved to design'],
   ['design-in-progress', 'Design in progress'],
   ['proof-sent', 'Proof sent / waiting approval'],
+  ['revision-requested', 'Revision requested'],
+  ['revision-in-progress', 'Revision in progress'],
   ['waiting-customer', 'Waiting customer'],
   ['closed', 'Closed'],
 ];
@@ -28,9 +30,9 @@ function dateLabel(value: unknown) {
   return Number.isNaN(date.getTime()) ? raw : new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
 }
 function statusTone(value: string) {
-  if (['quote-required', 'waiting-customer'].includes(value)) return 'border-amber-300 bg-amber-50 text-amber-800';
+  if (['quote-required', 'waiting-customer', 'revision-requested'].includes(value)) return 'border-amber-300 bg-amber-50 text-amber-800';
   if (['quote-sent', 'proof-sent'].includes(value)) return 'border-sky-300 bg-sky-50 text-sky-800';
-  if (['no-extra-charge', 'approved-to-design', 'design-in-progress'].includes(value)) return 'border-emerald-300 bg-emerald-50 text-emerald-800';
+  if (['no-extra-charge', 'approved-to-design', 'design-in-progress', 'revision-in-progress'].includes(value)) return 'border-emerald-300 bg-emerald-50 text-emerald-800';
   if (value === 'closed') return 'border-slate-300 bg-slate-100 text-slate-700';
   return 'border-rose-200 bg-rose-50 text-rose-800';
 }
@@ -69,7 +71,7 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       const url = payload.paymentSession?.url || payload.brief?.designQuotePaymentUrl || '';
       if (url) setLatestPaymentUrl(url);
       if (payload.brief?.designProofUrl) setDesignProofUrl(payload.brief.designProofUrl);
-      setMessage(status === 'proof-sent' ? 'Design proof sent for customer approval' : url ? 'Updated and payment link created' : 'Updated');
+      setMessage(status === 'proof-sent' ? 'Design proof sent for customer approval' : status === 'revision-in-progress' ? 'Design revision marked in progress' : url ? 'Updated and payment link created' : 'Updated');
       onUpdated();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Update failed');
@@ -99,6 +101,8 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Design quote</p><p className="mt-1 text-sm font-black text-slate-900">{moneyMinor(brief.quoteAmountMinor)}</p><p className="mt-1 text-xs text-slate-500">Extra design charge, if required</p></div>
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Quote payment</p><p className="mt-1 text-sm font-black text-slate-900">{paymentStatus(brief)}</p><p className="mt-1 text-xs text-slate-500">Stripe design quote payment state</p></div>
     </div>
+
+    {String(brief.designQuoteStatus || '') === 'revision-requested' ? <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-black">Customer requested design changes</p><p className="mt-1">Move this to <strong>Revision in progress</strong> when a designer starts revising. Then use <strong>Proof sent / waiting approval</strong> again with the updated proof URL.</p></div> : null}
 
     {visiblePaymentUrl ? <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
       <p className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-700">Customer payment link</p>
@@ -136,11 +140,12 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
         <label className="text-sm font-bold text-slate-700">Review state<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">{statusOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="text-sm font-bold text-slate-700">Extra quote £<input value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="0" step="0.01" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
         <label className="text-sm font-bold text-slate-700">Staff note<input value={note} onChange={(event) => setNote(event.target.value)} placeholder="What did you decide / what is needed next?" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
-        <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : status === 'quote-sent' ? 'Save + create link' : status === 'proof-sent' ? 'Send proof state' : 'Save review'}</button>
+        <button onClick={save} disabled={saving} className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : status === 'quote-sent' ? 'Save + create link' : status === 'proof-sent' ? 'Send proof state' : status === 'revision-in-progress' ? 'Start revision' : 'Save review'}</button>
       </div>
       <label className="mt-3 block text-sm font-bold text-slate-700">Design proof URL<input value={designProofUrl} onChange={(event) => setDesignProofUrl(event.target.value)} placeholder="Link to PDF/proof preview for customer approval" className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" /></label>
       {status === 'quote-sent' ? <p className="mt-3 text-xs font-semibold text-slate-500">When quote amount is above £0, saving creates a Stripe payment link for the extra design charge.</p> : null}
       {status === 'proof-sent' ? <p className="mt-3 text-xs font-semibold text-slate-500">This moves the ticket to customer proof approval and keeps print production blocked until the customer approves.</p> : null}
+      {status === 'revision-in-progress' ? <p className="mt-3 text-xs font-semibold text-slate-500">Use this after a customer requests design proof changes. When the revised design is ready, choose Proof sent / waiting approval and add the new proof URL.</p> : null}
       {message ? <p className="mt-3 text-xs font-bold text-slate-500">{message}</p> : null}
     </div>
   </article>;
@@ -176,11 +181,11 @@ export default function DesignBriefsPage() {
     <section className="mx-auto max-w-7xl space-y-6">
       <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div><p className="text-[11px] font-black uppercase tracking-[0.25em] text-sky-600">Design operations</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em]">Customer design briefs</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">Review submitted design-help briefs, decide if an extra design quote is needed, create Stripe design quote links, send design proofs for approval, and keep print production blocked until proof approval.</p></div>
+          <div><p className="text-[11px] font-black uppercase tracking-[0.25em] text-sky-600">Design operations</p><h1 className="mt-2 text-4xl font-black tracking-[-0.06em]">Customer design briefs</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500">Review submitted design-help briefs, decide if an extra design quote is needed, create Stripe design quote links, send design proofs for approval, handle revisions, and keep print production blocked until proof approval.</p></div>
           <button onClick={() => void load()} className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white">Refresh</button>
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          {[["Total", summary.total || 0], ["Needs review", summary.needsReview || 0], ["Quote required", summary.quoteRequired || 0], ["Quote sent", summary.quoteSent || 0], ["Quote paid", summary.quotePaid || 0], ["Ready/proof", summary.readyForDesign || 0]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
+          {[["Total", summary.total || 0], ["Needs review", summary.needsReview || 0], ["Quote required", summary.quoteRequired || 0], ["Quote sent", summary.quoteSent || 0], ["Quote paid", summary.quotePaid || 0], ["Ready/proof/revision", summary.readyForDesign || 0]].map(([label, value]) => <div key={String(label)} className="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}
         </div>
       </div>
 

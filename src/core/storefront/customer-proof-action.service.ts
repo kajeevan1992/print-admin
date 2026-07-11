@@ -6,6 +6,7 @@ import { tenantContextFromRequest } from '@/core/tenant/context';
 const CONFIG_RESOURCE = 'admin-config' as any;
 const TICKETS_KEY = 'production-job-tickets';
 const REVISIONS_KEY = 'customer-proof-revisions-v377';
+const DESIGN_BRIEFS_KEY = 'customer-design-briefs-v1';
 
 const PAYMENT_RELEASED = ['paid', 'captured', 'authorized', 'manual-paid'];
 
@@ -24,6 +25,7 @@ async function writeConfigItems(request: Request, key: string, title: string, it
 }
 function matchTicket(ticket: Store, order: Store) { const keys = [order.id, order.orderNumber, ...(Array.isArray(order.artworkUploadIds) ? order.artworkUploadIds : [])].filter(Boolean).map(String); return keys.some((key) => [ticket.id, ticket.orderId, ticket.orderNumber, ticket.artworkUploadId].filter(Boolean).map(String).includes(key)); }
 function plannerMatches(job: Store, ticket: Store, order: Store) { const keys = [ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => [job.productionTicketId, job.orderId, job.orderNumber, job.workflowId, job.id].filter(Boolean).map(String).includes(key) || String(job.workflowId || '') === `ticket-${key}`); }
+function matchDesignBrief(brief: Store, ticket: Store, order: Store) { const keys = [brief.id, brief.designBriefId, brief.orderId, brief.orderNumber, brief.productionTicketId].filter(Boolean).map(String); const targets = [ticket.designBriefId, ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => targets.includes(key)); }
 function canApprove(ticket: Store) { const status = lower(ticket.preflightStatus || ticket.artworkStatus); return !['fail', 'failed', 'blocked', 'preflight-fail', 'replacement-requested'].includes(status); }
 function paymentReleased(ticket: Store) { const status = lower(ticket.paymentStatus || ticket.paymentGate); return PAYMENT_RELEASED.includes(status) || lower(ticket.paymentGate) === 'paid' || ticket.paymentReleased === true; }
 function paymentLabel(ticket: Store) { return text(ticket.paymentStatus || ticket.paymentGate || 'awaiting-payment'); }
@@ -74,6 +76,50 @@ async function addRevision(request: Request, ticket: Store, order: Store, action
   await writeConfigItems(request, REVISIONS_KEY, 'Customer Proof Revisions', [item, ...revisions]);
   return item;
 }
+async function syncDesignBriefProofDecision(request: Request, ticket: Store, order: Store, action: string, note: string, actorEmail: string) {
+  const briefs = await readConfigItems(request, DESIGN_BRIEFS_KEY).catch(() => []);
+  const index = briefs.findIndex((brief) => matchDesignBrief(brief, ticket, order));
+  if (index < 0) return { updated: false, reason: 'No matching design brief.' };
+  const at = nowIso();
+  const approved = action === 'approve';
+  const current = briefs[index];
+  const update = approved ? {
+    designQuoteStatus: 'approved-to-design',
+    designWorkState: 'proof-approved',
+    customerProofStatus: 'approved',
+    proofApprovedAt: ticket.proofApprovedAt || at,
+    proofApprovedBy: actorEmail,
+    proofDecisionAt: at,
+    proofDecisionBy: actorEmail,
+    proofDecisionNote: note || 'Customer approved proof.',
+    productionReleaseState: paymentReleased(ticket) ? 'released-to-production' : 'payment-hold',
+  } : {
+    designQuoteStatus: 'waiting-customer',
+    designWorkState: 'proof-revision-requested',
+    customerProofStatus: 'revision-requested',
+    proofRevisionRequestedAt: ticket.proofRevisionRequestedAt || at,
+    proofRevisionRequestedBy: actorEmail,
+    proofRevisionNote: note || 'Customer requested proof changes.',
+    proofDecisionAt: at,
+    proofDecisionBy: actorEmail,
+    proofDecisionNote: note || 'Customer requested proof changes.',
+    productionReleaseState: 'blocked-revision',
+  };
+  const updatedBrief = {
+    ...current,
+    ...update,
+    designBriefStatus: current.designBriefStatus || 'submitted',
+    productionTicketId: ticket.id || current.productionTicketId || '',
+    orderId: current.orderId || order.id || '',
+    orderNumber: current.orderNumber || order.orderNumber || '',
+    updatedAt: at,
+    history: [{ at, action: approved ? 'customer-design-proof-approved' : 'customer-design-proof-revision-requested', note: note || '', customerEmail: actorEmail, productionTicketId: ticket.id || '', paymentReleased: paymentReleased(ticket) }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 100),
+  };
+  const next = [...briefs];
+  next[index] = updatedBrief;
+  await writeConfigItems(request, DESIGN_BRIEFS_KEY, 'Customer Design Briefs', next);
+  return { updated: true, briefId: updatedBrief.id, status: updatedBrief.designQuoteStatus, designWorkState: updatedBrief.designWorkState };
+}
 function customerMessage(action: string, ticket: Store) {
   if (action !== 'approve') return 'Revision request received. Production is blocked until artwork is updated.';
   if (paymentReleased(ticket)) return 'Proof approved. Your order has been released to production.';
@@ -103,6 +149,7 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   nextTickets[index] = updatedTicket;
   await writeConfigItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);
   const revision = await addRevision(request, updatedTicket, order as Store, action, note, actorEmail).catch(() => null);
+  const designBriefSync = await syncDesignBriefProofDecision(request, updatedTicket, order as Store, action, note, actorEmail).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Design brief sync failed.' }));
   const plannerSync = await syncPlannerTicketState(request, updatedTicket, order as Store, action, note).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Planner sync failed.' }));
-  return { ticket: updatedTicket, orderNumber: (order as Store).orderNumber, action, revision, plannerSync, paymentReleased: paymentReleased(updatedTicket), message: customerMessage(action, updatedTicket) };
+  return { ticket: updatedTicket, orderNumber: (order as Store).orderNumber, action, revision, designBriefSync, plannerSync, paymentReleased: paymentReleased(updatedTicket), message: customerMessage(action, updatedTicket) };
 }

@@ -123,6 +123,12 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       {field(brief, 'inspiration', 'Reference link')}
       {field(brief, 'mustInclude', 'Must include')}
       {field(brief, 'avoid', 'Avoid')}
+      {field(brief, 'designWorkState', 'Design/proof state')}
+      {field(brief, 'customerProofStatus', 'Customer proof status')}
+      {field(brief, 'proofDecisionNote', 'Customer proof note')}
+      {field(brief, 'proofRevisionNote', 'Revision request')}
+      {field(brief, 'productionReleaseState', 'Production release state')}
+      {field(brief, 'proofDecisionAt', 'Proof decision at')}
     </div>
 
     <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">

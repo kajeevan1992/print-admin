@@ -1,4 +1,5 @@
 import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
+import { queueAdminProofDecisionEmail } from '@/core/email/order-notifications.service';
 import { getOrder } from '@/core/orders/orders.service';
 import { readPlannerStore, savePlannerStore } from '@/core/storefront/production-planner';
 import { tenantContextFromRequest } from '@/core/tenant/context';
@@ -125,6 +126,30 @@ function customerMessage(action: string, ticket: Store) {
   if (paymentReleased(ticket)) return 'Proof approved. Your order has been released to production.';
   return 'Proof approved. Your order is still waiting for payment before production starts.';
 }
+function proofDecisionEmailOrder(order: Store, ticket: Store, action: string, note: string, actorEmail: string, designBriefSync: Store, plannerSync: Store) {
+  const approved = action === 'approve';
+  const plannerReleased = Boolean(plannerSync?.released);
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    customerName: order.customerName || ticket.customerName || 'Customer',
+    customerEmail: order.customerEmail || actorEmail || ticket.customerEmail || '',
+    currency: order.currency || 'GBP',
+    total: order.total,
+    totalMinor: order.totalMinor,
+    status: order.status,
+    paymentStatus: ticket.paymentStatus || order.paymentStatus || '',
+    items: Array.isArray(order.items) ? order.items : [],
+    proofDecision: approved ? 'approved' : 'revision requested',
+    customerProofStatus: ticket.customerProofStatus || '',
+    ticketStatus: ticket.status || '',
+    paymentReleased: paymentReleased(ticket),
+    productionReleaseState: approved ? (plannerReleased || paymentReleased(ticket) ? 'released-to-production' : 'payment-hold') : 'blocked-revision',
+    proofDecisionNote: note || (approved ? 'Customer approved proof.' : 'Customer requested proof changes.'),
+    designBriefSyncStatus: designBriefSync?.updated ? `updated (${designBriefSync.designWorkState || designBriefSync.status || 'synced'})` : designBriefSync?.reason || designBriefSync?.error || 'not updated',
+    plannerSyncStatus: plannerSync?.updated ? (plannerSync.released ? 'released to production' : plannerSync.paymentHold ? 'payment hold' : 'updated') : plannerSync?.error || 'not updated',
+  };
+}
 
 export async function submitCustomerProofAction(request: Request, input: Store) {
   const orderId = text(input.orderId || input.orderNumber);
@@ -151,5 +176,6 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   const revision = await addRevision(request, updatedTicket, order as Store, action, note, actorEmail).catch(() => null);
   const designBriefSync = await syncDesignBriefProofDecision(request, updatedTicket, order as Store, action, note, actorEmail).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Design brief sync failed.' }));
   const plannerSync = await syncPlannerTicketState(request, updatedTicket, order as Store, action, note).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Planner sync failed.' }));
-  return { ticket: updatedTicket, orderNumber: (order as Store).orderNumber, action, revision, designBriefSync, plannerSync, paymentReleased: paymentReleased(updatedTicket), message: customerMessage(action, updatedTicket) };
+  const adminEmail = await queueAdminProofDecisionEmail(request, proofDecisionEmailOrder(order as Store, updatedTicket, action, note, actorEmail, designBriefSync as Store, plannerSync as Store), { actor: 'customer-proof-action', note }).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Admin proof decision email queue failed.' }));
+  return { ticket: updatedTicket, orderNumber: (order as Store).orderNumber, action, revision, designBriefSync, plannerSync, adminEmail, paymentReleased: paymentReleased(updatedTicket), message: customerMessage(action, updatedTicket) };
 }

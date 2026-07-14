@@ -25,6 +25,8 @@ async function readConfigItems(request: Request, key: string) {
 async function writeConfigItems(request: Request, key: string, title: string, items: Store[]) {
   return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: key, slug: key, name: title, title, description: title, metadataJson: { items, values: { count: String(items.length), savedAt: nowIso(), source: 'customer-proof-action' } } } as any);
 }
+function proofEvents(source: Store | null | undefined) { return Array.isArray(source?.proofEvents) ? source?.proofEvents as Store[] : []; }
+function appendProofEvent(source: Store | null | undefined, event: Store) { return [{ id: event.id || `proof-event-${Date.now()}`, at: event.at || nowIso(), ...event }, ...proofEvents(source)].slice(0, 80); }
 function matchTicket(ticket: Store, order: Store) { const keys = [order.id, order.orderNumber, ...(Array.isArray(order.artworkUploadIds) ? order.artworkUploadIds : [])].filter(Boolean).map(String); return keys.some((key) => [ticket.id, ticket.orderId, ticket.orderNumber, ticket.artworkUploadId].filter(Boolean).map(String).includes(key)); }
 function plannerMatches(job: Store, ticket: Store, order: Store) { const keys = [ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => [job.productionTicketId, job.orderId, job.orderNumber, job.workflowId, job.id].filter(Boolean).map(String).includes(key) || String(job.workflowId || '') === `ticket-${key}`); }
 function matchDesignBrief(brief: Store, ticket: Store, order: Store) { const keys = [brief.id, brief.designBriefId, brief.orderId, brief.orderNumber, brief.productionTicketId].filter(Boolean).map(String); const targets = [ticket.designBriefId, ticket.id, ticket.orderId, ticket.orderNumber, order.id, order.orderNumber].filter(Boolean).map(String); return keys.some((key) => targets.includes(key)); }
@@ -60,6 +62,11 @@ function approvalPatch(ticket: Store, action: string, note: string, actorEmail: 
   if (paymentReleased(ticket)) return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'ready-for-print', status: 'ready-to-print', paymentGate: lower(ticket.paymentGate) === 'paid' ? ticket.paymentGate : 'paid', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, blockReason: '', productionNotes: note || 'Customer approved proof for print.' };
   const reason = paymentHoldReason(ticket);
   return { artworkStatus: 'approved', customerProofStatus: 'approved', handoffState: 'blocked', status: 'payment-hold', paymentGate: ticket.paymentGate || 'awaiting-payment', proofApprovedAt: nowIso(), proofApprovedBy: actorEmail, blockReason: reason, productionNotes: [note || 'Customer approved proof for print.', reason].filter(Boolean).join(' ') };
+}
+function proofDecisionEvent(ticket: Store, order: Store, action: string, note: string, actorEmail: string) {
+  const approved = action === 'approve';
+  const released = approved && paymentReleased(ticket);
+  return { at: nowIso(), action: approved ? 'customer-proof-approved' : isDesignHelpTicket(ticket) ? 'customer-design-proof-revision-requested' : 'customer-proof-revision-requested', actor: 'customer', customerEmail: actorEmail, orderId: order.id || '', orderNumber: order.orderNumber || '', proofVersion: ticket.proofVersion || 0, proofToken: ticket.proofToken || '', decision: approved ? 'approved' : 'revision-requested', note: note || (approved ? 'Customer approved proof.' : 'Customer requested changes.'), paymentStatus: ticket.paymentStatus || order.paymentStatus || '', paymentReleased: paymentReleased(ticket), productionReleaseState: approved ? (released ? 'released-to-production' : 'payment-hold') : isDesignHelpTicket(ticket) ? 'blocked-design-revision' : 'blocked-revision' };
 }
 async function syncPlannerTicketState(request: Request, ticket: Store, order: Store, action: string, note: string) {
   const planner = await readPlannerStore(request).catch(() => null);
@@ -139,6 +146,7 @@ async function syncDesignBriefProofDecision(request: Request, ticket: Store, ord
   const updatedBrief = {
     ...current,
     ...update,
+    proofEvents: proofEvents(ticket).length ? proofEvents(ticket) : proofEvents(current),
     designBriefStatus: current.designBriefStatus || 'submitted',
     productionTicketId: ticket.id || current.productionTicketId || '',
     orderId: current.orderId || order.id || '',
@@ -170,6 +178,8 @@ function proofDecisionEmailOrder(order: Store, ticket: Store, action: string, no
     status: order.status,
     paymentStatus: ticket.paymentStatus || order.paymentStatus || '',
     items: Array.isArray(order.items) ? order.items : [],
+    proofVersion: ticket.proofVersion || 0,
+    proofToken: ticket.proofToken || '',
     proofDecision: approved ? `approved proof v${ticket.proofVersion || ''}` : isDesignHelpTicket(ticket) ? `design revision requested on proof v${ticket.proofVersion || ''}` : 'revision requested',
     customerProofStatus: ticket.customerProofStatus || '',
     ticketStatus: ticket.status || '',
@@ -200,7 +210,8 @@ export async function submitCustomerProofAction(request: Request, input: Store) 
   if (!proofLinkMatches(current, input)) throw new Error('This proof link is not for the current proof version. Please use the latest proof email/link.');
   const actorEmail = email || orderEmail || text(current.customerEmail);
   const patch = approvalPatch(current, action, note, actorEmail);
-  const updatedTicket = { ...current, ...patch, customerActionAt: nowIso(), customerActionNote: note, decidedProofToken: current.proofToken || '', decidedProofVersion: current.proofVersion || 0, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || (isDesignHelpTicket(current) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.')])) : current.warnings || [] };
+  const decisionEvent = proofDecisionEvent(current, order as Store, action, note, actorEmail);
+  const updatedTicket = { ...current, ...patch, proofEvents: appendProofEvent(current, decisionEvent), customerActionAt: nowIso(), customerActionNote: note, decidedProofToken: current.proofToken || '', decidedProofVersion: current.proofVersion || 0, updatedAt: nowIso(), warnings: action === 'revision' ? Array.from(new Set([...(current.warnings || []), note || (isDesignHelpTicket(current) ? 'Customer requested design proof changes.' : 'Customer requested proof changes.')])) : current.warnings || [] };
   const nextTickets = [...tickets];
   nextTickets[index] = updatedTicket;
   await writeConfigItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);

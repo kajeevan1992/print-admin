@@ -47,7 +47,7 @@ async function queueProofReviewEmail(request: Request, brief: Store, proofUrl: s
 async function readItems(request: Request, key: string) { try { const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key); const metadata = (record as any)?.metadataJson || {}; if (Array.isArray(metadata.items)) return metadata.items as Store[]; if (Array.isArray(metadata.store?.items)) return metadata.store.items as Store[]; return []; } catch (error) { const message = error instanceof Error ? error.message : ''; if (message.includes('was not found')) return []; throw error; } }
 async function writeItems(request: Request, key: string, title: string, items: Store[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: key, slug: key, name: title, title, description: title, metadataJson: { items, savedAt: nowIso(), storageKey: key, source: 'internal-design-brief-review' } } as any); }
 function matchTicket(ticket: Store, brief: Store) { const keys = [brief.orderId, brief.orderNumber, brief.designBriefId, brief.id].filter(Boolean).map(String); return keys.some((key) => [ticket.orderId, ticket.orderNumber, ticket.designBriefId, ticket.id].filter(Boolean).map(String).includes(key)); }
-function enrichBrief(brief: Store, tickets: Store[]) { const ticket = tickets.find((row) => matchTicket(row, brief)) || null; return { ...brief, proofEvents: proofEvents(ticket || brief), ticket: ticket ? { id: ticket.id, status: ticket.status, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, paymentStatus: ticket.paymentStatus, designQuoteStatus: ticket.designQuoteStatus || brief.designQuoteStatus || 'needs-review', designQuotePaymentStatus: ticket.designQuotePaymentStatus || brief.designQuotePaymentStatus || '', designQuotePaymentUrl: ticket.designQuotePaymentUrl || brief.designQuotePaymentUrl || '', designQuoteEmailQueuedAt: ticket.designQuoteEmailQueuedAt || brief.designQuoteEmailQueuedAt || '', proofEmailQueuedAt: ticket.proofEmailQueuedAt || brief.proofEmailQueuedAt || '', proofEmailStatus: ticket.proofEmailStatus || brief.proofEmailStatus || '', designProofUrl: ticket.designProofUrl || brief.designProofUrl || '', proofVersion: ticket.proofVersion || brief.proofVersion || 0, proofToken: ticket.proofToken || brief.proofToken || '', decidedProofVersion: ticket.decidedProofVersion || brief.decidedProofVersion || 0, decidedProofToken: ticket.decidedProofToken || brief.decidedProofToken || '', proofEvents: proofEvents(ticket || brief), blockReason: ticket.blockReason || '', owner: ticket.owner || ticket.assignedOperator || 'Prepress Team', updatedAt: ticket.updatedAt || '' } : null }; }
+function enrichBrief(brief: Store, tickets: Store[]) { const ticket = tickets.find((row) => matchTicket(row, brief)) || null; return { ...brief, proofEvents: proofEvents(ticket || brief), ticket: ticket ? { id: ticket.id, status: ticket.status, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, paymentStatus: ticket.paymentStatus, designQuoteStatus: ticket.designQuoteStatus || brief.designQuoteStatus || 'needs-review', designQuotePaymentStatus: ticket.designQuotePaymentStatus || brief.designQuotePaymentStatus || '', designQuotePaymentUrl: ticket.designQuotePaymentUrl || brief.designQuotePaymentUrl || '', designQuoteEmailQueuedAt: ticket.designQuoteEmailQueuedAt || brief.designQuoteEmailQueuedAt || '', proofEmailQueuedAt: ticket.proofEmailQueuedAt || brief.proofEmailQueuedAt || '', proofEmailResentAt: ticket.proofEmailResentAt || brief.proofEmailResentAt || '', proofEmailStatus: ticket.proofEmailStatus || brief.proofEmailStatus || '', designProofUrl: ticket.designProofUrl || brief.designProofUrl || '', proofVersion: ticket.proofVersion || brief.proofVersion || 0, proofToken: ticket.proofToken || brief.proofToken || '', decidedProofVersion: ticket.decidedProofVersion || brief.decidedProofVersion || 0, decidedProofToken: ticket.decidedProofToken || brief.decidedProofToken || '', proofEvents: proofEvents(ticket || brief), blockReason: ticket.blockReason || '', owner: ticket.owner || ticket.assignedOperator || 'Prepress Team', updatedAt: ticket.updatedAt || '' } : null }; }
 function summary(items: Store[]) { return { total: items.length, needsReview: items.filter((item) => text(item.designQuoteStatus || item.status) === 'needs-review' || text(item.status) === 'submitted').length, quoteRequired: items.filter((item) => text(item.designQuoteStatus) === 'quote-required').length, quoteSent: items.filter((item) => text(item.designQuoteStatus) === 'quote-sent').length, quotePaid: items.filter((item) => text(item.designQuotePaymentStatus) === 'paid').length, readyForDesign: items.filter((item) => ['no-extra-charge', 'approved-to-design', 'design-in-progress', 'proof-sent', 'revision-requested', 'revision-in-progress'].includes(text(item.designQuoteStatus))).length }; }
 function allowedQuoteStatus(value: string) { return ['needs-review', 'quote-required', 'quote-sent', 'no-extra-charge', 'approved-to-design', 'design-in-progress', 'proof-sent', 'revision-requested', 'revision-in-progress', 'waiting-customer', 'closed'].includes(value); }
 function ticketPatchFor(status: string, note: string, proofUrl: string, proofToken: string, proofVersion: number) {
@@ -80,13 +80,48 @@ export async function POST(request: Request) {
     const quoteAmountMinor = moneyMinor(body.quoteAmountMinor || 0);
     const generatePaymentLink = body.generatePaymentLink !== false;
     const sendCustomerEmail = body.sendCustomerEmail !== false;
+    const resendProofEmail = body.resendProofEmail === true || text(body.action) === 'resend-proof-email';
     if (!id) return json({ ok: false, error: 'brief id is required.' }, { status: 400 });
-    if (!allowedQuoteStatus(designQuoteStatus)) return json({ ok: false, error: `Unsupported design quote status: ${designQuoteStatus}` }, { status: 400 });
+    if (!resendProofEmail && !allowedQuoteStatus(designQuoteStatus)) return json({ ok: false, error: `Unsupported design quote status: ${designQuoteStatus}` }, { status: 400 });
     const briefs = await readItems(request, DESIGN_BRIEFS_KEY);
     const current = briefs.find((brief) => String(brief.id) === id);
     if (!current) return json({ ok: false, error: 'Design brief was not found.' }, { status: 404 });
     const at = nowIso();
     const actor = text(body.actor || 'staff');
+
+    if (resendProofEmail) {
+      const proofVersion = Number(current.proofVersion || 0);
+      const proofToken = text(current.proofToken || '');
+      const proofUrl = designProofUrl || text(current.designProofUrl || current.proofUrl || '');
+      if (!proofVersion || !proofToken) return json({ ok: false, error: 'No current proof token/version exists to resend. Send a proof first.' }, { status: 400 });
+      const proofBriefForEmail = { ...current, designProofUrl: proofUrl, proofToken, proofVersion };
+      const proofReviewLink = proofReviewUrl(request, proofBriefForEmail);
+      const proofEmailResult = sendCustomerEmail ? await queueProofReviewEmail(request, proofBriefForEmail, proofUrl, staffNote || `Resending proof v${proofVersion} for review.`).catch((error) => ({ ok: false, error: error instanceof Error ? error.message : 'Proof review email resend failed.' })) : { skipped: true };
+      const proofEmailQueued = Boolean((proofEmailResult as any)?.ok && !(proofEmailResult as any)?.skipped);
+      const resendEvent = { at, action: 'proof-resent', actor, note: staffNote || `Proof v${proofVersion} email resent to customer.`, proofVersion, proofToken, designProofUrl: proofUrl, reviewUrl: proofReviewLink, emailStatus: proofEmailQueued ? 'queued' : (proofEmailResult as any)?.error ? 'failed' : 'skipped' };
+      const updatedBrief = {
+        ...current,
+        designProofUrl: proofUrl || current.designProofUrl || '',
+        proofEvents: appendProofEvent(current, resendEvent),
+        ...(proofEmailQueued ? { proofEmailResentAt: at, proofEmailStatus: 'queued' } : { proofEmailStatus: (proofEmailResult as any)?.error ? 'failed' : current.proofEmailStatus || '' }),
+        reviewedAt: at,
+        reviewedBy: actor,
+        history: [{ at, action: 'design-proof-email-resent', note: staffNote, proofVersion, proofToken, proofEmailStatus: proofEmailQueued ? 'queued' : (proofEmailResult as any)?.skipped ? 'skipped' : (proofEmailResult as any)?.error ? 'failed' : '' }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 80),
+        updatedAt: at,
+      };
+      const nextBriefs = briefs.map((brief) => String(brief.id) === id ? updatedBrief : brief);
+      await writeItems(request, DESIGN_BRIEFS_KEY, 'Customer Design Briefs', nextBriefs);
+      const tickets = await readItems(request, TICKETS_KEY).catch(() => []);
+      let ticketUpdated = false;
+      const nextTickets = tickets.map((ticket) => {
+        if (!matchTicket(ticket, updatedBrief)) return ticket;
+        ticketUpdated = true;
+        return { ...ticket, designProofUrl: updatedBrief.designProofUrl || ticket.designProofUrl || '', proofEvents: appendProofEvent(ticket, resendEvent), proofEmailResentAt: proofEmailQueued ? at : ticket.proofEmailResentAt || '', proofEmailStatus: proofEmailQueued ? 'queued' : (proofEmailResult as any)?.error ? 'failed' : ticket.proofEmailStatus || '', productionNotes: [ticket.productionNotes, `Design proof v${proofVersion} review email resent to customer.`].filter(Boolean).join(' '), updatedAt: at };
+      });
+      if (ticketUpdated) await writeItems(request, TICKETS_KEY, 'Production Job Tickets', nextTickets);
+      return json({ ok: true, source: 'internal-design-brief-review', brief: updatedBrief, emailResult: proofEmailResult, proofEmailResult, ticketUpdated, message: proofEmailQueued ? `Design proof v${proofVersion} email resent to customer.` : `Design proof v${proofVersion} resend recorded.` });
+    }
+
     const proofVersion = designQuoteStatus === 'proof-sent' ? nextProofVersion(current) : Number(current.proofVersion || 0);
     const proofToken = designQuoteStatus === 'proof-sent' ? makeProofToken(current, proofVersion) : text(current.proofToken || '');
     let paymentSession: Store | null = null;

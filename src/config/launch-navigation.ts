@@ -1,6 +1,11 @@
 import type { AdminSidebarNavigationItem } from './admin-navigation';
 
 export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> = [
+  { label: 'Design Proof Readiness', href: '/launch-design-proof-readiness', iconKey: 'ClipboardCheck', order: 18.1 },
+  { label: 'Launch Test Order', href: '/launch-test-order', iconKey: 'PackageCheck', order: 18.2 },
+  { label: 'Test Data Cleanup', href: '/launch-test-data-cleanup', iconKey: 'Trash2', order: 18.3 },
+  { label: 'Artwork Preflight Hub', href: '/artwork-preflight', iconKey: 'Shield', order: 18.4 },
+  { label: 'Design Briefs', href: '/design-briefs', iconKey: 'PenTool', order: 18.5 },
   { label: 'Fresh DB Setup', href: '/fresh-db-setup', iconKey: 'Database', order: 34 },
   { label: 'Platform Shop Setup', href: '/shop-login-setup', iconKey: 'Shield', order: 34.5 },
   { label: 'Business Defaults', href: '/business-defaults', iconKey: 'Store', order: 34.6 },
@@ -28,7 +33,7 @@ export function addLaunchQaLinks(items: AdminSidebarNavigationItem[]) {
   return items.map((item) => {
     if (item.label !== 'Launch Operations' || !item.children?.length) return item;
     const next = [...item.children];
-    for (const link of launchQaLinks.map((entry, index) => ({ ...entry, order: 19 + index / 10 }))) {
+    for (const link of launchQaLinks) {
       if (!next.some((child) => child.href === link.href)) next.push(link);
     }
     return { ...item, children: next.sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) };

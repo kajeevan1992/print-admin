@@ -10,6 +10,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: 'Missing confirmation.' }, { status: 400 });
     }
     const data = await createLaunchTestOrder(request, {
+      scenario: body.scenario || 'collection',
       status: body.status || 'QUALITY_CHECK',
       productSlug: body.productSlug || 'business-cards',
       locationSlug: body.locationSlug || 'sidcup',

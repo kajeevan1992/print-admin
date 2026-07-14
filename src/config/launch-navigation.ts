@@ -1,6 +1,7 @@
 import type { AdminSidebarNavigationItem } from './admin-navigation';
 
 export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> = [
+  { label: 'Final Launch Blockers', href: '/final-launch-blockers', iconKey: 'ShieldAlert', order: 18.05 },
   { label: 'Design Proof Readiness', href: '/launch-design-proof-readiness', iconKey: 'ClipboardCheck', order: 18.1 },
   { label: 'Launch Test Order', href: '/launch-test-order', iconKey: 'PackageCheck', order: 18.2 },
   { label: 'Test Data Cleanup', href: '/launch-test-data-cleanup', iconKey: 'Trash2', order: 18.3 },

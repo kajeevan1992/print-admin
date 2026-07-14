@@ -22,6 +22,7 @@ function Check({ label, ok }: { label: string; ok: boolean }) {
 }
 
 export function LaunchTestOrderPage() {
+  const [scenario, setScenario] = useState<'collection' | 'design-proof'>('collection');
   const [status, setStatus] = useState('QUALITY_CHECK');
   const [productSlug, setProductSlug] = useState('business-cards');
   const [locationSlug, setLocationSlug] = useState('sidcup');
@@ -37,7 +38,16 @@ export function LaunchTestOrderPage() {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const body = { status, productSlug, locationSlug, customerEmail, customerName, generatePass, runAutomation, queueNotification };
+  const body = { scenario, status, productSlug, locationSlug, customerEmail, customerName, generatePass, runAutomation, queueNotification };
+  const designProof = result?.designProof;
+
+  function switchScenario(value: 'collection' | 'design-proof') {
+    setScenario(value);
+    setStatus(value === 'design-proof' ? 'ARTWORK_CHECK' : 'QUALITY_CHECK');
+    setCustomerName(value === 'design-proof' ? 'Launch Design Proof Customer' : 'Launch Test Customer');
+    setMessage('');
+    setResult(null);
+  }
 
   async function loadPreview() {
     setBusy(true); setMessage('');
@@ -62,7 +72,7 @@ export function LaunchTestOrderPage() {
     try {
       const data = await api('/api/internal/launch/test-order/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, confirm }) });
       setResult(data);
-      setMessage('Launch test order created. It is marked as BUILD 67 TEST DATA.');
+      setMessage(scenario === 'design-proof' ? 'Design-proof launch journey created. It is marked as BUILD 67 TEST DATA.' : 'Launch test order created. It is marked as BUILD 67 TEST DATA.');
       await loadHistory();
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Create failed.'); }
     finally { setBusy(false); }
@@ -75,7 +85,7 @@ export function LaunchTestOrderPage() {
   return <div>
     <PageHeader
       title="Launch Test Order Generator"
-      subtitle="Create one controlled Holo Print test order to verify VAT, collection fulfilment, collection pass and ready-notification queueing."
+      subtitle="Create controlled Holo Print test orders to verify collection/VAT or the design-help proof approval journey."
       actions={<><Button onClick={() => void loadPreview()} disabled={busy}><Eye size={14} /> Preview</Button><PrimaryButton onClick={() => void createTestOrder()} disabled={busy || confirm !== 'CREATE_TEST_ORDER'}><Play size={14} /> Create test order</PrimaryButton></>}
     />
 
@@ -88,15 +98,21 @@ export function LaunchTestOrderPage() {
     <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
       <Card>
         <h3 className="mb-3 text-sm font-semibold text-white">Generator controls</h3>
+        <div className="mb-4 grid gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-sm text-textMuted">
+          <label className="flex items-center gap-2"><input type="radio" checked={scenario === 'collection'} onChange={() => switchScenario('collection')} /> Collection + VAT test</label>
+          <label className="flex items-center gap-2"><input type="radio" checked={scenario === 'design-proof'} onChange={() => switchScenario('design-proof')} /> Design-help proof approval test</label>
+        </div>
         <div className="grid gap-3">
           <Input placeholder="Order status" value={status} onChange={(event) => setStatus(event.target.value)} />
           <Input placeholder="Product slug" value={productSlug} onChange={(event) => setProductSlug(event.target.value)} />
           <Input placeholder="Location slug" value={locationSlug} onChange={(event) => setLocationSlug(event.target.value)} />
           <Input placeholder="Customer email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} />
           <Input placeholder="Customer name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} />
-          <label className="flex items-center gap-2 text-sm text-textMuted"><input type="checkbox" checked={generatePass} onChange={(event) => setGeneratePass(event.target.checked)} /> Generate collection pass</label>
-          <label className="flex items-center gap-2 text-sm text-textMuted"><input type="checkbox" checked={runAutomation} onChange={(event) => setRunAutomation(event.target.checked)} /> Run ready-collection automation</label>
-          <label className="flex items-center gap-2 text-sm text-textMuted"><input type="checkbox" checked={queueNotification} onChange={(event) => setQueueNotification(event.target.checked)} /> Queue notification if automation is not run</label>
+          {scenario === 'collection' ? <>
+            <label className="flex items-center gap-2 text-sm text-textMuted"><input type="checkbox" checked={generatePass} onChange={(event) => setGeneratePass(event.target.checked)} /> Generate collection pass</label>
+            <label className="flex items-center gap-2 text-sm text-textMuted"><input type="checkbox" checked={runAutomation} onChange={(event) => setRunAutomation(event.target.checked)} /> Run ready-collection automation</label>
+            <label className="flex items-center gap-2 text-sm text-textMuted"><input type="checkbox" checked={queueNotification} onChange={(event) => setQueueNotification(event.target.checked)} /> Queue notification if automation is not run</label>
+          </> : <div className="rounded-xl border border-sky-500/20 bg-sky-500/10 p-3 text-xs leading-5 text-sky-100">Design-proof mode creates a safe order, customer design brief, production ticket, proof token/version, proof event and links to Track Order / Proof Action. It does not send live customer proof email.</div>}
           <Input placeholder="Type CREATE_TEST_ORDER to enable creation" value={confirm} onChange={(event) => setConfirm(event.target.value)} />
           <div className="flex flex-wrap gap-2"><Button onClick={() => void loadPreview()} disabled={busy}><RefreshCw size={14} /> Preview only</Button><PrimaryButton onClick={() => void createTestOrder()} disabled={busy || confirm !== 'CREATE_TEST_ORDER'}>Create test order</PrimaryButton></div>
         </div>
@@ -112,8 +128,15 @@ export function LaunchTestOrderPage() {
             <Check label="Mixed VAT summary saved" ok={Boolean(validation.mixedVat)} />
             <Check label="Zero VAT line present" ok={Boolean(validation.zeroVatPresent)} />
             <Check label="Standard VAT line present" ok={Boolean(validation.standardVatPresent)} />
+            {scenario === 'design-proof' ? <>
+              <Check label="Design brief created" ok={Boolean(validation.designBriefCreated)} />
+              <Check label="Production ticket created" ok={Boolean(validation.productionTicketCreated)} />
+              <Check label="Proof token/version created" ok={Boolean(validation.proofTokenCreated)} />
+              <Check label="Proof event recorded" ok={Boolean(validation.proofEventCreated)} />
+              <Check label="Production blocked until approval" ok={Boolean(validation.productionBlockedUntilApproval)} />
+            </> : null}
           </div>
-          {result?.order ? <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-textMuted"><p><b className="text-white">Order:</b> {result.order.orderNumber}</p><p><b className="text-white">Status:</b> {result.order.status}</p><p><b className="text-white">Customer:</b> {result.customerEmail}</p>{result.collectionPass?.pass?.pin ? <p><b className="text-white">Collection PIN:</b> {result.collectionPass.pass.pin}</p> : null}<div className="mt-3 flex flex-wrap gap-2"><Link href={`/orders`} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Orders</Link><Link href="/collection-handover" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Collection Handover</Link><Link href="/email-send-controls" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Email Send Controls</Link></div></div> : null}
+          {result?.order ? <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.03] p-4 text-sm text-textMuted"><p><b className="text-white">Order:</b> {result.order.orderNumber}</p><p><b className="text-white">Scenario:</b> {result.scenario || 'collection'}</p><p><b className="text-white">Status:</b> {result.order.status}</p><p><b className="text-white">Customer:</b> {result.customerEmail}</p>{result.collectionPass?.pass?.pin ? <p><b className="text-white">Collection PIN:</b> {result.collectionPass.pass.pin}</p> : null}<div className="mt-3 flex flex-wrap gap-2"><Link href="/orders" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Orders</Link><Link href="/collection-handover" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Collection Handover</Link><Link href="/email-send-controls" className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Email Send Controls</Link>{designProof?.links?.designBriefs ? <Link href={designProof.links.designBriefs} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Design Briefs</Link> : null}{designProof?.links?.proofAction ? <Link href={designProof.links.proofAction} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Proof Action</Link> : null}{designProof?.links?.trackOrder ? <Link href={designProof.links.trackOrder} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Open Track Order</Link> : null}{designProof?.links?.readiness ? <Link href={designProof.links.readiness} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">Design Proof Readiness</Link> : null}</div></div> : null}
         </Card>
 
         <Card>
@@ -125,7 +148,7 @@ export function LaunchTestOrderPage() {
 
     <Card className="mt-4">
       <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white"><ClipboardCheck size={16} /> Recent launch test orders</h3>
-      <div className="grid gap-3">{(history?.items || []).slice(0, 8).map((order: any) => <div key={order.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-sm text-textMuted"><b className="text-white">{order.orderNumber}</b> · {order.status} · {order.customerEmail} · £{Number(order.total || 0).toFixed(2)}</div>)}{!history?.items?.length ? <p className="text-sm text-textMuted"><PackageCheck className="mr-1 inline h-4 w-4" />No launch test orders yet.</p> : null}</div>
+      <div className="grid gap-3">{(history?.items || []).slice(0, 8).map((order: any) => <div key={order.id} className="rounded-xl border border-white/8 bg-white/[0.03] p-3 text-sm text-textMuted"><b className="text-white">{order.orderNumber}</b> · {order.rawCheckout?.scenario || order.testScenario || 'collection'} · {order.status} · {order.customerEmail} · £{Number(order.total || 0).toFixed(2)}</div>)}{!history?.items?.length ? <p className="text-sm text-textMuted"><PackageCheck className="mr-1 inline h-4 w-4" />No launch test orders yet.</p> : null}</div>
     </Card>
   </div>;
 }

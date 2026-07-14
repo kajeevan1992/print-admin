@@ -12,6 +12,7 @@ type StatusPayload = Record<string, any> & { ok?: boolean; readyForLivePayments?
 const tools = [
   ['Launch Readiness', '/launch-readiness', ShieldCheck, 'Run read-only launch checks across foundation, locations, SEO, storefront, collection, payments, email and VAT.'],
   ['Design Proof Readiness', '/launch-design-proof-readiness', ClipboardCheck, 'Check design-help briefs, proof tokens, proof history, proof emails, revision holds and payment holds before launch.'],
+  ['Artwork Preflight Hub', '/artwork-preflight', ShieldCheck, 'Open the central artwork/preflight module hub linking product rules, upload intake, proofing, design briefs, production and dispatch gates.'],
   ['Launch Test Order', '/launch-test-order', PackageCheck, 'Create an opt-in test order to verify VAT, collection pass and notification queueing.'],
   ['Test Data Cleanup', '/launch-test-data-cleanup', Trash2, 'Preview and clean only TEST-HOLO / Build 67 launch test data.'],
   ['Location Manager', '/location-manager', Map, 'Manage stores, branches, collection points and service areas.'],

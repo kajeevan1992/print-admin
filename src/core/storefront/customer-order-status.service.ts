@@ -23,6 +23,7 @@ function designQuotePaymentPaid(ticket: Store | null) { return paymentReleasedVa
 function designQuotePaymentNeeded(ticket: Store | null) { return Boolean(ticket?.designQuotePaymentUrl) && !designQuotePaymentPaid(ticket); }
 function designRevisionRequested(ticket: Store | null, order: Store) { return Boolean(designHelpRequested(ticket, order) && ['revision-requested', 'design-revision-requested', 'changes-requested'].includes(cleanStatus(ticket?.customerProofStatus || ticket?.artworkStatus || ticket?.designQuoteStatus))); }
 function proofVersion(ticket: Store | null) { return Number(ticket?.proofVersion || 0) > 0 ? Number(ticket?.proofVersion) : 0; }
+
 async function readConfigItems(request: Request, key: string) {
   try {
     const record = await getInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, key);
@@ -36,8 +37,10 @@ async function readConfigItems(request: Request, key: string) {
     throw error;
   }
 }
+
 function findForOrder(items: Store[], order: Store) { const keys = [order.id, order.orderNumber, order.productionTicketId, order.workflowId, ...(Array.isArray(order.artworkUploadIds) ? order.artworkUploadIds : [])].filter(Boolean).map(String); return items.find((item) => keys.some((key) => [item.orderId, item.orderNumber, item.id, item.artworkUploadId, item.productionTicketId, item.workflowId].filter(Boolean).map(String).includes(key))) || null; }
 function stageIndex(value: string) { return ['order', 'artwork', 'proof', 'production', 'dispatch', 'complete'].indexOf(value); }
+
 function deriveCurrentStage(order: Store, ticket: Store | null, plannerJob: Store | null) {
   const orderStatus = cleanStatus(order.status);
   if (plannerJob?.stage === 'completed' || ['delivered', 'dispatched'].includes(orderStatus)) return 'complete';
@@ -49,6 +52,7 @@ function deriveCurrentStage(order: Store, ticket: Store | null, plannerJob: Stor
   if (raw?.status || raw?.upload?.id || order.artworkUploadIds?.length) return 'artwork';
   return 'order';
 }
+
 function publicMessage(stage: string, ticket: Store | null, plannerJob: Store | null, order: Store) {
   if (ticket?.customerProofStatus === 'pending-customer-approval') return 'Your proof is ready and waiting for approval.';
   if (designRevisionRequested(ticket, order)) return 'Your design change request has been received. Our design team is revising the proof; no replacement artwork upload is needed.';
@@ -70,9 +74,36 @@ function publicMessage(stage: string, ticket: Store | null, plannerJob: Store | 
   if (stage === 'artwork') return 'Artwork has been received and is being checked.';
   return 'Your order has been received.';
 }
+
 function progress(stage: string) { const active = stageIndex(stage); return [{ key: 'order', label: 'Order received' }, { key: 'artwork', label: 'Artwork check' }, { key: 'proof', label: 'Proof approval' }, { key: 'production', label: 'Production' }, { key: 'dispatch', label: 'Dispatch' }, { key: 'complete', label: 'Complete' }].map((step) => ({ ...step, state: stageIndex(step.key) < active ? 'done' : stageIndex(step.key) === active ? 'active' : 'pending' })); }
 function compactOrder(order: Store) { return { id: order.id, orderNumber: order.orderNumber, status: order.status, paymentStatus: order.paymentStatus || 'unpaid', paymentProvider: order.paymentProvider || '', paymentReleased: orderPaymentReleased(order), paidAt: order.paidAt || '', total: order.total, currency: order.currency, createdAt: order.createdAt, updatedAt: order.updatedAt, customerName: order.customerName, items: (order.items || []).map((item: Store) => ({ productName: item.productName, quantity: item.quantity, totalPrice: item.totalPrice, sku: item.sku })) }; }
 function customerUrl(order: Store, path: string, extra?: Record<string, string>) { const params = new URLSearchParams({ orderId: String(order.orderNumber || order.id) }); if (order.customerEmail) params.set('email', String(order.customerEmail)); Object.entries(extra || {}).forEach(([key, value]) => { if (value) params.set(key, value); }); return `${path}?${params.toString()}`; }
+
+function compactProofEvents(ticket: Store | null) {
+  const events = Array.isArray(ticket?.proofEvents) ? ticket?.proofEvents : [];
+  return events
+    .map((event: Store, index: number) => {
+      const action = cleanStatus(event.action || event.type || event.status);
+      const version = Number(event.proofVersion || event.version || 0);
+      const at = safeDate(event.at || event.createdAt || event.timestamp || event.sentAt || event.decisionAt);
+      const customerFacingAction = action.includes('revision') ? 'revision-requested' : action.includes('approve') ? 'approved' : action.includes('sent') ? 'proof-sent' : action || 'proof-event';
+      return {
+        id: text(event.id || `${customerFacingAction}-${version || index}-${at || index}`),
+        action: customerFacingAction,
+        label: event.label || (customerFacingAction === 'proof-sent' ? 'Proof sent for review' : customerFacingAction === 'approved' ? 'Proof approved' : customerFacingAction === 'revision-requested' ? 'Changes requested' : 'Proof update'),
+        proofVersion: Number.isFinite(version) && version > 0 ? version : 0,
+        at,
+        actor: cleanStatus(event.actor || event.by || '').includes('customer') ? 'customer' : 'store',
+        note: text(event.customerNote || event.note || event.staffNote || event.comment),
+        productionReleaseState: text(event.productionReleaseState || event.releaseState || ''),
+        emailStatus: text(event.emailStatus || event.proofEmailStatus || ''),
+      };
+    })
+    .filter((event: Store) => event.at || event.proofVersion || event.action)
+    .sort((a: Store, b: Store) => String(b.at || '').localeCompare(String(a.at || '')))
+    .slice(0, 12);
+}
+
 function compactTicket(ticket: Store | null, order: Store) {
   if (!ticket) return null;
   const designRevision = designRevisionRequested(ticket, order);
@@ -87,6 +118,7 @@ function compactTicket(ticket: Store | null, order: Store) {
   const quotePaymentNeeded = designQuotePaymentNeeded(ticket);
   return { id: ticket.id, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus, handoffState: ticket.handoffState, paymentStatus: ticket.paymentStatus || order.paymentStatus || '', paymentGate: paymentReleased ? 'paid' : ticket.paymentGate || 'awaiting-payment', paymentReleased, blockReason: ticket.blockReason || '', dueDate: ticket.dueDate, artworkUploadId: ticket.artworkUploadId, designProofUrl: ticket.designProofUrl || ticket.proofUrl || '', proofToken: token, proofVersion: currentProofVersion, proofSentAt: ticket.proofSentAt || '', updatedAt: ticket.updatedAt, needsCustomerDecision, needsReplacementArtwork, needsDesignRevision: designRevision, needsPayment: proofReleased(ticket) && !paymentReleased, needsDesignBrief, designBriefStatus: ticket.designBriefStatus || '', designBriefId: ticket.designBriefId || '', designQuoteStatus: ticket.designQuoteStatus || '', designQuoteAmountMinor: ticket.designQuoteAmountMinor || 0, designQuotePaymentStatus: quotePaid ? 'paid' : ticket.designQuotePaymentStatus || '', designQuotePaymentUrl: ticket.designQuotePaymentUrl || '', needsDesignQuotePayment: quotePaymentNeeded, designQuotePaid: quotePaid, proofActionUrl: customerUrl(order, '/proof-action', proofParams), uploadArtworkUrl: customerUrl(order, '/storefront/upload-artwork'), designBriefUrl: customerUrl(order, '/design-brief') };
 }
+
 function nextAction(ticket: Store | null, order: Store) { const designNeeded = designHelpRequested(ticket, order); const artwork = ticket ? compactTicket(ticket, order) : null; if (artwork?.needsCustomerDecision) return { type: 'proof-review', label: 'Review proof', title: 'Proof approval needed', href: artwork.proofActionUrl, priority: 'high', message: 'Please review the proof, then approve it or request changes.' }; if (artwork?.needsDesignRevision) return { type: 'design-revision', label: 'Track order', title: 'Design revision in progress', href: customerUrl(order, '/track-order'), priority: 'medium', message: 'Your change request has been sent to the design team. They will revise the proof and send a new approval link.' }; if (designQuotePaymentNeeded(ticket)) return { type: 'design-quote-payment', label: 'Pay design quote', title: 'Extra design payment required', href: ticket?.designQuotePaymentUrl || '', priority: 'high', message: 'Staff have reviewed your brief and sent an extra design charge. Please pay it before design work starts.' }; if (designNeeded && !designBriefSubmitted(ticket)) return { type: 'design-brief', label: 'Complete design brief', title: 'Design brief needed', href: customerUrl(order, '/design-brief'), priority: 'high', message: 'Please tell us what design you need. Staff will review it and confirm any extra design charge before design starts.' }; if (designNeeded && designBriefSubmitted(ticket)) return { type: 'design-review', label: 'Track order', title: designQuotePaymentPaid(ticket) ? 'Design quote paid' : 'Design brief received', href: customerUrl(order, '/track-order'), priority: 'medium', message: designQuotePaymentPaid(ticket) ? 'Your design quote is paid. The design team can start; print production stays blocked until final proof approval.' : 'Your design brief is with the team for review. We will confirm any extra design charge before design starts.' }; if (!ticket) return !orderPaymentReleased(order) ? { type: 'payment-required', label: 'Check payment', title: 'Payment required', href: '', priority: 'medium', message: 'Payment must be completed before production can start.' } : null; if (!artwork) return null; if (artwork.needsReplacementArtwork) return { type: 'upload-artwork', label: 'Upload artwork', title: 'Replacement artwork needed', href: artwork.uploadArtworkUrl, priority: 'high', message: 'Please upload corrected artwork so we can continue.' }; if (artwork.needsPayment) return { type: 'payment-required', label: 'Check payment email', title: 'Payment required before production', href: '', priority: 'high', message: 'Your proof is approved, but payment is still holding production. Please use your payment link email or contact the store.' }; return null; }
 function compactPlanner(job: Store | null) { if (!job) return null; return { id: job.id, stage: job.stage, status: job.status, laneName: job.laneName, dueAt: safeDate(job.dueAt), scheduledStartAt: safeDate(job.scheduledStartAt), scheduledEndAt: safeDate(job.scheduledEndAt), productionBlocked: Boolean(job.productionBlocked), blockReason: job.blockReason || '', liveStatus: job.liveStatus || '', progressPercent: job.progressPercent || 0 }; }
 function compactDispatch(job: Store | null) { if (!job || !['dispatch', 'completed'].includes(String(job.stage))) return null; return { stage: job.stage === 'completed' ? 'handover' : 'ready', carrier: job.carrier || '', service: job.service || '', trackingNumber: job.trackingNumber || '', manifestNumber: job.manifestNumber || '', scanStatus: job.scanStatus || (job.stage === 'completed' ? 'complete' : 'partial') }; }
@@ -100,5 +132,5 @@ export async function resolveCustomerOrderStatus(request: Request, orderId: stri
   const ticket = findForOrder(tickets, order as Store);
   const plannerJob = findForOrder(Array.isArray((planner as any).jobs) ? (planner as any).jobs : [], { ...(order as Store), productionTicketId: ticket?.id || '', workflowId: ticket ? `ticket-${ticket.id || ticket.orderNumber}` : '' });
   const currentStage = deriveCurrentStage(order as Store, ticket, plannerJob);
-  return { order: compactOrder(order as Store), currentStage, message: publicMessage(currentStage, ticket, plannerJob, order as Store), progress: progress(currentStage), artwork: compactTicket(ticket, order as Store), nextAction: nextAction(ticket, order as Store), production: compactPlanner(plannerJob), dispatch: compactDispatch(plannerJob), generatedAt: new Date().toISOString() };
+  return { order: compactOrder(order as Store), currentStage, message: publicMessage(currentStage, ticket, plannerJob, order as Store), progress: progress(currentStage), artwork: compactTicket(ticket, order as Store), proofEvents: compactProofEvents(ticket), nextAction: nextAction(ticket, order as Store), production: compactPlanner(plannerJob), dispatch: compactDispatch(plannerJob), generatedAt: new Date().toISOString() };
 }

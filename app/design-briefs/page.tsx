@@ -54,6 +54,7 @@ function eventTitle(event: Brief) {
   const action = text(event.action).replace(/-/g, ' ');
   const version = event.proofVersion ? `v${event.proofVersion}` : '';
   if (event.action === 'proof-sent') return `Proof ${version} sent`;
+  if (event.action === 'proof-resent') return `Proof ${version} email resent`;
   if (event.action === 'customer-proof-approved') return `Customer approved ${version}`;
   if (String(event.action || '').includes('revision')) return `Customer requested changes ${version}`;
   return `${action || 'Proof event'} ${version}`.trim();
@@ -84,6 +85,7 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
   const [note, setNote] = useState(String(brief.staffNote || ''));
   const [designProofUrl, setDesignProofUrl] = useState(proofUrl(brief));
   const [saving, setSaving] = useState(false);
+  const [resending, setResending] = useState(false);
   const [message, setMessage] = useState('');
   const [latestPaymentUrl, setLatestPaymentUrl] = useState(paymentUrl(brief));
   const ticket = brief.ticket || {};
@@ -117,6 +119,30 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
       setMessage(error instanceof Error ? error.message : 'Update failed');
     } finally {
       setSaving(false);
+    }
+  }
+  async function resendProofEmail() {
+    if (!currentProofVersion || !currentProofToken) {
+      setMessage('No current proof token/version exists to resend. Send a proof first.');
+      return;
+    }
+    setResending(true);
+    setMessage('');
+    try {
+      const response = await fetch('/api/internal/design-briefs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: brief.id, action: 'resend-proof-email', resendProofEmail: true, staffNote: note, designProofUrl: visibleProofUrl, actor: 'admin-design-review' }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Resend failed');
+      if (payload.brief?.designProofUrl) setDesignProofUrl(payload.brief.designProofUrl);
+      setMessage(payload.message || `Design proof v${currentProofVersion} email resent to customer.`);
+      onUpdated();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Resend failed');
+    } finally {
+      setResending(false);
     }
   }
   async function copyLink(value = visiblePaymentUrl, label = 'Link') {
@@ -166,7 +192,8 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
         <div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">Decision version</p><p className="mt-1 text-sm font-black text-indigo-950">{customerDecisionVersion ? `v${customerDecisionVersion}` : 'None yet'}</p></div>
         <div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">Token check</p><p className="mt-1 text-xs font-bold text-indigo-950">{currentProofToken ? currentProofToken : 'No token'}</p></div>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(reviewHref, 'Review link')} className="rounded-full bg-indigo-700 px-4 py-2 text-xs font-black text-white">Copy review link</button><a href={reviewHref} target="_blank" rel="noreferrer" className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-black text-indigo-800 no-underline">Open review page</a></div>
+      <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(reviewHref, 'Review link')} className="rounded-full bg-indigo-700 px-4 py-2 text-xs font-black text-white">Copy review link</button><a href={reviewHref} target="_blank" rel="noreferrer" className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-black text-indigo-800 no-underline">Open review page</a><button onClick={() => void resendProofEmail()} disabled={resending || !currentProofVersion || !currentProofToken} className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-black text-indigo-800 disabled:opacity-50">{resending ? 'Resending…' : 'Resend proof email'}</button></div>
+      <p className="mt-3 text-xs font-semibold text-indigo-700">Resend keeps the same proof version/token and only sends the current secure approval link again.</p>
     </div> : null}
 
     {events.length ? <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">

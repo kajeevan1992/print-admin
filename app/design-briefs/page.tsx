@@ -49,6 +49,15 @@ function proofVersion(brief: Brief) { const value = Number(brief.ticket?.proofVe
 function proofToken(brief: Brief) { return text(brief.ticket?.proofToken || brief.proofToken); }
 function decidedVersion(brief: Brief) { const value = Number(brief.decidedProofVersion || brief.ticket?.decidedProofVersion || 0); return Number.isFinite(value) && value > 0 ? value : 0; }
 function decidedToken(brief: Brief) { return text(brief.decidedProofToken || brief.ticket?.decidedProofToken); }
+function proofEvents(brief: Brief) { const direct = Array.isArray(brief.proofEvents) ? brief.proofEvents : []; const ticket = Array.isArray(brief.ticket?.proofEvents) ? brief.ticket.proofEvents : []; return direct.length ? direct : ticket; }
+function eventTitle(event: Brief) {
+  const action = text(event.action).replace(/-/g, ' ');
+  const version = event.proofVersion ? `v${event.proofVersion}` : '';
+  if (event.action === 'proof-sent') return `Proof ${version} sent`;
+  if (event.action === 'customer-proof-approved') return `Customer approved ${version}`;
+  if (String(event.action || '').includes('revision')) return `Customer requested changes ${version}`;
+  return `${action || 'Proof event'} ${version}`.trim();
+}
 function proofReviewUrl(brief: Brief) {
   const orderId = text(brief.orderNumber || brief.orderId || brief.ticket?.orderNumber || brief.ticket?.orderId);
   if (!orderId) return '';
@@ -86,6 +95,7 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
   const customerDecisionToken = decidedToken(brief);
   const reviewHref = proofReviewUrl(brief);
   const decisionMatchesCurrent = Boolean(customerDecisionVersion && currentProofVersion && customerDecisionVersion === currentProofVersion && (!customerDecisionToken || !currentProofToken || customerDecisionToken === currentProofToken));
+  const events = proofEvents(brief).slice(0, 8);
 
   async function save() {
     setSaving(true);
@@ -157,6 +167,16 @@ function BriefCard({ brief, onUpdated }: { brief: Brief; onUpdated: () => void }
         <div className="rounded-xl bg-white/70 p-3"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-500">Token check</p><p className="mt-1 text-xs font-bold text-indigo-950">{currentProofToken ? currentProofToken : 'No token'}</p></div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2"><button onClick={() => copyLink(reviewHref, 'Review link')} className="rounded-full bg-indigo-700 px-4 py-2 text-xs font-black text-white">Copy review link</button><a href={reviewHref} target="_blank" rel="noreferrer" className="rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-black text-indigo-800 no-underline">Open review page</a></div>
+    </div> : null}
+
+    {events.length ? <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Proof event history</p>
+      <div className="mt-3 space-y-2">{events.map((event: Brief, index: number) => <div key={event.id || `${event.action}-${index}`} className="rounded-xl border border-slate-200 bg-white p-3">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"><p className="text-sm font-black text-slate-900">{eventTitle(event)}</p><p className="text-xs font-semibold text-slate-500">{dateLabel(event.at)}</p></div>
+        <p className="mt-1 text-xs font-semibold text-slate-600">{event.actor || 'system'} · email {event.emailStatus || 'n/a'} · release {event.productionReleaseState || 'n/a'}</p>
+        {event.note ? <p className="mt-2 whitespace-pre-wrap text-xs text-slate-700">{event.note}</p> : null}
+        {event.reviewUrl ? <p className="mt-2 break-all text-[11px] font-semibold text-indigo-700">{event.reviewUrl}</p> : null}
+      </div>)}</div>
     </div> : null}
 
     <div className="mt-5 grid gap-3 md:grid-cols-2">

@@ -58,29 +58,29 @@ function normalizeChecks(payload: any, source: string): LaunchCheck[] {
   }));
 }
 
-async function loadDesignProofReadiness(request: Request) {
-  const endpoint = `${appBase(request)}/api/internal/launch/design-proof-readiness`;
+async function loadReadinessEndpoint(request: Request, path: string, source: string, group: string, label: string, actionHref: string, searchParams = '') {
+  const endpoint = `${appBase(request)}${path}${searchParams}`;
   const response = await fetch(endpoint, { cache: 'no-store', headers: forwardHeaders(request) });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload?.ok === false) {
-    const message = payload?.error || `Design proof readiness returned ${response.status}`;
+    const message = payload?.error || `${label} returned ${response.status}`;
     return {
       ok: false,
       error: message,
       checks: [{
-        id: 'design-proof-readiness-api',
-        group: 'Design proofing',
-        label: 'Design proof readiness API',
+        id: `${source}-api`,
+        group,
+        label,
         status: 'fail' as CheckStatus,
         detail: message,
-        action: 'Open Design Proof Readiness and confirm the endpoint loads.',
-        href: '/launch-design-proof-readiness',
-        source: 'design-proof-readiness',
+        action: `Open ${label} and confirm the endpoint loads.`,
+        href: actionHref,
+        source,
       }],
       payload,
     };
   }
-  return { ok: true, error: '', checks: normalizeChecks(payload, 'design-proof-readiness'), payload: payload?.data || payload };
+  return { ok: true, error: '', checks: normalizeChecks(payload, source), payload: payload?.data || payload };
 }
 
 function summarize(checks: LaunchCheck[]) {
@@ -114,15 +114,21 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const productSlug = clean(url.searchParams.get('productSlug')) || 'business-cards';
     const locationSlug = clean(url.searchParams.get('locationSlug')) || 'sidcup';
+    const extraPaths = clean(url.searchParams.get('paths'));
     const startedAt = new Date().toISOString();
-    const [main, designProof] = await Promise.all([
+    const contentSearch = new URLSearchParams({ productSlug, locationSlug });
+    if (extraPaths) contentSearch.set('paths', extraPaths);
+
+    const [main, designProof, storefrontContent] = await Promise.all([
       runLaunchReadinessRunner(request, { productSlug, locationSlug }),
-      loadDesignProofReadiness(request),
+      loadReadinessEndpoint(request, '/api/internal/launch/design-proof-readiness', 'design-proof-readiness', 'Design proofing', 'Design proof readiness API', '/launch-design-proof-readiness'),
+      loadReadinessEndpoint(request, '/api/internal/launch/storefront-content-readiness', 'storefront-content-readiness', 'Storefront content', 'Storefront content readiness API', '/storefront-content-readiness', `?${contentSearch.toString()}`),
     ]);
 
     const checks = [
       ...normalizeChecks(main, 'launch-readiness'),
       ...designProof.checks,
+      ...storefrontContent.checks,
     ];
     const summary = summarize(checks);
     const hardBlockers = checks.filter((item) => item.status === 'fail');
@@ -154,6 +160,7 @@ export async function GET(request: Request) {
       upstream: {
         launchReadiness: { launchStatus: main.launchStatus, score: main.score, summary: main.summary },
         designProofReadiness: { ok: designProof.ok, error: designProof.error, summary: (designProof.payload as any)?.summary || null },
+        storefrontContentReadiness: { ok: storefrontContent.ok, error: storefrontContent.error, launchStatus: (storefrontContent.payload as any)?.launchStatus || null, score: (storefrontContent.payload as any)?.score || null, summary: (storefrontContent.payload as any)?.summary || null },
       },
       startedAt,
       finishedAt: new Date().toISOString(),

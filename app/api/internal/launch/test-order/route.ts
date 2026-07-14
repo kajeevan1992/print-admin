@@ -11,6 +11,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, source: 'internal-launch-test-order', data });
     }
     const data = await previewLaunchTestOrder(request, {
+      scenario: url.searchParams.get('scenario') || 'collection',
       status: url.searchParams.get('status') || 'QUALITY_CHECK',
       productSlug: url.searchParams.get('productSlug') || 'business-cards',
       locationSlug: url.searchParams.get('locationSlug') || 'sidcup',

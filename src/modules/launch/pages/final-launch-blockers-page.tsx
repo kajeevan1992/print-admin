@@ -121,7 +121,7 @@ export function FinalLaunchBlockersPage() {
   return <div>
     <PageHeader
       title="Final Launch Blockers"
-      subtitle="One read-only screen for the true Holo Print launch blockers across launch readiness, payments, email, VAT, storefront, collection and design-proof approval."
+      subtitle="One read-only screen for true Holo Print launch blockers across launch readiness, payments, email, VAT, storefront, collection, design-proof approval and public SEO/content readiness."
       actions={<><Button onClick={() => void refresh()} disabled={busy}><RefreshCw size={14} /> Refresh</Button><PrimaryButton onClick={() => void refresh()} disabled={busy}><ShieldCheck size={14} /> Run final check</PrimaryButton></>}
     />
 
@@ -151,6 +151,7 @@ export function FinalLaunchBlockersPage() {
           <div className="grid gap-2 text-xs text-textMuted">
             <Link href="/launch-readiness" className="text-sky-200 hover:text-white">Open full launch readiness</Link>
             <Link href="/launch-design-proof-readiness" className="text-sky-200 hover:text-white">Open design proof readiness</Link>
+            <Link href="/storefront-content-readiness" className="text-sky-200 hover:text-white">Open storefront content readiness</Link>
             <Link href="/launch-test-order" className="text-sky-200 hover:text-white">Run launch test order</Link>
           </div>
         </div>
@@ -161,6 +162,7 @@ export function FinalLaunchBlockersPage() {
           <p><b className="text-red-200">Hard blockers</b> are failed checks. These should stop public launch.</p>
           <p><b className="text-amber-200">Review items</b> are warnings. They may be acceptable for a monitored soft launch, but should be reviewed.</p>
           <p><b className="text-sky-200">Test gaps</b> usually mean no test data exists yet. They do not always block launch, but they show what has not been proven end-to-end.</p>
+          <p>This page now pulls from launch readiness, design-proof readiness and storefront content readiness.</p>
           <p>Mode: <b className="text-white">read-only</b>. This page does not create orders, send emails or modify data.</p>
         </div>
       </Card>

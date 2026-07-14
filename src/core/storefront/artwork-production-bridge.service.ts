@@ -11,11 +11,15 @@ type BridgeInput = {
   orderNumber: string;
   customerName?: string;
   customerEmail?: string;
+  customerPhone?: string;
   productName: string;
   productSlug: string;
   categorySlug?: string;
   quantity?: number;
   selectedDelivery?: string;
+  fulfilmentMode?: string;
+  deliveryAddress?: Record<string, any> | null;
+  billingAddress?: Record<string, any> | null;
   artworkStatus: string;
   artworkNotes?: string;
   upload?: StoredArtworkUpload | null;
@@ -27,6 +31,8 @@ type BridgeInput = {
 
 function todayPlus(days: number) { return new Date(Date.now() + days * 86400000).toISOString().slice(0, 10); }
 function normalisePayment(value?: string) { return String(value || '').trim().toLowerCase() || 'unknown'; }
+function compactAddress(address?: Record<string, any> | null) { if (!address) return null; const out = Object.fromEntries(Object.entries(address).filter(([, value]) => String(value || '').trim())); return Object.keys(out).length ? out : null; }
+function addressLine(address?: Record<string, any> | null) { const next = compactAddress(address); if (!next) return ''; return [next.line1, next.line2, next.town, next.county, next.postcode, next.country].filter(Boolean).join(', '); }
 function statusFromUpload(input: BridgeInput) {
   if (input.artworkStatus === 'need-design') return { artworkStatus: 'design-required', preflightStatus: 'not-started', stage: 'proofing', status: 'artwork-check', handoffState: 'blocked', risk: 'high' };
   if (input.artworkStatus !== 'ready' || !input.upload) return { artworkStatus: 'missing', preflightStatus: 'not-started', stage: 'proofing', status: 'artwork-check', handoffState: 'needs-artwork', risk: 'medium' };
@@ -65,17 +71,27 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
   const warnings = preflightMessages(input.upload);
   const id = `pj-${input.orderNumber}`.replace(/[^a-zA-Z0-9._-]+/g, '-');
   const paymentStatus = normalisePayment(input.paymentStatus || 'pending');
+  const fulfilmentMode = input.fulfilmentMode || (String(input.selectedDelivery || '').toLowerCase().includes('deliver') ? 'delivery' : 'collection');
+  const deliveryAddress = compactAddress(input.deliveryAddress);
+  const billingAddress = compactAddress(input.billingAddress);
   const ticket = {
     id,
     orderId: input.orderId || null,
     orderNumber: input.orderNumber,
     customerName: input.customerName || '',
     customerEmail: input.customerEmail || '',
+    customerPhone: input.customerPhone || '',
+    contactSnapshot: { name: input.customerName || '', email: input.customerEmail || '', phone: input.customerPhone || '' },
     productName: input.productName,
     productSlug: input.productSlug,
     categorySlug: input.categorySlug || '',
     quantity: input.quantity || 1,
     selectedDelivery: input.selectedDelivery || '',
+    fulfilmentMode,
+    deliveryAddress,
+    billingAddress,
+    deliveryAddressLine: addressLine(deliveryAddress),
+    billingAddressLine: addressLine(billingAddress),
     priceMinor: input.priceMinor || 0,
     orderStatus: input.orderStatus || 'AWAITING_PAYMENT',
     paymentStatus,
@@ -94,7 +110,7 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
     assignedOperator: 'Prepress Team',
     owner: 'Prepress Team',
     priority: state.risk === 'high' ? 'rush' : 'standard',
-    productionNotes: [input.artworkNotes, input.upload ? `Artwork upload ${input.upload.id}: ${input.upload.originalName}` : 'Artwork not uploaded at checkout.', `Payment status: ${paymentStatus}.`, warnings.length ? warnings.join(' ') : ''].filter(Boolean).join(' '),
+    productionNotes: [input.artworkNotes, input.upload ? `Artwork upload ${input.upload.id}: ${input.upload.originalName}` : 'Artwork not uploaded at checkout.', `Payment status: ${paymentStatus}.`, `Fulfilment: ${fulfilmentMode}${input.selectedDelivery ? ` / ${input.selectedDelivery}` : ''}.`, deliveryAddress ? `Delivery address: ${addressLine(deliveryAddress)}.` : '', input.customerPhone ? `Customer phone: ${input.customerPhone}.` : '', warnings.length ? warnings.join(' ') : ''].filter(Boolean).join(' '),
     artworkUploadId: input.upload?.id || null,
     artworkFileUrl: input.upload?.fileUrl || null,
     artworkDownloadUrl: input.upload?.downloadUrl || null,

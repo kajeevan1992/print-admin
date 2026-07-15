@@ -1,17 +1,20 @@
 import { NextResponse } from 'next/server';
 import { requirePublicApiCredentials } from '@/core/api/public-api-auth';
-import { createCheckoutSession } from '@/core/api/storefront-v1.service';
+import { createStorefrontCheckoutSession, StorefrontApiError } from '@/core/storefront/storefront-api.service';
+import { storefrontRouteError, storefrontStoreId } from '@/core/storefront/storefront-api-response';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const auth = await requirePublicApiCredentials(request, ['storefront:checkout']);
+    const storeId = storefrontStoreId(request);
+    if (!storeId) throw new StorefrontApiError(400, 'STORE_ID_REQUIRED', 'x-store-id is required.');
+    const auth = await requirePublicApiCredentials(request, ['checkout:create']);
     if (!auth.ok) return auth.response;
     const body = await request.json().catch(() => ({}));
-    const data = await createCheckoutSession(request, auth, body);
-    return NextResponse.json({ ok: true, api: 'storefront-v1', resource: 'checkout.session', tenantId: auth.ctx.tenantId, storeId: auth.store?.storeId || auth.ctx.siteId || '', data });
-  } catch (error) {
-    return NextResponse.json({ ok: false, error: 'STOREFRONT_CHECKOUT_SESSION_FAILED', message: error instanceof Error ? error.message : 'Checkout session failed.' }, { status: 500 });
+    const idempotencyKey = request.headers.get('idempotency-key') || '';
+    return NextResponse.json({ ok: true, data: await createStorefrontCheckoutSession(auth, request, storeId, idempotencyKey, body) });
+  } catch (cause) {
+    return storefrontRouteError(cause);
   }
 }

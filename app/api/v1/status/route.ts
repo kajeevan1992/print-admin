@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requirePublicApiCredentials } from '@/core/api/public-api-auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
-  const auth = requirePublicApiCredentials(request);
+  const auth = await requirePublicApiCredentials(request, ['storefront:read']);
   if (!auth.ok) return auth.response;
 
   return NextResponse.json({
@@ -10,6 +12,9 @@ export async function GET(request: Request) {
     api: 'public',
     version: 'v1',
     authenticated: true,
-    message: 'API credentials accepted by the public API gateway foundation.',
+    tenantId: auth.ctx.tenantId,
+    storeId: auth.store?.storeId || auth.ctx.siteId || '',
+    scopes: auth.scopes,
+    message: 'API credentials verified by the public API gateway foundation.',
   });
 }

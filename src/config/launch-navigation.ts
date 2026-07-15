@@ -2,6 +2,7 @@ import type { AdminSidebarNavigationItem } from './admin-navigation';
 
 export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> = [
   { label: 'Launch Command Centre', href: '/launch-command-centre', iconKey: 'Rocket', order: 18.03 },
+  { label: 'Launch Security Audit', href: '/launch-security-access-audit', iconKey: 'ShieldCheck', order: 18.032 },
   { label: 'First Live Order Monitor', href: '/first-live-order-monitor', iconKey: 'Activity', order: 18.035 },
   { label: 'Post-launch Health', href: '/post-launch-health', iconKey: 'HeartPulse', order: 18.037 },
   { label: 'Launch Sign-off', href: '/launch-signoff', iconKey: 'Rocket', order: 18.04 },

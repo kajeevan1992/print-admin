@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 import { calculateNativeStorefrontPrice, formatMinorPrice, type NativeSelectedOptionRow } from '@/core/storefront/native-pricing.service';
 
 export const dynamic = 'force-dynamic';
@@ -20,12 +21,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const tenantSlug = slug(body.tenantSlug || body.tenantId || new URL(request.url).searchParams.get('tenantId') || '');
     const productSlug = slug(body.productSlug || body.productId || body.slug || '');
+    const rateLimit = publicRateLimit(request, { scope: 'storefront-price', limit: 180, windowMs: 10 * 60 * 1000, identifier: [tenantSlug, productSlug].filter(Boolean).join(':') });
+    if (rateLimit.enforced) return NextResponse.json({ ...rateLimitPayload(rateLimit), source: 'internal-storefront-price' }, { status: 429, headers: rateLimit.headers });
     const selectedOptions = arrayValue(body.selectedOptions).length ? arrayValue(body.selectedOptions) : objectOptionsToRows(body.options || body.selections);
     const quantity = body.quantity || body.qty || 1;
     const delivery = clean(body.delivery || body.selectedDelivery || body.turnaround || '');
 
     if (!tenantSlug || !productSlug) {
-      return NextResponse.json({ ok: false, source: 'internal-storefront-price', error: 'Missing tenantSlug/tenantId or productSlug/productId.' }, { status: 400 });
+      return NextResponse.json({ ok: false, source: 'internal-storefront-price', error: 'Missing tenantSlug/tenantId or productSlug/productId.' }, { status: 400, headers: rateLimit.headers });
     }
 
     const price = await calculateNativeStorefrontPrice({
@@ -67,7 +70,8 @@ export async function POST(request: NextRequest) {
         matchedRow: price.matchedRow,
         resolvedConfig: price.resolvedConfig,
       },
-    });
+      rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining },
+    }, { headers: rateLimit.headers });
   } catch (error) {
     return NextResponse.json({
       ok: false,

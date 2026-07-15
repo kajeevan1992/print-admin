@@ -3,6 +3,7 @@ import type { AdminSidebarNavigationItem } from './admin-navigation';
 export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> = [
   { label: 'Launch Command Centre', href: '/launch-command-centre', iconKey: 'Rocket', order: 18.03 },
   { label: 'Launch Security Audit', href: '/launch-security-access-audit', iconKey: 'ShieldCheck', order: 18.032 },
+  { label: 'Customer Data Exposure Audit', href: '/customer-data-exposure-audit', iconKey: 'ShieldCheck', order: 18.0325 },
   { label: 'Live Environment Readiness', href: '/live-environment-readiness', iconKey: 'ServerCog', order: 18.033 },
   { label: 'First Live Order Monitor', href: '/first-live-order-monitor', iconKey: 'Activity', order: 18.035 },
   { label: 'Post-launch Health', href: '/post-launch-health', iconKey: 'HeartPulse', order: 18.037 },

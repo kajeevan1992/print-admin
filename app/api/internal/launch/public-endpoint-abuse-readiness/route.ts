@@ -74,13 +74,14 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
   },
   {
     id: 'design-brief',
-    method: 'POST',
+    method: 'GET/POST',
     path: '/api/native-storefront/design-brief',
     group: 'Design help',
     risk: 'medium',
-    expectedGuard: 'Requires order/customer context before saving customer design details.',
+    expectedGuard: 'Requires order/customer context before viewing or saving customer design details.',
     abuseRisk: 'Design brief forms can be spammed and create staff workload or email noise.',
     ownerLink: '/design-brief',
+    builtInLimiter: true,
   },
   {
     id: 'payment-return',

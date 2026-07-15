@@ -11,6 +11,6 @@ export async function GET(request: Request, { params }: { params: { productSlug:
     const data = await productContract(request, auth, params.productSlug);
     return NextResponse.json({ ok: true, api: 'storefront-v1', resource: 'product', tenantId: auth.ctx.tenantId, storeId: auth.store?.storeId || auth.ctx.siteId || '', data });
   } catch (error) {
-    return NextResponse.json({ ok: false, error: 'STOREFRONT_PRODUCT_FAILED', message: error instanceof Error ? error.message : 'Product lookup failed.' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: { code: 'STOREFRONT_PRODUCT_FAILED', message: error instanceof Error ? error.message : 'Product lookup failed.' } }, { status: 500 });
   }
 }

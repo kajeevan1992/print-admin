@@ -21,6 +21,9 @@ function trackUrl(order: any, fallbackOrderId: string) {
   if (order?.customerEmail) params.set('email', String(order.customerEmail));
   return `/track-order?${params.toString()}`;
 }
+function errorRateLimit(request: Request) {
+  return publicRateLimit(request, { scope: 'payment-return-error', limit: 90, windowMs: 10 * 60 * 1000 });
+}
 
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
@@ -57,7 +60,8 @@ export async function GET(request: Request) {
   try {
     return await handle(request);
   } catch (error) {
-    return json({ ok: false, source: 'native-payment-return', error: error instanceof Error ? error.message : 'Payment return sync failed.' }, { status: 500 });
+    const fallbackLimit = errorRateLimit(request);
+    return json({ ok: false, source: 'native-payment-return', error: error instanceof Error ? error.message : 'Payment return sync failed.', rateLimit: { mode: fallbackLimit.mode, remaining: fallbackLimit.remaining } }, { status: 500, headers: fallbackLimit.headers });
   }
 }
 
@@ -66,6 +70,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     return await handle(request, body);
   } catch (error) {
-    return json({ ok: false, source: 'native-payment-return', error: error instanceof Error ? error.message : 'Payment return sync failed.' }, { status: 500 });
+    const fallbackLimit = errorRateLimit(request);
+    return json({ ok: false, source: 'native-payment-return', error: error instanceof Error ? error.message : 'Payment return sync failed.', rateLimit: { mode: fallbackLimit.mode, remaining: fallbackLimit.remaining } }, { status: 500, headers: fallbackLimit.headers });
   }
 }

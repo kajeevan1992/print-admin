@@ -22,6 +22,7 @@ const PROTECTED_PAGE_PREFIXES = [
   '/oauth',
   '/database-manager',
   '/launch',
+  '/customer-data-exposure-audit',
   '/first-live-order-monitor',
   '/post-launch-health',
   '/live-environment-readiness',

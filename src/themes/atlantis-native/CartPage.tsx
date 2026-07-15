@@ -61,10 +61,11 @@ async function backendCartProduct(tenantSlug: string, productSlug?: string) {
     const resolvedConfig = resolveProductConfig(product, {});
     const title = clean(product.title || product.name);
     const slug = clean(product.slug || productSlug);
-    if (!title || !slug) return null;
+    const category = clean(product.categorySlug || product.metadataJson?.categorySlug || '');
+    if (!title || !slug || !category) return null;
     return {
       title,
-      category: clean(product.categorySlug || product.metadataJson?.categorySlug || ''),
+      category,
       slug,
       groups: Array.isArray(resolvedConfig.customerGroups) ? resolvedConfig.customerGroups : [],
       quantityRows: Array.isArray(resolvedConfig.quantityRows) ? resolvedConfig.quantityRows : [],
@@ -75,13 +76,13 @@ async function backendCartProduct(tenantSlug: string, productSlug?: string) {
   }
 }
 
-export default async function CartPage({ tenantSlug = '', storeSlug = '', storeBase, navItems, productSlug, categorySlug, products: _products = [], searchParams = {} }: { tenantSlug?: string; storeSlug?: string; storeBase: string; navItems: NavItem[]; productSlug?: string; categorySlug?: string; products?: ThemeProductCard[]; searchParams?: Record<string, string> }) {
+export default async function CartPage({ tenantSlug = '', storeSlug = '', storeBase, navItems, productSlug, categorySlug: _categorySlug, products: _products = [], searchParams = {} }: { tenantSlug?: string; storeSlug?: string; storeBase: string; navItems: NavItem[]; productSlug?: string; categorySlug?: string; products?: ThemeProductCard[]; searchParams?: Record<string, string> }) {
   const product = await backendCartProduct(tenantSlug, productSlug);
   const title = product?.title || 'Your basket';
   const optionRows = product ? selectedOptionRowsFromBackend(product.groups, searchParams) : [];
   const defaultQuantity = product ? quantityFromRows(product.quantityRows, searchParams) : 1;
   const selectedDelivery = product ? deliveryFromRows(product.deliveryRows, searchParams) : '';
-  const configuredProductHref = product && product.category ? `${storeBase}/${product.category}/${product.slug}${optionQuery(optionRows, defaultQuantity, selectedDelivery)}` : '';
+  const configuredProductHref = product ? `${storeBase}/${product.category}/${product.slug}${optionQuery(optionRows, defaultQuantity, selectedDelivery)}` : '';
 
   return <StorefrontChrome currentPath="/cart" navItems={navItems} storeBase={storeBase}>
     <section className="py-10">
@@ -93,7 +94,7 @@ export default async function CartPage({ tenantSlug = '', storeSlug = '', storeB
 
           {product ? <div className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
             <div className="text-[18px] font-black" style={{ color: BRAND.ink }}>{product.title}</div>
-            <div className="mt-3 text-sm" style={{ color: BRAND.muted }}>Category: {product.category || 'Not assigned in SaaS admin'}</div>
+            <div className="mt-3 text-sm" style={{ color: BRAND.muted }}>Category: {product.category}</div>
             {optionRows.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{optionRows.map((row) => <div key={row.key} className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>{row.label}</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{row.value}</div></div>)}</div> : null}
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Quantity</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{defaultQuantity}</div></div>
@@ -101,7 +102,7 @@ export default async function CartPage({ tenantSlug = '', storeSlug = '', storeB
             </div>
           </div> : null}
 
-          {product ? <CartCheckoutForm tenantSlug={tenantSlug} storeSlug={storeSlug} productSlug={product.slug} categorySlug={product.category || ''} productTitle={product.title} selectedOptions={optionRows} defaultQuantity={defaultQuantity} selectedDelivery={selectedDelivery} /> : null}
+          {product ? <CartCheckoutForm tenantSlug={tenantSlug} storeSlug={storeSlug} productSlug={product.slug} categorySlug={product.category} productTitle={product.title} selectedOptions={optionRows} defaultQuantity={defaultQuantity} selectedDelivery={selectedDelivery} /> : null}
 
           <div className="mt-7 flex flex-wrap gap-3">
             <a href={storeBase} className="rounded-full px-5 py-3 text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Continue shopping</a>

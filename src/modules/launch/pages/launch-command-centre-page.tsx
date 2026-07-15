@@ -37,12 +37,14 @@ const tasks: Task[] = [
   { id: 'proofing', stage: 'live', label: 'Artwork/proof queue watched', detail: 'Confirm upload-now, upload-later or design-help orders land in the right artwork/proofing queue.', href: '/artwork-preflight' },
   { id: 'production', stage: 'live', label: 'Production release gate watched', detail: 'Confirm unpaid/unapproved work cannot be scheduled, printed or dispatched.', href: '/production-planner', requiredForPublic: true },
   { id: 'email', stage: 'live', label: 'Email outbox watched', detail: 'Confirm customer and staff notifications queue/send as expected without duplicates.', href: '/email-outbox' },
+  { id: 'post-health', stage: 'aftercare', label: 'Post-launch health checked', detail: 'Run Post-launch Health after opening to live traffic and confirm no blocked/watch issues remain.', href: '/post-launch-health', requiredForPublic: true },
   { id: 'cleanup', stage: 'aftercare', label: 'Test data cleaned or isolated', detail: 'Confirm TEST-HOLO records remain clearly marked, archived or removed from live reporting.', href: '/launch-test-data-cleanup', requiredForPublic: true },
   { id: 'fallback', stage: 'aftercare', label: 'Manual fallback ready', detail: 'Have a manual plan for quote/payment/artwork follow-up if any automated step misbehaves.', href: '/production-smoke-test', requiredForPublic: true },
 ];
 
 const operatorLinks: Array<[string, string]> = [
   ['/first-live-order-monitor', 'First Live Order Monitor'],
+  ['/post-launch-health', 'Post-launch Health'],
   ['/launch-signoff', 'Launch Sign-off'],
   ['/final-launch-blockers', 'Final Blockers'],
   ['/production-smoke-test', 'Smoke Test'],
@@ -151,7 +153,7 @@ export function LaunchCommandCentrePage() {
   return <div>
     <PageHeader
       title="Launch Command Centre"
-      subtitle="One operator page for final blockers, sign-off, smoke testing, public content readiness and first-live-order monitoring."
+      subtitle="One operator page for final blockers, sign-off, smoke testing, public content readiness, first-live-order monitoring and post-launch health."
       actions={<><Button onClick={() => void refresh()} disabled={busy}><RefreshCw size={14} /> Refresh</Button><PrimaryButton onClick={() => void refresh()} disabled={busy}><Rocket size={14} /> Run command check</PrimaryButton></>}
     />
 
@@ -183,9 +185,10 @@ export function LaunchCommandCentrePage() {
       </Card>
       <Card>
         <h3 className="mb-3 text-sm font-semibold text-white">Live readiness signals</h3>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <UpstreamCard label="Final blockers" value={hard ? `${hard} blocked` : 'Clear'} detail={`${review} review items · ${gaps} test gaps`} href="/final-launch-blockers" status={data?.launchStatus} />
           <UpstreamCard label="First live order" value={ticks['first-live-monitor'] ? 'Watched' : 'Pending'} detail="Open monitor during the first real customer order." href="/first-live-order-monitor" status={ticks['first-live-monitor'] ? 'pass' : 'review'} />
+          <UpstreamCard label="Post-launch health" value={ticks['post-health'] ? 'Checked' : 'Pending'} detail="Run after opening to live traffic." href="/post-launch-health" status={ticks['post-health'] ? 'pass' : 'review'} />
           <UpstreamCard label="Smoke test" value={ticks.smoke ? 'Checked' : 'Pending'} detail="Use the full smoke-test page before live traffic." href="/production-smoke-test" status={ticks.smoke ? 'pass' : 'review'} />
           <UpstreamCard label="Sign-off" value={ticks.signoff ? 'Signed' : 'Pending'} detail="Use Launch Sign-off for final approval." href="/launch-signoff" status={ticks.signoff ? 'pass' : 'review'} />
         </div>
@@ -203,7 +206,7 @@ export function LaunchCommandCentrePage() {
       <div className="grid gap-2 md:grid-cols-4">
         {operatorLinks.map(([href, label]) => <Link key={href} href={href} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-white/[0.06] hover:text-white"><ClipboardCheck className="mr-1 inline h-3 w-3" />{label}</Link>)}
       </div>
-      <p className="mt-4 text-xs leading-5 text-textMuted">This page is read-only. Checklist ticks are stored in this browser only; live system status comes from Final Launch Blockers and the First Live Order Monitor.</p>
+      <p className="mt-4 text-xs leading-5 text-textMuted">This page is read-only. Checklist ticks are stored in this browser only; live system status comes from Final Launch Blockers, the First Live Order Monitor and Post-launch Health.</p>
     </Card>
   </div>;
 }

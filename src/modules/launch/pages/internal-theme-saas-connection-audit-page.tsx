@@ -78,7 +78,7 @@ export function InternalThemeSaasConnectionAuditPage() {
   return <div>
     <PageHeader
       title="Internal Theme SaaS Connection Audit"
-      subtitle="Checks whether the internal/native Atlantis storefront is controlled by SaaS admin data, backend pricing, VAT, checkout, artwork and production flow — and flags any fallback/demo risk."
+      subtitle="Checks whether the Atlantis/native storefront is strict SaaS-admin data only, with backend pricing, VAT, checkout, artwork and production flow connected — and no demo/fallback product data inserted."
       actions={<><Button onClick={() => void refresh()} disabled={busy}><RefreshCw size={14} /> Refresh</Button><PrimaryButton onClick={() => void refresh()} disabled={busy}><ShieldCheck size={14} /> Run audit</PrimaryButton></>}
     />
 
@@ -101,12 +101,12 @@ export function InternalThemeSaasConnectionAuditPage() {
         <p className="text-sm leading-6 text-textMuted">{data?.answer?.connected || 'Product setup, pricing, VAT and checkout connection are checked here.'}</p>
       </Card>
       <Card>
-        <h3 className="mb-2 text-sm font-semibold text-white">Remaining risk</h3>
-        <p className="text-sm leading-6 text-textMuted">{data?.answer?.remainingRisk || 'Fallback paths and incomplete admin content are reviewed here.'}</p>
+        <h3 className="mb-2 text-sm font-semibold text-white">What strict mode means</h3>
+        <p className="text-sm leading-6 text-textMuted">{data?.answer?.remainingRisk || 'Missing admin products/categories/images/prices now result in empty or unavailable storefront states, not demo fallback content.'}</p>
       </Card>
       <Card>
         <h3 className="mb-2 text-sm font-semibold text-white">Recommended next action</h3>
-        <p className="text-sm leading-6 text-textMuted">Enable strict admin-data mode or remove product/cart fallback rendering before full public launch, then run Storefront Content Readiness.</p>
+        <p className="text-sm leading-6 text-textMuted">Populate the live SaaS admin with real products, categories, images, pricing, VAT rules and delivery rows, then run Storefront Content Readiness.</p>
       </Card>
     </div>
 

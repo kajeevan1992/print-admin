@@ -49,6 +49,14 @@ export type StorefrontProvisioningInput = {
 };
 
 type ExistingCredentialRow = { id: string; slug: string; metadataJson: Record<string, any> | null };
+type TenantRow = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  defaultSubdomain: string;
+  themeKey: string;
+};
 
 function validateInput(input: StorefrontProvisioningInput) {
   const tenantSlug = slug(input?.tenant?.slug);
@@ -70,7 +78,7 @@ function validateInput(input: StorefrontProvisioningInput) {
 }
 
 async function ensureTenant(tenant: StorefrontProvisioningInput['tenant'], tenantSlug: string, domain: string, theme: string) {
-  await platformPrisma.$executeRawUnsafe(
+  const rows = await platformPrisma.$queryRawUnsafe<TenantRow[]>(
     `INSERT INTO "Tenant" ("id","name","slug","status","defaultSubdomain","themeKey","updatedAt")
      VALUES ($1,$2,$1,'ACTIVE'::"TenantStatus",$3,$4,NOW())
      ON CONFLICT ("slug") DO UPDATE SET
@@ -78,14 +86,46 @@ async function ensureTenant(tenant: StorefrontProvisioningInput['tenant'], tenan
        "status"='ACTIVE'::"TenantStatus",
        "defaultSubdomain"=EXCLUDED."defaultSubdomain",
        "themeKey"=EXCLUDED."themeKey",
-       "updatedAt"=NOW()`,
+       "updatedAt"=NOW()
+     RETURNING "id","name","slug","status"::text AS "status","defaultSubdomain","themeKey"`,
     tenantSlug,
     clean(tenant.name),
     domain,
     theme,
   );
 
-  return { id: tenantSlug, slug: tenantSlug, name: clean(tenant.name), status: 'ACTIVE', defaultSubdomain: domain, themeKey: theme };
+  const row = rows[0];
+  if (!row?.id) throw new Error('The HOLO Print tenant could not be created or resolved.');
+  return row;
+}
+
+async function rebindProvisioningRecords(legacyTenantId: string, canonicalTenantId: string) {
+  if (!legacyTenantId || !canonicalTenantId || legacyTenantId === canonicalTenantId) return;
+
+  await platformPrisma.$executeRawUnsafe(
+    `UPDATE "CoreCatalogRecord" AS source
+     SET "tenantId"=$2,
+         "metadataJson"=CASE
+           WHEN source."metadataJson" IS NULL THEN NULL
+           ELSE source."metadataJson" || jsonb_build_object('tenantId',$2)
+         END,
+         "updatedAt"=NOW()
+     WHERE source."tenantId"=$1
+       AND source.resource IN ($3,$4,$5)
+       AND NOT EXISTS (
+         SELECT 1
+         FROM "CoreCatalogRecord" AS target
+         WHERE target."tenantId"=$2
+           AND target.resource=source.resource
+           AND target.slug=source.slug
+           AND target.id<>source.id
+       )`,
+    legacyTenantId,
+    canonicalTenantId,
+    'storefront-stores',
+    'storefront-domains',
+    CREDENTIAL_RESOURCE,
+  );
 }
 
 async function ensureStore(request: Request, ctx: TenantContext, input: StorefrontProvisioningInput, storeSlug: string, domain: string, theme: string) {
@@ -144,22 +184,22 @@ async function ensureProduct(ctx: TenantContext, input: StorefrontProvisioningIn
   });
 }
 
-async function existingCredential(tenantSlug: string, storeId: string) {
+async function existingCredential(tenantId: string, storeId: string) {
   const rows = await platformPrisma.$queryRawUnsafe<ExistingCredentialRow[]>(
     `SELECT id,slug,"metadataJson" FROM "CoreCatalogRecord"
      WHERE "tenantId"=$1 AND resource=$2
        AND "metadataJson"->>'storeId'=$3
        AND COALESCE("metadataJson"->>'status','active')='active'
      ORDER BY "updatedAt" DESC LIMIT 1`,
-    tenantSlug,
+    tenantId,
     CREDENTIAL_RESOURCE,
     storeId,
   ).catch(() => []);
   return rows[0] || null;
 }
 
-async function createOrRotateCredential(params: { tenantSlug: string; store: Record<string, any>; rotate: boolean }) {
-  const current = await existingCredential(params.tenantSlug, clean(params.store.storeId));
+async function createOrRotateCredential(params: { tenantId: string; tenantSlug: string; store: Record<string, any>; rotate: boolean }) {
+  const current = await existingCredential(params.tenantId, clean(params.store.storeId));
   if (current && !params.rotate) {
     const metadata = current.metadataJson || {};
     return {
@@ -180,13 +220,14 @@ async function createOrRotateCredential(params: { tenantSlug: string; store: Rec
   const metadata = {
     apiKey,
     apiSecretHash: sha(apiSecret),
-    tenantId: params.tenantSlug,
+    tenantId: params.tenantId,
+    tenantSlug: params.tenantSlug,
     siteId: storeId,
     storeId,
     scopes: RUNTIME_SCOPES,
     stores: [{
       storeId,
-      tenantId: params.tenantSlug,
+      tenantId: params.tenantId,
       siteId: storeId,
       slug: clean(params.store.slug),
       domains: arr(params.store.domains),
@@ -202,13 +243,14 @@ async function createOrRotateCredential(params: { tenantSlug: string; store: Rec
     `INSERT INTO "CoreCatalogRecord" (id,"tenantId",resource,slug,name,description,"metadataJson","updatedAt")
      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,NOW())
      ON CONFLICT (id) DO UPDATE SET
+       "tenantId"=EXCLUDED."tenantId",
        slug=EXCLUDED.slug,
        name=EXCLUDED.name,
        description=EXCLUDED.description,
        "metadataJson"=EXCLUDED."metadataJson",
        "updatedAt"=NOW()`,
     recordId,
-    params.tenantSlug,
+    params.tenantId,
     CREDENTIAL_RESOURCE,
     apiKey,
     `${clean(params.store.name)} test storefront credential`,
@@ -229,10 +271,17 @@ async function createOrRotateCredential(params: { tenantSlug: string; store: Rec
 export async function provisionStorefrontTestTarget(request: Request, input: StorefrontProvisioningInput) {
   const valid = validateInput(input);
   const tenant = await ensureTenant(input.tenant, valid.tenantSlug, valid.domain, valid.theme);
-  const ctx: TenantContext = { tenantId: valid.tenantSlug, siteId: clean(input.store.id) || valid.storeSlug };
+  await rebindProvisioningRecords(valid.tenantSlug, tenant.id);
+
+  const ctx: TenantContext = { tenantId: tenant.id, siteId: clean(input.store.id) || valid.storeSlug };
   const store = await ensureStore(request, ctx, input, valid.storeSlug, valid.domain, valid.theme);
   const product = await ensureProduct(ctx, input, valid.productSlug, valid.metadata);
-  const credential = await createOrRotateCredential({ tenantSlug: valid.tenantSlug, store, rotate: Boolean(input.rotateCredential) });
+  const credential = await createOrRotateCredential({
+    tenantId: tenant.id,
+    tenantSlug: tenant.slug,
+    store,
+    rotate: Boolean(input.rotateCredential),
+  });
 
   return {
     tenant,

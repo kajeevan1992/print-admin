@@ -112,10 +112,11 @@ export async function GET(request: Request) {
     const orderId = text(url.searchParams.get('orderId') || url.searchParams.get('orderNumber'));
     const email = text(url.searchParams.get('email')).toLowerCase();
     if (!orderId) return json({ ok: false, error: 'orderId is required.' }, { status: 400 });
+    if (!email) return json({ ok: false, error: 'Customer email is required to view design brief status.' }, { status: 400 });
     const order = await getOrder(request, orderId);
     if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
     const orderEmail = text((order as Store).customerEmail || (order as Store).customer?.email).toLowerCase();
-    if (email && orderEmail && email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
+    if (!orderEmail || email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
     const briefs = await readItems(request, DESIGN_BRIEFS_KEY).catch(() => []);
     const orderBriefs = briefs.filter((brief) => String(brief.orderId) === String((order as Store).id) || String(brief.orderNumber) === String((order as Store).orderNumber));
     return json({ ok: true, source: 'customer-design-brief', order: { id: (order as Store).id, orderNumber: (order as Store).orderNumber, customerName: (order as Store).customerName, customerEmail: (order as Store).customerEmail, paymentStatus: (order as Store).paymentStatus }, briefs: orderBriefs });
@@ -130,11 +131,12 @@ export async function POST(request: Request) {
     const orderId = text(form.get('orderId') || form.get('orderNumber'));
     const email = text(form.get('email')).toLowerCase();
     if (!orderId) return json({ ok: false, error: 'orderId is required.' }, { status: 400 });
+    if (!email) return json({ ok: false, error: 'Customer email is required to submit a design brief.' }, { status: 400 });
     const order = await getOrder(request, orderId);
     if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
     const orderRecord = order as Store;
     const orderEmail = text(orderRecord.customerEmail || orderRecord.customer?.email).toLowerCase();
-    if (email && orderEmail && email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
+    if (!orderEmail || email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
     const designGoal = text(form.get('designGoal'));
     if (!designGoal) return json({ ok: false, error: 'Please explain what design you need.' }, { status: 400 });
     const brief = briefFromForm(form, orderRecord);

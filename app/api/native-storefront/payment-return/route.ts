@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { applyStripeCheckoutSessionToOrder, getStripeCheckoutSession, markStripeCheckoutCancelled } from '@/core/payments/stripe.service';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,24 +31,26 @@ async function handle(request: Request, body: Record<string, any> = {}) {
   const sessionId = text(body.sessionId || body.session_id || url.searchParams.get('session_id'));
   const orderId = text(body.orderId || body.orderNumber || url.searchParams.get('orderId') || url.searchParams.get('orderNumber'));
   const action = text(body.action || url.searchParams.get('action') || url.searchParams.get('status')) || 'success';
+  const rateLimit = publicRateLimit(request, { scope: 'payment-return', limit: 60, windowMs: 10 * 60 * 1000, identifier: [sessionId, orderId].filter(Boolean).join(':') });
+  if (rateLimit.enforced) return json({ ...rateLimitPayload(rateLimit), source: 'native-payment-return' }, { status: 429, headers: rateLimit.headers });
 
   if (action === 'cancel' || action === 'cancelled' || action === 'canceled') {
-    if (!sessionId) return json({ ok: false, source: 'native-payment-return', error: 'session_id is required for cancelled checkout returns.' }, { status: 400 });
+    if (!sessionId) return json({ ok: false, source: 'native-payment-return', error: 'session_id is required for cancelled checkout returns.' }, { status: 400, headers: rateLimit.headers });
     const session = await getStripeCheckoutSession(sessionId);
     const verifiedOrderId = sessionOrderId(session);
-    if (!verifiedOrderId) return json({ ok: false, source: 'native-payment-return', error: 'Stripe session does not include an order reference.' }, { status: 400 });
+    if (!verifiedOrderId) return json({ ok: false, source: 'native-payment-return', error: 'Stripe session does not include an order reference.' }, { status: 400, headers: rateLimit.headers });
     if (orderId && ![verifiedOrderId, session?.metadata?.orderNumber].filter(Boolean).map(String).includes(orderId)) {
-      return json({ ok: false, source: 'native-payment-return', error: 'Order does not match the Stripe session.' }, { status: 403 });
+      return json({ ok: false, source: 'native-payment-return', error: 'Order does not match the Stripe session.' }, { status: 403, headers: rateLimit.headers });
     }
     const result = await markStripeCheckoutCancelled(request, { orderId: verifiedOrderId, sessionId, actor: 'customer' });
-    return json({ ok: true, source: 'native-payment-return', action: 'cancel', result, trackUrl: trackUrl(result.order, verifiedOrderId) });
+    return json({ ok: true, source: 'native-payment-return', action: 'cancel', result, trackUrl: trackUrl(result.order, verifiedOrderId), rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining } }, { headers: rateLimit.headers });
   }
 
-  if (!sessionId) return json({ ok: false, source: 'native-payment-return', error: 'session_id is required for payment success returns.' }, { status: 400 });
+  if (!sessionId) return json({ ok: false, source: 'native-payment-return', error: 'session_id is required for payment success returns.' }, { status: 400, headers: rateLimit.headers });
   const session = await getStripeCheckoutSession(sessionId);
   const result = await applyStripeCheckoutSessionToOrder(request, session, 'checkout.session.return');
   const fallbackOrderId = orderId || session?.client_reference_id || session?.metadata?.orderNumber || session?.metadata?.orderId || '';
-  return json({ ok: true, source: 'native-payment-return', action: 'success', sessionId, result, trackUrl: trackUrl(result.order, fallbackOrderId) });
+  return json({ ok: true, source: 'native-payment-return', action: 'success', sessionId, result, trackUrl: trackUrl(result.order, fallbackOrderId), rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining } }, { headers: rateLimit.headers });
 }
 
 export async function GET(request: Request) {

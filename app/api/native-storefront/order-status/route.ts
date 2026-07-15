@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveCustomerOrderStatus } from '@/core/storefront/customer-order-status.service';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,10 +27,12 @@ export async function GET(request: NextRequest) {
     const email = String(request.nextUrl.searchParams.get('email') || '').trim();
     if (!orderId) return json({ ok: false, error: 'orderId or orderNumber is required.' }, { status: 400 });
     if (!email) return json({ ok: false, error: 'Customer email is required to view order status.' }, { status: 400 });
+    const rate = publicRateLimit(request, { scope: 'native-storefront-order-status', limit: 40, windowMs: 5 * 60 * 1000, identifier: `${orderId}:${email}` });
+    if (rate.enforced) return json(rateLimitPayload(rate), { status: 429, headers: rate.headers });
     const status = await resolveCustomerOrderStatus(request, orderId, email);
-    if (!status) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
-    if ((status as any).forbidden) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
-    return json({ ok: true, source: 'native-storefront-order-status', data: normalizedStatus(status) });
+    if (!status) return json({ ok: false, error: 'Order was not found.' }, { status: 404, headers: rate.headers });
+    if ((status as any).forbidden) return json({ ok: false, error: 'Order email does not match.' }, { status: 403, headers: rate.headers });
+    return json({ ok: true, source: 'native-storefront-order-status', data: normalizedStatus(status) }, { headers: rate.headers });
   } catch (error) {
     return json({ ok: false, source: 'native-storefront-order-status', error: error instanceof Error ? error.message : 'Order status failed.' }, { status: 500 });
   }

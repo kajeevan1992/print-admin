@@ -119,10 +119,11 @@ export async function GET(request: Request) {
     const contentSearch = new URLSearchParams({ productSlug, locationSlug });
     if (extraPaths) contentSearch.set('paths', extraPaths);
 
-    const [main, security, customerData, liveEnvironment, designProof, storefrontContent] = await Promise.all([
+    const [main, security, customerData, customerPublicFlow, liveEnvironment, designProof, storefrontContent] = await Promise.all([
       runLaunchReadinessRunner(request, { productSlug, locationSlug }),
       loadReadinessEndpoint(request, '/api/internal/launch/security-access-audit', 'security-access-audit', 'Security and access', 'Security access audit API', '/launch-security-access-audit'),
       loadReadinessEndpoint(request, '/api/internal/launch/customer-data-exposure-audit', 'customer-data-exposure-audit', 'Customer data exposure', 'Customer data exposure audit API', '/customer-data-exposure-audit'),
+      loadReadinessEndpoint(request, '/api/internal/launch/customer-public-flow-audit', 'customer-public-flow-audit', 'Customer public flows', 'Customer public flow audit API', '/customer-public-flow-audit'),
       loadReadinessEndpoint(request, '/api/internal/launch/live-environment-readiness', 'live-environment-readiness', 'Live environment', 'Live environment readiness API', '/live-environment-readiness'),
       loadReadinessEndpoint(request, '/api/internal/launch/design-proof-readiness', 'design-proof-readiness', 'Design proofing', 'Design proof readiness API', '/launch-design-proof-readiness'),
       loadReadinessEndpoint(request, '/api/internal/launch/storefront-content-readiness', 'storefront-content-readiness', 'Storefront content', 'Storefront content readiness API', '/storefront-content-readiness', `?${contentSearch.toString()}`),
@@ -132,6 +133,7 @@ export async function GET(request: Request) {
       ...normalizeChecks(main, 'launch-readiness'),
       ...security.checks,
       ...customerData.checks,
+      ...customerPublicFlow.checks,
       ...liveEnvironment.checks,
       ...designProof.checks,
       ...storefrontContent.checks,
@@ -167,6 +169,7 @@ export async function GET(request: Request) {
         launchReadiness: { launchStatus: main.launchStatus, score: main.score, summary: main.summary },
         securityAccessAudit: { ok: security.ok, error: security.error, launchStatus: (security.payload as any)?.launchStatus || null, summary: (security.payload as any)?.summary || null },
         customerDataExposureAudit: { ok: customerData.ok, error: customerData.error, launchStatus: (customerData.payload as any)?.launchStatus || null, score: (customerData.payload as any)?.score || null, summary: (customerData.payload as any)?.summary || null },
+        customerPublicFlowAudit: { ok: customerPublicFlow.ok, error: customerPublicFlow.error, launchStatus: (customerPublicFlow.payload as any)?.launchStatus || null, summary: (customerPublicFlow.payload as any)?.summary || null },
         liveEnvironmentReadiness: { ok: liveEnvironment.ok, error: liveEnvironment.error, launchStatus: (liveEnvironment.payload as any)?.launchStatus || null, summary: (liveEnvironment.payload as any)?.summary || null, upstream: (liveEnvironment.payload as any)?.upstream || null },
         designProofReadiness: { ok: designProof.ok, error: designProof.error, summary: (designProof.payload as any)?.summary || null },
         storefrontContentReadiness: { ok: storefrontContent.ok, error: storefrontContent.error, launchStatus: (storefrontContent.payload as any)?.launchStatus || null, score: (storefrontContent.payload as any)?.score || null, summary: (storefrontContent.payload as any)?.summary || null },

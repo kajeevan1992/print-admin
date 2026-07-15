@@ -26,7 +26,8 @@ export type PublicApiAuthResult = PublicApiAuthContext | { ok: false; response: 
 
 type CredentialRecord = {
   apiKey: string;
-  apiSecret: string;
+  apiSecret?: string;
+  apiSecretHash?: string;
   tenantId: string;
   siteId?: string;
   scopes?: string[];
@@ -52,10 +53,21 @@ function normaliseHost(value: unknown) { return norm(value).replace(/^https?:\/\
 function jsonError(status: number, code: string, message: string) {
   return NextResponse.json({ ok: false, error: { code, message } }, { status });
 }
-function sameSecret(left: string, right: string) {
+function shaHex(value: string) { return crypto.createHash('sha256').update(String(value || '')).digest('hex'); }
+function sameText(left: string, right: string) {
   const a = crypto.createHash('sha256').update(String(left || '')).digest();
   const b = crypto.createHash('sha256').update(String(right || '')).digest();
   return crypto.timingSafeEqual(a, b);
+}
+function matchesHash(value: string, expectedHash: string) {
+  const actual = Buffer.from(shaHex(value), 'utf8');
+  const expected = Buffer.from(clean(expectedHash).toLowerCase(), 'utf8');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+function secretMatches(value: string, record: CredentialRecord) {
+  if (record.apiSecretHash) return matchesHash(value, record.apiSecretHash);
+  if (record.apiSecret) return sameText(value, record.apiSecret);
+  return false;
 }
 function array(value: unknown): any[] { return Array.isArray(value) ? value : []; }
 function parseStores(value: unknown, fallbackTenantId = ''): PublicApiStoreAccess[] {
@@ -84,7 +96,8 @@ function parseEnvCredentials(): CredentialRecord[] {
         const tenantId = clean(item?.tenantId || item?.tenant || process.env.PUBLIC_API_TENANT_ID || process.env.TENANT_ID);
         records.push({
           apiKey: clean(item?.apiKey || item?.key),
-          apiSecret: clean(item?.apiSecret || item?.secret),
+          apiSecret: clean(item?.apiSecret || item?.secret) || undefined,
+          apiSecretHash: clean(item?.apiSecretHash || item?.secretHash) || undefined,
           tenantId,
           siteId: clean(item?.siteId || item?.site) || undefined,
           scopes: array(item?.scopes).length ? array(item.scopes).map(clean).filter(Boolean) : split(item?.scopes || process.env.PUBLIC_API_SCOPES || DEFAULT_SCOPES.join(' ')),
@@ -96,11 +109,13 @@ function parseEnvCredentials(): CredentialRecord[] {
   }
   const apiKey = clean(process.env.PUBLIC_API_KEY || process.env.STOREFRONT_API_KEY);
   const apiSecret = clean(process.env.PUBLIC_API_SECRET || process.env.STOREFRONT_API_SECRET);
+  const apiSecretHash = clean(process.env.PUBLIC_API_SECRET_HASH || process.env.STOREFRONT_API_SECRET_HASH);
   const tenantId = clean(process.env.PUBLIC_API_TENANT_ID || process.env.STOREFRONT_API_TENANT_ID || process.env.TENANT_ID);
-  if (apiKey && apiSecret && tenantId) {
+  if (apiKey && (apiSecret || apiSecretHash) && tenantId) {
     records.push({
       apiKey,
-      apiSecret,
+      apiSecret: apiSecret || undefined,
+      apiSecretHash: apiSecretHash || undefined,
       tenantId,
       siteId: clean(process.env.PUBLIC_API_SITE_ID || process.env.STOREFRONT_API_SITE_ID) || undefined,
       scopes: split(process.env.PUBLIC_API_SCOPES || DEFAULT_SCOPES.join(' ')),
@@ -108,7 +123,7 @@ function parseEnvCredentials(): CredentialRecord[] {
       status: 'active',
     });
   }
-  return records.filter((item) => item.apiKey && item.apiSecret && item.tenantId);
+  return records.filter((item) => item.apiKey && (item.apiSecret || item.apiSecretHash) && item.tenantId);
 }
 async function dbCredential(apiKey: string): Promise<CredentialRecord | null> {
   try {
@@ -125,7 +140,8 @@ async function dbCredential(apiKey: string): Promise<CredentialRecord | null> {
     const tenantId = clean(meta.tenantId || meta.tenant || row.tenantId);
     return {
       apiKey: clean(meta.apiKey || meta.key || row.slug),
-      apiSecret: clean(meta.apiSecret || meta.secret || meta.secretHash),
+      apiSecret: clean(meta.apiSecret || meta.secret) || undefined,
+      apiSecretHash: clean(meta.apiSecretHash || meta.secretHash) || undefined,
       tenantId,
       siteId: clean(meta.siteId || meta.site) || undefined,
       scopes: array(meta.scopes).length ? array(meta.scopes).map(clean).filter(Boolean) : split(meta.scopes || DEFAULT_SCOPES.join(' ')),
@@ -177,7 +193,7 @@ export async function requirePublicApiCredentials(request: Request, requiredScop
   if (!apiKey || !apiSecret) return { ok: false, response: jsonError(401, 'API_CREDENTIALS_REQUIRED', 'Public API requests require x-api-key and x-api-secret headers.') };
 
   const candidates = [...parseEnvCredentials(), await dbCredential(apiKey)].filter(Boolean) as CredentialRecord[];
-  const record = candidates.find((item) => item.apiKey === apiKey && sameSecret(apiSecret, item.apiSecret));
+  const record = candidates.find((item) => item.apiKey === apiKey && secretMatches(apiSecret, item));
   if (!record || ['disabled', 'revoked', 'inactive'].includes(norm(record.status))) return { ok: false, response: jsonError(401, 'API_CREDENTIALS_INVALID', 'The supplied API credentials are invalid or inactive.') };
   if (!scopeAllowed(record.scopes || [], requiredScopes)) return { ok: false, response: jsonError(403, 'API_SCOPE_FORBIDDEN', `This API credential is missing required scope(s): ${requiredScopes.join(', ')}.`) };
 

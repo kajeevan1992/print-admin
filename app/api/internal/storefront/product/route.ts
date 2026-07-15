@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 import { loadProductForNativePricing, formatMinorPrice } from '@/core/storefront/native-pricing.service';
 import { resolveProductConfig, rowPriceMinor } from '@/core/storefront/product-config-engine';
 import { calculateVatLine } from '@/core/tax/vat-rules';
@@ -81,8 +82,10 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const tenantSlug = slug(url.searchParams.get('tenantSlug') || url.searchParams.get('tenantId') || '');
     const productSlug = slug(url.searchParams.get('productSlug') || url.searchParams.get('productId') || url.searchParams.get('slug') || '');
+    const rateLimit = publicRateLimit(request, { scope: 'storefront-product', limit: 300, windowMs: 10 * 60 * 1000, identifier: [tenantSlug, productSlug].filter(Boolean).join(':') });
+    if (rateLimit.enforced) return NextResponse.json({ ...rateLimitPayload(rateLimit), source: 'internal-storefront-product-contract' }, { status: 429, headers: rateLimit.headers });
     if (!tenantSlug || !productSlug) {
-      return NextResponse.json({ ok: false, source: 'internal-storefront-product-contract', error: 'Missing tenantSlug/tenantId or productSlug/productId.' }, { status: 400 });
+      return NextResponse.json({ ok: false, source: 'internal-storefront-product-contract', error: 'Missing tenantSlug/tenantId or productSlug/productId.' }, { status: 400, headers: rateLimit.headers });
     }
 
     const product = await loadProductForNativePricing(tenantScopedRequest(request, tenantSlug), tenantSlug, productSlug);
@@ -131,7 +134,8 @@ export async function GET(request: NextRequest) {
         },
         initialPrice: price,
       },
-    });
+      rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining },
+    }, { headers: rateLimit.headers });
   } catch (error) {
     return NextResponse.json({
       ok: false,

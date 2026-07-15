@@ -31,6 +31,7 @@ const tasks: Task[] = [
   { id: 'smoke', stage: 'preflight', label: 'Production smoke test complete', detail: 'Walk through payment, artwork, proof, production, dispatch, email and SEO checks.', href: '/production-smoke-test', requiredForPublic: true },
   { id: 'test-order', stage: 'preflight', label: 'Launch test order created/reviewed', detail: 'Create or inspect a safe TEST-HOLO order and verify it is isolated from production.', href: '/launch-test-order' },
   { id: 'content', stage: 'preflight', label: 'Public content checked', detail: 'Confirm homepage, product/location pages, sitemap, robots, canonical and schema are ready.', href: '/storefront-content-readiness', requiredForPublic: true },
+  { id: 'first-live-monitor', stage: 'live', label: 'First live order monitor opened', detail: 'Watch the first real order from payment to artwork/proof, production, email and dispatch.', href: '/first-live-order-monitor', requiredForPublic: true },
   { id: 'stripe', stage: 'live', label: 'Stripe path watched', detail: 'During first live order, watch checkout return, webhook sync and payment status release.', href: '/payment-checkout-qa', requiredForPublic: true },
   { id: 'orders', stage: 'live', label: 'Orders screen watched', detail: 'Confirm first real order appears with customer, fulfilment, VAT, artwork and payment data.', href: '/orders', requiredForPublic: true },
   { id: 'proofing', stage: 'live', label: 'Artwork/proof queue watched', detail: 'Confirm upload-now, upload-later or design-help orders land in the right artwork/proofing queue.', href: '/artwork-preflight' },
@@ -38,6 +39,19 @@ const tasks: Task[] = [
   { id: 'email', stage: 'live', label: 'Email outbox watched', detail: 'Confirm customer and staff notifications queue/send as expected without duplicates.', href: '/email-outbox' },
   { id: 'cleanup', stage: 'aftercare', label: 'Test data cleaned or isolated', detail: 'Confirm TEST-HOLO records remain clearly marked, archived or removed from live reporting.', href: '/launch-test-data-cleanup', requiredForPublic: true },
   { id: 'fallback', stage: 'aftercare', label: 'Manual fallback ready', detail: 'Have a manual plan for quote/payment/artwork follow-up if any automated step misbehaves.', href: '/production-smoke-test', requiredForPublic: true },
+];
+
+const operatorLinks: Array<[string, string]> = [
+  ['/first-live-order-monitor', 'First Live Order Monitor'],
+  ['/launch-signoff', 'Launch Sign-off'],
+  ['/final-launch-blockers', 'Final Blockers'],
+  ['/production-smoke-test', 'Smoke Test'],
+  ['/storefront-content-readiness', 'Content Readiness'],
+  ['/launch-test-order', 'Test Order'],
+  ['/orders', 'Orders'],
+  ['/production-planner', 'Production Planner'],
+  ['/dispatch-center', 'Dispatch Center'],
+  ['/email-outbox', 'Email Outbox'],
 ];
 
 async function loadFinalBlockers(productSlug: string, locationSlug: string, paths: string) {
@@ -169,10 +183,11 @@ export function LaunchCommandCentrePage() {
       </Card>
       <Card>
         <h3 className="mb-3 text-sm font-semibold text-white">Live readiness signals</h3>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
           <UpstreamCard label="Final blockers" value={hard ? `${hard} blocked` : 'Clear'} detail={`${review} review items · ${gaps} test gaps`} href="/final-launch-blockers" status={data?.launchStatus} />
-          <UpstreamCard label="Smoke test" value={ticks.smoke ? 'Checked' : 'Pending'} detail="Local operator tick. Use the full smoke-test page before live traffic." href="/production-smoke-test" status={ticks.smoke ? 'pass' : 'review'} />
-          <UpstreamCard label="Sign-off" value={ticks.signoff ? 'Signed' : 'Pending'} detail="Local operator tick. Use Launch Sign-off for final approval." href="/launch-signoff" status={ticks.signoff ? 'pass' : 'review'} />
+          <UpstreamCard label="First live order" value={ticks['first-live-monitor'] ? 'Watched' : 'Pending'} detail="Open monitor during the first real customer order." href="/first-live-order-monitor" status={ticks['first-live-monitor'] ? 'pass' : 'review'} />
+          <UpstreamCard label="Smoke test" value={ticks.smoke ? 'Checked' : 'Pending'} detail="Use the full smoke-test page before live traffic." href="/production-smoke-test" status={ticks.smoke ? 'pass' : 'review'} />
+          <UpstreamCard label="Sign-off" value={ticks.signoff ? 'Signed' : 'Pending'} detail="Use Launch Sign-off for final approval." href="/launch-signoff" status={ticks.signoff ? 'pass' : 'review'} />
         </div>
       </Card>
     </div>
@@ -186,18 +201,9 @@ export function LaunchCommandCentrePage() {
     <Card>
       <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-white"><Activity size={16} /> Operator links</h3>
       <div className="grid gap-2 md:grid-cols-4">
-        {[
-          ['/launch-signoff', 'Launch Sign-off'],
-          ['/final-launch-blockers', 'Final Blockers'],
-          ['/production-smoke-test', 'Smoke Test'],
-          ['/storefront-content-readiness', 'Content Readiness'],
-          ['/launch-test-order', 'Test Order'],
-          ['/orders', 'Orders'],
-          ['/production-planner', 'Production Planner'],
-          ['/email-outbox', 'Email Outbox'],
-        ].map(([href, label]) => <Link key={href} href={href} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-white/[0.06] hover:text-white"><ClipboardCheck className="mr-1 inline h-3 w-3" />{label}</Link>)}
+        {operatorLinks.map(([href, label]) => <Link key={href} href={href} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-white/[0.06] hover:text-white"><ClipboardCheck className="mr-1 inline h-3 w-3" />{label}</Link>)}
       </div>
-      <p className="mt-4 text-xs leading-5 text-textMuted">This page is read-only. Checklist ticks are stored in this browser only; live system status comes from Final Launch Blockers.</p>
+      <p className="mt-4 text-xs leading-5 text-textMuted">This page is read-only. Checklist ticks are stored in this browser only; live system status comes from Final Launch Blockers and the First Live Order Monitor.</p>
     </Card>
   </div>;
 }

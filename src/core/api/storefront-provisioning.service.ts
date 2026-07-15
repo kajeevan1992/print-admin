@@ -116,7 +116,7 @@ async function ensureStore(request: Request, ctx: TenantContext, input: Storefro
 }
 
 async function ensureProduct(ctx: TenantContext, input: StorefrontProvisioningInput, productSlug: string, metadata: Record<string, any>) {
-  const category = input.product.category || { name: 'Print Products', slug: 'print-products' };
+  const category = input.product.category || { id: '', name: 'Print Products', slug: 'print-products', description: '' };
   const categorySlug = slug(category.slug || category.name);
   const categoryId = clean(category.id) || categorySlug;
 

@@ -15,6 +15,9 @@ function objectOptionsToRows(value: unknown): NativeSelectedOptionRow[] {
     .map(([key, optionValue]) => ({ key, label: key, value: String(optionValue || ''), slug: String(optionValue || '') }))
     .filter((row) => row.value);
 }
+function errorRateLimit(request: NextRequest) {
+  return publicRateLimit(request, { scope: 'storefront-price-error', limit: 120, windowMs: 10 * 60 * 1000 });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,10 +76,12 @@ export async function POST(request: NextRequest) {
       rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining },
     }, { headers: rateLimit.headers });
   } catch (error) {
+    const fallbackLimit = errorRateLimit(request);
     return NextResponse.json({
       ok: false,
       source: 'internal-storefront-price',
       error: error instanceof Error ? error.message : 'Storefront price could not be calculated.',
-    }, { status: 500 });
+      rateLimit: { mode: fallbackLimit.mode, remaining: fallbackLimit.remaining },
+    }, { status: 500, headers: fallbackLimit.headers });
   }
 }

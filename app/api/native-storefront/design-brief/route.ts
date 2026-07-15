@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 
 export const dynamic = 'force-dynamic';
@@ -113,13 +114,15 @@ export async function GET(request: Request) {
     const email = text(url.searchParams.get('email')).toLowerCase();
     if (!orderId) return json({ ok: false, error: 'orderId is required.' }, { status: 400 });
     if (!email) return json({ ok: false, error: 'Customer email is required to view design brief status.' }, { status: 400 });
+    const rate = publicRateLimit(request, { scope: 'native-storefront-design-brief-status', limit: 30, windowMs: 5 * 60 * 1000, identifier: `${orderId}:${email}` });
+    if (rate.enforced) return json(rateLimitPayload(rate), { status: 429, headers: rate.headers });
     const order = await getOrder(request, orderId);
-    if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
+    if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404, headers: rate.headers });
     const orderEmail = text((order as Store).customerEmail || (order as Store).customer?.email).toLowerCase();
-    if (!orderEmail || email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
+    if (!orderEmail || email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403, headers: rate.headers });
     const briefs = await readItems(request, DESIGN_BRIEFS_KEY).catch(() => []);
     const orderBriefs = briefs.filter((brief) => String(brief.orderId) === String((order as Store).id) || String(brief.orderNumber) === String((order as Store).orderNumber));
-    return json({ ok: true, source: 'customer-design-brief', order: { id: (order as Store).id, orderNumber: (order as Store).orderNumber, customerName: (order as Store).customerName, customerEmail: (order as Store).customerEmail, paymentStatus: (order as Store).paymentStatus }, briefs: orderBriefs });
+    return json({ ok: true, source: 'customer-design-brief', order: { id: (order as Store).id, orderNumber: (order as Store).orderNumber, customerName: (order as Store).customerName, customerEmail: (order as Store).customerEmail, paymentStatus: (order as Store).paymentStatus }, briefs: orderBriefs }, { headers: rate.headers });
   } catch (error) {
     return json({ ok: false, source: 'customer-design-brief', error: error instanceof Error ? error.message : 'Design brief lookup failed.' }, { status: 500 });
   }
@@ -132,20 +135,22 @@ export async function POST(request: Request) {
     const email = text(form.get('email')).toLowerCase();
     if (!orderId) return json({ ok: false, error: 'orderId is required.' }, { status: 400 });
     if (!email) return json({ ok: false, error: 'Customer email is required to submit a design brief.' }, { status: 400 });
+    const rate = publicRateLimit(request, { scope: 'native-storefront-design-brief-submit', limit: 5, windowMs: 15 * 60 * 1000, identifier: `${orderId}:${email}` });
+    if (rate.enforced) return json(rateLimitPayload(rate), { status: 429, headers: rate.headers });
     const order = await getOrder(request, orderId);
-    if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
+    if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404, headers: rate.headers });
     const orderRecord = order as Store;
     const orderEmail = text(orderRecord.customerEmail || orderRecord.customer?.email).toLowerCase();
-    if (!orderEmail || email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
+    if (!orderEmail || email !== orderEmail) return json({ ok: false, error: 'Order email does not match.' }, { status: 403, headers: rate.headers });
     const designGoal = text(form.get('designGoal'));
-    if (!designGoal) return json({ ok: false, error: 'Please explain what design you need.' }, { status: 400 });
+    if (!designGoal) return json({ ok: false, error: 'Please explain what design you need.' }, { status: 400, headers: rate.headers });
     const brief = briefFromForm(form, orderRecord);
     const briefs = await readItems(request, DESIGN_BRIEFS_KEY).catch(() => []);
     const next = [brief, ...briefs.filter((item) => String(item.id) !== brief.id)].slice(0, 500);
     await writeItems(request, DESIGN_BRIEFS_KEY, 'Customer Design Briefs', next);
     const ticketSync = await syncTicket(request, orderRecord, brief).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Ticket sync failed.' }));
     await updateOrder(request, orderRecord.id, { internalNotes: noteList(orderRecord, `Customer design brief submitted: ${brief.id}. Staff must review and quote any extra design charge.`) }).catch(() => null);
-    return json({ ok: true, source: 'customer-design-brief', brief, ticketSync, message: 'Design brief received. Our team will review it and confirm any extra design charge before design starts.' });
+    return json({ ok: true, source: 'customer-design-brief', brief, ticketSync, message: 'Design brief received. Our team will review it and confirm any extra design charge before design starts.' }, { headers: rate.headers });
   } catch (error) {
     return json({ ok: false, source: 'customer-design-brief', error: error instanceof Error ? error.message : 'Design brief submission failed.' }, { status: 500 });
   }

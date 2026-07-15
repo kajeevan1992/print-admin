@@ -1,0 +1,154 @@
+{
+  "tenant": {
+    "name": "HOLO Print",
+    "slug": "holo-print"
+  },
+  "store": {
+    "id": "holo-print",
+    "name": "HOLO Print",
+    "slug": "holo-print",
+    "theme": "base-atlantis",
+    "status": "published",
+    "domain": "holo-print-staging.vercel.app",
+    "branding": {
+      "brandName": "HOLO Print",
+      "primaryColor": "#18A7D0",
+      "tagline": "Design, Print, Sign & Web"
+    },
+    "content": {
+      "announcement": "HOLO Print staging storefront",
+      "heroTitle": "Professional printing, made simple",
+      "heroSubtitle": "Order online for collection or delivery."
+    },
+    "navigation": [
+      { "label": "Home", "href": "/" },
+      { "label": "Business Cards", "href": "/products/standard-business-cards" }
+    ]
+  },
+  "product": {
+    "id": "standard-business-cards",
+    "name": "Standard Business Cards",
+    "slug": "standard-business-cards",
+    "description": "Professionally printed business cards with a choice of silk stocks, single or double-sided printing and standard or express turnaround.",
+    "category": {
+      "id": "business-cards",
+      "name": "Business Cards",
+      "slug": "business-cards",
+      "description": "Professional business card printing."
+    },
+    "priceFromMinor": 1800,
+    "currency": "GBP",
+    "productType": "STANDARD",
+    "metadataJson": {
+      "buyingMode": "cart",
+      "content": {
+        "shortDescription": "Premium business cards printed by HOLO Print.",
+        "longDescription": "Choose your quantity, stock, printed sides and turnaround. All prices are calculated by the Print SaaS backend.",
+        "specifications": [
+          "Finished size: 85 × 55 mm",
+          "Full-colour print",
+          "350gsm or 450gsm silk stock"
+        ],
+        "designGuidelines": [
+          "Supply artwork as a high-resolution PDF",
+          "Add 3 mm bleed on all sides",
+          "Keep important text at least 3 mm from the trim edge"
+        ],
+        "orderingProcess": [
+          "Choose options",
+          "Upload artwork or select artwork later",
+          "Pay securely",
+          "Approve proof if required"
+        ]
+      },
+      "media": {
+        "heroImageUrl": "/images/products/business-cards.jpg",
+        "gallery": []
+      },
+      "artwork": {
+        "required": false,
+        "allowUploadNow": true,
+        "allowUploadLater": true,
+        "acceptedFileTypes": ["application/pdf", "image/jpeg", "image/png"],
+        "maxFileSizeMb": 100
+      },
+      "taxSettings": {
+        "vatClass": "standard",
+        "vatRate": 20
+      },
+      "vatRate": 20,
+      "optionGroups": [
+        {
+          "id": "quantity",
+          "key": "quantity",
+          "label": "Quantity",
+          "role": "quantity",
+          "displayType": "pill",
+          "sortOrder": 1,
+          "values": [
+            { "value": "250", "label": "250", "default": true },
+            { "value": "500", "label": "500" }
+          ]
+        },
+        {
+          "id": "stock",
+          "key": "stock",
+          "label": "Paper stock",
+          "role": "customer-option",
+          "displayType": "card",
+          "sortOrder": 2,
+          "values": [
+            { "value": "350gsm silk", "label": "350gsm Silk", "default": true },
+            { "value": "450gsm silk", "label": "450gsm Silk" }
+          ]
+        },
+        {
+          "id": "sides",
+          "key": "sides",
+          "label": "Printed sides",
+          "role": "customer-option",
+          "displayType": "pill",
+          "sortOrder": 3,
+          "values": [
+            { "value": "single-sided", "label": "Single-sided", "default": true },
+            { "value": "double-sided", "label": "Double-sided" }
+          ]
+        },
+        {
+          "id": "turnaround",
+          "key": "turnaround",
+          "label": "Turnaround",
+          "role": "delivery-turnaround",
+          "displayType": "card",
+          "sortOrder": 4,
+          "values": [
+            { "value": "3 working days", "label": "3 working days", "businessDays": 3, "default": true },
+            { "value": "Next working day", "label": "Next working day", "businessDays": 1 }
+          ]
+        }
+      ],
+      "pricingMatrix": {
+        "currency": "GBP",
+        "rows": [
+          { "sku": "BC-250-350-S-STD", "quantity": 250, "priceMinor": 1800, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "single-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-250-350-S-EXP", "quantity": 250, "priceMinor": 2400, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "single-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-250-350-D-STD", "quantity": 250, "priceMinor": 2100, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "double-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-250-350-D-EXP", "quantity": 250, "priceMinor": 2800, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "double-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-250-450-S-STD", "quantity": 250, "priceMinor": 2200, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "single-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-250-450-S-EXP", "quantity": 250, "priceMinor": 2900, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "single-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-250-450-D-STD", "quantity": 250, "priceMinor": 2500, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "double-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-250-450-D-EXP", "quantity": 250, "priceMinor": 3300, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "double-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-500-350-S-STD", "quantity": 500, "priceMinor": 2400, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "single-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-500-350-S-EXP", "quantity": 500, "priceMinor": 3200, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "single-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-500-350-D-STD", "quantity": 500, "priceMinor": 2800, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "double-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-500-350-D-EXP", "quantity": 500, "priceMinor": 3700, "currency": "GBP", "vatRate": 20, "options": { "stock": "350gsm silk", "sides": "double-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-500-450-S-STD", "quantity": 500, "priceMinor": 2900, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "single-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-500-450-S-EXP", "quantity": 500, "priceMinor": 3800, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "single-sided", "turnaround": "Next working day" } },
+          { "sku": "BC-500-450-D-STD", "quantity": 500, "priceMinor": 3300, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "double-sided", "turnaround": "3 working days" } },
+          { "sku": "BC-500-450-D-EXP", "quantity": 500, "priceMinor": 4300, "currency": "GBP", "vatRate": 20, "options": { "stock": "450gsm silk", "sides": "double-sided", "turnaround": "Next working day" } }
+        ]
+      }
+    }
+  },
+  "rotateCredential": false
+}

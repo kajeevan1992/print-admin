@@ -24,6 +24,7 @@ const PROTECTED_PAGE_PREFIXES = [
   '/launch',
   '/first-live-order-monitor',
   '/post-launch-health',
+  '/live-environment-readiness',
   '/final-launch-blockers',
   '/production-smoke-test',
   '/storefront-content-readiness',

@@ -79,8 +79,8 @@ async function loadBackendProductContract(tenantSlug: string, slug: string) {
     const resolvedConfig = resolveProductConfig(product, {});
     const images = imageList(product);
     const title = clean(product.title || product.name);
-    if (!title) return null;
     const categorySlug = clean(product.categorySlug || product.metadataJson?.categorySlug || '');
+    if (!title || !categorySlug) return null;
     const price = initialPrice(product, resolvedConfig);
     return {
       product,
@@ -106,7 +106,7 @@ export default async function ProductPage({ tenantSlug, storeSlug, storeBase, na
     return <StorefrontChrome currentPath={`/${category}/${slug}`} navItems={navItems} storeBase={storeBase}><section className="py-10"><Shell><div className="rounded-[32px] border bg-white p-8 shadow-sm" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>Unavailable</div><h1 className="mt-4 text-[38px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>Product not available</h1><p className="mt-3 max-w-[680px] text-sm leading-7" style={{ color: BRAND.muted }}>This product is not currently published in the SaaS admin for this store.</p></div></Shell></section></StorefrontChrome>;
   }
 
-  const productCategory = product.category || category;
+  const productCategory = product.category;
   const currentPath = `${storeBase}/${productCategory}/${slug}`;
   const groups = Array.isArray(product.resolvedConfig.customerGroups) ? product.resolvedConfig.customerGroups : [];
   const configured = selectedOptions(groups, searchParams);

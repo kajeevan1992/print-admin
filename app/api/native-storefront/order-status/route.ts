@@ -23,8 +23,9 @@ export async function OPTIONS() { return new NextResponse(null, { status: 204, h
 export async function GET(request: NextRequest) {
   try {
     const orderId = String(request.nextUrl.searchParams.get('orderId') || request.nextUrl.searchParams.get('orderNumber') || '').trim();
-    const email = request.nextUrl.searchParams.get('email');
+    const email = String(request.nextUrl.searchParams.get('email') || '').trim();
     if (!orderId) return json({ ok: false, error: 'orderId or orderNumber is required.' }, { status: 400 });
+    if (!email) return json({ ok: false, error: 'Customer email is required to view order status.' }, { status: 400 });
     const status = await resolveCustomerOrderStatus(request, orderId, email);
     if (!status) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
     if ((status as any).forbidden) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });

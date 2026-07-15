@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
 import { getOrder } from '@/core/orders/orders.service';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 import { saveArtworkUpload } from '@/core/storefront/internal-artwork-storage';
 import { readPlannerStore, savePlannerStore } from '@/core/storefront/production-planner';
@@ -41,12 +42,14 @@ export async function POST(request: NextRequest) {
     const note = text(form.get('note'));
     const file = uploadFile(form.get('file'));
     if (!orderId) return json({ ok: false, error: 'orderId or orderNumber is required.' }, { status: 400 });
-    if (!email) return json({ ok: false, error: 'Customer email is required to upload replacement artwork.' }, { status: 400 });
+    if (!email) return json({ ok: false, error: 'Customer email is required.' }, { status: 400 });
     if (!file) return json({ ok: false, error: 'Artwork file is required.' }, { status: 400 });
+    const rate = publicRateLimit(request, { scope: 'native-storefront-artwork-revision', limit: 6, windowMs: 15 * 60 * 1000, identifier: `${orderId}:${email}` });
+    if (rate.enforced) return json(rateLimitPayload(rate), { status: 429, headers: rate.headers });
     const order = await getOrder(request, orderId) as Row | null;
-    if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
-    if (!order.customerEmail) return json({ ok: false, error: 'Order customer email is missing. Please contact the print team.' }, { status: 403 });
-    if (email !== String(order.customerEmail).toLowerCase()) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
+    if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404, headers: rate.headers });
+    if (!order.customerEmail) return json({ ok: false, error: 'Order customer email is missing. Please contact the print team.' }, { status: 403, headers: rate.headers });
+    if (email !== String(order.customerEmail).toLowerCase()) return json({ ok: false, error: 'Order email does not match.' }, { status: 403, headers: rate.headers });
     const ctx = tenantContextFromRequest(request);
     const uploadForm = new FormData();
     uploadForm.set('file', file, file.name || 'artwork.pdf');
@@ -69,7 +72,7 @@ export async function POST(request: NextRequest) {
       plannerSync = await syncPlanner(request, ticket, order, note).catch((error) => ({ updated: false, error: error instanceof Error ? error.message : 'Planner sync failed.' }));
       ticketUpdate = { updated: true, ticketId: ticket.id, artworkStatus: ticket.artworkStatus, preflightStatus: ticket.preflightStatus, customerProofStatus: ticket.customerProofStatus };
     }
-    return json({ ok: true, source: 'native-storefront-artwork-revision', data: { orderNumber: order.orderNumber, upload: compact(upload), storage, ticketUpdate, revision, plannerSync, message: preflightLabel(upload) } });
+    return json({ ok: true, source: 'native-storefront-artwork-revision', data: { orderNumber: order.orderNumber, upload: compact(upload), storage, ticketUpdate, revision, plannerSync, message: preflightLabel(upload) } }, { headers: rate.headers });
   } catch (error) {
     return json({ ok: false, source: 'native-storefront-artwork-revision', error: error instanceof Error ? error.message : 'Artwork upload failed.' }, { status: 500 });
   }

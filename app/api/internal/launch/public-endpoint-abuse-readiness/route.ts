@@ -35,9 +35,10 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     path: '/api/native-storefront/checkout',
     group: 'Checkout',
     risk: 'high',
-    expectedGuard: 'Server-side price/VAT recalculation, pre-payment artwork gate, Stripe session creation, and payment webhook sync.',
+    expectedGuard: 'Server-side price/VAT recalculation, pre-payment artwork gate, Stripe session creation, payment webhook sync, and built-in monitor/enforce rate-limit guard.',
     abuseRisk: 'Checkout can be spammed to create abandoned orders, Stripe sessions, artwork uploads and admin notifications.',
     ownerLink: '/payment-checkout-qa',
+    builtInLimiter: true,
   },
   {
     id: 'order-status',
@@ -89,9 +90,10 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     path: '/api/native-storefront/payment-return',
     group: 'Payment return',
     risk: 'medium',
-    expectedGuard: 'Success path requires Stripe session id; cancel path requires order id.',
+    expectedGuard: 'Success/cancel paths require Stripe session id and verify the order reference against the Stripe session.',
     abuseRisk: 'Repeated return-sync calls can cause noisy payment/status reads if not throttled.',
     ownerLink: '/payment-success',
+    builtInLimiter: true,
   },
   {
     id: 'storefront-price',
@@ -99,9 +101,10 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     path: '/api/internal/storefront/price',
     group: 'Storefront pricing',
     risk: 'medium',
-    expectedGuard: 'Public-by-design storefront pricing endpoint should calculate server-side and never trust client totals.',
+    expectedGuard: 'Public-by-design storefront pricing endpoint calculates server-side, never trusts client totals, and has built-in monitor/enforce rate-limit guard.',
     abuseRisk: 'Pricing endpoints can be scraped or hammered by bots, causing DB/catalog load.',
     ownerLink: '/storefront-content-readiness',
+    builtInLimiter: true,
   },
   {
     id: 'storefront-product',
@@ -109,31 +112,35 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     path: '/api/internal/storefront/product',
     group: 'Storefront catalogue',
     risk: 'low',
-    expectedGuard: 'Public-by-design product contract endpoint should return only customer-safe product data.',
+    expectedGuard: 'Public-by-design product contract endpoint returns customer-safe product data and has built-in monitor/enforce rate-limit guard.',
     abuseRisk: 'Product contract endpoints can be crawled heavily; cache/rate policy should be clear.',
     ownerLink: '/storefront-content-readiness',
+    builtInLimiter: true,
   },
 ];
 
 function truthy(value: unknown) {
-  return ['1', 'true', 'yes', 'on', 'enabled', 'enforce'].includes(String(value || '').trim().toLowerCase());
+  return ['1', 'true', 'yes', 'on', 'enabled'].includes(String(value || '').trim().toLowerCase());
 }
 
 function envPresent(...keys: string[]) {
   return keys.some((key) => Boolean(String(process.env[key] || '').trim()));
 }
 
+function rateLimitMode() {
+  const value = String(process.env.PUBLIC_RATE_LIMIT_MODE || process.env.NEXT_PUBLIC_ENDPOINT_RATE_LIMIT_MODE || process.env.PUBLIC_ENDPOINT_RATE_LIMIT_MODE || '').trim().toLowerCase();
+  return value === 'enforce' || value === 'on' || value === 'true' ? 'enforce' : 'monitor';
+}
+
 function detectControls() {
-  const builtInLimiter = true;
-  const limiterMode = String(process.env.PUBLIC_RATE_LIMIT_MODE || process.env.NEXT_PUBLIC_ENDPOINT_RATE_LIMIT_MODE || process.env.PUBLIC_ENDPOINT_RATE_LIMIT_MODE || 'monitor').trim().toLowerCase();
-  const limiterEnforced = truthy(limiterMode);
-  const externalRateLimit = truthy(process.env.RATE_LIMIT_ENABLED) || truthy(process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED) || envPresent('UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL', 'RATE_LIMIT_REDIS_URL');
-  const appRateLimit = builtInLimiter || externalRateLimit;
+  const builtInLimiter = PUBLIC_ENDPOINTS.some((endpoint) => endpoint.builtInLimiter);
+  const builtInLimiterCoverage = PUBLIC_ENDPOINTS.filter((endpoint) => endpoint.builtInLimiter).length;
+  const appRateLimit = builtInLimiter || truthy(process.env.RATE_LIMIT_ENABLED) || truthy(process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED) || envPresent('UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL', 'RATE_LIMIT_REDIS_URL');
   const captcha = envPresent('TURNSTILE_SECRET_KEY', 'CLOUDFLARE_TURNSTILE_SECRET_KEY', 'RECAPTCHA_SECRET_KEY', 'HCAPTCHA_SECRET_KEY');
   const firewall = truthy(process.env.VERCEL_WAF_ENABLED) || truthy(process.env.VERCEL_FIREWALL_ENABLED) || truthy(process.env.BOT_PROTECTION_ENABLED) || envPresent('VERCEL_BOTID_SECRET');
   const uploadLimit = envPresent('MAX_ARTWORK_UPLOAD_MB', 'ARTWORK_MAX_FILE_SIZE_MB', 'MAX_UPLOAD_SIZE_MB') || truthy(process.env.ARTWORK_UPLOAD_LIMITS_ENABLED);
   const securityHeaders = truthy(process.env.SECURITY_HEADERS_ENABLED) || truthy(process.env.STRICT_TRANSPORT_SECURITY_ENABLED);
-  return { appRateLimit, builtInLimiter, limiterMode, limiterEnforced, externalRateLimit, captcha, firewall, uploadLimit, securityHeaders };
+  return { appRateLimit, builtInLimiter, builtInLimiterCoverage, rateLimitMode: rateLimitMode(), captcha, firewall, uploadLimit, securityHeaders };
 }
 
 function check(id: string, group: string, label: string, status: CheckStatus, detail: string, action?: string, href?: string, data?: Record<string, any>): Check {
@@ -141,34 +148,32 @@ function check(id: string, group: string, label: string, status: CheckStatus, de
 }
 
 function endpointStatus(endpoint: PublicEndpoint, controls: ReturnType<typeof detectControls>): CheckStatus {
-  if (endpoint.builtInLimiter || controls.externalRateLimit || controls.firewall) return 'pass';
-  if (endpoint.risk === 'high') return 'warn';
-  return 'warn';
+  if (endpoint.builtInLimiter || controls.firewall) return 'pass';
+  return endpoint.risk === 'high' ? 'warn' : 'warn';
 }
 
 function buildChecks(controls: ReturnType<typeof detectControls>) {
   const checks: Check[] = [];
 
   checks.push(check(
-    'built-in-rate-limit-helper',
+    'rate-limit-signal',
     'Global abuse controls',
-    'Built-in public endpoint limiter',
-    controls.builtInLimiter ? 'pass' : 'fail',
-    controls.builtInLimiter ? `Built-in limiter is available in ${controls.limiterMode || 'monitor'} mode.` : 'No built-in public endpoint limiter was detected.',
-    controls.limiterEnforced ? 'Monitor first live traffic and keep limits conservative.' : 'For public launch, switch PUBLIC_RATE_LIMIT_MODE=enforce after smoke testing the limited endpoints.',
+    'Rate-limit signal',
+    controls.appRateLimit ? 'pass' : 'warn',
+    controls.builtInLimiter ? `Built-in public endpoint limiter is present on ${controls.builtInLimiterCoverage}/${PUBLIC_ENDPOINTS.length} tracked endpoints in ${controls.rateLimitMode} mode.` : controls.appRateLimit ? 'A rate-limit storage/config signal is present.' : 'No app-level rate-limit storage/config signal was detected from env.',
+    controls.rateLimitMode === 'enforce' ? 'Enforcement mode is active; keep watching checkout/proof/upload error rates.' : 'Limiter is in monitor mode. Test live customer flows, then switch PUBLIC_RATE_LIMIT_MODE=enforce when ready.',
     '/public-endpoint-abuse-readiness',
-    { mode: controls.limiterMode, enforced: controls.limiterEnforced },
+    { envSignalsChecked: ['PUBLIC_RATE_LIMIT_MODE', 'RATE_LIMIT_ENABLED', 'UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL'], builtInLimiterCoverage: controls.builtInLimiterCoverage },
   ));
 
   checks.push(check(
-    'rate-limit-signal',
+    'rate-limit-enforcement-mode',
     'Global abuse controls',
-    'External rate-limit storage/config signal',
-    controls.externalRateLimit ? 'pass' : 'warn',
-    controls.externalRateLimit ? 'An external rate-limit storage/config signal is present.' : 'No Redis/KV-backed rate-limit storage signal was detected. Built-in limiter is best-effort per runtime instance.',
-    controls.externalRateLimit ? 'Confirm shared limits are applied to checkout, proof, tracking and upload routes.' : 'For higher traffic, add Redis/KV-backed rate limiting so limits work across all server instances.',
-    '/public-endpoint-abuse-readiness',
-    { envSignalsChecked: ['RATE_LIMIT_ENABLED', 'UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL'] },
+    'Rate-limit enforcement mode',
+    controls.rateLimitMode === 'enforce' ? 'pass' : 'warn',
+    controls.rateLimitMode === 'enforce' ? 'Public endpoint limiter is enforcing 429 responses.' : 'Public endpoint limiter is currently in monitor mode and will not block customers yet.',
+    controls.rateLimitMode === 'enforce' ? 'Confirm conversion and customer support are still healthy.' : 'Keep monitor mode during soft launch; enable PUBLIC_RATE_LIMIT_MODE=enforce after smoke-testing checkout, proof and upload flows.',
+    '/production-smoke-test',
   ));
 
   checks.push(check(
@@ -207,10 +212,10 @@ function buildChecks(controls: ReturnType<typeof detectControls>) {
       endpoint.group,
       `${endpoint.method} ${endpoint.path}`,
       endpointStatus(endpoint, controls),
-      `${endpoint.expectedGuard} Abuse risk: ${endpoint.abuseRisk}${endpoint.builtInLimiter ? ' Built-in limiter headers are applied.' : ''}`,
-      endpoint.builtInLimiter ? 'Smoke test this endpoint in monitor mode, then enable PUBLIC_RATE_LIMIT_MODE=enforce when ready.' : controls.externalRateLimit || controls.firewall ? 'Confirm this endpoint is included in the configured rate-limit/firewall policy.' : 'Add this endpoint to a rate-limit/firewall policy before full public launch.',
+      `${endpoint.expectedGuard} Abuse risk: ${endpoint.abuseRisk}`,
+      endpoint.builtInLimiter ? 'Built-in limiter is installed. Verify monitor headers in soft launch, then enforce when ready.' : controls.firewall ? 'Confirm this endpoint is included in the configured firewall policy.' : 'Add this endpoint to a rate-limit/firewall policy before full public launch.',
       endpoint.ownerLink,
-      { method: endpoint.method, path: endpoint.path, risk: endpoint.risk, builtInLimiter: Boolean(endpoint.builtInLimiter) },
+      { method: endpoint.method, path: endpoint.path, risk: endpoint.risk, builtInLimiter: Boolean(endpoint.builtInLimiter), rateLimitMode: controls.rateLimitMode },
     ));
   }
 

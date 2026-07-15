@@ -41,10 +41,12 @@ export async function POST(request: NextRequest) {
     const note = text(form.get('note'));
     const file = uploadFile(form.get('file'));
     if (!orderId) return json({ ok: false, error: 'orderId or orderNumber is required.' }, { status: 400 });
+    if (!email) return json({ ok: false, error: 'Customer email is required to upload replacement artwork.' }, { status: 400 });
     if (!file) return json({ ok: false, error: 'Artwork file is required.' }, { status: 400 });
     const order = await getOrder(request, orderId) as Row | null;
     if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
-    if (email && order.customerEmail && email !== String(order.customerEmail).toLowerCase()) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
+    if (!order.customerEmail) return json({ ok: false, error: 'Order customer email is missing. Please contact the print team.' }, { status: 403 });
+    if (email !== String(order.customerEmail).toLowerCase()) return json({ ok: false, error: 'Order email does not match.' }, { status: 403 });
     const ctx = tenantContextFromRequest(request);
     const uploadForm = new FormData();
     uploadForm.set('file', file, file.name || 'artwork.pdf');

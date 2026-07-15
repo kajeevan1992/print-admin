@@ -34,11 +34,24 @@ type CredentialRecord = {
   status?: string;
 };
 
+const DEFAULT_SCOPES = [
+  'storefront:resolve',
+  'storefront:read',
+  'catalog:read',
+  'pricing:calculate',
+  'checkout:create',
+  'storefront:manage',
+  'storefront:publish',
+  'storefront:domains',
+];
+
 function clean(value: unknown) { return String(value || '').trim(); }
 function norm(value: unknown) { return clean(value).toLowerCase(); }
 function split(value: unknown) { return clean(value).split(/[\s,]+/).map((item) => item.trim()).filter(Boolean); }
-function host(value: unknown) { return norm(value).replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, ''); }
-function jsonError(status: number, error: string, message: string) { return NextResponse.json({ ok: false, error, message }, { status }); }
+function normaliseHost(value: unknown) { return norm(value).replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/:\d+$/, ''); }
+function jsonError(status: number, code: string, message: string) {
+  return NextResponse.json({ ok: false, error: { code, message } }, { status });
+}
 function sameSecret(left: string, right: string) {
   const a = crypto.createHash('sha256').update(String(left || '')).digest();
   const b = crypto.createHash('sha256').update(String(right || '')).digest();
@@ -57,7 +70,7 @@ function parseStores(value: unknown, fallbackTenantId = ''): PublicApiStoreAcces
       tenantId: clean(data.tenantId || data.tenant || fallbackTenantId),
       siteId: clean(data.siteId || data.site || data.storeId || data.id || data.slug) || undefined,
       slug: clean(data.slug || data.storeSlug || data.id) || undefined,
-      domains: array(data.domains).map(host).filter(Boolean),
+      domains: array(data.domains).map(normaliseHost).filter(Boolean),
     };
   }).filter((item) => item.storeId && item.tenantId);
 }
@@ -74,7 +87,7 @@ function parseEnvCredentials(): CredentialRecord[] {
           apiSecret: clean(item?.apiSecret || item?.secret),
           tenantId,
           siteId: clean(item?.siteId || item?.site) || undefined,
-          scopes: array(item?.scopes).length ? array(item.scopes).map(clean).filter(Boolean) : split(item?.scopes || process.env.PUBLIC_API_SCOPES || 'catalog:read storefront:read storefront:pricing storefront:checkout storefront:manage'),
+          scopes: array(item?.scopes).length ? array(item.scopes).map(clean).filter(Boolean) : split(item?.scopes || process.env.PUBLIC_API_SCOPES || DEFAULT_SCOPES.join(' ')),
           stores: parseStores(item?.stores || item?.allowedStores || process.env.PUBLIC_API_ALLOWED_STORES, tenantId),
           status: clean(item?.status || 'active'),
         });
@@ -90,7 +103,7 @@ function parseEnvCredentials(): CredentialRecord[] {
       apiSecret,
       tenantId,
       siteId: clean(process.env.PUBLIC_API_SITE_ID || process.env.STOREFRONT_API_SITE_ID) || undefined,
-      scopes: split(process.env.PUBLIC_API_SCOPES || 'catalog:read storefront:read storefront:pricing storefront:checkout storefront:manage'),
+      scopes: split(process.env.PUBLIC_API_SCOPES || DEFAULT_SCOPES.join(' ')),
       stores: parseStores(process.env.PUBLIC_API_ALLOWED_STORES || process.env.STOREFRONT_API_ALLOWED_STORES, tenantId),
       status: 'active',
     });
@@ -115,7 +128,7 @@ async function dbCredential(apiKey: string): Promise<CredentialRecord | null> {
       apiSecret: clean(meta.apiSecret || meta.secret || meta.secretHash),
       tenantId,
       siteId: clean(meta.siteId || meta.site) || undefined,
-      scopes: array(meta.scopes).length ? array(meta.scopes).map(clean).filter(Boolean) : split(meta.scopes || 'catalog:read storefront:read storefront:pricing storefront:checkout'),
+      scopes: array(meta.scopes).length ? array(meta.scopes).map(clean).filter(Boolean) : split(meta.scopes || DEFAULT_SCOPES.join(' ')),
       stores: parseStores(meta.stores || meta.allowedStores, tenantId),
       status: clean(meta.status || 'active'),
     };
@@ -124,18 +137,38 @@ async function dbCredential(apiKey: string): Promise<CredentialRecord | null> {
   }
 }
 function scopeAllowed(scopes: string[], required: string[]) {
+  const aliases: Record<string, string[]> = {
+    'storefront:resolve': ['storefront:read'],
+    'pricing:calculate': ['storefront:pricing'],
+    'checkout:create': ['storefront:checkout'],
+  };
   const set = new Set(scopes.map(norm));
-  return required.every((scope) => set.has('*') || set.has(norm(scope)) || (scope.includes(':') && set.has(`${scope.split(':')[0]}:*`)));
+  return required.every((scope) => {
+    const requested = norm(scope);
+    const namespaceWildcard = requested.includes(':') ? `${requested.split(':')[0]}:*` : '';
+    return set.has('*') || set.has(requested) || Boolean(namespaceWildcard && set.has(namespaceWildcard)) || (aliases[requested] || []).some((alias) => set.has(alias));
+  });
 }
 function requestedStoreId(request: Request) {
   const url = new URL(request.url);
   return clean(request.headers.get('x-store-id') || url.searchParams.get('storeId') || url.searchParams.get('store'));
 }
+function requestedHost(request: Request) {
+  const url = new URL(request.url);
+  return normaliseHost(url.searchParams.get('host') || '');
+}
 function resolveStore(record: CredentialRecord, request: Request): PublicApiStoreAccess | undefined {
   const wanted = requestedStoreId(request);
+  const wantedHost = requestedHost(request);
   const stores = record.stores || [];
-  if (!wanted) return stores.length === 1 ? stores[0] : undefined;
-  return stores.find((store) => [store.storeId, store.siteId, store.slug].filter(Boolean).map(String).includes(wanted));
+  if (wanted) return stores.find((store) => [store.storeId, store.siteId, store.slug].filter(Boolean).map(String).includes(wanted));
+  if (wantedHost) {
+    return stores.find((store) => {
+      const domains = (store.domains || []).map(normaliseHost);
+      return domains.includes(wantedHost) || normaliseHost(store.slug) === wantedHost.split('.')[0];
+    });
+  }
+  return stores.length === 1 ? stores[0] : undefined;
 }
 
 export async function requirePublicApiCredentials(request: Request, requiredScopes: string[] = ['storefront:read']): Promise<PublicApiAuthResult> {
@@ -150,9 +183,13 @@ export async function requirePublicApiCredentials(request: Request, requiredScop
 
   const store = resolveStore(record, request);
   const wantedStore = requestedStoreId(request);
-  if (wantedStore && !store) return { ok: false, response: jsonError(403, 'STORE_ACCESS_FORBIDDEN', 'This API credential is not authorised for the requested store.') };
-  if (store && store.tenantId && store.tenantId !== record.tenantId) return { ok: false, response: jsonError(403, 'STORE_TENANT_MISMATCH', 'Requested store does not belong to the authorised tenant for this credential.') };
+  const wantedHost = requestedHost(request);
+  if ((wantedStore || wantedHost) && (record.stores || []).length > 0 && !store) {
+    return { ok: false, response: jsonError(403, 'STORE_ACCESS_FORBIDDEN', 'This API credential is not authorised for the requested store or host.') };
+  }
 
+  // Explicit allowed-store membership is authoritative for restricted shared service clients.
+  // Tenant authority is always derived from the matched allowed store, never from browser input.
   const tenantId = store?.tenantId || record.tenantId;
   const siteId = store?.siteId || record.siteId || store?.storeId;
   return { ok: true, apiKey, tenantId, siteId, store, stores: record.stores || [], scopes: record.scopes || [], ctx: { tenantId, ...(siteId ? { siteId } : {}) } };

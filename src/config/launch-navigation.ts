@@ -6,6 +6,7 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Customer Data Exposure Audit', href: '/customer-data-exposure-audit', iconKey: 'ShieldCheck', order: 18.0325 },
   { label: 'Customer Public Flow Audit', href: '/customer-public-flow-audit', iconKey: 'ShieldCheck', order: 18.0327 },
   { label: 'Public Endpoint Abuse Readiness', href: '/public-endpoint-abuse-readiness', iconKey: 'ShieldAlert', order: 18.0328 },
+  { label: 'Theme SaaS Connection Audit', href: '/theme-saas-connection-audit', iconKey: 'Store', order: 18.0329 },
   { label: 'Live Environment Readiness', href: '/live-environment-readiness', iconKey: 'ServerCog', order: 18.033 },
   { label: 'First Live Order Monitor', href: '/first-live-order-monitor', iconKey: 'Activity', order: 18.035 },
   { label: 'Post-launch Health', href: '/post-launch-health', iconKey: 'HeartPulse', order: 18.037 },

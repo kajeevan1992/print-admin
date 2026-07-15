@@ -1,0 +1,17 @@
+import { NextResponse } from 'next/server';
+import { requirePublicApiCredentials } from '@/core/api/public-api-auth';
+import { updateStore } from '@/core/api/storefront-v1.service';
+
+export const dynamic = 'force-dynamic';
+
+export async function PATCH(request: Request, { params }: { params: { storeId: string } }) {
+  try {
+    const auth = await requirePublicApiCredentials(request, ['storefront:manage']);
+    if (!auth.ok) return auth.response;
+    const body = await request.json().catch(() => ({}));
+    const store = await updateStore(auth.ctx, params.storeId, body);
+    return NextResponse.json({ ok: true, api: 'storefront-v1', resource: 'management.stores.update', tenantId: auth.ctx.tenantId, store });
+  } catch (error) {
+    return NextResponse.json({ ok: false, error: 'STORE_UPDATE_FAILED', message: error instanceof Error ? error.message : 'Store update failed.' }, { status: 500 });
+  }
+}

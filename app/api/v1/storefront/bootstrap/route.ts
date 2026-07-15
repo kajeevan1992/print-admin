@@ -1,19 +1,18 @@
 import { NextResponse } from 'next/server';
 import { requirePublicApiCredentials } from '@/core/api/public-api-auth';
-import { bootstrapStore } from '@/core/api/storefront-v1.service';
+import { getStorefrontBootstrap, StorefrontApiError } from '@/core/storefront/storefront-api.service';
+import { requireMatchingStoreSelectors, storefrontRouteError } from '@/core/storefront/storefront-api-response';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const storeId = requireMatchingStoreSelectors(request);
+    if (!storeId) throw new StorefrontApiError(400, 'STORE_ID_REQUIRED', 'storeId and x-store-id are required.');
     const auth = await requirePublicApiCredentials(request, ['storefront:read']);
     if (!auth.ok) return auth.response;
-    const url = new URL(request.url);
-    const storeId = String(url.searchParams.get('storeId') || auth.store?.storeId || '').trim();
-    if (!storeId) return NextResponse.json({ ok: false, error: 'STORE_ID_REQUIRED', message: 'storeId is required.' }, { status: 400 });
-    const data = await bootstrapStore(auth.ctx, storeId);
-    return NextResponse.json({ ok: true, api: 'storefront-v1', resource: 'bootstrap', ...data });
-  } catch (error) {
-    return NextResponse.json({ ok: false, error: 'STOREFRONT_BOOTSTRAP_FAILED', message: error instanceof Error ? error.message : 'Bootstrap failed.' }, { status: 500 });
+    return NextResponse.json({ ok: true, data: await getStorefrontBootstrap(auth, request, storeId) });
+  } catch (cause) {
+    return storefrontRouteError(cause);
   }
 }

@@ -3,8 +3,46 @@ import { NextRequest, NextResponse } from 'next/server';
 const RESERVED_PREFIXES = [
   '/api', '/_next', '/admin', '/app', '/account-dashboard', '/products', '/categories', '/orders', '/settings', '/super-admin', '/theme', '/storefront',
 ];
-const PROTECTED_PAGE_PREFIXES = ['/', '/workspace', '/super-admin', '/products', '/categories', '/orders', '/settings', '/tenant-control', '/shop-login-setup', '/memberships', '/fresh-db-setup', '/admin-users', '/api-keys', '/credentials', '/security-events', '/oauth', '/database-manager'];
-const PUBLIC_PAGE_PREFIXES = ['/login', '/logout', '/accept-invite', '/theme', '/storefront', '/product', '/category', '/cart', '/checkout'];
+const PROTECTED_PAGE_PREFIXES = [
+  '/',
+  '/workspace',
+  '/super-admin',
+  '/products',
+  '/categories',
+  '/orders',
+  '/settings',
+  '/tenant-control',
+  '/shop-login-setup',
+  '/memberships',
+  '/fresh-db-setup',
+  '/admin-users',
+  '/api-keys',
+  '/credentials',
+  '/security-events',
+  '/oauth',
+  '/database-manager',
+  '/launch',
+  '/first-live-order-monitor',
+  '/post-launch-health',
+  '/final-launch-blockers',
+  '/production-smoke-test',
+  '/storefront-content-readiness',
+  '/artwork-preflight',
+  '/artwork-uploads',
+  '/artwork-proofing',
+  '/design-briefs',
+  '/production-planner',
+  '/dispatch-center',
+  '/email-outbox',
+  '/email-order-notification-qa',
+  '/payment-checkout-qa',
+  '/live-flow-check',
+  '/admin-launch-security',
+  '/button-audit',
+  '/data-continuity',
+  '/final-check',
+];
+const PUBLIC_PAGE_PREFIXES = ['/login', '/logout', '/accept-invite', '/theme', '/storefront', '/product', '/category', '/cart', '/checkout', '/track-order', '/proof-action', '/design-brief', '/payment-success', '/payment-cancel'];
 const PUBLIC_INTERNAL_PREFIXES = ['/api/internal/auth/', '/api/internal/storefront/', '/api/internal/catalog/', '/api/internal/seo/', '/api/internal/config/'];
 const DEFAULT_STOREFRONT_ORIGINS = ['http://localhost:5173', 'http://localhost:3000', 'https://hosted-theme.vercel.app', 'http://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io', 'https://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io'];
 

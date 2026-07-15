@@ -29,7 +29,7 @@ const tasks: Task[] = [
   { id: 'blockers', stage: 'preflight', label: 'Final blockers checked', detail: 'Run Final Launch Blockers and confirm no hard blockers remain.', href: '/final-launch-blockers', requiredForPublic: true },
   { id: 'security', stage: 'preflight', label: 'Security/access audit checked', detail: 'Confirm admin-only pages, launch tools and internal APIs are protected before public traffic.', href: '/launch-security-access-audit', requiredForPublic: true },
   { id: 'public-flow', stage: 'preflight', label: 'Customer public flow audit checked', detail: 'Confirm track-order, proof approval, replacement artwork, checkout and payment-return routes validate order/email/token/session.', href: '/customer-public-flow-audit', requiredForPublic: true },
-  { id: 'abuse', stage: 'preflight', label: 'Public endpoint abuse audit checked', detail: 'Confirm checkout, proof, track-order and upload endpoints have rate-limit/bot-abuse readiness before public traffic.', href: '/public-endpoint-abuse-audit', requiredForPublic: true },
+  { id: 'abuse', stage: 'preflight', label: 'Public endpoint abuse readiness checked', detail: 'Confirm checkout, proof, track-order and upload endpoints have rate-limit/bot-abuse readiness before public traffic.', href: '/public-endpoint-abuse-readiness', requiredForPublic: true },
   { id: 'live-env', stage: 'preflight', label: 'Live environment checked', detail: 'Confirm Stripe live mode, webhook, SMTP, domain, CORS and secret categories are ready.', href: '/live-environment-readiness', requiredForPublic: true },
   { id: 'signoff', stage: 'preflight', label: 'Sign-off completed', detail: 'Complete soft-launch or public-launch sign-off with the person responsible.', href: '/launch-signoff', requiredForPublic: true },
   { id: 'smoke', stage: 'preflight', label: 'Production smoke test complete', detail: 'Walk through payment, artwork, proof, production, dispatch, email and SEO checks.', href: '/production-smoke-test', requiredForPublic: true },
@@ -49,7 +49,7 @@ const tasks: Task[] = [
 const operatorLinks: Array<[string, string]> = [
   ['/launch-security-access-audit', 'Security Access Audit'],
   ['/customer-public-flow-audit', 'Customer Public Flow Audit'],
-  ['/public-endpoint-abuse-audit', 'Public Endpoint Abuse Audit'],
+  ['/public-endpoint-abuse-readiness', 'Public Endpoint Abuse Readiness'],
   ['/live-environment-readiness', 'Live Environment Readiness'],
   ['/first-live-order-monitor', 'First Live Order Monitor'],
   ['/post-launch-health', 'Post-launch Health'],
@@ -168,7 +168,7 @@ export function LaunchCommandCentrePage() {
   const upstream = data?.upstream as any;
   const securitySummary = upstream?.securityAccessAudit?.summary;
   const publicFlowSummary = upstream?.customerPublicFlowAudit?.summary;
-  const abuseSummary = upstream?.publicEndpointAbuseAudit?.summary;
+  const abuseSummary = upstream?.publicEndpointAbuseReadiness?.summary;
   const securityBlocked = countFrom(securitySummary, ['blocked', 'fail']);
   const securityWarn = countFrom(securitySummary, ['warn', 'warnings', 'review']);
   const publicFlowBlocked = countFrom(publicFlowSummary, ['blocked', 'fail']);
@@ -179,7 +179,7 @@ export function LaunchCommandCentrePage() {
   return <div>
     <PageHeader
       title="Launch Command Centre"
-      subtitle="One operator page for final blockers, security/access, public endpoint abuse, customer flow validation, live environment, sign-off, smoke testing, content readiness, first-live-order monitoring and post-launch health."
+      subtitle="One operator page for final blockers, security/access, public endpoint abuse readiness, customer flow validation, live environment, sign-off, smoke testing, content readiness, first-live-order monitoring and post-launch health."
       actions={<><Button onClick={() => void refresh()} disabled={busy}><RefreshCw size={14} /> Refresh</Button><PrimaryButton onClick={() => void refresh()} disabled={busy}><Rocket size={14} /> Run command check</PrimaryButton></>}
     />
 
@@ -215,7 +215,7 @@ export function LaunchCommandCentrePage() {
           <UpstreamCard label="Final blockers" value={hard ? `${hard} blocked` : 'Clear'} detail={`${review} review items · ${gaps} test gaps`} href="/final-launch-blockers" status={data?.launchStatus} />
           <UpstreamCard label="Security access" value={securityBlocked ? `${securityBlocked} blocked` : securityWarn ? `${securityWarn} review` : 'Clear'} detail="Admin pages, launch tools and internal API exposure." href="/launch-security-access-audit" status={securityBlocked ? 'blocked' : securityWarn ? 'review' : 'pass'} />
           <UpstreamCard label="Customer public" value={publicFlowBlocked ? `${publicFlowBlocked} blocked` : publicFlowWarn ? `${publicFlowWarn} review` : 'Clear'} detail="Track order, proof, upload, checkout and payment validation." href="/customer-public-flow-audit" status={publicFlowBlocked ? 'blocked' : publicFlowWarn ? 'review' : 'pass'} />
-          <UpstreamCard label="Abuse protection" value={abuseBlocked ? `${abuseBlocked} blocked` : abuseWarn ? `${abuseWarn} review` : 'Clear'} detail="Rate-limit, bot challenge and public endpoint abuse readiness." href="/public-endpoint-abuse-audit" status={abuseBlocked ? 'blocked' : abuseWarn ? 'review' : 'pass'} />
+          <UpstreamCard label="Abuse readiness" value={abuseBlocked ? `${abuseBlocked} blocked` : abuseWarn ? `${abuseWarn} review` : 'Clear'} detail="Rate-limit, bot challenge and public endpoint abuse readiness." href="/public-endpoint-abuse-readiness" status={abuseBlocked ? 'blocked' : abuseWarn ? 'review' : 'pass'} />
           <UpstreamCard label="Live environment" value={ticks['live-env'] ? 'Checked' : 'Pending'} detail="Stripe, webhook, SMTP, domain and CORS readiness." href="/live-environment-readiness" status={ticks['live-env'] ? 'pass' : 'review'} />
           <UpstreamCard label="First live order" value={ticks['first-live-monitor'] ? 'Watched' : 'Pending'} detail="Open monitor during the first real customer order." href="/first-live-order-monitor" status={ticks['first-live-monitor'] ? 'pass' : 'review'} />
           <UpstreamCard label="Post-launch health" value={ticks['post-health'] ? 'Checked' : 'Pending'} detail="Run after opening to live traffic." href="/post-launch-health" status={ticks['post-health'] ? 'pass' : 'review'} />
@@ -236,7 +236,7 @@ export function LaunchCommandCentrePage() {
       <div className="grid gap-2 md:grid-cols-4">
         {operatorLinks.map(([href, label]) => <Link key={href} href={href} className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-white/[0.06] hover:text-white"><ClipboardCheck className="mr-1 inline h-3 w-3" />{label}</Link>)}
       </div>
-      <p className="mt-4 text-xs leading-5 text-textMuted">This page is read-only. Checklist ticks are stored in this browser only; live system status comes from Final Launch Blockers, Security Access Audit, Customer Public Flow Audit, Public Endpoint Abuse Audit, Live Environment Readiness, the First Live Order Monitor and Post-launch Health.</p>
+      <p className="mt-4 text-xs leading-5 text-textMuted">This page is read-only. Checklist ticks are stored in this browser only; live system status comes from Final Launch Blockers, Security Access Audit, Customer Public Flow Audit, Public Endpoint Abuse Readiness, Live Environment Readiness, the First Live Order Monitor and Post-launch Health.</p>
     </Card>
   </div>;
 }

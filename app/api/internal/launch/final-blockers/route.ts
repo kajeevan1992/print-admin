@@ -119,14 +119,16 @@ export async function GET(request: Request) {
     const contentSearch = new URLSearchParams({ productSlug, locationSlug });
     if (extraPaths) contentSearch.set('paths', extraPaths);
 
-    const [main, designProof, storefrontContent] = await Promise.all([
+    const [main, security, designProof, storefrontContent] = await Promise.all([
       runLaunchReadinessRunner(request, { productSlug, locationSlug }),
+      loadReadinessEndpoint(request, '/api/internal/launch/security-access-audit', 'security-access-audit', 'Security and access', 'Security access audit API', '/launch-security-access-audit'),
       loadReadinessEndpoint(request, '/api/internal/launch/design-proof-readiness', 'design-proof-readiness', 'Design proofing', 'Design proof readiness API', '/launch-design-proof-readiness'),
       loadReadinessEndpoint(request, '/api/internal/launch/storefront-content-readiness', 'storefront-content-readiness', 'Storefront content', 'Storefront content readiness API', '/storefront-content-readiness', `?${contentSearch.toString()}`),
     ]);
 
     const checks = [
       ...normalizeChecks(main, 'launch-readiness'),
+      ...security.checks,
       ...designProof.checks,
       ...storefrontContent.checks,
     ];
@@ -159,6 +161,7 @@ export async function GET(request: Request) {
       checks,
       upstream: {
         launchReadiness: { launchStatus: main.launchStatus, score: main.score, summary: main.summary },
+        securityAccessAudit: { ok: security.ok, error: security.error, launchStatus: (security.payload as any)?.launchStatus || null, summary: (security.payload as any)?.summary || null },
         designProofReadiness: { ok: designProof.ok, error: designProof.error, summary: (designProof.payload as any)?.summary || null },
         storefrontContentReadiness: { ok: storefrontContent.ok, error: storefrontContent.error, launchStatus: (storefrontContent.payload as any)?.launchStatus || null, score: (storefrontContent.payload as any)?.score || null, summary: (storefrontContent.payload as any)?.summary || null },
       },

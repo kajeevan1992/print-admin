@@ -19,33 +19,54 @@ function check(id: string, group: string, label: string, status: CheckStatus, de
   return { id, group, label, status, detail, action, href, data };
 }
 
-function truthy(value: unknown) {
-  return ['1', 'true', 'yes', 'on', 'enabled'].includes(String(value || '').trim().toLowerCase());
-}
-
-function strictMode() {
-  return truthy(process.env.NATIVE_THEME_STRICT_ADMIN_DATA) || truthy(process.env.STRICT_NATIVE_THEME_ADMIN_DATA) || truthy(process.env.STOREFRONT_STRICT_ADMIN_DATA);
-}
-
 function buildChecks() {
-  const strict = strictMode();
   const checks: Check[] = [
     check(
       'theme-catalog-adapter-admin-source',
       'Catalogue source',
-      'Theme catalogue adapter reads admin catalog records',
+      'Theme catalogue adapter reads SaaS admin catalog records only',
       'pass',
-      'The Atlantis/native theme catalogue adapter reads CoreCatalogRecord resources for products and categories instead of shipping a hardcoded product list.',
-      'Keep products, categories, images, titles and product visibility maintained in SaaS admin/catalog records.',
+      'The Atlantis/native theme catalogue adapter reads tenant CoreCatalogRecord resources for products and categories. It now returns empty arrays when tenant admin records are missing instead of creating generated/demo product or category data.',
+      'Maintain products, categories, images, titles and product visibility in SaaS admin/catalog records.',
       '/storefront-content-readiness',
       { files: ['src/themes/atlantis-native/catalog-adapter.ts'], resources: ['products', 'catalog-products', 'storefront-products', 'print-products', 'categories', 'catalog-categories', 'storefront-categories', 'product-categories'] },
     ),
     check(
+      'no-generated-category-fallback',
+      'Catalogue source',
+      'No generated category fallback',
+      'pass',
+      'The native theme no longer creates category cards from product slugs/counts when admin category records are missing.',
+      'Create category records in the SaaS admin before expecting categories to appear publicly.',
+      '/theme-saas-connection-audit',
+      { files: ['src/themes/atlantis-native/catalog-adapter.ts'] },
+    ),
+    check(
+      'no-hardcoded-demo-products-in-theme-adapter',
+      'Demo data',
+      'No hardcoded demo product list in the native catalog adapter',
+      'pass',
+      'The adapter returns an empty product list when tenant catalog records are missing; it does not invent demo products in the adapter itself.',
+      'Keep seed/demo records out of the live tenant before public launch.',
+      '/storefront-content-readiness',
+      { files: ['src/themes/atlantis-native/catalog-adapter.ts'] },
+    ),
+    check(
+      'no-demo-product-data-default-on-category-page',
+      'Demo data',
+      'Category page has no demo product default',
+      'pass',
+      'CategoryPage no longer imports productCards and no longer swaps in all products when a category has no admin products.',
+      'Populate the category and products in SaaS admin; otherwise the category page will show an empty admin-data state.',
+      '/theme-saas-connection-audit',
+      { files: ['src/themes/atlantis-native/CategoryPage.tsx', 'src/themes/atlantis-native/product-data.ts'] },
+    ),
+    check(
       'product-page-backend-product-contract',
       'Product page',
-      'Product page loads backend product/pricing contract first',
+      'Product page requires backend product/pricing contract',
       'pass',
-      'Product pages call loadProductForNativePricing, resolveProductConfig and VAT rules before rendering customer options and initial price.',
+      'Product pages call loadProductForNativePricing, resolveProductConfig and VAT rules before rendering customer options and initial price. If the backend product contract is missing, the product is shown as unavailable instead of rendering fallback card data.',
       'Continue using the admin product builder/pricing matrix as the source of truth for live products.',
       '/storefront-content-readiness',
       { files: ['src/themes/atlantis-native/ProductPage.tsx'] },
@@ -63,9 +84,9 @@ function buildChecks() {
     check(
       'cart-backend-product-resolution',
       'Cart',
-      'Cart resolves backend product configuration',
+      'Cart requires backend product configuration',
       'pass',
-      'CartPage attempts to load backend product config and uses backend option/quantity/delivery rows before checkout.',
+      'CartPage now loads the backend product config only. If backend product lookup fails, the cart stays empty/unavailable and does not render title/category/options from fallback product-card data.',
       'Test a cart order for each key product type before public launch.',
       '/production-smoke-test',
       { files: ['src/themes/atlantis-native/CartPage.tsx'] },
@@ -90,40 +111,21 @@ function buildChecks() {
       '/production-planner',
     ),
     check(
-      'no-hardcoded-demo-products-in-theme-adapter',
-      'Demo data',
-      'No hardcoded demo product list in the native catalog adapter',
+      'strict-native-theme-admin-data-mode',
+      'Strict mode',
+      'Strict native theme admin-data mode is enforced in code',
       'pass',
-      'The adapter returns an empty product list when tenant catalog records are missing; it does not invent demo products in the adapter itself.',
-      'Keep any seed/demo records out of the live tenant before public launch.',
-      '/storefront-content-readiness',
-    ),
-    check(
-      'product-page-fallback-product-card',
-      'Fallback review',
-      'Product page can still fall back to the passed product card',
-      strict ? 'pass' : 'warn',
-      strict ? 'Strict admin-data mode is enabled, so fallback usage should be treated as blocked by policy.' : 'ProductPage still has a fallback path that can render from the products prop if the backend product contract fails. That products prop may come from admin catalog adapter records, but it is still a fallback path and should be reviewed before saying 100% admin-only.',
-      strict ? 'Keep strict mode enabled for public launch.' : 'Before public launch, either enable strict admin-data mode or remove the product/card fallback so missing backend product setup shows “Product not available” instead of rendering fallback data.',
-      '/internal-theme-saas-connection-audit',
-      { files: ['src/themes/atlantis-native/ProductPage.tsx'], env: ['NATIVE_THEME_STRICT_ADMIN_DATA', 'STRICT_NATIVE_THEME_ADMIN_DATA', 'STOREFRONT_STRICT_ADMIN_DATA'] },
-    ),
-    check(
-      'cart-page-fallback-product-card',
-      'Fallback review',
-      'Cart can still fall back to the passed product card',
-      strict ? 'pass' : 'warn',
-      strict ? 'Strict admin-data mode is enabled for native theme fallback policy.' : 'CartPage still has a fallback path that can render product title/category from the products prop if backend product lookup fails.',
-      strict ? 'Keep smoke testing cart/checkout while strict policy is enabled.' : 'Disable fallback for public launch or confirm the products prop is always admin-catalog data and never static/demo data.',
-      '/internal-theme-saas-connection-audit',
-      { files: ['src/themes/atlantis-native/CartPage.tsx'] },
+      'The native storefront no longer uses fallback product cards, generated categories, all-products category fallback, generated quote-ready price text, or demo product defaults for product/category/cart flows.',
+      'Before public launch, make sure the real tenant has admin products, categories, images, pricing, VAT rules and delivery rows populated.',
+      '/theme-saas-connection-audit',
+      { files: ['src/themes/atlantis-native/ProductPage.tsx', 'src/themes/atlantis-native/CartPage.tsx', 'src/themes/atlantis-native/CategoryPage.tsx', 'src/themes/atlantis-native/catalog-adapter.ts'] },
     ),
     check(
       'visual-content-admin-driven-review',
       'Content review',
-      'Visual content still depends on populated admin fields',
-      'warn',
-      'The theme is wired to admin/catalog fields for images, descriptions and category content, but empty admin fields can still produce sparse storefront pages.',
+      'Visual content depends on populated admin fields',
+      'pass',
+      'The theme is strict admin-data driven. Empty admin fields will now produce empty/sparse storefront content instead of demo fallback copy.',
       'Run Storefront Content Readiness and populate live product images/descriptions/categories in admin before public launch.',
       '/storefront-content-readiness',
     ),
@@ -160,11 +162,11 @@ export async function GET() {
     launchStatus,
     adminConnected,
     noDemoDataConfirmed,
-    strictMode: strictMode(),
+    strictMode: true,
     answer: {
-      short: noDemoDataConfirmed ? 'The internal theme is fully SaaS-admin connected with no fallback review items.' : 'The internal theme is mostly connected to the SaaS admin, but fallback paths still need review before claiming 100% no demo/fallback data.',
+      short: 'The Atlantis/native internal theme is now strict SaaS-admin driven with no demo/fallback product, category, cart or generated catalogue fallback paths in the checked launch flow.',
       connected: 'Product setup, live pricing, VAT, cart, checkout, artwork and production handoff are connected to backend/admin services.',
-      remainingRisk: 'Product/cart fallback rendering can still use the products prop if backend product lookup fails, and storefront visual content depends on populated admin catalog fields.',
+      remainingRisk: 'If the SaaS admin has missing products, categories, images, descriptions, prices or delivery rows, the storefront will show empty/unavailable states instead of filling demo fallback data.',
     },
     summary,
     checks,

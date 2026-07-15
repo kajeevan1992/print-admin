@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { queueOrderPlacedEmails } from '@/core/email/order-notifications.service';
 import { saveOrder } from '@/core/orders/orders.service';
 import { createStripeCheckoutSession } from '@/core/payments/stripe.service';
+import { rateLimitPayload, publicRateLimit } from '@/core/security/public-rate-limit.service';
 import { upsertArtworkProductionTicket } from '@/core/storefront/artwork-production-bridge.service';
 import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 import { saveArtworkUpload, type StoredArtworkUpload } from '@/core/storefront/internal-artwork-storage';
@@ -56,6 +57,8 @@ export async function POST(request: NextRequest) {
     const productTitle = clean(form.get('productTitle')) || productSlug;
     const customerName = clean(form.get('customerName'));
     const customerEmail = clean(form.get('customerEmail'));
+    const rateLimit = publicRateLimit(request, { scope: 'native-checkout', limit: 18, windowMs: 10 * 60 * 1000, identifier: [customerEmail, tenantSlug, productSlug].filter(Boolean).join(':') });
+    if (rateLimit.enforced) return json({ ...rateLimitPayload(rateLimit), source: 'native-storefront-checkout' }, { status: 429, headers: rateLimit.headers });
     const customerPhone = clean(form.get('customerPhone'));
     const customerCompany = clean(form.get('customerCompany'));
     const fulfilmentMode = ['delivery', 'collection'].includes(normal(clean(form.get('fulfilmentMode')))) ? normal(clean(form.get('fulfilmentMode'))) : 'collection';
@@ -70,10 +73,10 @@ export async function POST(request: NextRequest) {
     const priceSnapshot = parseSnapshot(clean(form.get('priceSnapshot')));
     const selectedDelivery = clean(form.get('delivery')) || clean(form.get('selectedDelivery')) || clean(form.get('turnaround'));
     const requestedQuantity = Math.max(1, number(form.get('quantity'), 1));
-    if (!tenantSlug || !storeSlug || !productSlug || !customerName || !customerEmail || !customerPhone) return json(checkoutValidationError('Missing checkout customer, phone or product details.', ['customerName', 'customerEmail', 'customerPhone']), { status: 400 });
-    if (fulfilmentMode === 'delivery' && (!deliveryAddress.line1 || !deliveryAddress.town || !deliveryAddress.postcode)) return json(checkoutValidationError('Delivery address is required before payment for delivery orders.', ['deliveryAddress1', 'deliveryTown', 'deliveryPostcode']), { status: 400 });
-    if (!billingSameAsDelivery && (!billingAddressInput.line1 || !billingAddressInput.town || !billingAddressInput.postcode)) return json(checkoutValidationError('Billing address is incomplete. Use same as delivery or complete the billing address.', ['billingAddress1', 'billingTown', 'billingPostcode']), { status: 400 });
-    if (uploadNow(artworkStatus) && !artworkUploadFile) return json(preflightGatePayload('Please upload your artwork file before payment, or choose upload later/design help.', { status: 'missing-file', blocked: true, passed: false, requiresManualReview: false, errors: ['No artwork file was uploaded.'], warnings: [], acceptedFileTypes: [], customerInstructions: '', upload: null }), { status: 422 });
+    if (!tenantSlug || !storeSlug || !productSlug || !customerName || !customerEmail || !customerPhone) return json(checkoutValidationError('Missing checkout customer, phone or product details.', ['customerName', 'customerEmail', 'customerPhone']), { status: 400, headers: rateLimit.headers });
+    if (fulfilmentMode === 'delivery' && (!deliveryAddress.line1 || !deliveryAddress.town || !deliveryAddress.postcode)) return json(checkoutValidationError('Delivery address is required before payment for delivery orders.', ['deliveryAddress1', 'deliveryTown', 'deliveryPostcode']), { status: 400, headers: rateLimit.headers });
+    if (!billingSameAsDelivery && (!billingAddressInput.line1 || !billingAddressInput.town || !billingAddressInput.postcode)) return json(checkoutValidationError('Billing address is incomplete. Use same as delivery or complete the billing address.', ['billingAddress1', 'billingTown', 'billingPostcode']), { status: 400, headers: rateLimit.headers });
+    if (uploadNow(artworkStatus) && !artworkUploadFile) return json(preflightGatePayload('Please upload your artwork file before payment, or choose upload later/design help.', { status: 'missing-file', blocked: true, passed: false, requiresManualReview: false, errors: ['No artwork file was uploaded.'], warnings: [], acceptedFileTypes: [], customerInstructions: '', upload: null }), { status: 422, headers: rateLimit.headers });
 
     const origin = new URL(request.url).origin;
     const storeBase = `/native-stores/${tenantSlug}/${storeSlug}`;
@@ -91,7 +94,7 @@ export async function POST(request: NextRequest) {
     const savedUploadFull = artworkUpload.upload as StoredArtworkUpload | null;
     const savedUpload = compactUpload(savedUploadFull);
     const preflight = preflightSummary(savedUploadFull, artworkUpload.error);
-    if (uploadNow(artworkStatus) && preflight.blocked) return json(preflightGatePayload('Artwork preflight failed. Please fix the issues and reupload before payment, or switch to design help/upload later.', preflight), { status: 422 });
+    if (uploadNow(artworkStatus) && preflight.blocked) return json(preflightGatePayload('Artwork preflight failed. Please fix the issues and reupload before payment, or switch to design help/upload later.', preflight), { status: 422, headers: rateLimit.headers });
     const artworkSnapshot = { status: artworkStatus, label: artworkLabel(artworkStatus), notes: artworkNotes, upload: savedUpload, storage: artworkUpload.storage, uploadError: artworkUpload.error, requiresFollowUp: artworkStatus !== 'ready' || !savedUpload || savedUpload.reviewStatus === 'replacement-requested' || preflight.requiresManualReview, preflightStatus: preflight.status, preflight, source: 'native-storefront-existing-artwork-upload' };
     const fulfilmentSnapshot = { mode: fulfilmentMode, selectedDelivery, deliveryAddress: fulfilmentMode === 'delivery' ? deliveryAddress : null, deliveryAddressLine: fulfilmentMode === 'delivery' ? addressLine(deliveryAddress) : '', billingSameAsDelivery, billingAddress, billingAddressLine: addressLine(billingAddress), collectionStore: fulfilmentMode === 'collection' ? storeSlug : '', source: 'native-storefront-checkout' };
     const contactSnapshot = { name: customerName, email: customerEmail, phone: customerPhone, company: customerCompany };
@@ -130,9 +133,9 @@ export async function POST(request: NextRequest) {
     const cancelUrl = `${origin}${storeBase}/cart?${cancelParams.toString()}`;
     const sessionResult = await createStripeCheckoutSession(tenantRequest, { orderId: order.id, customerEmail, successUrl, cancelUrl });
     const paymentUrl = sessionResult.session?.url;
-    if (!paymentUrl) return json({ ok: false, error: 'Stripe did not return a payment URL.' }, { status: 500 });
+    if (!paymentUrl) return json({ ok: false, error: 'Stripe did not return a payment URL.' }, { status: 500, headers: rateLimit.headers });
     await queueOrderPlacedEmails(tenantRequest, { ...order, paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: sessionResult.session?.id || order.stripeCheckoutSessionId || '', paymentUrl }).catch(() => null);
-    if (wantsJson(request)) return json({ ok: true, source: 'native-storefront-checkout', paymentUrl, orderId: order.id, orderNumber, artwork: artworkSnapshot, fulfilment: fulfilmentSnapshot, stripeSessionId: sessionResult.session?.id || '' });
+    if (wantsJson(request)) return json({ ok: true, source: 'native-storefront-checkout', paymentUrl, orderId: order.id, orderNumber, artwork: artworkSnapshot, fulfilment: fulfilmentSnapshot, stripeSessionId: sessionResult.session?.id || '', rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining } }, { headers: rateLimit.headers });
     return NextResponse.redirect(paymentUrl, { status: 303 });
   } catch (error) {
     return json({ ok: false, source: 'native-storefront-checkout', error: error instanceof Error ? error.message : 'Checkout failed.' }, { status: 500 });

@@ -35,6 +35,7 @@ const protectedPrefixes = [
   '/launch',
   '/first-live-order-monitor',
   '/post-launch-health',
+  '/live-environment-readiness',
   '/final-launch-blockers',
   '/production-smoke-test',
   '/storefront-content-readiness',
@@ -60,6 +61,7 @@ const publicInternalPrefixes = ['/api/internal/auth/', '/api/internal/storefront
 const adminSurfaces = [
   '/launch-command-centre',
   '/launch-security-access-audit',
+  '/live-environment-readiness',
   '/first-live-order-monitor',
   '/post-launch-health',
   '/launch-signoff',
@@ -101,6 +103,7 @@ const publicCustomerSurfaces = [
 const internalAdminApis = [
   '/api/internal/launch/final-blockers',
   '/api/internal/launch/security-access-audit',
+  '/api/internal/launch/live-environment-readiness',
   '/api/internal/launch/first-live-order-monitor',
   '/api/internal/launch/post-launch-health',
   '/api/internal/design-briefs',

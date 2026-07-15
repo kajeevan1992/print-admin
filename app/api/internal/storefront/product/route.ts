@@ -76,6 +76,9 @@ function initialPrice(product: Record<string, any>, resolvedConfig: Record<strin
     vatReason: taxLine.vatReason,
   };
 }
+function errorRateLimit(request: NextRequest) {
+  return publicRateLimit(request, { scope: 'storefront-product-error', limit: 180, windowMs: 10 * 60 * 1000 });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -137,10 +140,12 @@ export async function GET(request: NextRequest) {
       rateLimit: { mode: rateLimit.mode, remaining: rateLimit.remaining },
     }, { headers: rateLimit.headers });
   } catch (error) {
+    const fallbackLimit = errorRateLimit(request);
     return NextResponse.json({
       ok: false,
       source: 'internal-storefront-product-contract',
       error: error instanceof Error ? error.message : 'Storefront product contract failed.',
-    }, { status: 500 });
+      rateLimit: { mode: fallbackLimit.mode, remaining: fallbackLimit.remaining },
+    }, { status: 500, headers: fallbackLimit.headers });
   }
 }

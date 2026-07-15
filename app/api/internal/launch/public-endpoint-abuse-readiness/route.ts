@@ -25,6 +25,7 @@ type PublicEndpoint = {
   expectedGuard: string;
   abuseRisk: string;
   ownerLink: string;
+  builtInLimiter?: boolean;
 };
 
 const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
@@ -47,6 +48,7 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     expectedGuard: 'Requires order id and matching customer email before returning customer-safe order status.',
     abuseRisk: 'Attackers may brute-force order numbers or enumerate customer order states without throttling.',
     ownerLink: '/track-order',
+    builtInLimiter: true,
   },
   {
     id: 'proof-action',
@@ -57,6 +59,7 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     expectedGuard: 'Requires customer email, open proof state, current proof token and current proof version.',
     abuseRisk: 'Proof approval/revision endpoint changes production state and must resist repeated/automated attempts.',
     ownerLink: '/proof-action',
+    builtInLimiter: true,
   },
   {
     id: 'artwork-revision',
@@ -67,6 +70,7 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
     expectedGuard: 'Requires order id, customer email, matching order email and an uploaded file.',
     abuseRisk: 'File upload endpoints can be abused for storage, bandwidth and preflight processing load.',
     ownerLink: '/storefront/upload-artwork',
+    builtInLimiter: true,
   },
   {
     id: 'design-brief',
@@ -111,7 +115,7 @@ const PUBLIC_ENDPOINTS: PublicEndpoint[] = [
 ];
 
 function truthy(value: unknown) {
-  return ['1', 'true', 'yes', 'on', 'enabled'].includes(String(value || '').trim().toLowerCase());
+  return ['1', 'true', 'yes', 'on', 'enabled', 'enforce'].includes(String(value || '').trim().toLowerCase());
 }
 
 function envPresent(...keys: string[]) {
@@ -119,12 +123,16 @@ function envPresent(...keys: string[]) {
 }
 
 function detectControls() {
-  const appRateLimit = truthy(process.env.RATE_LIMIT_ENABLED) || truthy(process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED) || envPresent('UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL', 'RATE_LIMIT_REDIS_URL');
+  const builtInLimiter = true;
+  const limiterMode = String(process.env.PUBLIC_RATE_LIMIT_MODE || process.env.NEXT_PUBLIC_ENDPOINT_RATE_LIMIT_MODE || process.env.PUBLIC_ENDPOINT_RATE_LIMIT_MODE || 'monitor').trim().toLowerCase();
+  const limiterEnforced = truthy(limiterMode);
+  const externalRateLimit = truthy(process.env.RATE_LIMIT_ENABLED) || truthy(process.env.NEXT_PUBLIC_RATE_LIMIT_ENABLED) || envPresent('UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL', 'RATE_LIMIT_REDIS_URL');
+  const appRateLimit = builtInLimiter || externalRateLimit;
   const captcha = envPresent('TURNSTILE_SECRET_KEY', 'CLOUDFLARE_TURNSTILE_SECRET_KEY', 'RECAPTCHA_SECRET_KEY', 'HCAPTCHA_SECRET_KEY');
   const firewall = truthy(process.env.VERCEL_WAF_ENABLED) || truthy(process.env.VERCEL_FIREWALL_ENABLED) || truthy(process.env.BOT_PROTECTION_ENABLED) || envPresent('VERCEL_BOTID_SECRET');
   const uploadLimit = envPresent('MAX_ARTWORK_UPLOAD_MB', 'ARTWORK_MAX_FILE_SIZE_MB', 'MAX_UPLOAD_SIZE_MB') || truthy(process.env.ARTWORK_UPLOAD_LIMITS_ENABLED);
   const securityHeaders = truthy(process.env.SECURITY_HEADERS_ENABLED) || truthy(process.env.STRICT_TRANSPORT_SECURITY_ENABLED);
-  return { appRateLimit, captcha, firewall, uploadLimit, securityHeaders };
+  return { appRateLimit, builtInLimiter, limiterMode, limiterEnforced, externalRateLimit, captcha, firewall, uploadLimit, securityHeaders };
 }
 
 function check(id: string, group: string, label: string, status: CheckStatus, detail: string, action?: string, href?: string, data?: Record<string, any>): Check {
@@ -132,7 +140,7 @@ function check(id: string, group: string, label: string, status: CheckStatus, de
 }
 
 function endpointStatus(endpoint: PublicEndpoint, controls: ReturnType<typeof detectControls>): CheckStatus {
-  if (controls.appRateLimit || controls.firewall) return 'pass';
+  if (endpoint.builtInLimiter || controls.externalRateLimit || controls.firewall) return 'pass';
   if (endpoint.risk === 'high') return 'warn';
   return 'warn';
 }
@@ -141,12 +149,23 @@ function buildChecks(controls: ReturnType<typeof detectControls>) {
   const checks: Check[] = [];
 
   checks.push(check(
+    'built-in-rate-limit-helper',
+    'Global abuse controls',
+    'Built-in public endpoint limiter',
+    controls.builtInLimiter ? 'pass' : 'fail',
+    controls.builtInLimiter ? `Built-in limiter is available in ${controls.limiterMode || 'monitor'} mode.` : 'No built-in public endpoint limiter was detected.',
+    controls.limiterEnforced ? 'Monitor first live traffic and keep limits conservative.' : 'For public launch, switch PUBLIC_RATE_LIMIT_MODE=enforce after smoke testing the limited endpoints.',
+    '/public-endpoint-abuse-readiness',
+    { mode: controls.limiterMode, enforced: controls.limiterEnforced },
+  ));
+
+  checks.push(check(
     'rate-limit-signal',
     'Global abuse controls',
-    'Rate-limit signal',
-    controls.appRateLimit ? 'pass' : 'warn',
-    controls.appRateLimit ? 'A rate-limit storage/config signal is present.' : 'No app-level rate-limit storage/config signal was detected from env.',
-    controls.appRateLimit ? 'Confirm limits are applied to checkout, proof, tracking and upload routes.' : 'Add or verify app-level rate limiting, ideally backed by Redis/KV, before full public launch.',
+    'External rate-limit storage/config signal',
+    controls.externalRateLimit ? 'pass' : 'warn',
+    controls.externalRateLimit ? 'An external rate-limit storage/config signal is present.' : 'No Redis/KV-backed rate-limit storage signal was detected. Built-in limiter is best-effort per runtime instance.',
+    controls.externalRateLimit ? 'Confirm shared limits are applied to checkout, proof, tracking and upload routes.' : 'For higher traffic, add Redis/KV-backed rate limiting so limits work across all server instances.',
     '/public-endpoint-abuse-readiness',
     { envSignalsChecked: ['RATE_LIMIT_ENABLED', 'UPSTASH_REDIS_REST_URL', 'KV_REST_API_URL', 'REDIS_URL'] },
   ));
@@ -187,10 +206,10 @@ function buildChecks(controls: ReturnType<typeof detectControls>) {
       endpoint.group,
       `${endpoint.method} ${endpoint.path}`,
       endpointStatus(endpoint, controls),
-      `${endpoint.expectedGuard} Abuse risk: ${endpoint.abuseRisk}`,
-      controls.appRateLimit || controls.firewall ? 'Confirm this endpoint is included in the configured rate-limit/firewall policy.' : 'Add this endpoint to a rate-limit/firewall policy before full public launch.',
+      `${endpoint.expectedGuard} Abuse risk: ${endpoint.abuseRisk}${endpoint.builtInLimiter ? ' Built-in limiter headers are applied.' : ''}`,
+      endpoint.builtInLimiter ? 'Smoke test this endpoint in monitor mode, then enable PUBLIC_RATE_LIMIT_MODE=enforce when ready.' : controls.externalRateLimit || controls.firewall ? 'Confirm this endpoint is included in the configured rate-limit/firewall policy.' : 'Add this endpoint to a rate-limit/firewall policy before full public launch.',
       endpoint.ownerLink,
-      { method: endpoint.method, path: endpoint.path, risk: endpoint.risk },
+      { method: endpoint.method, path: endpoint.path, risk: endpoint.risk, builtInLimiter: Boolean(endpoint.builtInLimiter) },
     ));
   }
 

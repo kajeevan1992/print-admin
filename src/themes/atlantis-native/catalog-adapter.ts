@@ -57,8 +57,7 @@ function priceText(raw: any) {
   if (typeof amount === 'number' && Number.isFinite(amount)) return `From £${amount.toFixed(2)}`;
   if (typeof amount === 'string' && amount.trim()) return amount.trim().startsWith('£') || amount.toLowerCase().includes('quote') ? amount.trim() : `From ${amount.trim()}`;
   const minor = priceMinorFor(raw);
-  if (minor > 0) return `From £${(minor / 100).toFixed(2)}`;
-  return 'Quote ready';
+  return minor > 0 ? `From £${(minor / 100).toFixed(2)}` : '';
 }
 
 function imageFor(raw: any) {
@@ -91,8 +90,13 @@ function buyingModeFor(raw: any): 'cart' | 'quote' {
   return 'cart';
 }
 
-function titleFromSlug(slug = '') {
-  return String(slug || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+async function loadCoreCatalogRows(tenantId: string, resource: string, select: Record<string, boolean>) {
+  return ((platformPrisma as any).coreCatalogRecord?.findMany?.({
+    where: { tenantId, resource },
+    orderBy: { updatedAt: 'desc' },
+    take: 80,
+    select,
+  }) || Promise.resolve([])) as Promise<any[]>;
 }
 
 function toThemeProduct(record: any): ThemeProductCard | null {
@@ -100,10 +104,10 @@ function toThemeProduct(record: any): ThemeProductCard | null {
   const title = firstText(raw?.title, raw?.name, raw?.label, record?.title, record?.name, record?.slug);
   const slug = cleanSlug(firstText(raw?.slug, record?.slug, title));
   if (!title || !slug) return null;
-  const category = cleanSlug(firstText(raw?.categorySlug, raw?.category, raw?.categoryId, raw?.parentSlug, raw?.parentCategory, record?.categorySlug, 'all-products'));
+  const category = cleanSlug(firstText(raw?.categorySlug, raw?.category, raw?.categoryId, raw?.parentSlug, raw?.parentCategory, record?.categorySlug));
   return {
     slug,
-    category: category || 'all-products',
+    category,
     title,
     text: firstText(raw?.description, raw?.shortDescription, raw?.summary, raw?.excerpt, ''),
     image: imageFor(raw),
@@ -137,7 +141,7 @@ export async function loadTenantThemeProducts(tenantIds: string[]) {
   for (const tenantId of tenantIds) {
     for (const resource of PRODUCT_RESOURCES) {
       try {
-        const rows = await platformPrisma.$queryRawUnsafe<Array<{ slug: string; metadataJson: any }>>('SELECT slug,"metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 ORDER BY "updatedAt" DESC LIMIT 80', tenantId, resource);
+        const rows = await loadCoreCatalogRows(tenantId, resource, { slug: true, metadataJson: true });
         for (const row of rows) {
           const item = toThemeProduct(row);
           if (item) collected.push(item);
@@ -154,7 +158,7 @@ export async function loadTenantThemeCategories(tenantIds: string[], products: T
   for (const tenantId of tenantIds) {
     for (const resource of CATEGORY_RESOURCES) {
       try {
-        const rows = await platformPrisma.$queryRawUnsafe<Array<{ slug: string; name?: string; description?: string; metadataJson: any }>>('SELECT slug,name,description,"metadataJson" FROM "CoreCatalogRecord" WHERE "tenantId"=$1 AND resource=$2 ORDER BY "updatedAt" DESC LIMIT 80', tenantId, resource);
+        const rows = await loadCoreCatalogRows(tenantId, resource, { slug: true, name: true, description: true, metadataJson: true });
         for (const row of rows) {
           const item = toThemeCategory(row, products);
           if (item) collected.push(item);
@@ -163,20 +167,7 @@ export async function loadTenantThemeCategories(tenantIds: string[], products: T
       } catch {}
     }
   }
-  return categoriesFromProducts(products);
-}
-
-function categoriesFromProducts(products: ThemeProductCard[]): ThemeCategoryCard[] {
-  const counts = new Map<string, number>();
-  products.forEach((product) => counts.set(product.category, (counts.get(product.category) || 0) + 1));
-  return Array.from(counts.entries()).map(([slug, productCount], index) => ({
-    slug,
-    title: titleFromSlug(slug),
-    description: `${productCount} print products available.`,
-    productCount,
-    sortOrder: index + 1,
-    image: '',
-  }));
+  return [];
 }
 
 function dedupeProducts(items: ThemeProductCard[]) {

@@ -14,6 +14,7 @@ function json(data: unknown, init?: ResponseInit) {
   return NextResponse.json(data, { ...init, headers: { ...corsHeaders(), ...(init?.headers || {}) } });
 }
 function text(value: unknown) { return String(value || '').trim(); }
+function sessionOrderId(session: any) { return text(session?.client_reference_id || session?.metadata?.orderId || session?.metadata?.orderNumber); }
 function trackUrl(order: any, fallbackOrderId: string) {
   const params = new URLSearchParams({ orderId: String(order?.orderNumber || order?.id || fallbackOrderId) });
   if (order?.customerEmail) params.set('email', String(order.customerEmail));
@@ -31,9 +32,15 @@ async function handle(request: Request, body: Record<string, any> = {}) {
   const action = text(body.action || url.searchParams.get('action') || url.searchParams.get('status')) || 'success';
 
   if (action === 'cancel' || action === 'cancelled' || action === 'canceled') {
-    if (!orderId) return json({ ok: false, source: 'native-payment-return', error: 'orderId is required for cancelled checkout returns.' }, { status: 400 });
-    const result = await markStripeCheckoutCancelled(request, { orderId, sessionId, actor: 'customer' });
-    return json({ ok: true, source: 'native-payment-return', action: 'cancel', result, trackUrl: trackUrl(result.order, orderId) });
+    if (!sessionId) return json({ ok: false, source: 'native-payment-return', error: 'session_id is required for cancelled checkout returns.' }, { status: 400 });
+    const session = await getStripeCheckoutSession(sessionId);
+    const verifiedOrderId = sessionOrderId(session);
+    if (!verifiedOrderId) return json({ ok: false, source: 'native-payment-return', error: 'Stripe session does not include an order reference.' }, { status: 400 });
+    if (orderId && ![verifiedOrderId, session?.metadata?.orderNumber].filter(Boolean).map(String).includes(orderId)) {
+      return json({ ok: false, source: 'native-payment-return', error: 'Order does not match the Stripe session.' }, { status: 403 });
+    }
+    const result = await markStripeCheckoutCancelled(request, { orderId: verifiedOrderId, sessionId, actor: 'customer' });
+    return json({ ok: true, source: 'native-payment-return', action: 'cancel', result, trackUrl: trackUrl(result.order, verifiedOrderId) });
   }
 
   if (!sessionId) return json({ ok: false, source: 'native-payment-return', error: 'session_id is required for payment success returns.' }, { status: 400 });

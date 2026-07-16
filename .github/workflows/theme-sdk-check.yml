@@ -4,6 +4,10 @@ on:
   pull_request:
     paths:
       - 'app/native-stores/**'
+      - 'app/theme-preview/**'
+      - 'src/components/layout/app-frame.tsx'
+      - 'src/modules/themes/**'
+      - 'src/services/themes.service.ts'
       - 'src/theme-runtime/**'
       - 'src/themes/**'
       - '.github/workflows/theme-sdk-check.yml'

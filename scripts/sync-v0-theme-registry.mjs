@@ -27,6 +27,12 @@ function manifestValue(content, field) {
   return clean(match?.[1]);
 }
 
+function assertIndexExports(folder, content) {
+  for (const name of ['ThemeHomePage', 'themeManifest', 'themeRouteViews']) {
+    if (!new RegExp(`\\b${name}\\b`).test(content)) throw new Error(`src/v0-themes/${folder}/index.ts must export ${name}.`);
+  }
+}
+
 function readPackages() {
   if (!fs.existsSync(themesRoot)) throw new Error('src/v0-themes is missing.');
   const folders = fs.readdirSync(themesRoot, { withFileTypes: true })
@@ -41,6 +47,7 @@ function readPackages() {
     if (!fs.existsSync(manifestPath)) throw new Error(`src/v0-themes/${folder} is missing manifest.ts.`);
     if (!fs.existsSync(indexPath)) throw new Error(`src/v0-themes/${folder} is missing index.ts.`);
     const content = fs.readFileSync(manifestPath, 'utf8');
+    assertIndexExports(folder, fs.readFileSync(indexPath, 'utf8'));
     const key = manifestValue(content, 'key');
     const name = manifestValue(content, 'name');
     const version = manifestValue(content, 'version');

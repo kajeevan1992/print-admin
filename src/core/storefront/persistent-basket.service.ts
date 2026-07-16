@@ -165,7 +165,7 @@ async function priceLine(request: Request, tenantSlug: string, input: BasketLine
   const productName = clean(price.product?.name || price.product?.title || input.productName || existing?.productName || productSlug);
   const timestamp = nowIso();
   return {
-    id: clean(input.lineId || existing?.id) || crypto.randomUUID(),
+    id: clean(existing?.id) || crypto.randomUUID(),
     productSlug,
     categorySlug: slug(input.categorySlug || existing?.categorySlug || price.product?.categorySlug || price.product?.metadataJson?.categorySlug),
     productName,
@@ -212,7 +212,9 @@ export async function loadPersistentBasket(request: Request, tenantSlug: string,
 
 export async function addOrUpdateBasketLine(request: Request, tenantSlug: string, storeSlug: string, basketId: string, input: BasketLineInput) {
   let basket = await loadPersistentBasket(request, tenantSlug, storeSlug, basketId, { reprice: false });
-  const existing = input.lineId ? basket.lines.find((line) => line.id === clean(input.lineId)) || null : null;
+  const requestedLineId = clean(input.lineId);
+  const existing = requestedLineId ? basket.lines.find((line) => line.id === requestedLineId) || null : null;
+  if (requestedLineId && !existing) throw new Error('Basket line was not found.');
   const line = await priceLine(request, tenantSlug, input, existing);
   if (existing) basket = { ...basket, lines: basket.lines.map((item) => item.id === existing.id ? line : item) };
   else {
@@ -230,6 +232,7 @@ export async function updateBasketLineArtwork(request: Request, tenantSlug: stri
 
 export async function removeBasketLine(request: Request, tenantSlug: string, storeSlug: string, basketId: string, lineId: string) {
   const basket = await loadPersistentBasket(request, tenantSlug, storeSlug, basketId, { reprice: false });
+  if (!basket.lines.some((line) => line.id === lineId)) throw new Error('Basket line was not found.');
   return savePersistentBasket({ ...basket, lines: basket.lines.filter((line) => line.id !== lineId) });
 }
 

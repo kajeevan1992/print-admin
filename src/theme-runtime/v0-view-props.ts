@@ -1,5 +1,6 @@
 import { createElement } from 'react';
 import BasketHeaderSummary from '@/themes/atlantis-native/BasketHeaderSummary';
+import CustomerAccountHeader from '@/themes/atlantis-native/CustomerAccountHeader';
 import type { NavItem } from '@/themes/atlantis-native/types';
 import type { ThemeCategoryCard, ThemeProductCard } from '@/themes/atlantis-native/catalog-adapter';
 import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
@@ -59,6 +60,7 @@ export function buildV0ThemePageContext(input: {
     content: settings.content,
     layout: settings.layout,
     chromeSlots: {
+      account: createElement(CustomerAccountHeader, { tenantSlug, storeSlug, storeBase, studio: false }),
       basket: createElement(BasketHeaderSummary, { tenantSlug, storeSlug, storeBase, studio: false }),
     },
   };

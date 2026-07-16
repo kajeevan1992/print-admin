@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Edit3, FileText, Trash2 } from 'lucide-react';
 import CartCheckoutForm from './CartCheckoutForm';
-import type { StorefrontBasket } from '@/core/storefront/persistent-basket.service';
+import type { StorefrontBasket, StorefrontBasketArtwork } from '@/core/storefront/persistent-basket.service';
 import type { StorefrontBrandSettings } from '@/theme-runtime/types';
 import { protectedWidgetTheme } from '@/theme-runtime/protected-widget-appearance';
 
@@ -45,7 +45,7 @@ export default function PersistentBasketView({ tenantSlug, storeSlug, storeBase,
     }
   }
 
-  async function saveArtwork(lineId: string, status: string, notes: string) {
+  async function saveArtwork(lineId: string, status: StorefrontBasketArtwork['status'], notes: string) {
     setBusyLine(lineId);
     setError('');
     try {
@@ -60,7 +60,7 @@ export default function PersistentBasketView({ tenantSlug, storeSlug, storeBase,
     }
   }
 
-  function updateLocalArtwork(lineId: string, patch: Record<string, string>) {
+  function updateLocalArtwork(lineId: string, patch: Partial<StorefrontBasketArtwork>) {
     setBasket((current) => ({ ...current, lines: current.lines.map((line) => line.id === lineId ? { ...line, artwork: { ...line.artwork, ...patch } } : line) }));
   }
 
@@ -79,7 +79,7 @@ export default function PersistentBasketView({ tenantSlug, storeSlug, storeBase,
             <div className="mt-1 text-[12px] font-bold" style={widget.styles.muted}>Quantity {line.quantity}{line.delivery ? ` · ${line.delivery}` : ''}{line.sku ? ` · SKU ${line.sku}` : ''}</div>
             {line.selectedOptions.length ? <div className="mt-4 flex flex-wrap gap-2">{line.selectedOptions.map((option) => <span key={`${line.id}-${option.key}`} className="rounded-full border px-3 py-1 text-[11px] font-bold" style={{ borderColor: 'var(--storefront-line, #E3E8F0)', color: 'var(--storefront-muted, #667487)' }}>{option.label}: {option.value}</span>)}</div> : null}
             <div className="mt-5 grid gap-3 sm:grid-cols-[190px_1fr_auto]">
-              <select value={line.artwork.status} onChange={(event) => updateLocalArtwork(line.id, { status: event.target.value })} className={widget.classes.field} style={widget.styles.field}>
+              <select value={line.artwork.status} onChange={(event) => updateLocalArtwork(line.id, { status: event.target.value as StorefrontBasketArtwork['status'] })} className={widget.classes.field} style={widget.styles.field}>
                 <option value="ready">Upload artwork at checkout</option>
                 <option value="send-later">Send artwork later</option>
                 <option value="need-design">Need design help</option>

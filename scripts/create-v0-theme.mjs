@@ -50,4 +50,5 @@ function copy(directory, target) {
 
 copy(source, destination);
 console.log(`Created src/v0-themes/${slug}`);
-console.log('Next: design the package in v0, run pnpm theme:check, then add a reviewed adapter under src/theme-runtime/built-in/.');
+console.log('Next: design the package in v0, increase its manifest version, then run pnpm theme:check and pnpm theme:registry.');
+console.log(`A finished external copy can be reinstalled with: pnpm theme:install <folder-or-zip>`);

@@ -1,4 +1,5 @@
 import { ATLANTIS_THEME_DEFINITION } from '@/theme-runtime/built-in/atlantis';
+import { STUDIO_THEME_DEFINITION } from '@/theme-runtime/built-in/studio';
 import type {
   StorefrontRuntimeContext,
   StorefrontThemeDefinition,
@@ -11,6 +12,7 @@ export const DEFAULT_STOREFRONT_THEME: StorefrontThemeKey = 'atlantis-native';
 
 const BUILT_IN_THEME_DEFINITIONS: StorefrontThemeDefinition[] = [
   ATLANTIS_THEME_DEFINITION,
+  STUDIO_THEME_DEFINITION,
 ];
 
 export const BUILT_IN_STOREFRONT_THEMES: StorefrontThemeManifest[] = BUILT_IN_THEME_DEFINITIONS.map((definition) => definition.manifest);

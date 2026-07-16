@@ -12,7 +12,8 @@ const PUBLIC_PAGES = [
   '/accept-invite',
   '/stores',
   '/theme/atlantis',
-  '/native-stores'
+  '/native-stores',
+  '/theme-preview',
 ];
 function isPublicPage(pathname?: string | null) { return Boolean(pathname && PUBLIC_PAGES.some((page) => pathname === page || pathname.startsWith(`${page}/`))); }
 

@@ -172,6 +172,7 @@ export function ThemesListPage() {
   const selectedStore = admin?.selectedStore || null;
   const revision = admin?.revision || null;
   const hasChanges = localDirty || Boolean(revision?.hasDraftChanges) || Boolean(revision && themeKey !== revision.liveThemeKey);
+  const draftPreviewUrl = selectedStore ? selectedStore.previewUrl.replace('/native-stores/', '/theme-preview/') : '';
 
   const changeValue = (path: string, value: unknown) => {
     setValues((current) => ({ ...current, [path]: value }));
@@ -197,7 +198,7 @@ export function ThemesListPage() {
           ? await themesService.publish(selectedStore.slug, themeKey, values)
           : await themesService.discardDraft(selectedStore.slug);
       applyState(response.data);
-      setNotice(mode === 'save' ? 'Draft saved.' : mode === 'publish' ? 'Theme published to the live storefront.' : 'Draft changes discarded.');
+      setNotice(mode === 'save' ? 'Draft saved. Open Preview saved draft to review it.' : mode === 'publish' ? 'Theme published to the live storefront.' : 'Draft changes discarded.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Theme update failed.');
     } finally {
@@ -209,9 +210,10 @@ export function ThemesListPage() {
     <div>
       <PageHeader
         title="Storefront Themes"
-        subtitle="Choose a registered theme, edit tenant-safe settings, save a draft and publish it to one storefront. Pricing, VAT, products and checkout remain controlled by the SaaS."
+        subtitle="Choose a registered theme, edit tenant-safe settings, save and preview a private draft, then publish it to one storefront. Pricing, VAT, products and checkout remain controlled by the SaaS."
         actions={selectedStore ? <>
-          <Link href={selectedStore.previewUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.018] px-3.5 py-2 text-[12px] font-medium text-text no-underline transition hover:border-white/15 hover:bg-panelMuted"><ExternalLink className="h-4 w-4" />Open storefront</Link>
+          <Link href={selectedStore.previewUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.018] px-3.5 py-2 text-[12px] font-medium text-text no-underline transition hover:border-white/15 hover:bg-panelMuted"><ExternalLink className="h-4 w-4" />Live storefront</Link>
+          <Link href={draftPreviewUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3.5 py-2 text-[12px] font-medium text-amber-100 no-underline transition hover:border-amber-300/50 hover:bg-amber-400/15"><ExternalLink className="h-4 w-4" />Preview saved draft</Link>
           <Button disabled={!hasChanges || Boolean(working)} onClick={() => mutate('save')}><Save className="mr-2 h-4 w-4" />{working === 'save' ? 'Saving…' : 'Save draft'}</Button>
           <PrimaryButton disabled={!selectedTheme || Boolean(working)} onClick={() => mutate('publish')}><Send className="mr-2 h-4 w-4" />{working === 'publish' ? 'Publishing…' : 'Publish'}</PrimaryButton>
         </> : undefined}
@@ -220,6 +222,7 @@ export function ThemesListPage() {
       {loading ? <div className="rounded-2xl border border-white/8 bg-panel p-6 text-sm text-textMuted">Loading storefront theme settings…</div> : null}
       {error ? <div className="mb-5 rounded-2xl border border-red-500/35 bg-red-500/10 p-4 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="mb-5 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-4 text-sm text-emerald-200">{notice}</div> : null}
+      {localDirty ? <div className="mb-5 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">Save the draft before opening the private preview. Unsaved browser changes are never exposed to the storefront runtime.</div> : null}
 
       {!loading && admin && admin.stores.length === 0 ? <EmptyModuleState title="No storefront stores" description="Create a storefront store before assigning and publishing a theme." /> : null}
 
@@ -257,10 +260,11 @@ export function ThemesListPage() {
 
           <section className="flex flex-col gap-3 rounded-2xl border border-white/8 bg-panel p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-sm font-semibold text-white">Draft and publishing</div>
-              <p className="mt-1 text-[12px] leading-5 text-textMuted">Saving a draft does not affect customers. Publish copies the draft into the live runtime settings and increments the version.</p>
+              <div className="text-sm font-semibold text-white">Draft, preview and publishing</div>
+              <p className="mt-1 text-[12px] leading-5 text-textMuted">Save stores a private revision. Preview opens that saved revision with admin-session protection. Publish copies it into the live runtime and increments the version.</p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Link href={draftPreviewUrl} target="_blank" className="inline-flex items-center justify-center rounded-xl border border-amber-400/30 bg-amber-400/10 px-3.5 py-2 text-[12px] font-medium text-amber-100 no-underline"><ExternalLink className="mr-2 h-4 w-4" />Preview saved draft</Link>
               <Button disabled={!hasChanges || Boolean(working)} onClick={() => mutate('discard')}><RotateCcw className="mr-2 h-4 w-4" />{working === 'discard' ? 'Discarding…' : 'Discard draft'}</Button>
               <Button disabled={!hasChanges || Boolean(working)} onClick={() => mutate('save')}><Save className="mr-2 h-4 w-4" />Save draft</Button>
               <PrimaryButton disabled={!selectedTheme || Boolean(working)} onClick={() => mutate('publish')}><Send className="mr-2 h-4 w-4" />Publish theme</PrimaryButton>

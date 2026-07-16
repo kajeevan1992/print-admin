@@ -1,19 +1,29 @@
-import type { StorefrontRuntimeContext, StorefrontThemeKey, StorefrontThemeManifest } from './types';
-import { renderAtlantisStorefront } from './atlantis-renderer';
+import { ATLANTIS_THEME_DEFINITION } from '@/theme-runtime/built-in/atlantis';
+import type {
+  StorefrontRuntimeContext,
+  StorefrontThemeDefinition,
+  StorefrontThemeKey,
+  StorefrontThemeManifest,
+} from './types';
 import { renderUploadedStorefrontTheme } from './uploaded-renderer';
 
-export const DEFAULT_STOREFRONT_THEME: StorefrontThemeKey = 'atlantis-print-hosted';
+export const DEFAULT_STOREFRONT_THEME: StorefrontThemeKey = 'atlantis-native';
 
-export const BUILT_IN_STOREFRONT_THEMES: StorefrontThemeManifest[] = [
-  { key: 'atlantis-print-hosted', name: 'Atlantis Print Hosted', version: '1.0.0', source: 'built-in', description: 'Current print storefront adapter used by the native runtime.' },
-  { key: 'atlantis-native', name: 'Atlantis Native', version: '1.0.0', source: 'built-in', description: 'Native Atlantis renderer while uploaded-theme runtime support is being connected.' },
+const BUILT_IN_THEME_DEFINITIONS: StorefrontThemeDefinition[] = [
+  ATLANTIS_THEME_DEFINITION,
 ];
 
-const SUPPORTED_THEME_KEYS = BUILT_IN_STOREFRONT_THEMES.map((theme) => theme.key);
+export const BUILT_IN_STOREFRONT_THEMES: StorefrontThemeManifest[] = BUILT_IN_THEME_DEFINITIONS.map((definition) => definition.manifest);
+
+function builtInDefinition(value: string | null | undefined) {
+  const key = String(value || '').trim();
+  return BUILT_IN_THEME_DEFINITIONS.find((definition) => (
+    definition.manifest.key === key || definition.manifest.aliases?.includes(key as StorefrontThemeKey)
+  ));
+}
 
 export function normaliseThemeKey(value: string | null | undefined): StorefrontThemeKey {
-  const key = String(value || '').trim() as StorefrontThemeKey;
-  return SUPPORTED_THEME_KEYS.includes(key) ? key : DEFAULT_STOREFRONT_THEME;
+  return builtInDefinition(value)?.manifest.key || DEFAULT_STOREFRONT_THEME;
 }
 
 export function describeThemeSource(value: string | null | undefined) {
@@ -25,7 +35,10 @@ export function getBuiltInStorefrontThemes() {
 }
 
 export function getRegisteredStorefrontThemes(uploadedThemes: StorefrontThemeManifest[] = []) {
-  return [...BUILT_IN_STOREFRONT_THEMES, ...uploadedThemes.filter((theme) => theme?.key && theme?.name && theme?.version)];
+  return [
+    ...BUILT_IN_STOREFRONT_THEMES,
+    ...uploadedThemes.filter((theme) => theme?.key && theme?.name && theme?.version),
+  ];
 }
 
 export function getDefaultStorefrontThemeManifest() {
@@ -33,18 +46,19 @@ export function getDefaultStorefrontThemeManifest() {
 }
 
 export function getStorefrontThemeManifest(value: string | null | undefined, uploadedThemes: StorefrontThemeManifest[] = []) {
-  const key = String(value || normaliseThemeKey(value)).trim();
-  return getRegisteredStorefrontThemes(uploadedThemes).find((theme) => theme.key === key) || BUILT_IN_STOREFRONT_THEMES[0];
+  const requested = String(value || '').trim();
+  const uploaded = uploadedThemes.find((theme) => theme.key === requested);
+  if (uploaded) return uploaded;
+  return builtInDefinition(requested)?.manifest || builtInDefinition(DEFAULT_STOREFRONT_THEME)!.manifest;
+}
+
+export function getStorefrontThemeDefinition(value: string | null | undefined) {
+  return builtInDefinition(value) || builtInDefinition(DEFAULT_STOREFRONT_THEME)!;
 }
 
 export async function renderStorefrontTheme(context: StorefrontRuntimeContext) {
   const activeTheme = context.themeManifest || getStorefrontThemeManifest(context.themeKey, context.uploadedThemes);
-  const activeContext = { ...context, themeManifest: activeTheme };
+  const activeContext = { ...context, themeKey: activeTheme.key, themeManifest: activeTheme };
   if (activeTheme.source === 'uploaded') return renderUploadedStorefrontTheme(activeContext);
-  switch (normaliseThemeKey(activeTheme.key)) {
-    case 'atlantis-native':
-    case 'atlantis-print-hosted':
-    default:
-      return renderAtlantisStorefront(activeContext);
-  }
+  return getStorefrontThemeDefinition(activeTheme.key).renderer(activeContext);
 }

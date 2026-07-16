@@ -93,6 +93,9 @@ export type V0ThemePageContext = {
   navigation: V0ThemeNavigationItem[];
   content: Record<string, unknown>;
   layout: Record<string, unknown>;
+  chromeSlots?: {
+    basket?: ReactNode;
+  };
 };
 
 export type V0ThemeHomeProps = V0ThemePageContext & {

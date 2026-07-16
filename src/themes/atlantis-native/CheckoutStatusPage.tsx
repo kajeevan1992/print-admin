@@ -7,6 +7,7 @@ import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
 import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
 import { buildV0ThemePageContext } from '@/theme-runtime/v0-view-props';
 import { verifyStorefrontPaymentConfirmation } from '@/core/payments/storefront-payment-confirmation.service';
+import { markStripeCheckoutCancelled } from '@/core/payments/stripe.service';
 
 export default async function CheckoutStatusPage({ tenantSlug, storeSlug, storeBase, navItems, status, searchParams = {}, settings, routeViews }: { tenantSlug: string; storeSlug: string; storeBase: string; navItems: NavItem[]; status: 'success' | 'cancel'; searchParams?: Record<string, string>; settings?: StorefrontRuntimeSettings; routeViews?: V0ThemeRouteViews }) {
   const orderId = searchParams.orderId || '';
@@ -15,6 +16,10 @@ export default async function CheckoutStatusPage({ tenantSlug, storeSlug, storeB
   const currentPath = status === 'success' ? '/checkout-success' : '/checkout-cancel';
   const internalRequest = new Request(`https://internal.local${storeBase}${currentPath}`, { headers: { 'x-tenant-id': tenantSlug } });
   const confirmation = await verifyStorefrontPaymentConfirmation(internalRequest, { tenantSlug, storeSlug, orderId, paymentToken, sessionId, page: status });
+  if (status === 'cancel' && confirmation.valid && confirmation.state === 'cancelled') {
+    await markStripeCheckoutCancelled(internalRequest, { orderId: confirmation.orderId, sessionId: confirmation.sessionId, actor: 'verified-storefront-return' }).catch(() => null);
+    confirmation.paymentStatus = 'cancelled';
+  }
   const panel = <PaymentConfirmationPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} orderId={orderId} paymentToken={paymentToken} sessionId={sessionId} page={status} initialConfirmation={confirmation} appearance={settings?.layout?.widgetAppearance} brand={settings?.brand} />;
 
   if (routeViews?.CheckoutStatusPage && settings) {

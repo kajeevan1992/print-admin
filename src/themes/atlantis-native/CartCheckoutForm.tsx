@@ -1,17 +1,17 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { BRAND } from './theme-helpers';
+import type { StorefrontBrandSettings } from '@/theme-runtime/types';
+import { protectedWidgetTheme } from '@/theme-runtime/protected-widget-appearance';
 
 type SelectedOptionRow = { key: string; label: string; value: string; slug: string };
-type Props = { tenantSlug: string; storeSlug: string; productSlug: string; categorySlug: string; productTitle: string; selectedOptions: SelectedOptionRow[]; defaultQuantity: number; selectedDelivery?: string };
+type Props = { tenantSlug: string; storeSlug: string; productSlug: string; categorySlug: string; productTitle: string; selectedOptions: SelectedOptionRow[]; defaultQuantity: number; selectedDelivery?: string; appearance?: unknown; brand?: Partial<StorefrontBrandSettings> };
 type PriceState = { loading: boolean; ok: boolean; formattedPrice?: string; error?: string; snapshot?: Record<string, any> | null };
 type PreflightState = { status?: string; errors?: string[]; warnings?: string[]; customerInstructions?: string; acceptedFileTypes?: string[]; upload?: Record<string, any> | null };
 
 function list(items?: string[]) { return Array.isArray(items) ? items.filter(Boolean) : []; }
-function inputClass() { return 'rounded-2xl border px-4 py-3 text-sm'; }
 
-export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, categorySlug, productTitle, selectedOptions, defaultQuantity, selectedDelivery = '' }: Props) {
+export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, categorySlug, productTitle, selectedOptions, defaultQuantity, selectedDelivery = '', appearance, brand }: Props) {
   const [quantity, setQuantity] = useState(Math.max(1, Number(defaultQuantity || 1)));
   const [delivery, setDelivery] = useState(selectedDelivery || '');
   const [fulfilmentMode, setFulfilmentMode] = useState(selectedDelivery.toLowerCase().includes('deliver') ? 'delivery' : 'collection');
@@ -25,6 +25,8 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
   const priceSnapshotJson = useMemo(() => JSON.stringify(price.snapshot || null), [price.snapshot]);
   const needsDeliveryAddress = fulfilmentMode === 'delivery';
   const showBillingAddress = needsDeliveryAddress && !billingSameAsDelivery;
+  const widget = protectedWidgetTheme(appearance, brand);
+  const fieldClass = `w-full ${widget.classes.field}`;
 
   useEffect(() => {
     let alive = true;
@@ -68,7 +70,7 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
     }
   }
 
-  return <form onSubmit={submitCheckout} action="/api/native-storefront/checkout" method="post" encType="multipart/form-data" className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
+  return <form data-protected-widget="checkout" onSubmit={submitCheckout} action="/api/native-storefront/checkout" method="post" encType="multipart/form-data" className={`${widget.classes.top} ${widget.classes.surface}`} style={{ ...widget.rootStyle, ...widget.styles.surface }}>
     <input type="hidden" name="tenantSlug" value={tenantSlug} />
     <input type="hidden" name="storeSlug" value={storeSlug} />
     <input type="hidden" name="productSlug" value={productSlug} />
@@ -81,64 +83,64 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, productSlug, c
     <input type="hidden" name="billingSameAsDelivery" value={billingSameAsDelivery ? 'true' : 'false'} />
     <input type="hidden" name="priceSnapshot" value={priceSnapshotJson} />
 
-    <div className="text-[18px] font-black" style={{ color: BRAND.ink }}>Checkout details</div>
-    <div className="mt-3 rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}>
-      <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.muted }}>Backend basket total</div>
-      <div className="mt-1 text-[26px] font-black tracking-[-0.05em]" style={{ color: BRAND.ink }}>{price.loading ? 'Checking price…' : price.ok ? price.formattedPrice : 'Price unavailable'}</div>
-      {!price.loading && !price.ok ? <div className="mt-2 text-[12px]" style={{ color: BRAND.muted }}>{price.error}</div> : null}
+    <div className="text-[18px] font-black" style={widget.styles.text}>Checkout details</div>
+    <div className={`${widget.classes.top} ${widget.classes.price}`} style={widget.styles.price}>
+      <div className={widget.classes.label} style={widget.styles.muted}>Backend basket total</div>
+      <div className="mt-1 text-[26px] font-black tracking-[-0.05em]" style={widget.styles.text}>{price.loading ? 'Checking price…' : price.ok ? price.formattedPrice : 'Price unavailable'}</div>
+      {!price.loading && !price.ok ? <div className="mt-2 text-[12px]" style={widget.styles.muted}>{price.error}</div> : null}
     </div>
 
-    <div className="mt-5 rounded-[20px] border p-4" style={{ borderColor: BRAND.line }}>
-      <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Contact</div>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <input required name="customerName" placeholder="Name" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="customerCompany" placeholder="Company / business name (optional)" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input required name="customerEmail" type="email" placeholder="Email" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input required name="customerPhone" type="tel" placeholder="Phone / WhatsApp" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} type="number" min="1" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        {delivery ? <input value={delivery} onChange={(event) => setDelivery(event.target.value)} placeholder="Delivery / turnaround" className={inputClass()} style={{ borderColor: BRAND.line }} /> : null}
+    <div className={`${widget.classes.top} ${widget.classes.section}`} style={widget.styles.section}>
+      <div className={widget.classes.label} style={widget.styles.text}>Contact</div>
+      <div className={`mt-4 grid sm:grid-cols-2 ${widget.classes.gap}`}>
+        <input required name="customerName" placeholder="Name" className={fieldClass} style={widget.styles.field} />
+        <input name="customerCompany" placeholder="Company / business name (optional)" className={fieldClass} style={widget.styles.field} />
+        <input required name="customerEmail" type="email" placeholder="Email" className={fieldClass} style={widget.styles.field} />
+        <input required name="customerPhone" type="tel" placeholder="Phone / WhatsApp" className={fieldClass} style={widget.styles.field} />
+        <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} type="number" min="1" className={fieldClass} style={widget.styles.field} />
+        {delivery ? <input value={delivery} onChange={(event) => setDelivery(event.target.value)} placeholder="Delivery / turnaround" className={fieldClass} style={widget.styles.field} /> : null}
       </div>
     </div>
 
-    <div className="mt-5 rounded-[20px] border p-4" style={{ borderColor: BRAND.line }}>
-      <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Fulfilment</div>
+    <div className={`${widget.classes.top} ${widget.classes.section}`} style={widget.styles.section}>
+      <div className={widget.classes.label} style={widget.styles.text}>Fulfilment</div>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {[["collection", "Collect from store"], ["delivery", "Delivery / courier"]].map(([value, label]) => <label key={value} className="cursor-pointer rounded-[16px] border p-3 text-[12px] font-black" style={{ borderColor: fulfilmentMode === value ? BRAND.primary : BRAND.line, color: fulfilmentMode === value ? BRAND.primary : BRAND.ink, backgroundColor: fulfilmentMode === value ? 'rgba(24,167,208,0.08)' : 'white' }}><input className="mr-2" type="radio" checked={fulfilmentMode === value} onChange={() => setFulfilmentMode(value)} />{label}</label>)}
+        {[["collection", "Collect from store"], ["delivery", "Delivery / courier"]].map(([value, label]) => <label key={value} className={`cursor-pointer ${widget.classes.option}`} style={fulfilmentMode === value ? widget.styles.activeControl : widget.styles.inactiveControl}><input className="mr-2" type="radio" checked={fulfilmentMode === value} onChange={() => setFulfilmentMode(value)} />{label}</label>)}
       </div>
-      {needsDeliveryAddress ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <input required name="deliveryAddress1" placeholder="Delivery address line 1" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="deliveryAddress2" placeholder="Address line 2" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input required name="deliveryTown" placeholder="Town / city" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="deliveryCounty" placeholder="County" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input required name="deliveryPostcode" placeholder="Postcode" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="deliveryCountry" placeholder="Country" defaultValue="United Kingdom" className={inputClass()} style={{ borderColor: BRAND.line }} />
-      </div> : <p className="mt-3 text-[12px]" style={{ color: BRAND.muted }}>We will prepare this order for collection. Your phone number is saved on the job ticket for handover questions.</p>}
-      {needsDeliveryAddress ? <label className="mt-4 flex items-center gap-2 text-[12px] font-bold" style={{ color: BRAND.ink }}><input type="checkbox" checked={billingSameAsDelivery} onChange={(event) => setBillingSameAsDelivery(event.target.checked)} /> Billing address is same as delivery</label> : null}
-      {showBillingAddress ? <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <input required name="billingAddress1" placeholder="Billing address line 1" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="billingAddress2" placeholder="Address line 2" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input required name="billingTown" placeholder="Town / city" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="billingCounty" placeholder="County" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input required name="billingPostcode" placeholder="Postcode" className={inputClass()} style={{ borderColor: BRAND.line }} />
-        <input name="billingCountry" placeholder="Country" defaultValue="United Kingdom" className={inputClass()} style={{ borderColor: BRAND.line }} />
+      {needsDeliveryAddress ? <div className={`mt-4 grid sm:grid-cols-2 ${widget.classes.gap}`}>
+        <input required name="deliveryAddress1" placeholder="Delivery address line 1" className={fieldClass} style={widget.styles.field} />
+        <input name="deliveryAddress2" placeholder="Address line 2" className={fieldClass} style={widget.styles.field} />
+        <input required name="deliveryTown" placeholder="Town / city" className={fieldClass} style={widget.styles.field} />
+        <input name="deliveryCounty" placeholder="County" className={fieldClass} style={widget.styles.field} />
+        <input required name="deliveryPostcode" placeholder="Postcode" className={fieldClass} style={widget.styles.field} />
+        <input name="deliveryCountry" placeholder="Country" defaultValue="United Kingdom" className={fieldClass} style={widget.styles.field} />
+      </div> : <p className="mt-3 text-[12px]" style={widget.styles.muted}>We will prepare this order for collection. Your phone number is saved on the job ticket for handover questions.</p>}
+      {needsDeliveryAddress ? <label className="mt-4 flex items-center gap-2 text-[12px] font-bold" style={widget.styles.text}><input type="checkbox" checked={billingSameAsDelivery} onChange={(event) => setBillingSameAsDelivery(event.target.checked)} /> Billing address is same as delivery</label> : null}
+      {showBillingAddress ? <div className={`mt-4 grid sm:grid-cols-2 ${widget.classes.gap}`}>
+        <input required name="billingAddress1" placeholder="Billing address line 1" className={fieldClass} style={widget.styles.field} />
+        <input name="billingAddress2" placeholder="Address line 2" className={fieldClass} style={widget.styles.field} />
+        <input required name="billingTown" placeholder="Town / city" className={fieldClass} style={widget.styles.field} />
+        <input name="billingCounty" placeholder="County" className={fieldClass} style={widget.styles.field} />
+        <input required name="billingPostcode" placeholder="Postcode" className={fieldClass} style={widget.styles.field} />
+        <input name="billingCountry" placeholder="Country" defaultValue="United Kingdom" className={fieldClass} style={widget.styles.field} />
       </div> : null}
     </div>
 
-    <div className="mt-5 rounded-[20px] border p-4" style={{ borderColor: BRAND.line }}>
-      <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Artwork</div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">{[['ready', 'Upload now'], ['send-later', 'Send later'], ['need-design', 'Need design help']].map(([value, label]) => <label key={value} className="cursor-pointer rounded-[16px] border p-3 text-[12px] font-black" style={{ borderColor: artworkStatus === value ? BRAND.primary : BRAND.line, color: artworkStatus === value ? BRAND.primary : BRAND.ink, backgroundColor: artworkStatus === value ? 'rgba(24,167,208,0.08)' : 'white' }}><input className="mr-2" type="radio" name="artworkStatus" value={value} checked={artworkStatus === value} onChange={() => { setArtworkStatus(value); setCheckoutError(''); setPreflight(null); }} />{label}</label>)}</div>
-      {artworkStatus === 'ready' ? <div className="mt-4"><label className="block text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Upload artwork file</label><input required name="artworkFile" type="file" accept=".pdf,.ai,.eps,.psd,.jpg,.jpeg,.png,.tif,.tiff" className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} /><p className="mt-2 text-[11px]" style={{ color: BRAND.muted }}>We will preflight this file before Stripe payment starts. Blocking issues must be fixed or switched to design help/upload later.</p></div> : null}
-      <textarea name="artworkNotes" placeholder={artworkStatus === 'need-design' ? 'Tell us what design help you need' : 'Artwork notes or instructions'} className="mt-4 min-h-[90px] w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />
+    <div className={`${widget.classes.top} ${widget.classes.section}`} style={widget.styles.section}>
+      <div className={widget.classes.label} style={widget.styles.text}>Artwork</div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">{[['ready', 'Upload now'], ['send-later', 'Send later'], ['need-design', 'Need design help']].map(([value, label]) => <label key={value} className={`cursor-pointer ${widget.classes.option}`} style={artworkStatus === value ? widget.styles.activeControl : widget.styles.inactiveControl}><input className="mr-2" type="radio" name="artworkStatus" value={value} checked={artworkStatus === value} onChange={() => { setArtworkStatus(value); setCheckoutError(''); setPreflight(null); }} />{label}</label>)}</div>
+      {artworkStatus === 'ready' ? <div className="mt-4"><label className={`block ${widget.classes.label}`} style={widget.styles.muted}>Upload artwork file</label><input required name="artworkFile" type="file" accept=".pdf,.ai,.eps,.psd,.jpg,.jpeg,.png,.tif,.tiff" className={`mt-2 ${fieldClass}`} style={widget.styles.field} /><p className="mt-2 text-[11px]" style={widget.styles.muted}>We will preflight this file before Stripe payment starts. Blocking issues must be fixed or switched to design help/upload later.</p></div> : null}
+      <textarea name="artworkNotes" placeholder={artworkStatus === 'need-design' ? 'Tell us what design help you need' : 'Artwork notes or instructions'} className={`mt-4 min-h-[90px] ${fieldClass}`} style={widget.styles.field} />
     </div>
 
-    {checkoutError ? <div className="mt-5 rounded-[18px] border p-4 text-[12px]" style={{ borderColor: '#f59e0b', backgroundColor: '#fffbeb', color: '#92400e' }}>
+    {checkoutError ? <div className={`${widget.classes.top} ${widget.classes.section} text-[12px]`} style={{ borderColor: '#f59e0b', backgroundColor: '#fffbeb', color: '#92400e' }}>
       <div className="font-black">{checkoutError}</div>
       {list(preflight?.errors).length ? <div className="mt-3"><div className="font-black">Issues to fix:</div><ul className="mt-2 list-disc space-y-1 pl-5">{list(preflight?.errors).map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
       {list(preflight?.warnings).length ? <div className="mt-3"><div className="font-black">Warnings:</div><ul className="mt-2 list-disc space-y-1 pl-5">{list(preflight?.warnings).map((item) => <li key={item}>{item}</li>)}</ul></div> : null}
-      <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => { setArtworkStatus('need-design'); setCheckoutError(''); setPreflight(null); }} className="rounded-full px-4 py-2 text-[11px] font-black text-white" style={{ backgroundColor: BRAND.primary }}>Switch to design help</button><button type="button" onClick={() => { setArtworkStatus('send-later'); setCheckoutError(''); setPreflight(null); }} className="rounded-full border px-4 py-2 text-[11px] font-black" style={{ borderColor: BRAND.line, color: BRAND.ink }}>Upload later instead</button></div>
+      <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => { setArtworkStatus('need-design'); setCheckoutError(''); setPreflight(null); }} className={widget.classes.button} style={widget.styles.primaryButton}>Switch to design help</button><button type="button" onClick={() => { setArtworkStatus('send-later'); setCheckoutError(''); setPreflight(null); }} className={`border ${widget.classes.button}`} style={widget.styles.secondaryButton}>Upload later instead</button></div>
     </div> : null}
 
-    <button disabled={!price.ok || submitting} className="mt-5 w-full rounded-full px-5 py-3 text-[12px] font-black text-white disabled:opacity-50" style={{ backgroundColor: BRAND.primary }}>{submitting ? 'Checking checkout…' : 'Continue to checkout'}</button>
-    <p className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>Price, tax, contact details, fulfilment and artwork are handled by backend services before payment.</p>
+    <button disabled={!price.ok || submitting} className={`${widget.classes.top} w-full text-white disabled:opacity-50 ${widget.classes.button}`} style={widget.styles.primaryButton}>{submitting ? 'Checking checkout…' : 'Continue to checkout'}</button>
+    <p className="mt-4 text-[12px]" style={widget.styles.muted}>Price, tax, contact details, fulfilment and artwork are handled by backend services before payment.</p>
   </form>;
 }

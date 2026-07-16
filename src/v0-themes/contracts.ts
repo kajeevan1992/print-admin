@@ -10,12 +10,25 @@ export type V0ThemeField = {
   options?: Array<{ label: string; value: string }>;
 };
 
+export type V0ThemeWidgetAppearance = {
+  surface?: 'card' | 'soft' | 'flat';
+  density?: 'compact' | 'comfortable' | 'spacious';
+  radius?: 'small' | 'medium' | 'large';
+  optionStyle?: 'auto' | 'cards' | 'pills' | 'segments';
+  fieldStyle?: 'outline' | 'filled' | 'underline';
+  buttonStyle?: 'pill' | 'rounded' | 'square';
+  priceStyle?: 'panel' | 'highlight' | 'minimal';
+  shadow?: 'none' | 'soft' | 'strong';
+  labelStyle?: 'normal' | 'uppercase';
+};
+
 export type V0ThemePackageManifest = {
   key: string;
   aliases?: string[];
   name: string;
   version: string;
   description: string;
+  widgetAppearance?: V0ThemeWidgetAppearance;
   editor: {
     content: V0ThemeField[];
     settings: V0ThemeField[];

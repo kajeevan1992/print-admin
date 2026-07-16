@@ -1,14 +1,25 @@
 import type { ComponentType } from 'react';
 import { renderAtlantisStorefront } from '@/theme-runtime/atlantis-renderer';
 import type { StorefrontRuntimeContext, StorefrontRuntimeSettings } from '@/theme-runtime/types';
-import type { V0ThemeHomeProps, V0ThemeRouteViews } from '@/v0-themes/contracts';
+import type { V0ThemeHomeProps, V0ThemeRouteViews, V0ThemeWidgetAppearance } from '@/v0-themes/contracts';
 import { buildV0ThemePageContext, themeCategoryToV0, themeProductToV0 } from '@/theme-runtime/v0-view-props';
+import { mergeProtectedWidgetAppearance } from '@/theme-runtime/protected-widget-appearance';
 
-function packageSettings(settings: StorefrontRuntimeSettings, themeKey: string, themeStyle: string): StorefrontRuntimeSettings {
+function packageSettings(
+  settings: StorefrontRuntimeSettings,
+  themeKey: string,
+  themeStyle: string,
+  widgetAppearance?: V0ThemeWidgetAppearance,
+): StorefrontRuntimeSettings {
+  const storedAppearance = settings.layout?.widgetAppearance;
   return {
     ...settings,
     themeKey,
-    layout: { ...settings.layout, themeStyle },
+    layout: {
+      ...settings.layout,
+      themeStyle,
+      widgetAppearance: mergeProtectedWidgetAppearance(widgetAppearance, storedAppearance),
+    },
   };
 }
 
@@ -31,10 +42,11 @@ export async function renderV0ThemePackage(
     themeStyle: string;
     HomePage: ComponentType<V0ThemeHomeProps>;
     routeViews?: V0ThemeRouteViews;
+    widgetAppearance?: V0ThemeWidgetAppearance;
   },
 ) {
   if (!context.settings) return renderAtlantisStorefront(context);
-  const settings = packageSettings(context.settings, options.themeKey, options.themeStyle);
+  const settings = packageSettings(context.settings, options.themeKey, options.themeStyle, options.widgetAppearance);
   const packageContext = { ...context, settings, themeKey: options.themeKey, routeViews: options.routeViews } as StorefrontRuntimeContext;
   if (!context.routeSegments.length) {
     const HomePage = options.HomePage;

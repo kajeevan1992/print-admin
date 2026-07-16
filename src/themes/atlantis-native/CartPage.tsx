@@ -77,7 +77,7 @@ export default async function CartPage({ tenantSlug = '', storeSlug = '', storeB
   const selectedDelivery = product ? deliveryFromRows(product.deliveryRows, searchParams) : '';
   const configuredProductHref = product ? `${storeBase}/${product.category}/${product.slug}${optionQuery(selectedRows, defaultQuantity, selectedDelivery)}` : '';
   const publishedProduct = product ? products.find((item) => item.slug === product.slug) : undefined;
-  const checkout = product ? <CartCheckoutForm tenantSlug={tenantSlug} storeSlug={storeSlug} productSlug={product.slug} categorySlug={product.category} productTitle={product.title} selectedOptions={selectedRows} defaultQuantity={defaultQuantity} selectedDelivery={selectedDelivery} /> : undefined;
+  const checkout = product ? <CartCheckoutForm tenantSlug={tenantSlug} storeSlug={storeSlug} productSlug={product.slug} categorySlug={product.category} productTitle={product.title} selectedOptions={selectedRows} defaultQuantity={defaultQuantity} selectedDelivery={selectedDelivery} appearance={settings?.layout?.widgetAppearance} brand={settings?.brand} /> : undefined;
 
   if (routeViews?.CartPage && settings) {
     const View = routeViews.CartPage;

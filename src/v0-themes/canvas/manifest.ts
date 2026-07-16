@@ -1,11 +1,32 @@
 import type { V0ThemePackageManifest } from '../contracts';
 
+const surfaceOptions = [{ label: 'Theme default', value: '' }, { label: 'Card', value: 'card' }, { label: 'Soft', value: 'soft' }, { label: 'Flat', value: 'flat' }];
+const densityOptions = [{ label: 'Theme default', value: '' }, { label: 'Compact', value: 'compact' }, { label: 'Comfortable', value: 'comfortable' }, { label: 'Spacious', value: 'spacious' }];
+const radiusOptions = [{ label: 'Theme default', value: '' }, { label: 'Small', value: 'small' }, { label: 'Medium', value: 'medium' }, { label: 'Large', value: 'large' }];
+const optionOptions = [{ label: 'Theme default', value: '' }, { label: 'Automatic', value: 'auto' }, { label: 'Cards', value: 'cards' }, { label: 'Pills', value: 'pills' }, { label: 'Segments', value: 'segments' }];
+const fieldOptions = [{ label: 'Theme default', value: '' }, { label: 'Outline', value: 'outline' }, { label: 'Filled', value: 'filled' }, { label: 'Underline', value: 'underline' }];
+const buttonOptions = [{ label: 'Theme default', value: '' }, { label: 'Pill', value: 'pill' }, { label: 'Rounded', value: 'rounded' }, { label: 'Square', value: 'square' }];
+const priceOptions = [{ label: 'Theme default', value: '' }, { label: 'Panel', value: 'panel' }, { label: 'Highlight', value: 'highlight' }, { label: 'Minimal', value: 'minimal' }];
+const shadowOptions = [{ label: 'Theme default', value: '' }, { label: 'None', value: 'none' }, { label: 'Soft', value: 'soft' }, { label: 'Strong', value: 'strong' }];
+const labelOptions = [{ label: 'Theme default', value: '' }, { label: 'Normal', value: 'normal' }, { label: 'Uppercase', value: 'uppercase' }];
+
 export const CANVAS_V0_MANIFEST = {
   key: 'canvas-native',
   aliases: ['canvas'],
   name: 'Canvas',
-  version: '1.0.0',
+  version: '1.1.0',
   description: 'A clean, spacious storefront created through the restricted v0 presentation contract.',
+  widgetAppearance: {
+    surface: 'card',
+    density: 'comfortable',
+    radius: 'large',
+    optionStyle: 'cards',
+    fieldStyle: 'filled',
+    buttonStyle: 'pill',
+    priceStyle: 'highlight',
+    shadow: 'soft',
+    labelStyle: 'uppercase',
+  },
   editor: {
     content: [
       { path: 'brand.brandName', label: 'Store name', type: 'text', group: 'Brand' },
@@ -26,6 +47,15 @@ export const CANVAS_V0_MANIFEST = {
         { label: 'Small', value: 'small' },
         { label: 'Large', value: 'large' },
       ] },
+      { path: 'layout.widgetAppearance.surface', label: 'Widget surface', type: 'select', group: 'Configurator', options: surfaceOptions },
+      { path: 'layout.widgetAppearance.density', label: 'Widget spacing', type: 'select', group: 'Configurator', options: densityOptions },
+      { path: 'layout.widgetAppearance.radius', label: 'Widget corner radius', type: 'select', group: 'Configurator', options: radiusOptions },
+      { path: 'layout.widgetAppearance.optionStyle', label: 'Option control style', type: 'select', group: 'Configurator', options: optionOptions },
+      { path: 'layout.widgetAppearance.fieldStyle', label: 'Form field style', type: 'select', group: 'Configurator', options: fieldOptions },
+      { path: 'layout.widgetAppearance.buttonStyle', label: 'Primary button shape', type: 'select', group: 'Configurator', options: buttonOptions },
+      { path: 'layout.widgetAppearance.priceStyle', label: 'Price presentation', type: 'select', group: 'Configurator', options: priceOptions },
+      { path: 'layout.widgetAppearance.shadow', label: 'Widget shadow', type: 'select', group: 'Configurator', options: shadowOptions },
+      { path: 'layout.widgetAppearance.labelStyle', label: 'Widget labels', type: 'select', group: 'Configurator', options: labelOptions },
       { path: 'layout.showSearch', label: 'Show search', type: 'boolean', group: 'Header' },
       { path: 'layout.showCollectionPoints', label: 'Show collection selector', type: 'boolean', group: 'Header' },
       { path: 'layout.showCustomerAccount', label: 'Show customer account', type: 'boolean', group: 'Header' },

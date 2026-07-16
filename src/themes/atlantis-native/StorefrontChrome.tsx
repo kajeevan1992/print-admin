@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
 import Link from 'next/link';
-import { ShoppingCart, User } from 'lucide-react';
+import { User } from 'lucide-react';
 import type { NavItem } from './types';
 import { BRAND, storeHref } from './theme-helpers';
 import FulfillmentSelector from './FulfillmentSelector';
@@ -8,6 +8,7 @@ import HeaderMobileButton from './HeaderMobileButton';
 import SearchTrigger from './SearchTrigger';
 import SearchHost from './SearchHost';
 import ChromeFooter from './ChromeFooter';
+import BasketHeaderSummary from './BasketHeaderSummary';
 import { loadCollectionPoints, type CollectionPoint } from './collection-points';
 import { loadStorefrontRuntimeSettings, type StorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 
@@ -55,7 +56,8 @@ function Header({ currentPath = '/', navItems, storeBase, settings, collectionPo
   const showSearch = settings.layout?.showSearch !== false;
   const showFulfilment = settings.layout?.showCollectionPoints !== false;
   const showAccount = settings.layout?.showCustomerAccount === true;
-  return <header className="sticky top-0 z-40 border-b backdrop-blur transition-all duration-300" style={{ borderColor: studio ? 'rgba(255,255,255,0.12)' : BRAND.line, backgroundColor: studio ? 'rgba(17,19,21,0.96)' : 'rgba(255,255,255,0.95)' }}><Shell><div className="grid h-[74px] grid-cols-[auto_1fr_auto] items-center gap-6"><div className="flex items-center gap-3"><HeaderMobileButton navItems={navItems} storeBase={storeBase} /><Link href={storeBase} className="flex items-center gap-0.5 no-underline"><StorefrontLogo settings={settings} studio={studio} /></Link></div><nav className="hidden items-center justify-center gap-4 xl:flex">{navItems.map((item) => { const active = currentPath === item.path || currentPath.startsWith(`${item.path}/`); return <Link key={`${item.label}-${item.path}`} href={storeHref(storeBase, item.path)} className="text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: active ? BRAND.primary : studio ? 'rgba(255,255,255,0.78)' : BRAND.ink }}>{item.label}</Link>; })}</nav><div className="ml-auto flex items-center gap-2">{showFulfilment ? <FulfillmentSelector compact collectionPoints={collectionPoints} /> : null}{showSearch ? <SearchTrigger /> : null}{showAccount ? <Link href={`${storeBase}/login`} aria-label="Customer account"><IconButton studio={studio} icon={<User className="h-4 w-4" />} /></Link> : null}<Link href={`${storeBase}/cart`} className="flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold no-underline" style={{ borderColor: studio ? 'rgba(255,255,255,0.18)' : BRAND.line, color: studio ? 'white' : BRAND.muted, backgroundColor: studio ? 'rgba(255,255,255,0.08)' : 'white' }}><ShoppingCart className="h-4 w-4" /><span>Basket</span></Link></div></div></Shell>{showSearch ? <SearchHost navItems={navItems} storeBase={storeBase} /> : null}</header>;
+  const { tenantSlug, storeSlug } = storeParts(storeBase);
+  return <header className="sticky top-0 z-40 border-b backdrop-blur transition-all duration-300" style={{ borderColor: studio ? 'rgba(255,255,255,0.12)' : BRAND.line, backgroundColor: studio ? 'rgba(17,19,21,0.96)' : 'rgba(255,255,255,0.95)' }}><Shell><div className="grid h-[74px] grid-cols-[auto_1fr_auto] items-center gap-6"><div className="flex items-center gap-3"><HeaderMobileButton navItems={navItems} storeBase={storeBase} /><Link href={storeBase} className="flex items-center gap-0.5 no-underline"><StorefrontLogo settings={settings} studio={studio} /></Link></div><nav className="hidden items-center justify-center gap-4 xl:flex">{navItems.map((item) => { const active = currentPath === item.path || currentPath.startsWith(`${item.path}/`); return <Link key={`${item.label}-${item.path}`} href={storeHref(storeBase, item.path)} className="text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: active ? BRAND.primary : studio ? 'rgba(255,255,255,0.78)' : BRAND.ink }}>{item.label}</Link>; })}</nav><div className="ml-auto flex items-center gap-2">{showFulfilment ? <FulfillmentSelector compact collectionPoints={collectionPoints} /> : null}{showSearch ? <SearchTrigger /> : null}{showAccount ? <Link href={`${storeBase}/login`} aria-label="Customer account"><IconButton studio={studio} icon={<User className="h-4 w-4" />} /></Link> : null}<BasketHeaderSummary tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} studio={studio} /></div></div></Shell>{showSearch ? <SearchHost navItems={navItems} storeBase={storeBase} /> : null}</header>;
 }
 
 export default async function StorefrontChrome({ currentPath = '/', children, navItems, storeBase, settings: suppliedSettings }: { currentPath?: string; children: ReactNode; navItems: NavItem[]; storeBase: string; settings?: StorefrontRuntimeSettings }) {

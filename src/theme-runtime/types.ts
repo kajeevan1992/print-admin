@@ -100,7 +100,7 @@ export type StorefrontRuntimeSettings = {
   storeSlug: string;
   storeName: string;
   storeStatus: string;
-  storeFound: boolean;
+  storeFound?: boolean;
   themeKey: string;
   brand: StorefrontBrandSettings;
   content: Record<string, any>;
@@ -132,7 +132,7 @@ export type StorefrontRuntimeContext = {
   products: StorefrontProductCard[];
   categories?: StorefrontCategoryCard[];
   collectionPoints?: StorefrontCollectionPoint[];
-  settings: StorefrontRuntimeSettings;
+  settings?: StorefrontRuntimeSettings;
 };
 
 export type StorefrontThemeRenderer = (context: StorefrontRuntimeContext) => Promise<ReactNode> | ReactNode;

@@ -162,16 +162,16 @@ export async function POST(request: NextRequest) {
       source: 'persistent-native-storefront-basket',
       storeName: storeSlug,
       notes: `Persistent native storefront basket order with ${basket.lineCount} line(s).`,
-      internalNotes: [`Created from persistent basket ${basket.id} for ${tenantSlug}/${storeSlug}.`, `Customer phone: ${customerPhone}.`, customerCompany ? `Company: ${customerCompany}.` : '', `Fulfilment: ${fulfilmentMode}.`, fulfilmentSnapshot.deliveryAddressLine ? `Delivery address: ${fulfilmentSnapshot.deliveryAddressLine}.` : '', `Basket was repriced server-side immediately before order creation.`, `Mixed VAT remains enforced per order line.`].filter(Boolean),
+      internalNotes: [`Created from persistent basket ${basket.id} for ${tenantSlug}/${storeSlug}.`, `Customer phone: ${customerPhone}.`, customerCompany ? `Company: ${customerCompany}.` : '', `Fulfilment: ${fulfilmentMode}.`, fulfilmentSnapshot.deliveryAddressLine ? `Delivery address: ${fulfilmentSnapshot.deliveryAddressLine}.` : '', 'Basket was repriced server-side immediately before order creation.', 'Mixed VAT remains enforced per order line.'].filter(Boolean),
       items: orderItems,
       artworkUploadIds: orderItems.map((item) => item.artworkUploadId).filter(Boolean),
       rawCheckout: { basketId: basket.id, tenantSlug, storeSlug, contact: contactSnapshot, fulfilment: fulfilmentSnapshot, totals: { netMinor: basket.netMinor, vatMinor: basket.vatMinor, grossMinor: basket.grossMinor }, lineCount: basket.lineCount, itemCount: basket.itemCount },
-      resolver: { basketId: basket.id, source: 'persistent-storefront-basket' },
+      resolver: { basketId: basket.id, tenantSlug, storeSlug, source: 'persistent-storefront-basket' },
     });
 
     await Promise.all(basket.lines.map(async (line) => {
       const artwork = artworkResults.get(line.id);
-      return upsertArtworkProductionTicket({ ctx: tenantCtx, orderId: order.id, orderNumber, customerName, customerEmail, customerPhone, productName: line.productName, productSlug: line.productSlug, categorySlug: line.categorySlug, quantity: line.quantity, selectedDelivery: line.delivery, fulfilmentMode, deliveryAddress: fulfilmentSnapshot.deliveryAddress, billingAddress, artworkStatus: line.artwork.status, artworkNotes: line.artwork.notes, upload: artwork?.upload || null, priceMinor: line.grossMinor, paymentStatus: 'pending', paymentProvider: 'stripe', orderStatus: 'AWAITING_PAYMENT' }).catch(() => null);
+      return upsertArtworkProductionTicket({ ctx: tenantCtx, orderId: order.id, orderNumber, lineId: line.id, customerName, customerEmail, customerPhone, productName: line.productName, productSlug: line.productSlug, categorySlug: line.categorySlug, quantity: line.quantity, selectedDelivery: line.delivery, fulfilmentMode, deliveryAddress: fulfilmentSnapshot.deliveryAddress, billingAddress, artworkStatus: line.artwork.status, artworkNotes: line.artwork.notes, upload: artwork?.upload || null, priceMinor: line.grossMinor, paymentStatus: 'pending', paymentProvider: 'stripe', orderStatus: 'AWAITING_PAYMENT' }).catch(() => null);
     }));
 
     const origin = new URL(request.url).origin;

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ArrowRight, CheckCircle2, PackageCheck, ShoppingBag, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, PackageCheck, ShoppingBag, XCircle } from 'lucide-react';
 import type {
   V0ThemeCartPageProps,
   V0ThemeCategoryPageProps,
@@ -53,9 +53,7 @@ function CartPageView(props: V0ThemeCartPageProps) {
 }
 
 function CheckoutStatusPageView(props: V0ThemeCheckoutStatusPageProps) {
-  const success = props.status === 'success';
-  const Icon = success ? CheckCircle2 : XCircle;
-  return <PageShell page={props}><section className="py-16"><div className="mx-auto w-full max-w-[900px] px-5 md:px-8"><div className="rounded-[30px] border bg-white p-10 text-center" style={{ borderColor: props.brand.border }}><Icon className="mx-auto h-12 w-12" style={{ color: success ? '#16a34a' : props.brand.primary }} /><div className="mt-5 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{success ? 'Payment success' : 'Payment cancelled'}</div><h1 className="mt-3 text-[44px] font-black leading-[0.96] tracking-[-0.065em]">{success ? 'Thank you — your order has been created' : 'Payment was not completed'}</h1><p className="mx-auto mt-4 max-w-[660px] text-[14px] leading-8" style={{ color: props.brand.muted }}>{success ? 'The order is now available inside the print administration system.' : 'You can return to the basket and try payment again.'}</p>{props.orderId ? <div className="mx-auto mt-6 max-w-[520px] rounded-[18px] border p-4 text-sm font-bold" style={{ borderColor: props.brand.border }}>Order reference: {props.orderId}</div> : null}<div className="mt-8 flex flex-wrap justify-center gap-3"><Link href={props.basePath} className="rounded-full px-6 py-3 text-[12px] font-black text-white no-underline" style={{ backgroundColor: props.brand.primary }}>Continue shopping</Link><Link href={`${props.basePath}/cart`} className="rounded-full border px-6 py-3 text-[12px] font-black no-underline" style={{ borderColor: props.brand.border, color: props.brand.text }}>Back to basket</Link></div></div></div></section></PageShell>;
+  return <PageShell page={props}><section className="py-12"><div className="mx-auto w-full max-w-[960px] px-5 md:px-8"><div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{props.payment.verified ? 'Verified payment status' : 'Secure payment status'}</div><h1 className="mt-3 text-[46px] font-black tracking-[-0.065em]">Payment confirmation</h1><p className="mt-4 max-w-[760px] text-[14px] leading-8" style={{ color: props.brand.muted }}>{props.payment.message}</p><div className="mt-8">{props.slots.status}</div></div></section></PageShell>;
 }
 
 export const CANVAS_ROUTE_VIEWS: V0ThemeRouteViews = {

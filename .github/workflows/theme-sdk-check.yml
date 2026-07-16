@@ -10,6 +10,10 @@ on:
       - 'src/services/themes.service.ts'
       - 'src/theme-runtime/**'
       - 'src/themes/**'
+      - 'src/v0-themes/**'
+      - 'scripts/create-v0-theme.mjs'
+      - 'scripts/validate-v0-themes.mjs'
+      - 'package.json'
       - '.github/workflows/theme-sdk-check.yml'
   workflow_dispatch:
 
@@ -36,6 +40,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Validate v0 theme boundaries
+        run: pnpm theme:check
 
       - name: Build
         run: pnpm build

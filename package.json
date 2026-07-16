@@ -9,6 +9,9 @@
     "lint": "next lint",
     "theme:check": "node scripts/validate-v0-themes.mjs",
     "theme:create": "node scripts/create-v0-theme.mjs",
+    "theme:install": "node scripts/install-v0-theme.mjs",
+    "theme:registry": "node scripts/sync-v0-theme-registry.mjs",
+    "theme:registry:check": "node scripts/sync-v0-theme-registry.mjs --check",
     "prisma:generate": "node scripts/prisma-generate-with-db-env.cjs",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
@@ -30,7 +33,7 @@
     "nodemailer": "^6.9.16",
     "pg": "^8.13.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^18.3.7",
     "recharts": "^2.15.4",
     "stripe": "^17.7.0"
   },

@@ -169,10 +169,10 @@ export async function POST(request: NextRequest) {
       resolver: { basketId: basket.id, tenantSlug, storeSlug, source: 'persistent-storefront-basket' },
     });
 
-    await Promise.all(basket.lines.map(async (line) => {
+    for (const line of basket.lines) {
       const artwork = artworkResults.get(line.id);
-      return upsertArtworkProductionTicket({ ctx: tenantCtx, orderId: order.id, orderNumber, lineId: line.id, customerName, customerEmail, customerPhone, productName: line.productName, productSlug: line.productSlug, categorySlug: line.categorySlug, quantity: line.quantity, selectedDelivery: line.delivery, fulfilmentMode, deliveryAddress: fulfilmentSnapshot.deliveryAddress, billingAddress, artworkStatus: line.artwork.status, artworkNotes: line.artwork.notes, upload: artwork?.upload || null, priceMinor: line.grossMinor, paymentStatus: 'pending', paymentProvider: 'stripe', orderStatus: 'AWAITING_PAYMENT' }).catch(() => null);
-    }));
+      await upsertArtworkProductionTicket({ ctx: tenantCtx, orderId: order.id, orderNumber, lineId: line.id, customerName, customerEmail, customerPhone, productName: line.productName, productSlug: line.productSlug, categorySlug: line.categorySlug, quantity: line.quantity, selectedDelivery: line.delivery, fulfilmentMode, deliveryAddress: fulfilmentSnapshot.deliveryAddress, billingAddress, artworkStatus: line.artwork.status, artworkNotes: line.artwork.notes, upload: artwork?.upload || null, priceMinor: line.grossMinor, paymentStatus: 'pending', paymentProvider: 'stripe', orderStatus: 'AWAITING_PAYMENT' }).catch(() => null);
+    }
 
     const origin = new URL(request.url).origin;
     const storeBase = `/native-stores/${tenantSlug}/${storeSlug}`;

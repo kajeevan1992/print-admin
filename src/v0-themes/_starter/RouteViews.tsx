@@ -30,7 +30,7 @@ function CartPage(props: V0ThemeCartPageProps) {
 }
 
 function CheckoutStatusPage(props: V0ThemeCheckoutStatusPageProps) {
-  return shell(props, <main className="mx-auto w-full max-w-[900px] px-5 py-16 text-center md:px-8"><h1 className="text-[44px] font-black tracking-[-0.06em]">{props.status === 'success' ? 'Order created' : 'Payment cancelled'}</h1>{props.orderId ? <p className="mt-4">Order reference: {props.orderId}</p> : null}</main>);
+  return shell(props, <main className="mx-auto w-full max-w-[960px] px-5 py-12 md:px-8"><div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: props.brand.primary }}>{props.payment.verified ? 'Verified payment status' : 'Secure payment status'}</div><h1 className="mt-3 text-[44px] font-black tracking-[-0.06em]">Payment confirmation</h1><p className="mt-4 text-sm" style={{ color: props.brand.muted }}>{props.payment.message}</p><div className="mt-8">{props.slots.status}</div></main>);
 }
 
 export const __THEME_NAME_UPPER___ROUTE_VIEWS: V0ThemeRouteViews = {

@@ -1,11 +1,14 @@
-name: Theme SDK check
+name: Theme and storefront safety check
 
 on:
   pull_request:
     paths:
       - 'app/native-stores/**'
       - 'app/theme-preview/**'
+      - 'app/api/native-storefront/**'
+      - 'app/api/webhooks/stripe/**'
       - 'src/components/layout/app-frame.tsx'
+      - 'src/core/payments/**'
       - 'src/modules/themes/**'
       - 'src/services/themes.service.ts'
       - 'src/theme-runtime/**'
@@ -16,6 +19,7 @@ on:
       - 'scripts/sync-v0-theme-registry.mjs'
       - 'scripts/validate-v0-themes.mjs'
       - 'package.json'
+      - '.env.example'
       - '.github/workflows/theme-sdk-check.yml'
   workflow_dispatch:
 

@@ -4,8 +4,9 @@ import { queueOrderCustomerEmail } from '@/core/email/order-notifications.servic
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 import { canCreatePaymentSessionForOrder } from '@/core/payments/payment-rules';
+import { buildStorefrontPaymentReturnUrls, storefrontContextFromReturnUrl } from '@/core/payments/storefront-payment-token';
 
-type StripeSessionInput = { orderId: string; successUrl?: string; cancelUrl?: string; customerEmail?: string };
+type StripeSessionInput = { orderId: string; successUrl?: string; cancelUrl?: string; customerEmail?: string; tenantSlug?: string; storeSlug?: string; basketId?: string };
 type StripeRefundInput = { orderId: string; amountMinor?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer'; note?: string; actor?: string };
 type StripeEvent = { id?: string; type?: string; data?: { object?: any } };
 
@@ -77,38 +78,14 @@ async function syncDesignQuotePayment(request: Request, object: any, eventType: 
   const paid = status === 'paid';
   const failed = ['failed', 'cancelled'].includes(status);
   const note = paid ? `Stripe design quote paid. Event: ${eventType}.` : failed ? `Stripe design quote payment ${status}. Event: ${eventType}.` : `Stripe design quote payment update: ${status}. Event: ${eventType}.`;
-  const updatedBrief = {
-    ...current,
-    designQuotePaymentStatus: status,
-    designQuotePaidAt: paid ? at : current.designQuotePaidAt || '',
-    designQuoteStatus: paid ? 'approved-to-design' : failed ? 'quote-sent' : current.designQuoteStatus || 'quote-sent',
-    stripeDesignQuoteSessionId: sessionId || current.stripeDesignQuoteSessionId || '',
-    stripeDesignQuotePaymentIntentId: paymentIntentId || current.stripeDesignQuotePaymentIntentId || '',
-    updatedAt: at,
-    history: [{ at, action: paid ? 'design-quote-paid' : `design-quote-${status}`, note, stripeSessionId: sessionId, stripePaymentIntentId: paymentIntentId }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 100),
-  };
+  const updatedBrief = { ...current, designQuotePaymentStatus: status, designQuotePaidAt: paid ? at : current.designQuotePaidAt || '', designQuoteStatus: paid ? 'approved-to-design' : failed ? 'quote-sent' : current.designQuoteStatus || 'quote-sent', stripeDesignQuoteSessionId: sessionId || current.stripeDesignQuoteSessionId || '', stripeDesignQuotePaymentIntentId: paymentIntentId || current.stripeDesignQuotePaymentIntentId || '', updatedAt: at, history: [{ at, action: paid ? 'design-quote-paid' : `design-quote-${status}`, note, stripeSessionId: sessionId, stripePaymentIntentId: paymentIntentId }, ...(Array.isArray(current.history) ? current.history : [])].slice(0, 100) };
   await writeDesignBriefs(scopedRequest, briefs.map((brief) => String(brief.id) === String(current.id) ? updatedBrief : brief));
   const tickets = await readTickets(scopedRequest).catch(() => []);
   let ticketUpdated = false;
   const nextTickets = tickets.map((ticket) => {
     if (!designTicketMatch(ticket, updatedBrief)) return ticket;
     ticketUpdated = true;
-    return {
-      ...ticket,
-      designBriefId: updatedBrief.id,
-      designBriefStatus: 'submitted',
-      designQuoteStatus: paid ? 'approved-to-design' : ticket.designQuoteStatus || 'quote-sent',
-      designQuotePaymentStatus: status,
-      designQuotePaidAt: paid ? at : ticket.designQuotePaidAt || '',
-      stripeDesignQuoteSessionId: sessionId || ticket.stripeDesignQuoteSessionId || '',
-      stripeDesignQuotePaymentIntentId: paymentIntentId || ticket.stripeDesignQuotePaymentIntentId || '',
-      status: paid ? 'design-ready' : ticket.status || 'artwork-check',
-      artworkStatus: paid ? 'design-ready' : ticket.artworkStatus || 'design-brief-submitted',
-      handoffState: 'blocked',
-      blockReason: paid ? 'Design quote paid. Design can start; print production remains blocked until final design proof is approved.' : ticket.blockReason || 'Waiting for design quote payment.',
-      productionNotes: [ticket.productionNotes, note].filter(Boolean).join(' '),
-      updatedAt: at,
-    };
+    return { ...ticket, designBriefId: updatedBrief.id, designBriefStatus: 'submitted', designQuoteStatus: paid ? 'approved-to-design' : ticket.designQuoteStatus || 'quote-sent', designQuotePaymentStatus: status, designQuotePaidAt: paid ? at : ticket.designQuotePaidAt || '', stripeDesignQuoteSessionId: sessionId || ticket.stripeDesignQuoteSessionId || '', stripeDesignQuotePaymentIntentId: paymentIntentId || ticket.stripeDesignQuotePaymentIntentId || '', status: paid ? 'design-ready' : ticket.status || 'artwork-check', artworkStatus: paid ? 'design-ready' : ticket.artworkStatus || 'design-brief-submitted', handoffState: 'blocked', blockReason: paid ? 'Design quote paid. Design can start; print production remains blocked until final design proof is approved.' : ticket.blockReason || 'Waiting for design quote payment.', productionNotes: [ticket.productionNotes, note].filter(Boolean).join(' '), updatedAt: at };
   });
   if (ticketUpdated) await writeTickets(scopedRequest, nextTickets);
   return { ok: true, source: 'stripe-design-quote-sync', paid, failed, status, brief: updatedBrief, ticketUpdated, tenantId: stripeObjectTenantId(object) || '' };
@@ -124,8 +101,7 @@ async function queuePaymentReceivedNotification(request: Request, order: any, so
 async function readWebhookEvents(request: Request) { return readConfigItems(request, WEBHOOK_EVENTS_KEY); }
 async function writeWebhookEvents(request: Request, events: Record<string, any>[]) { return upsertInternalCatalogRecord(tenantContextFromRequest(request), CONFIG_RESOURCE, { id: WEBHOOK_EVENTS_KEY, slug: WEBHOOK_EVENTS_KEY, name: 'Stripe Webhook Events', description: 'Recent Stripe webhook events processed for payment lifecycle idempotency', metadataJson: { events: events.slice(0, 100), savedAt: nowIso(), storageKey: WEBHOOK_EVENTS_KEY, source: 'stripe-webhook' } } as any); }
 export async function checkStripeWebhookEventProcessed(request: Request, eventId?: string, object?: any) { const scoped = requestWithStripeTenant(request, object || {}); const id = String(eventId || '').trim(); if (!id) return { processed: false, scopedRequest: scoped, reason: 'no event id' }; const events = await readWebhookEvents(scoped).catch(() => []); return { processed: events.some((event) => String(event.id) === id), scopedRequest: scoped, eventCount: events.length }; }
-export async function recordStripeWebhookEventProcessed(request: Request, event: StripeEvent, result: any, object?: any) { const scoped = requestWithStripeTenant(request, object || event.data?.object || {}); const id = String(event.id || '').trim(); if (!id) return { recorded: false, reason: 'no event id' }; const events = await readWebhookEvents(scoped).catch(() => []); const next = [{ id, type: event.type || '', orderId: stripeObjectOrderId(object || event.data?.object || {}), tenantId: stripeObjectTenantId(object || event.data?.object || {}), paymentType: stripeObjectPaymentType(object || event.data?.object || {}), designBriefId: stripeObjectDesignBriefId(object || event.data?.object || {}), processedAt: nowIso(), ok: result?.ok !== false }, ...events.filter((item) => String(item.id) !== id)]; await writeWebhookEvents(scoped, next).catch(() => null); return { recorded: true, id, count: next.length };
-}
+export async function recordStripeWebhookEventProcessed(request: Request, event: StripeEvent, result: any, object?: any) { const scoped = requestWithStripeTenant(request, object || event.data?.object || {}); const id = String(event.id || '').trim(); if (!id) return { recorded: false, reason: 'no event id' }; const events = await readWebhookEvents(scoped).catch(() => []); const next = [{ id, type: event.type || '', orderId: stripeObjectOrderId(object || event.data?.object || {}), tenantId: stripeObjectTenantId(object || event.data?.object || {}), paymentType: stripeObjectPaymentType(object || event.data?.object || {}), designBriefId: stripeObjectDesignBriefId(object || event.data?.object || {}), processedAt: nowIso(), ok: result?.ok !== false }, ...events.filter((item) => String(item.id) !== id)]; await writeWebhookEvents(scoped, next).catch(() => null); return { recorded: true, id, count: next.length }; }
 
 async function stripePost(path: string, params: Record<string, string | number | boolean | undefined | null>) { assertStripeConfigured(); const response = await fetch(`${STRIPE_API_BASE}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${secretKey()}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: form(params) }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`); return payload; }
 async function stripeGet(path: string) { assertStripeConfigured(); const response = await fetch(`${STRIPE_API_BASE}${path}`, { headers: { Authorization: `Bearer ${secretKey()}` } }); const payload = await response.json().catch(() => ({})); if (!response.ok) throw new Error(payload?.error?.message || `Stripe request failed: ${path}`); return payload; }
@@ -136,10 +112,34 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
   const readiness = canCreatePaymentSessionForOrder(order);
   if (!readiness.ok) throw new Error(readiness.reason);
   const tenant = tenantContextFromRequest(request);
-  const successUrl = input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
-  const cancelUrl = input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);
+  const urlContext = storefrontContextFromReturnUrl(input.successUrl) || storefrontContextFromReturnUrl(input.cancelUrl);
+  const tenantSlug = String(input.tenantSlug || order.resolver?.tenantSlug || urlContext?.tenantSlug || tenant.tenantId || '').trim();
+  const storeSlug = String(input.storeSlug || order.resolver?.storeSlug || urlContext?.storeSlug || '').trim();
+  const basketId = String(input.basketId || order.resolver?.basketId || urlContext?.basketId || '').trim();
+  const securedReturns = tenantSlug && storeSlug ? buildStorefrontPaymentReturnUrls(request, { tenantSlug, storeSlug, orderId: order.id, basketId: basketId || undefined }) : null;
+  const successUrl = securedReturns?.successUrl || input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
+  const cancelUrl = securedReturns?.cancelUrl || input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);
   const email = input.customerEmail || order.customerEmail || undefined;
-  const session = await stripePost('/checkout/sessions', { mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id, 'line_items[0][quantity]': 1, 'line_items[0][price_data][currency]': String(order.currency || 'GBP').toLowerCase(), 'line_items[0][price_data][unit_amount]': order.totalMinor, 'line_items[0][price_data][product_data][name]': `Order ${order.orderNumber}`, 'line_items[0][price_data][product_data][description]': `${order.items?.length || 0} print item(s)`, 'metadata[orderId]': order.id, 'metadata[orderNumber]': order.orderNumber, 'metadata[tenantId]': tenant.tenantId || '', 'payment_intent_data[metadata][orderId]': order.id, 'payment_intent_data[metadata][orderNumber]': order.orderNumber, 'payment_intent_data[metadata][tenantId]': tenant.tenantId || '' });
+  const session = await stripePost('/checkout/sessions', {
+    mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id,
+    'line_items[0][quantity]': 1,
+    'line_items[0][price_data][currency]': String(order.currency || 'GBP').toLowerCase(),
+    'line_items[0][price_data][unit_amount]': order.totalMinor,
+    'line_items[0][price_data][product_data][name]': `Order ${order.orderNumber}`,
+    'line_items[0][price_data][product_data][description]': `${order.items?.length || 0} print item(s)`,
+    'metadata[paymentType]': 'storefront-order',
+    'metadata[orderId]': order.id,
+    'metadata[orderNumber]': order.orderNumber,
+    'metadata[tenantId]': tenant.tenantId || tenantSlug,
+    'metadata[storeSlug]': storeSlug,
+    'metadata[basketId]': basketId,
+    'payment_intent_data[metadata][paymentType]': 'storefront-order',
+    'payment_intent_data[metadata][orderId]': order.id,
+    'payment_intent_data[metadata][orderNumber]': order.orderNumber,
+    'payment_intent_data[metadata][tenantId]': tenant.tenantId || tenantSlug,
+    'payment_intent_data[metadata][storeSlug]': storeSlug,
+    'payment_intent_data[metadata][basketId]': basketId,
+  });
   await updateOrder(request, order.id, { paymentStatus: 'pending', paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || '', paymentFailureReason: '', internalNotes: noteList(order, `Stripe checkout session created: ${session.id}`) });
   await syncTicketPayment(request, order, 'pending', `Stripe checkout session created: ${session.id}.`).catch(() => null);
   return { session, order };
@@ -152,7 +152,7 @@ export async function createStripeRefundForOrder(request: Request, input: Stripe
 
 export async function applyStripeCheckoutSessionToOrder(request: Request, session: any, eventType = 'manual') {
   if (stripeObjectPaymentType(session) === 'design-quote') {
-    const status = session.payment_status === 'paid' || eventType === 'checkout.session.completed' || eventType === 'checkout.session.async_payment_succeeded' ? 'paid' : eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed' || session.status === 'expired' ? 'failed' : 'pending';
+    const status = session.payment_status === 'paid' || eventType === 'checkout.session.async_payment_succeeded' ? 'paid' : eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed' || session.status === 'expired' ? 'failed' : 'pending';
     return syncDesignQuotePayment(request, session, eventType, status as 'paid' | 'pending' | 'failed' | 'cancelled');
   }
   const scopedRequest = requestWithStripeTenant(request, session);
@@ -160,15 +160,16 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   if (!orderId) return { ok: false, skipped: true, reason: 'Stripe session has no order metadata.' };
   const order = await getOrder(scopedRequest, String(orderId));
   if (!order) return { ok: false, skipped: true, reason: `Order not found: ${orderId}` };
-  const paid = session.payment_status === 'paid' || eventType === 'checkout.session.completed' || eventType === 'checkout.session.async_payment_succeeded';
-  const failed = eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed' || session.status === 'expired';
+  const paid = session.payment_status === 'paid' || eventType === 'checkout.session.async_payment_succeeded';
+  const expired = eventType === 'checkout.session.expired' || session.status === 'expired';
+  const failed = eventType === 'checkout.session.async_payment_failed' || session.payment_status === 'failed';
   const nextStatus = paid ? (order.status === 'AWAITING_PAYMENT' ? 'ARTWORK_CHECK' : order.status) : order.status;
-  const nextPaymentStatus = paid ? 'paid' : failed ? 'failed' : session.payment_status || 'pending';
-  const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : failed ? `Stripe payment failed or expired. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
-  const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
+  const nextPaymentStatus = paid ? 'paid' : expired ? 'expired' : failed ? 'failed' : session.payment_status === 'unpaid' ? 'pending' : session.payment_status || 'pending';
+  const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : expired ? `Stripe checkout session expired. Session: ${session.id}.` : failed ? `Stripe payment failed. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
+  const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: expired ? 'checkout.session.expired' : failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
-  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-session-${session.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
-  return { ok: true, order: (paymentEmail as any)?.order || updated, paid, failed, eventType, tenantId: stripeObjectTenantId(session) || '', paymentEmail };
+  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-session-${session.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment received email queue failed.' })) : { skipped: true };
+  return { ok: true, order: (paymentEmail as any)?.order || updated, paid, expired, failed, eventType, tenantId: stripeObjectTenantId(session) || '', paymentEmail };
 }
 
 export async function applyStripePaymentIntentToOrder(request: Request, intent: any, eventType = 'manual') {
@@ -191,7 +192,7 @@ export async function applyStripePaymentIntentToOrder(request: Request, intent: 
   const note = `Stripe payment intent update (${eventType}). Intent: ${intent.id}. Status: ${intent.status || 'unknown'}.`;
   const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripePaymentIntentId: intent.id || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
-  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-payment-intent-${intent.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
+  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-payment-intent-${intent.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment received email queue failed.' })) : { skipped: true };
   return { ok: true, order: (paymentEmail as any)?.order || updated, paid, authorized, failed, eventType, tenantId: stripeObjectTenantId(intent) || '', paymentEmail };
 }
 
@@ -212,4 +213,16 @@ export async function applyStripeRefundToOrder(request: Request, refund: any, ev
 
 function parseStripeSignature(header: string) { return header.split(',').reduce((acc, part) => { const [key, value] = part.split('='); if (key && value) { if (!acc[key]) acc[key] = []; acc[key].push(value); } return acc; }, {} as Record<string, string[]>); }
 function verifyStripeSignature(raw: string, header: string, secret: string) { const parsed = parseStripeSignature(header); const timestamp = Number(parsed.t?.[0] || 0); const signatures = parsed.v1 || []; if (!timestamp || !signatures.length) throw new Error('Invalid Stripe signature header.'); const age = Math.abs(Math.floor(Date.now() / 1000) - timestamp); if (age > SIGNATURE_TOLERANCE_SECONDS) throw new Error('Stripe webhook timestamp is outside tolerance.'); const expected = crypto.createHmac('sha256', secret).update(`${timestamp}.${raw}`, 'utf8').digest('hex'); const expectedBuffer = Buffer.from(expected, 'hex'); const valid = signatures.some((signature) => { const actualBuffer = Buffer.from(signature, 'hex'); return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer); }); if (!valid) throw new Error('Stripe webhook signature verification failed.'); }
-export async function parseStripeWebhookEvent(request: Request): Promise<StripeEvent> { const raw = await request.text(); const signingSecret = process.env.STRIPE_WEBHOOK_SECRET || ''; const signature = request.headers.get('stripe-signature') || ''; if (signingSecret) verifyStripeSignature(raw, signature, signingSecret); return JSON.parse(raw || '{}'); }
+export async function parseStripeWebhookEvent(request: Request): Promise<StripeEvent> {
+  const raw = await request.text();
+  const signingSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
+  const signature = request.headers.get('stripe-signature') || '';
+  if (!signingSecret) {
+    const allowUnsignedDevelopment = process.env.NODE_ENV !== 'production' && process.env.ALLOW_UNSIGNED_STRIPE_WEBHOOKS === 'true';
+    if (!allowUnsignedDevelopment) throw new Error('STRIPE_WEBHOOK_SECRET is required. Unsigned Stripe webhooks are rejected.');
+  } else {
+    if (!signature) throw new Error('Stripe-Signature header is required.');
+    verifyStripeSignature(raw, signature, signingSecret);
+  }
+  return JSON.parse(raw || '{}');
+}

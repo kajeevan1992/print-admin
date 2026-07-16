@@ -9,6 +9,7 @@ type BridgeInput = {
   ctx: TenantContext;
   orderId?: string;
   orderNumber: string;
+  lineId?: string;
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
@@ -69,13 +70,15 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
   const now = new Date().toISOString();
   const state = statusFromUpload(input);
   const warnings = preflightMessages(input.upload);
-  const id = `pj-${input.orderNumber}`.replace(/[^a-zA-Z0-9._-]+/g, '-');
+  const lineKey = String(input.lineId || '').trim();
+  const id = `pj-${input.orderNumber}${lineKey ? `-${lineKey}` : ''}`.replace(/[^a-zA-Z0-9._-]+/g, '-');
   const paymentStatus = normalisePayment(input.paymentStatus || 'pending');
   const fulfilmentMode = input.fulfilmentMode || (String(input.selectedDelivery || '').toLowerCase().includes('deliver') ? 'delivery' : 'collection');
   const deliveryAddress = compactAddress(input.deliveryAddress);
   const billingAddress = compactAddress(input.billingAddress);
   const ticket = {
     id,
+    lineId: lineKey || null,
     orderId: input.orderId || null,
     orderNumber: input.orderNumber,
     customerName: input.customerName || '',
@@ -120,7 +123,7 @@ export async function upsertArtworkProductionTicket(input: BridgeInput) {
     source: 'native-storefront-checkout',
   };
   const items = await readItems(input.ctx);
-  const next = [ticket, ...items.filter((item) => String(item.orderNumber || item.id) !== input.orderNumber && String(item.id) !== id)];
+  const next = [ticket, ...items.filter((item) => String(item.id) !== id)];
   await saveItems(input.ctx, next);
   return ticket;
 }

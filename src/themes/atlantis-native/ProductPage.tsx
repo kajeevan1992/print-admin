@@ -10,6 +10,7 @@ import { calculateVatLine } from '@/core/tax/vat-rules';
 import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
 import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
 import { buildV0ThemePageContext } from '@/theme-runtime/v0-view-props';
+import { protectedWidgetTheme } from '@/theme-runtime/protected-widget-appearance';
 
 function queryString(values: Record<string, string>, prefix: '?' | '&' = '?') {
   const params = new URLSearchParams();
@@ -97,9 +98,10 @@ export default async function ProductPage({ tenantSlug, storeSlug, storeBase, na
   const shareUrl = `${storeBase}/${productCategory}/${slug}${queryString(configured)}`;
   const quoteRef = searchParams.quote || '';
   const isQuote = product.buyingMode === 'quote';
+  const widget = protectedWidgetTheme(settings?.layout?.widgetAppearance, settings?.brand);
   const purchase = isQuote
-    ? <div className="rounded-[26px] border bg-white p-6 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}><div className="text-[22px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>Request quote</div><div className="mt-2 text-[13px]" style={{ color: BRAND.muted }}>This product is set as quote-led in the SaaS product setup.</div><a href={quoteHref(groups, storeBase, productCategory, slug, searchParams)} className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Request quote</a></div>
-    : <ProductOrderPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} category={productCategory} slug={slug} title={product.title} optionGroups={groups} quantityRows={product.resolvedConfig.quantityRows || []} deliveryRows={product.resolvedConfig.deliveryRows || []} initialSelections={product.resolvedConfig.selections || {}} initialQuantity={product.resolvedConfig.selectedQuantity || null} initialDelivery={product.resolvedConfig.selectedDelivery || null} initialPrice={product.initialPrice} searchParams={searchParams} />;
+    ? <div data-protected-widget="quote-action" className={widget.classes.surface} style={{ ...widget.rootStyle, ...widget.styles.surface }}><div className="text-[22px] font-black tracking-[-0.04em]" style={widget.styles.text}>Request quote</div><div className="mt-2 text-[13px]" style={widget.styles.muted}>This product is set as quote-led in the SaaS product setup.</div><a href={quoteHref(groups, storeBase, productCategory, slug, searchParams)} className={`${widget.classes.top} block w-full text-center text-white no-underline ${widget.classes.button}`} style={widget.styles.primaryButton}>Request quote</a></div>
+    : <ProductOrderPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} category={productCategory} slug={slug} title={product.title} optionGroups={groups} quantityRows={product.resolvedConfig.quantityRows || []} deliveryRows={product.resolvedConfig.deliveryRows || []} initialSelections={product.resolvedConfig.selections || {}} initialQuantity={product.resolvedConfig.selectedQuantity || null} initialDelivery={product.resolvedConfig.selectedDelivery || null} initialPrice={product.initialPrice} searchParams={searchParams} appearance={settings?.layout?.widgetAppearance} brand={settings?.brand} />;
 
   if (routeViews?.ProductPage && settings) {
     const View = routeViews.ProductPage;

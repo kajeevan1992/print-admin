@@ -1,0 +1,74 @@
+import type { NavItem } from '@/themes/atlantis-native/types';
+import type { ThemeCategoryCard, ThemeProductCard } from '@/themes/atlantis-native/catalog-adapter';
+import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
+import type {
+  V0ThemeCategory,
+  V0ThemeNavigationItem,
+  V0ThemePageContext,
+  V0ThemeProduct,
+} from '@/v0-themes/contracts';
+
+function href(basePath: string, path: string) {
+  const clean = String(path || '/').trim();
+  if (/^(https?:|mailto:|tel:)/i.test(clean)) return clean;
+  if (!clean || clean === '/') return basePath;
+  return `${basePath}${clean.startsWith('/') ? clean : `/${clean}`}`;
+}
+
+export function buildV0ThemeNavigation(basePath: string, navItems: NavItem[], currentPath: string): V0ThemeNavigationItem[] {
+  return navItems.map((item) => ({
+    label: item.label,
+    href: href(basePath, item.path),
+    active: currentPath === item.path || currentPath.startsWith(`${item.path}/`),
+  }));
+}
+
+export function buildV0ThemePageContext(input: {
+  storeBase: string;
+  currentPath: string;
+  navItems: NavItem[];
+  settings: StorefrontRuntimeSettings;
+}): V0ThemePageContext {
+  const { storeBase, currentPath, navItems, settings } = input;
+  return {
+    basePath: storeBase,
+    currentPath,
+    preview: storeBase.includes('/theme-preview/'),
+    brand: {
+      name: settings.brand.brandName || settings.storeName,
+      logoUrl: settings.brand.logoUrl,
+      primary: settings.brand.primary,
+      accent: settings.brand.accent,
+      background: settings.brand.background,
+      text: settings.brand.text,
+      muted: settings.brand.muted,
+      border: settings.brand.border,
+    },
+    navigation: buildV0ThemeNavigation(storeBase, navItems, currentPath),
+    content: settings.content,
+    layout: settings.layout,
+  };
+}
+
+export function themeProductToV0(product: ThemeProductCard, storeBase: string): V0ThemeProduct {
+  return {
+    slug: product.slug,
+    category: product.category,
+    title: product.title,
+    description: product.text,
+    image: product.image,
+    price: product.price,
+    href: href(storeBase, `/${product.category}/${product.slug}`),
+  };
+}
+
+export function themeCategoryToV0(category: ThemeCategoryCard, storeBase: string): V0ThemeCategory {
+  return {
+    slug: category.slug,
+    title: category.title,
+    description: category.description,
+    image: category.image,
+    productCount: category.productCount,
+    href: href(storeBase, `/${category.slug}`),
+  };
+}

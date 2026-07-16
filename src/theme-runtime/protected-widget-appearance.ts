@@ -8,7 +8,7 @@ const DEFAULT_APPEARANCE: ResolvedProtectedWidgetAppearance = {
   surface: 'card',
   density: 'comfortable',
   radius: 'medium',
-  optionStyle: 'cards',
+  optionStyle: 'auto',
   fieldStyle: 'outline',
   buttonStyle: 'pill',
   priceStyle: 'panel',
@@ -20,7 +20,7 @@ const choices = {
   surface: new Set(['card', 'soft', 'flat']),
   density: new Set(['compact', 'comfortable', 'spacious']),
   radius: new Set(['small', 'medium', 'large']),
-  optionStyle: new Set(['cards', 'pills', 'segments']),
+  optionStyle: new Set(['auto', 'cards', 'pills', 'segments']),
   fieldStyle: new Set(['outline', 'filled', 'underline']),
   buttonStyle: new Set(['pill', 'rounded', 'square']),
   priceStyle: new Set(['panel', 'highlight', 'minimal']),
@@ -95,11 +95,14 @@ export function protectedWidgetTheme(value: unknown, brand?: Partial<StorefrontB
     : appearance.surface === 'soft'
       ? `border ${radius.surface} ${density.surface} ${shadow}`
       : `border bg-white ${radius.surface} ${density.surface} ${shadow}`;
+  const optionCard = `${radius.control} border ${density.control} text-left text-[12px] font-black`;
+  const optionPill = `rounded-full border ${density.control} text-center text-[12px] font-black`;
+  const optionSegment = `${radius.control} border ${density.control} text-center text-[12px] font-black`;
   const option = appearance.optionStyle === 'pills'
-    ? `rounded-full border ${density.control} text-center text-[12px] font-black`
+    ? optionPill
     : appearance.optionStyle === 'segments'
-      ? `${radius.control} border ${density.control} text-center text-[12px] font-black`
-      : `${radius.control} border ${density.control} text-left text-[12px] font-black`;
+      ? optionSegment
+      : optionCard;
   const field = appearance.fieldStyle === 'filled'
     ? `${radius.control} border border-transparent px-4 py-3 text-sm outline-none`
     : appearance.fieldStyle === 'underline'
@@ -134,6 +137,9 @@ export function protectedWidgetTheme(value: unknown, brand?: Partial<StorefrontB
       surface,
       section: `${radius.section} border ${density.section}`,
       option,
+      optionCard,
+      optionPill,
+      optionSegment,
       field,
       button,
       price,

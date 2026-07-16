@@ -12,6 +12,8 @@ on:
       - 'src/themes/**'
       - 'src/v0-themes/**'
       - 'scripts/create-v0-theme.mjs'
+      - 'scripts/install-v0-theme.mjs'
+      - 'scripts/sync-v0-theme-registry.mjs'
       - 'scripts/validate-v0-themes.mjs'
       - 'package.json'
       - '.github/workflows/theme-sdk-check.yml'
@@ -43,6 +45,19 @@ jobs:
 
       - name: Validate v0 theme boundaries
         run: pnpm theme:check
+
+      - name: Validate installed theme registry
+        run: pnpm theme:registry:check
+
+      - name: Exercise folder theme installer
+        run: pnpm theme:install src/v0-themes/canvas --dry-run --replace
+
+      - name: Exercise ZIP theme installer
+        run: |
+          cd src/v0-themes
+          zip -qr /tmp/canvas-theme.zip canvas
+          cd ../..
+          pnpm theme:install /tmp/canvas-theme.zip --dry-run --replace
 
       - name: Build
         run: pnpm build

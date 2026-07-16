@@ -26,9 +26,15 @@ const forbiddenPatterns = [
   { label: 'checkout authority', pattern: /\b(?:createCheckout|checkoutSession|stripeSession)\b/ },
 ];
 
+function argument(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : '';
+}
+
 function walk(directory) {
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    if (['node_modules', '.next', '.git', 'dist', 'coverage'].includes(entry.name)) return [];
     const absolute = path.join(directory, entry.name);
     return entry.isDirectory() ? walk(absolute) : [absolute];
   });
@@ -76,20 +82,26 @@ function validateFile(file, packageDirectory) {
   return errors;
 }
 
+function validatePackage(directory) {
+  const name = path.basename(directory);
+  const errors = [];
+  if (!fs.existsSync(directory)) return [`Theme package does not exist: ${directory}`];
+  if (!fs.existsSync(path.join(directory, 'manifest.ts'))) errors.push(`${name} is missing manifest.ts`);
+  if (!fs.existsSync(path.join(directory, 'index.ts'))) errors.push(`${name} is missing index.ts`);
+  const sourceFiles = walk(directory).filter((file) => sourceExtensions.has(path.extname(file)));
+  if (!sourceFiles.some((file) => /(?:HomePage|ThemeHomePage)\.tsx$/.test(file))) errors.push(`${name} is missing a homepage component`);
+  sourceFiles.forEach((file) => errors.push(...validateFile(file, directory)));
+  return errors;
+}
+
 function validatePackages() {
+  const requestedPackage = argument('--package');
+  if (requestedPackage) return validatePackage(path.resolve(requestedPackage));
   if (!fs.existsSync(root)) return ['src/v0-themes is missing.'];
   const packageDirectories = fs.readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => path.join(root, entry.name));
-  const errors = [];
-  for (const directory of packageDirectories) {
-    const name = path.basename(directory);
-    if (!fs.existsSync(path.join(directory, 'manifest.ts'))) errors.push(`src/v0-themes/${name} is missing manifest.ts`);
-    const sourceFiles = walk(directory).filter((file) => sourceExtensions.has(path.extname(file)));
-    if (!sourceFiles.some((file) => /(?:HomePage|ThemeHomePage)\.tsx$/.test(file))) errors.push(`src/v0-themes/${name} is missing a homepage component`);
-    sourceFiles.forEach((file) => errors.push(...validateFile(file, directory)));
-  }
-  return errors;
+  return packageDirectories.flatMap(validatePackage);
 }
 
 const errors = validatePackages();
@@ -100,4 +112,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log('V0 theme boundary validation passed.');
+console.log(argument('--package') ? 'V0 theme package validation passed.' : 'V0 theme boundary validation passed.');

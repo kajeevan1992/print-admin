@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "themes": [
+    {
+      "folder": "canvas",
+      "key": "canvas-native",
+      "name": "Canvas",
+      "version": "1.1.0"
+    }
+  ]
+}

@@ -6,11 +6,15 @@ import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage'
 import CartPage from '@/themes/atlantis-native/CartPage';
 import CheckoutStatusPage from '@/themes/atlantis-native/CheckoutStatusPage';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
+import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 import type { StorefrontRuntimeContext } from './types';
 
 export async function renderAtlantisStorefront(context: StorefrontRuntimeContext) {
-  const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams, settings } = context;
-  if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={settings} products={products} categories={categories} collectionPoints={collectionPoints} />;
+  const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams } = context;
+  if (!routeSegments.length) {
+    const settings = context.settings || await loadStorefrontRuntimeSettings(tenantSlug, storeSlug, tenantIds);
+    return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={settings} products={products} categories={categories} collectionPoints={collectionPoints} />;
+  }
   if (routeSegments[0] === 'collection-points') return <CollectionPointsPage storeBase={storeBase} navItems={navItems} points={collectionPoints.length ? collectionPoints : await loadCollectionPoints(tenantIds)} />;
   if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} status="success" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} status="cancel" searchParams={searchParams || {}} />;

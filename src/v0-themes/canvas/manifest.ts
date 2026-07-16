@@ -22,8 +22,8 @@ export const CANVAS_V0_MANIFEST = {
       { path: 'brand.background', label: 'Background colour', type: 'colour', group: 'Colours' },
       { path: 'brand.text', label: 'Text colour', type: 'colour', group: 'Colours' },
       { path: 'layout.cardRadius', label: 'Card radius', type: 'select', group: 'Layout', options: [
+        { label: 'Medium', value: '' },
         { label: 'Small', value: 'small' },
-        { label: 'Medium', value: 'medium' },
         { label: 'Large', value: 'large' },
       ] },
       { path: 'layout.showSearch', label: 'Show search', type: 'boolean', group: 'Header' },

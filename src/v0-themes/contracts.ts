@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 export type V0ThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
 export type V0ThemeField = {
@@ -45,6 +45,7 @@ export type V0ThemeProduct = {
   title: string;
   description: string;
   image: string;
+  images?: string[];
   price: string;
   href: string;
 };
@@ -71,18 +72,76 @@ export type V0ThemeSection = Record<string, unknown> & {
   enabled: boolean;
 };
 
-export type V0ThemeHomeProps = {
+export type V0ThemePageContext = {
   basePath: string;
+  currentPath: string;
   preview: boolean;
   brand: V0ThemeBrand;
   navigation: V0ThemeNavigationItem[];
+  content: Record<string, unknown>;
+  layout: Record<string, unknown>;
+};
+
+export type V0ThemeHomeProps = V0ThemePageContext & {
   products: V0ThemeProduct[];
   categories: V0ThemeCategory[];
   collectionPoints: V0ThemeCollectionPoint[];
   sections: V0ThemeSection[];
-  content: Record<string, unknown>;
-  layout: Record<string, unknown>;
   slots?: {
     previewBanner?: ReactNode;
   };
+};
+
+export type V0ThemeCategoryPageProps = V0ThemePageContext & {
+  category: V0ThemeCategory;
+  allProducts: boolean;
+  products: V0ThemeProduct[];
+};
+
+export type V0ThemeProductPageProps = V0ThemePageContext & {
+  status: 'available' | 'unavailable';
+  product?: V0ThemeProduct & { buyingMode: 'cart' | 'quote'; shareUrl: string };
+  quoteReference?: string;
+  slots?: {
+    purchase?: ReactNode;
+  };
+};
+
+export type V0ThemeSelectedOption = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+export type V0ThemeQuotePageProps = V0ThemePageContext & {
+  product?: V0ThemeProduct;
+  selectedOptions: V0ThemeSelectedOption[];
+  editOptionsHref: string;
+  slots: {
+    form: ReactNode;
+  };
+};
+
+export type V0ThemeCartPageProps = V0ThemePageContext & {
+  product?: V0ThemeProduct;
+  selectedOptions: V0ThemeSelectedOption[];
+  quantity: number;
+  delivery: string;
+  configuredProductHref: string;
+  slots?: {
+    checkout?: ReactNode;
+  };
+};
+
+export type V0ThemeCheckoutStatusPageProps = V0ThemePageContext & {
+  status: 'success' | 'cancel';
+  orderId: string;
+};
+
+export type V0ThemeRouteViews = {
+  CategoryPage?: ComponentType<V0ThemeCategoryPageProps>;
+  ProductPage?: ComponentType<V0ThemeProductPageProps>;
+  QuotePage?: ComponentType<V0ThemeQuotePageProps>;
+  CartPage?: ComponentType<V0ThemeCartPageProps>;
+  CheckoutStatusPage?: ComponentType<V0ThemeCheckoutStatusPageProps>;
 };

@@ -79,6 +79,9 @@ export async function renderV0ThemePackage(
   if (!context.settings) return renderAtlantisStorefront(context);
   const settings = packageSettings(context.settings, options.themeKey, options.themeStyle);
   const packageContext = { ...context, settings, themeKey: options.themeKey } as StorefrontRuntimeContext;
-  if (!context.routeSegments.length) return <options.HomePage {...buildV0ThemeHomeProps(packageContext)} />;
+  if (!context.routeSegments.length) {
+    const HomePage = options.HomePage;
+    return <HomePage {...buildV0ThemeHomeProps(packageContext)} />;
+  }
   return renderAtlantisStorefront(packageContext);
 }

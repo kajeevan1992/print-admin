@@ -2,23 +2,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(process.cwd(), 'src/v0-themes');
+const contractsPath = path.resolve(root, 'contracts');
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx']);
-const forbiddenImports = [
-  '@/core/',
-  '@/theme-runtime/',
-  '@/themes/',
-  '@/app/',
-  '@prisma/client',
-  'prisma',
-  'stripe',
-  'pg',
-  'nodemailer',
-  'next/headers',
-  'next/cookies',
-];
+const allowedExternalImports = new Set([
+  'react',
+  'next/link',
+  'next/image',
+  'lucide-react',
+  'framer-motion',
+]);
 const forbiddenPatterns = [
   { label: 'network request', pattern: /\bfetch\s*\(/ },
   { label: 'axios request', pattern: /\baxios\b/ },
+  { label: 'dynamic module loading', pattern: /\b(?:require|import)\s*\(/ },
+  { label: 'server action', pattern: /['"]use server['"]/ },
   { label: 'environment access', pattern: /\bprocess\.env\b/ },
   { label: 'database client', pattern: /\b(?:platformPrisma|PrismaClient)\b/ },
   { label: 'database URL', pattern: /\bDATABASE_URL\b/ },
@@ -41,15 +38,36 @@ function lineNumber(content, index) {
   return content.slice(0, index).split('\n').length;
 }
 
-function validateFile(file) {
+function inside(candidate, parent) {
+  const relative = path.relative(parent, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+function validateImport(file, packageDirectory, specifier, content, index) {
+  const relative = path.relative(process.cwd(), file).replaceAll('\\', '/');
+  const line = lineNumber(content, index);
+  if (specifier.startsWith('.')) {
+    const resolved = path.resolve(path.dirname(file), specifier);
+    const allowedContract = resolved === contractsPath;
+    if (!inside(resolved, packageDirectory) && !allowedContract) {
+      return `${relative}:${line} escapes its theme package with import "${specifier}"`;
+    }
+    return null;
+  }
+  if (!allowedExternalImports.has(specifier)) {
+    return `${relative}:${line} imports non-allowlisted module "${specifier}"`;
+  }
+  return null;
+}
+
+function validateFile(file, packageDirectory) {
   const relative = path.relative(process.cwd(), file).replaceAll('\\', '/');
   const content = fs.readFileSync(file, 'utf8');
   const errors = [];
   const importPattern = /(?:import|export)\s+(?:[^'"`]+?\s+from\s+)?['"`]([^'"`]+)['"`]/g;
   for (const match of content.matchAll(importPattern)) {
-    const specifier = match[1];
-    const forbidden = forbiddenImports.find((prefix) => specifier === prefix || specifier.startsWith(prefix));
-    if (forbidden) errors.push(`${relative}:${lineNumber(content, match.index ?? 0)} imports forbidden module "${specifier}"`);
+    const importError = validateImport(file, packageDirectory, match[1], content, match.index ?? 0);
+    if (importError) errors.push(importError);
   }
   for (const rule of forbiddenPatterns) {
     const match = rule.pattern.exec(content);
@@ -69,7 +87,7 @@ function validatePackages() {
     if (!fs.existsSync(path.join(directory, 'manifest.ts'))) errors.push(`src/v0-themes/${name} is missing manifest.ts`);
     const sourceFiles = walk(directory).filter((file) => sourceExtensions.has(path.extname(file)));
     if (!sourceFiles.some((file) => /(?:HomePage|ThemeHomePage)\.tsx$/.test(file))) errors.push(`src/v0-themes/${name} is missing a homepage component`);
-    sourceFiles.forEach((file) => errors.push(...validateFile(file)));
+    sourceFiles.forEach((file) => errors.push(...validateFile(file, directory)));
   }
   return errors;
 }

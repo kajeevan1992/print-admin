@@ -8,7 +8,12 @@ import { AccessDenied } from '@/components/auth/access-denied';
 import { AppErrorBoundary } from './app-error-boundary';
 import { useAuth } from '@/lib/auth';
 
-const PUBLIC_PAGES = ['/accept-invite', '/stores', '/theme/atlantis'];
+const PUBLIC_PAGES = [
+  '/accept-invite',
+  '/stores',
+  '/theme/atlantis',
+  '/native-stores'
+];
 function isPublicPage(pathname?: string | null) { return Boolean(pathname && PUBLIC_PAGES.some((page) => pathname === page || pathname.startsWith(`${page}/`))); }
 
 export function AppFrame({ children }: { children: React.ReactNode }) {

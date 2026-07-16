@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { ArrowRight, MapPin, ShoppingBag } from 'lucide-react';
 import type {
@@ -87,7 +88,7 @@ export default function CanvasHomePage(props: V0ThemeHomeProps) {
     '--canvas-text': props.brand.text,
     '--canvas-muted': props.brand.muted,
     '--canvas-border': props.brand.border,
-  } as React.CSSProperties;
+  } as CSSProperties;
 
   return <div style={{ ...style, backgroundColor: props.brand.background, color: props.brand.text }} data-v0-theme-package="canvas">
     {props.slots?.previewBanner}

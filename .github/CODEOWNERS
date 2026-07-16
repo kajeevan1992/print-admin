@@ -1,0 +1,10 @@
+# Theme design packages may be edited in v0, but still require repository-owner review.
+/src/v0-themes/ @kajeevan1992
+
+# These files connect theme presentation to tenant and storefront authority.
+/src/v0-themes/contracts.ts @kajeevan1992
+/src/theme-runtime/ @kajeevan1992
+/src/core/storefront/ @kajeevan1992
+/src/core/tax/ @kajeevan1992
+/app/api/ @kajeevan1992
+/prisma/ @kajeevan1992

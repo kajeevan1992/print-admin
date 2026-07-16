@@ -16,7 +16,10 @@ type CatalogRow = {
   name: string;
   metadataJson: Record<string, any> | null;
 };
+type SettingsCacheEntry = { expiresAt: number; promise: Promise<StorefrontRuntimeSettings> };
 
+const SETTINGS_CACHE_TTL_MS = 5_000;
+const settingsCache = new Map<string, SettingsCacheEntry>();
 const DEFAULT_BRAND: StorefrontBrandSettings = {
   brandName: '',
   logoUrl: '',
@@ -51,6 +54,18 @@ function colour(value: unknown, fallback: string) {
 
 function uniq(values: string[]) {
   return Array.from(new Set(values.map(clean).filter(Boolean)));
+}
+
+function cacheKey(tenantSlugInput: string, storeSlugInput: string) {
+  return `${slug(tenantSlugInput)}:${slug(storeSlugInput)}`;
+}
+
+export function clearStorefrontRuntimeSettingsCache(tenantSlugInput?: string, storeSlugInput?: string) {
+  if (!tenantSlugInput || !storeSlugInput) {
+    settingsCache.clear();
+    return;
+  }
+  settingsCache.delete(cacheKey(tenantSlugInput, storeSlugInput));
 }
 
 export async function resolveStorefrontTenantIds(tenantSlugInput: string) {
@@ -137,7 +152,7 @@ function normaliseNavigation(value: unknown): StorefrontMenuItem[] {
     .sort((left, right) => left.order - right.order);
 }
 
-export async function loadStorefrontRuntimeSettings(
+async function loadStorefrontRuntimeSettingsUncached(
   tenantSlugInput: string,
   storeSlugInput: string,
   resolvedTenantIds?: string[],
@@ -194,4 +209,21 @@ export async function loadStorefrontRuntimeSettings(
     themeVersion: Number(theme.publishedVersion || 0),
     source: themeRow ? 'store-and-published-theme' : storeRow ? 'store' : 'defaults',
   };
+}
+
+export function loadStorefrontRuntimeSettings(
+  tenantSlugInput: string,
+  storeSlugInput: string,
+  resolvedTenantIds?: string[],
+): Promise<StorefrontRuntimeSettings> {
+  const key = cacheKey(tenantSlugInput, storeSlugInput);
+  const now = Date.now();
+  const cached = settingsCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.promise;
+  const promise = loadStorefrontRuntimeSettingsUncached(tenantSlugInput, storeSlugInput, resolvedTenantIds);
+  settingsCache.set(key, { expiresAt: now + SETTINGS_CACHE_TTL_MS, promise });
+  promise.catch(() => {
+    if (settingsCache.get(key)?.promise === promise) settingsCache.delete(key);
+  });
+  return promise;
 }

@@ -179,6 +179,18 @@ export type V0ThemeCartPageProps = V0ThemePageContext & {
 export type V0ThemeCheckoutStatusPageProps = V0ThemePageContext & {
   status: 'success' | 'cancel';
   orderId: string;
+  payment: {
+    state: 'paid' | 'authorized' | 'pending' | 'failed' | 'expired' | 'cancelled' | 'unpaid' | 'refunded' | 'invalid';
+    verified: boolean;
+    valid: boolean;
+    orderNumber: string;
+    formattedTotal: string;
+    message: string;
+    canRetry: boolean;
+  };
+  slots: {
+    status: ReactNode;
+  };
 };
 
 export type V0ThemeRouteViews = {

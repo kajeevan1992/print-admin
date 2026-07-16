@@ -1,5 +1,21 @@
+import { createElement } from 'react';
+import EnhancedHomePage from '@/themes/atlantis-native/EnhancedHomePage';
 import { renderAtlantisStorefront } from '@/theme-runtime/atlantis-renderer';
-import type { StorefrontThemeDefinition } from '@/theme-runtime/types';
+import type { StorefrontRuntimeContext, StorefrontThemeDefinition } from '@/theme-runtime/types';
+
+function renderAtlantisTheme(context: StorefrontRuntimeContext) {
+  if (!context.routeSegments.length) {
+    return createElement(EnhancedHomePage, {
+      storeBase: context.storeBase,
+      navItems: context.navItems,
+      settings: context.settings,
+      products: context.products,
+      categories: context.categories || [],
+      collectionPoints: context.collectionPoints || [],
+    });
+  }
+  return renderAtlantisStorefront(context);
+}
 
 export const ATLANTIS_THEME_DEFINITION: StorefrontThemeDefinition = {
   manifest: {
@@ -29,5 +45,5 @@ export const ATLANTIS_THEME_DEFINITION: StorefrontThemeDefinition = {
       ],
     },
   },
-  renderer: renderAtlantisStorefront,
+  renderer: renderAtlantisTheme,
 };

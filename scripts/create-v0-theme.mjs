@@ -50,4 +50,6 @@ function copy(directory, target) {
 
 copy(source, destination);
 console.log(`Created src/v0-themes/${slug}`);
-console.log('Next: design the package in v0, run pnpm theme:check, then add a reviewed adapter under src/theme-runtime/built-in/.');
+console.log('This command is for themes designed directly inside print-admin.');
+console.log('For a theme exported from a separate v0 workspace, use: pnpm theme:import <source-directory> <theme-slug>');
+console.log('Before opening a PR, run pnpm theme:check.');

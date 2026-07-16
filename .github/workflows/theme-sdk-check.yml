@@ -49,5 +49,8 @@ jobs:
       - name: Validate installed theme registry
         run: pnpm theme:registry:check
 
+      - name: Exercise theme installer
+        run: pnpm theme:install src/v0-themes/canvas --dry-run --replace
+
       - name: Build
         run: pnpm build

@@ -1,3 +1,5 @@
+import { createElement } from 'react';
+import BasketHeaderSummary from '@/themes/atlantis-native/BasketHeaderSummary';
 import type { NavItem } from '@/themes/atlantis-native/types';
 import type { ThemeCategoryCard, ThemeProductCard } from '@/themes/atlantis-native/catalog-adapter';
 import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
@@ -15,6 +17,14 @@ function href(basePath: string, path: string) {
   return `${basePath}${clean.startsWith('/') ? clean : `/${clean}`}`;
 }
 
+function storeParts(storeBase: string) {
+  const parts = String(storeBase || '').split('/').filter(Boolean);
+  const nativeIndex = parts.indexOf('native-stores');
+  const previewIndex = parts.indexOf('theme-preview');
+  const index = nativeIndex >= 0 ? nativeIndex : previewIndex;
+  return { tenantSlug: index >= 0 ? parts[index + 1] || '' : '', storeSlug: index >= 0 ? parts[index + 2] || '' : '' };
+}
+
 export function buildV0ThemeNavigation(basePath: string, navItems: NavItem[], currentPath: string): V0ThemeNavigationItem[] {
   return navItems.map((item) => ({
     label: item.label,
@@ -30,6 +40,7 @@ export function buildV0ThemePageContext(input: {
   settings: StorefrontRuntimeSettings;
 }): V0ThemePageContext {
   const { storeBase, currentPath, navItems, settings } = input;
+  const { tenantSlug, storeSlug } = storeParts(storeBase);
   return {
     basePath: storeBase,
     currentPath,
@@ -47,6 +58,9 @@ export function buildV0ThemePageContext(input: {
     navigation: buildV0ThemeNavigation(storeBase, navItems, currentPath),
     content: settings.content,
     layout: settings.layout,
+    chromeSlots: {
+      basket: createElement(BasketHeaderSummary, { tenantSlug, storeSlug, storeBase, studio: false }),
+    },
   };
 }
 

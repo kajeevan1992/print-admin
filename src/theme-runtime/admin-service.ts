@@ -339,10 +339,13 @@ function stateFromRows(scope: TenantScope, stores: StoreRow[], selectedStore: St
   };
 }
 
-async function loadAdminRows(tenantSlugOrId: string, requestedStoreSlug?: string) {
+async function loadAdminRows(tenantSlugOrId: string, requestedStoreSlug?: string, requireExactStore = false) {
   const scope = await resolveTenantScope(tenantSlugOrId);
   const stores = await loadStores(scope);
-  const selectedStore = stores.find((store) => store.storeSlug === slug(requestedStoreSlug)) || stores[0] || null;
+  const requested = slug(requestedStoreSlug);
+  const exactStore = requested ? stores.find((store) => store.storeSlug === requested) || null : null;
+  if (requireExactStore && requested && !exactStore) throw new Error('Storefront store not found for this tenant.');
+  const selectedStore = exactStore || (!requested ? stores[0] || null : null);
   const themeRow = selectedStore ? await loadThemeRow(selectedStore) : null;
   return { scope, stores, selectedStore, themeRow };
 }
@@ -384,8 +387,8 @@ export async function mutateStorefrontThemeAdmin(
   tenantSlugOrId: string,
   input: StorefrontThemeAdminMutation,
 ) {
-  const rows = await loadAdminRows(tenantSlugOrId, input.storeSlug);
-  const { scope, stores, selectedStore, themeRow } = rows;
+  const rows = await loadAdminRows(tenantSlugOrId, input.storeSlug, true);
+  const { scope, selectedStore, themeRow } = rows;
   if (!selectedStore) throw new Error('Storefront store not found for this tenant.');
 
   const storeMetadata = object(selectedStore.metadataJson);
@@ -454,7 +457,7 @@ export async function mutateStorefrontThemeAdmin(
     throw new Error('Unsupported theme admin action.');
   }
 
-  clearStorefrontRuntimeSettingsCache(scope.tenantSlug, selectedStore.storeSlug);
+  clearStorefrontRuntimeSettingsCache();
   const refreshedThemeRow = await loadThemeRow(selectedStore);
   const refreshedStores = await loadStores(scope);
   const refreshedStore = refreshedStores.find((store) => store.storeSlug === selectedStore.storeSlug) || selectedStore;

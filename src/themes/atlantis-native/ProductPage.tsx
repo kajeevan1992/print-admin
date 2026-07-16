@@ -8,6 +8,8 @@ import { loadProductForNativePricing, formatMinorPrice } from '@/core/storefront
 import { resolveProductConfig, rowPriceMinor } from '@/core/storefront/product-config-engine';
 import { calculateVatLine } from '@/core/tax/vat-rules';
 import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
+import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
+import { buildV0ThemePageContext } from '@/theme-runtime/v0-view-props';
 
 function queryString(values: Record<string, string>, prefix: '?' | '&' = '?') {
   const params = new URLSearchParams();
@@ -36,7 +38,6 @@ function isQuoteProduct(product: Record<string, any>) {
 }
 function groupOptions(group: Record<string, any> = {}) { return Array.isArray(group.options) ? group.options : Array.isArray(group.values) ? group.values : []; }
 function optionSlug(option: Record<string, any> = {}) { return clean(option.slug || option.id || slugify(option.value || option.label || option.name)); }
-function optionValue(option: Record<string, any> = {}) { return clean(option.value || option.label || option.name || option.slug || option.id); }
 function selectedOptions(groups: Record<string, any>[] = [], searchParams: Record<string, string> = {}) {
   const output: Record<string, string> = {};
   for (const group of groups) {
@@ -59,16 +60,7 @@ function initialPrice(product: Record<string, any>, resolvedConfig: Record<strin
   const taxSettings = matchedRow.taxSettings || matchedRow.metadata?.taxSettings || product.taxSettings || product.metadataJson?.taxSettings || product.metadataJson?.pricing?.taxSettings;
   const vatRate = matchedRow.vatRate ?? matchedRow.taxRate ?? product.vatRate ?? product.taxRate ?? product.metadataJson?.vatRate ?? product.metadataJson?.taxRate;
   const taxLine = calculateVatLine({
-    productId: product.id || product.slug || '',
-    productSlug: product.slug || product.id || '',
-    productName: product.name || product.title || product.slug || 'Storefront product',
-    titleSnapshot: product.name || product.title || product.slug || 'Storefront product',
-    sku: matchedRow.sku || matchedRow.oldSku || '',
-    categoryName: product.categoryName || product.metadataJson?.categoryName || '',
-    categorySlug: product.categorySlug || product.metadataJson?.categorySlug || '',
-    totalPriceMinor: grossMinor,
-    taxSettings,
-    vatRate,
+    productId: product.id || product.slug || '', productSlug: product.slug || product.id || '', productName: product.name || product.title || product.slug || 'Storefront product', titleSnapshot: product.name || product.title || product.slug || 'Storefront product', sku: matchedRow.sku || matchedRow.oldSku || '', categoryName: product.categoryName || product.metadataJson?.categoryName || '', categorySlug: product.categorySlug || product.metadataJson?.categorySlug || '', totalPriceMinor: grossMinor, taxSettings, vatRate,
     resolverSnapshot: { product: { id: product.id, slug: product.slug, name: product.name || product.title, title: product.title || product.name, taxSettings, vatRate }, pricing: { source: 'native-product-page-initial-price', matchedRow } },
   }, quantity, grossMinor);
   const currency = clean(matchedRow.currency || product.currency || product.metadataJson?.pricingMatrix?.currency || 'GBP');
@@ -83,40 +75,39 @@ async function loadBackendProductContract(tenantSlug: string, slug: string) {
     const categorySlug = clean(product.categorySlug || product.metadataJson?.categorySlug || '');
     if (!title || !categorySlug) return null;
     const price = initialPrice(product, resolvedConfig);
-    return {
-      product,
-      title,
-      description: contentText(product),
-      images,
-      image: images[0] || '',
-      category: categorySlug,
-      buyingMode: isQuoteProduct(product) ? 'quote' : 'cart',
-      priceText: price?.formattedPrice || '',
-      resolvedConfig,
-      initialPrice: price,
-    };
-  } catch {
-    return null;
-  }
+    return { product, title, description: contentText(product), images, image: images[0] || '', category: categorySlug, buyingMode: isQuoteProduct(product) ? 'quote' as const : 'cart' as const, priceText: price?.formattedPrice || '', resolvedConfig, initialPrice: price };
+  } catch { return null; }
 }
 
-export default async function ProductPage({ tenantSlug, storeSlug, storeBase, navItems, slug, category, products: _products = [], searchParams = {}, settings }: { tenantSlug: string; storeSlug: string; storeBase: string; navItems: NavItem[]; slug: string; category: string; products?: ThemeProductCard[]; searchParams?: Record<string, string>; settings?: StorefrontRuntimeSettings }) {
+export default async function ProductPage({ tenantSlug, storeSlug, storeBase, navItems, slug, category, products: _products = [], searchParams = {}, settings, routeViews }: { tenantSlug: string; storeSlug: string; storeBase: string; navItems: NavItem[]; slug: string; category: string; products?: ThemeProductCard[]; searchParams?: Record<string, string>; settings?: StorefrontRuntimeSettings; routeViews?: V0ThemeRouteViews }) {
   const product = await loadBackendProductContract(tenantSlug, slug);
+  const currentPath = `/${category}/${slug}`;
 
   if (!product) {
-    return <StorefrontChrome currentPath={`/${category}/${slug}`} navItems={navItems} storeBase={storeBase} settings={settings}><section className="py-10"><Shell><div className="rounded-[32px] border bg-white p-8 shadow-sm" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>Unavailable</div><h1 className="mt-4 text-[38px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>Product not available</h1><p className="mt-3 max-w-[680px] text-sm leading-7" style={{ color: BRAND.muted }}>This product is not currently published in the SaaS admin for this store.</p></div></Shell></section></StorefrontChrome>;
+    if (routeViews?.ProductPage && settings) {
+      const View = routeViews.ProductPage;
+      return <View {...buildV0ThemePageContext({ storeBase, currentPath, navItems, settings })} status="unavailable" />;
+    }
+    return <StorefrontChrome currentPath={currentPath} navItems={navItems} storeBase={storeBase} settings={settings}><section className="py-10"><Shell><div className="rounded-[32px] border bg-white p-8 shadow-sm" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>Unavailable</div><h1 className="mt-4 text-[38px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>Product not available</h1><p className="mt-3 max-w-[680px] text-sm leading-7" style={{ color: BRAND.muted }}>This product is not currently published in the SaaS admin for this store.</p></div></Shell></section></StorefrontChrome>;
   }
 
   const productCategory = product.category;
-  const currentPath = `${storeBase}/${productCategory}/${slug}`;
   const groups = Array.isArray(product.resolvedConfig.customerGroups) ? product.resolvedConfig.customerGroups : [];
   const configured = selectedOptions(groups, searchParams);
-  const shareUrl = `${currentPath}${queryString(configured)}`;
+  const shareUrl = `${storeBase}/${productCategory}/${slug}${queryString(configured)}`;
   const quoteRef = searchParams.quote || '';
   const isQuote = product.buyingMode === 'quote';
+  const purchase = isQuote
+    ? <div className="rounded-[26px] border bg-white p-6 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}><div className="text-[22px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>Request quote</div><div className="mt-2 text-[13px]" style={{ color: BRAND.muted }}>This product is set as quote-led in the SaaS product setup.</div><a href={quoteHref(groups, storeBase, productCategory, slug, searchParams)} className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Request quote</a></div>
+    : <ProductOrderPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} category={productCategory} slug={slug} title={product.title} optionGroups={groups} quantityRows={product.resolvedConfig.quantityRows || []} deliveryRows={product.resolvedConfig.deliveryRows || []} initialSelections={product.resolvedConfig.selections || {}} initialQuantity={product.resolvedConfig.selectedQuantity || null} initialDelivery={product.resolvedConfig.selectedDelivery || null} initialPrice={product.initialPrice} searchParams={searchParams} />;
 
-  return <StorefrontChrome currentPath={`/${category}/${slug}`} navItems={navItems} storeBase={storeBase} settings={settings}>
+  if (routeViews?.ProductPage && settings) {
+    const View = routeViews.ProductPage;
+    return <View {...buildV0ThemePageContext({ storeBase, currentPath, navItems, settings })} status="available" quoteReference={quoteRef} product={{ slug, category: productCategory, title: product.title, description: product.description, image: product.image, images: product.images, price: product.priceText, href: `${storeBase}/${productCategory}/${slug}`, buyingMode: product.buyingMode, shareUrl }} slots={{ purchase }} />;
+  }
+
+  return <StorefrontChrome currentPath={currentPath} navItems={navItems} storeBase={storeBase} settings={settings}>
     <section className="py-6"><Shell>{quoteRef ? <div className="mb-5 rounded-[24px] border bg-white p-5 shadow-sm" style={{ borderColor: BRAND.line }}><div className="text-[12px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.primary }}>Quote request sent</div><div className="mt-2 text-sm font-bold" style={{ color: BRAND.ink }}>Your quote request has been sent to the store team. Reference: {quoteRef}</div></div> : null}<div className="rounded-[32px] border bg-white p-8 shadow-sm" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>Product</div><h1 className="mt-4 text-[38px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>{product.title}</h1>{product.description ? <p className="mt-3 max-w-[680px] text-sm leading-7" style={{ color: BRAND.muted }}>{product.description}</p> : null}</div></Shell></section>
-    <section className="pb-10"><Shell><div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]"><div className="rounded-[26px] border bg-white p-5 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}>{product.image ? <img src={product.image} alt={product.title} className="h-[360px] w-full rounded-[18px] object-cover" /> : null}<div className="mt-5 text-[24px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>{product.title}</div>{product.priceText ? <div className="mt-2 text-sm font-bold" style={{ color: BRAND.primary }}>{product.priceText}</div> : null}<div className="mt-5 rounded-[18px] border p-4 text-[12px]" style={{ borderColor: BRAND.line, color: BRAND.muted }}>Shareable configured URL: <span style={{ color: BRAND.ink }}>{shareUrl}</span></div></div>{isQuote ? <div className="rounded-[26px] border bg-white p-6 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}><div className="text-[22px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>Request quote</div><div className="mt-2 text-[13px]" style={{ color: BRAND.muted }}>This product is set as quote-led in the SaaS product setup.</div><a href={quoteHref(groups, storeBase, productCategory, slug, searchParams)} className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Request quote</a></div> : <ProductOrderPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} category={productCategory} slug={slug} title={product.title} optionGroups={groups} quantityRows={product.resolvedConfig.quantityRows || []} deliveryRows={product.resolvedConfig.deliveryRows || []} initialSelections={product.resolvedConfig.selections || {}} initialQuantity={product.resolvedConfig.selectedQuantity || null} initialDelivery={product.resolvedConfig.selectedDelivery || null} initialPrice={product.initialPrice} searchParams={searchParams} />}</div></Shell></section>
+    <section className="pb-10"><Shell><div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]"><div className="rounded-[26px] border bg-white p-5 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}>{product.image ? <img src={product.image} alt={product.title} className="h-[360px] w-full rounded-[18px] object-cover" /> : null}<div className="mt-5 text-[24px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>{product.title}</div>{product.priceText ? <div className="mt-2 text-sm font-bold" style={{ color: BRAND.primary }}>{product.priceText}</div> : null}<div className="mt-5 rounded-[18px] border p-4 text-[12px]" style={{ borderColor: BRAND.line, color: BRAND.muted }}>Shareable configured URL: <span style={{ color: BRAND.ink }}>{shareUrl}</span></div></div>{purchase}</div></Shell></section>
   </StorefrontChrome>;
 }

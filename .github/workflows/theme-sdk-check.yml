@@ -12,6 +12,8 @@ on:
       - 'src/themes/**'
       - 'src/v0-themes/**'
       - 'scripts/create-v0-theme.mjs'
+      - 'scripts/import-v0-theme.mjs'
+      - 'scripts/validate-theme-import-registry.mjs'
       - 'scripts/validate-v0-themes.mjs'
       - 'package.json'
       - '.github/workflows/theme-sdk-check.yml'
@@ -40,6 +42,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Validate importer scripts
+        run: |
+          node --check scripts/import-v0-theme.mjs
+          node scripts/validate-theme-import-registry.mjs
 
       - name: Validate v0 theme boundaries
         run: pnpm theme:check

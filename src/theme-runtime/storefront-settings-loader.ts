@@ -1,39 +1,13 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { normaliseRuntimeMenuItem } from '@/theme-runtime/menu-normaliser';
-import type { MenuItem } from '@/themes/atlantis-native/types';
+import type {
+  StorefrontBrandSettings,
+  StorefrontHomepageSection,
+  StorefrontMenuItem,
+  StorefrontRuntimeSettings,
+} from '@/theme-runtime/types';
 
-export type StorefrontBrandSettings = {
-  brandName: string;
-  logoUrl: string;
-  primary: string;
-  accent: string;
-  background: string;
-  text: string;
-  muted: string;
-  border: string;
-};
-
-export type StorefrontHomepageSection = Record<string, any> & {
-  id: string;
-  type: string;
-  enabled: boolean;
-};
-
-export type StorefrontRuntimeSettings = {
-  tenantIds: string[];
-  storeSlug: string;
-  storeName: string;
-  storeStatus: string;
-  themeKey: string;
-  brand: StorefrontBrandSettings;
-  content: Record<string, any>;
-  layout: Record<string, any>;
-  navigation: MenuItem[];
-  sections: StorefrontHomepageSection[];
-  themePublished: boolean;
-  themeVersion: number;
-  source: 'store-and-published-theme' | 'store' | 'defaults';
-};
+export type { StorefrontBrandSettings, StorefrontHomepageSection, StorefrontRuntimeSettings } from '@/theme-runtime/types';
 
 type CatalogRow = {
   id: string;
@@ -44,7 +18,7 @@ type CatalogRow = {
 };
 
 const DEFAULT_BRAND: StorefrontBrandSettings = {
-  brandName: 'Print Store',
+  brandName: '',
   logoUrl: '',
   primary: '#18A7D0',
   accent: '#7B3FE4',
@@ -60,10 +34,6 @@ function clean(value: unknown) {
 
 function slug(value: unknown) {
   return clean(value).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-}
-
-function titleFromSlug(value: string) {
-  return String(value || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
 function object(value: unknown): Record<string, any> {
@@ -99,6 +69,7 @@ export async function resolveStorefrontTenantIds(tenantSlugInput: string) {
 }
 
 async function findStoreRow(tenantIds: string[], storeSlug: string) {
+  if (!storeSlug) return null;
   for (const tenantId of tenantIds) {
     try {
       const rows = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
@@ -124,23 +95,21 @@ async function findStoreRow(tenantIds: string[], storeSlug: string) {
 }
 
 async function findThemeRows(tenantIds: string[], storeSlug: string) {
-  const candidates = uniq([storeSlug, 'default-store']);
+  if (!storeSlug) return [];
   const rows: CatalogRow[] = [];
   for (const tenantId of tenantIds) {
-    for (const channelSlug of candidates) {
-      try {
-        const found = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
-          `SELECT id,"tenantId",slug,name,"metadataJson"
-           FROM "CoreCatalogRecord"
-           WHERE "tenantId"=$1 AND resource='hosted-theme-settings' AND slug=$2
-           ORDER BY "updatedAt" DESC
-           LIMIT 1`,
-          tenantId,
-          channelSlug,
-        );
-        if (found[0]) rows.push(found[0]);
-      } catch {}
-    }
+    try {
+      const found = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
+        `SELECT id,"tenantId",slug,name,"metadataJson"
+         FROM "CoreCatalogRecord"
+         WHERE "tenantId"=$1 AND resource='hosted-theme-settings' AND slug=$2
+         ORDER BY "updatedAt" DESC
+         LIMIT 1`,
+        tenantId,
+        storeSlug,
+      );
+      if (found[0]) rows.push(found[0]);
+    } catch {}
   }
   return rows;
 }
@@ -161,16 +130,20 @@ function normaliseSections(value: unknown): StorefrontHomepageSection[] {
   })).filter((section) => section.enabled && section.type).slice(0, 30);
 }
 
-function normaliseNavigation(value: unknown): MenuItem[] {
+function normaliseNavigation(value: unknown): StorefrontMenuItem[] {
   return array(value)
     .map(normaliseRuntimeMenuItem)
     .filter((item) => item.enabled && item.label && item.path)
     .sort((left, right) => left.order - right.order);
 }
 
-export async function loadStorefrontRuntimeSettings(tenantSlugInput: string, storeSlugInput: string): Promise<StorefrontRuntimeSettings> {
-  const storeSlug = slug(storeSlugInput) || 'default-store';
-  const tenantIds = await resolveStorefrontTenantIds(tenantSlugInput);
+export async function loadStorefrontRuntimeSettings(
+  tenantSlugInput: string,
+  storeSlugInput: string,
+  resolvedTenantIds?: string[],
+): Promise<StorefrontRuntimeSettings> {
+  const storeSlug = slug(storeSlugInput);
+  const tenantIds = resolvedTenantIds?.length ? uniq(resolvedTenantIds) : await resolveStorefrontTenantIds(tenantSlugInput);
   const [storeRow, themeRows] = await Promise.all([
     findStoreRow(tenantIds, storeSlug),
     findThemeRows(tenantIds, storeSlug),
@@ -184,10 +157,10 @@ export async function loadStorefrontRuntimeSettings(tenantSlugInput: string, sto
   const storeContent = object(store.content);
   const themeContent = object(theme.contentOverrides || theme.content);
   const themeText = object(themeContent.text);
-  const storeName = clean(themeBrand.brandName || storeBrand.brandName || store.name || store.title || storeRow?.name || titleFromSlug(storeSlug));
+  const storeName = clean(themeBrand.brandName || storeBrand.brandName || store.name || store.title || storeRow?.name);
 
   const brand: StorefrontBrandSettings = {
-    brandName: storeName || DEFAULT_BRAND.brandName,
+    brandName: storeName,
     logoUrl: clean(themeBrand.logoUrl || storeBrand.logoUrl || storeBrand.logo || store.logoUrl),
     primary: colour(themeBrand.primary || storeBrand.primary || storeBrand.primaryColor, DEFAULT_BRAND.primary),
     accent: colour(themeBrand.accent || storeBrand.accent || storeBrand.accentColor, DEFAULT_BRAND.accent),
@@ -209,8 +182,9 @@ export async function loadStorefrontRuntimeSettings(tenantSlugInput: string, sto
     tenantIds,
     storeSlug,
     storeName: brand.brandName,
-    storeStatus: clean(store.status || 'published').toLowerCase(),
-    themeKey: clean(store.theme || store.selectedTheme || 'atlantis-print-hosted'),
+    storeStatus: clean(store.status).toLowerCase(),
+    storeFound: Boolean(storeRow),
+    themeKey: clean(store.theme || store.selectedTheme || 'atlantis-native'),
     brand,
     content,
     layout: { ...object(store.layout), ...object(theme.layout) },

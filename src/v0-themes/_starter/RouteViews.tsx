@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import type {
   V0ThemeCartPageProps,
@@ -8,7 +9,7 @@ import type {
   V0ThemeRouteViews,
 } from '../contracts';
 
-function shell(page: V0ThemeCategoryPageProps | V0ThemeProductPageProps | V0ThemeQuotePageProps | V0ThemeCartPageProps | V0ThemeCheckoutStatusPageProps, body: React.ReactNode) {
+function shell(page: V0ThemeCategoryPageProps | V0ThemeProductPageProps | V0ThemeQuotePageProps | V0ThemeCartPageProps | V0ThemeCheckoutStatusPageProps, body: ReactNode) {
   return <div style={{ backgroundColor: page.brand.background, color: page.brand.text }}><header className="border-b bg-white" style={{ borderColor: page.brand.border }}><div className="mx-auto flex h-20 w-full max-w-[1320px] items-center justify-between px-5 md:px-8"><Link href={page.basePath} className="text-[24px] font-black no-underline" style={{ color: page.brand.text }}>{page.brand.name}</Link><Link href={`${page.basePath}/cart`} className="text-[12px] font-black no-underline" style={{ color: page.brand.primary }}>Basket</Link></div></header>{body}</div>;
 }
 

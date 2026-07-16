@@ -10,7 +10,7 @@ import type {
 } from '../contracts';
 
 function shell(page: V0ThemeCategoryPageProps | V0ThemeProductPageProps | V0ThemeQuotePageProps | V0ThemeCartPageProps | V0ThemeCheckoutStatusPageProps, body: ReactNode) {
-  return <div style={{ backgroundColor: page.brand.background, color: page.brand.text }}><header className="border-b bg-white" style={{ borderColor: page.brand.border }}><div className="mx-auto flex h-20 w-full max-w-[1320px] items-center justify-between px-5 md:px-8"><Link href={page.basePath} className="text-[24px] font-black no-underline" style={{ color: page.brand.text }}>{page.brand.name}</Link><Link href={`${page.basePath}/cart`} className="text-[12px] font-black no-underline" style={{ color: page.brand.primary }}>Basket</Link></div></header>{body}</div>;
+  return <div style={{ backgroundColor: page.brand.background, color: page.brand.text }}><header className="border-b bg-white" style={{ borderColor: page.brand.border }}><div className="mx-auto flex h-20 w-full max-w-[1320px] items-center justify-between px-5 md:px-8"><Link href={page.basePath} className="text-[24px] font-black no-underline" style={{ color: page.brand.text }}>{page.brand.name}</Link>{page.chromeSlots?.basket || <Link href={`${page.basePath}/cart`} className="text-[12px] font-black no-underline" style={{ color: page.brand.primary }}>Basket</Link>}</div></header>{body}</div>;
 }
 
 function CategoryPage(props: V0ThemeCategoryPageProps) {
@@ -26,7 +26,7 @@ function QuotePage(props: V0ThemeQuotePageProps) {
 }
 
 function CartPage(props: V0ThemeCartPageProps) {
-  return shell(props, <main className="mx-auto w-full max-w-[1100px] px-5 py-12 md:px-8"><h1 className="text-[44px] font-black tracking-[-0.06em]">{props.product ? `${props.product.title} added to basket` : 'Your basket'}</h1><div className="mt-8">{props.slots?.checkout}</div></main>);
+  return shell(props, <main className="mx-auto w-full max-w-[1240px] px-5 py-12 md:px-8"><h1 className="text-[44px] font-black tracking-[-0.06em]">Your saved basket</h1><p className="mt-3 text-sm" style={{ color: props.brand.muted }}>{props.basket.lineCount ? `${props.basket.lineCount} product line${props.basket.lineCount === 1 ? '' : 's'} · ${props.basket.formattedTotal}` : 'Your basket is empty.'}</p><div className="mt-8">{props.slots.basket}</div></main>);
 }
 
 function CheckoutStatusPage(props: V0ThemeCheckoutStatusPageProps) {

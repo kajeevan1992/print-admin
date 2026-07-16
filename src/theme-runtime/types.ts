@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
 
 export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (string & {});
 export type StorefrontThemeSource = 'built-in' | 'uploaded';
@@ -133,6 +134,7 @@ export type StorefrontRuntimeContext = {
   categories?: StorefrontCategoryCard[];
   collectionPoints?: StorefrontCollectionPoint[];
   settings?: StorefrontRuntimeSettings;
+  routeViews?: V0ThemeRouteViews;
 };
 
 export type StorefrontThemeRenderer = (context: StorefrontRuntimeContext) => Promise<ReactNode> | ReactNode;

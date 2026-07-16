@@ -10,14 +10,14 @@ import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settin
 import type { StorefrontRuntimeContext } from './types';
 
 export async function renderAtlantisStorefront(context: StorefrontRuntimeContext) {
-  const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams } = context;
+  const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams, routeViews } = context;
   const settings = context.settings || await loadStorefrontRuntimeSettings(tenantSlug, storeSlug, tenantIds);
   if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={settings} products={products} categories={categories} collectionPoints={collectionPoints} />;
   if (routeSegments[0] === 'collection-points') return <CollectionPointsPage storeBase={storeBase} navItems={navItems} settings={settings} points={collectionPoints.length ? collectionPoints : await loadCollectionPoints(tenantIds)} />;
-  if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} settings={settings} status="success" searchParams={searchParams || {}} />;
-  if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} settings={settings} status="cancel" searchParams={searchParams || {}} />;
-  if (routeSegments[0] === 'cart') return <CartPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} productSlug={searchParams?.product} categorySlug={searchParams?.category} products={products} searchParams={searchParams || {}} />;
-  if (routeSegments[0] === 'quote' && routeSegments.length >= 3) return <QuoteRequestPage storeBase={storeBase} navItems={navItems} settings={settings} tenantSlug={tenantSlug} storeSlug={storeSlug} category={routeSegments[1]} slug={routeSegments[2]} products={products} searchParams={searchParams || {}} />;
-  if (routeSegments.length >= 2) return <ProductPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} category={routeSegments[0]} slug={routeSegments[routeSegments.length - 1]} products={products} searchParams={searchParams || {}} />;
-  return <CategoryPage storeBase={storeBase} navItems={navItems} settings={settings} slug={routeSegments[0]} products={products} categories={categories} />;
+  if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="success" searchParams={searchParams || {}} />;
+  if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="cancel" searchParams={searchParams || {}} />;
+  if (routeSegments[0] === 'cart') return <CartPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} productSlug={searchParams?.product} categorySlug={searchParams?.category} products={products} searchParams={searchParams || {}} />;
+  if (routeSegments[0] === 'quote' && routeSegments.length >= 3) return <QuoteRequestPage storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} tenantSlug={tenantSlug} storeSlug={storeSlug} category={routeSegments[1]} slug={routeSegments[2]} products={products} searchParams={searchParams || {}} />;
+  if (routeSegments.length >= 2) return <ProductPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} category={routeSegments[0]} slug={routeSegments[routeSegments.length - 1]} products={products} searchParams={searchParams || {}} />;
+  return <CategoryPage storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} slug={routeSegments[0]} products={products} categories={categories} />;
 }

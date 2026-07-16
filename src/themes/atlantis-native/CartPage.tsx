@@ -7,6 +7,8 @@ import { Shell } from './HomePrimitives';
 import { loadProductForNativePricing } from '@/core/storefront/native-pricing.service';
 import { resolveProductConfig } from '@/core/storefront/product-config-engine';
 import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
+import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
+import { buildV0ThemePageContext, themeProductToV0 } from '@/theme-runtime/v0-view-props';
 
 function clean(value: unknown) { return String(value || '').trim(); }
 function slugify(value: unknown) { return clean(value).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
@@ -64,53 +66,24 @@ async function backendCartProduct(tenantSlug: string, productSlug?: string) {
     const slug = clean(product.slug || productSlug);
     const category = clean(product.categorySlug || product.metadataJson?.categorySlug || '');
     if (!title || !slug || !category) return null;
-    return {
-      title,
-      category,
-      slug,
-      groups: Array.isArray(resolvedConfig.customerGroups) ? resolvedConfig.customerGroups : [],
-      quantityRows: Array.isArray(resolvedConfig.quantityRows) ? resolvedConfig.quantityRows : [],
-      deliveryRows: Array.isArray(resolvedConfig.deliveryRows) ? resolvedConfig.deliveryRows : [],
-    };
-  } catch {
-    return null;
-  }
+    return { title, category, slug, groups: Array.isArray(resolvedConfig.customerGroups) ? resolvedConfig.customerGroups : [], quantityRows: Array.isArray(resolvedConfig.quantityRows) ? resolvedConfig.quantityRows : [], deliveryRows: Array.isArray(resolvedConfig.deliveryRows) ? resolvedConfig.deliveryRows : [] };
+  } catch { return null; }
 }
 
-export default async function CartPage({ tenantSlug = '', storeSlug = '', storeBase, navItems, productSlug, categorySlug: _categorySlug, products: _products = [], searchParams = {}, settings }: { tenantSlug?: string; storeSlug?: string; storeBase: string; navItems: NavItem[]; productSlug?: string; categorySlug?: string; products?: ThemeProductCard[]; searchParams?: Record<string, string>; settings?: StorefrontRuntimeSettings }) {
+export default async function CartPage({ tenantSlug = '', storeSlug = '', storeBase, navItems, productSlug, categorySlug: _categorySlug, products = [], searchParams = {}, settings, routeViews }: { tenantSlug?: string; storeSlug?: string; storeBase: string; navItems: NavItem[]; productSlug?: string; categorySlug?: string; products?: ThemeProductCard[]; searchParams?: Record<string, string>; settings?: StorefrontRuntimeSettings; routeViews?: V0ThemeRouteViews }) {
   const product = await backendCartProduct(tenantSlug, productSlug);
-  const title = product?.title || 'Your basket';
   const selectedRows = product ? selectedOptionRowsFromBackend(product.groups, searchParams) : [];
   const defaultQuantity = product ? quantityFromRows(product.quantityRows, searchParams) : 1;
   const selectedDelivery = product ? deliveryFromRows(product.deliveryRows, searchParams) : '';
   const configuredProductHref = product ? `${storeBase}/${product.category}/${product.slug}${optionQuery(selectedRows, defaultQuantity, selectedDelivery)}` : '';
+  const publishedProduct = product ? products.find((item) => item.slug === product.slug) : undefined;
+  const checkout = product ? <CartCheckoutForm tenantSlug={tenantSlug} storeSlug={storeSlug} productSlug={product.slug} categorySlug={product.category} productTitle={product.title} selectedOptions={selectedRows} defaultQuantity={defaultQuantity} selectedDelivery={selectedDelivery} /> : undefined;
 
-  return <StorefrontChrome currentPath="/cart" navItems={navItems} storeBase={storeBase} settings={settings}>
-    <section className="py-10">
-      <Shell>
-        <div className="rounded-[32px] border bg-white p-8 shadow-sm" style={{ borderColor: BRAND.line }}>
-          <div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>Basket</div>
-          <h1 className="mt-4 text-[38px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>{product ? `${title} added to basket` : 'Your basket'}</h1>
-          <p className="mt-3 max-w-[720px] text-sm leading-7" style={{ color: BRAND.muted }}>{product ? 'Review your SaaS-admin resolved product, options and price before checkout.' : 'Your basket is empty or the product is not currently published in the SaaS admin.'}</p>
+  if (routeViews?.CartPage && settings) {
+    const View = routeViews.CartPage;
+    const safeProduct = publishedProduct ? themeProductToV0(publishedProduct, storeBase) : product ? { slug: product.slug, category: product.category, title: product.title, description: '', image: '', price: '', href: `${storeBase}/${product.category}/${product.slug}` } : undefined;
+    return <View {...buildV0ThemePageContext({ storeBase, currentPath: '/cart', navItems, settings })} product={safeProduct} selectedOptions={selectedRows.map(({ key, label, value }) => ({ key, label, value }))} quantity={defaultQuantity} delivery={selectedDelivery} configuredProductHref={configuredProductHref} slots={{ checkout }} />;
+  }
 
-          {product ? <div className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}>
-            <div className="text-[18px] font-black" style={{ color: BRAND.ink }}>{product.title}</div>
-            <div className="mt-3 text-sm" style={{ color: BRAND.muted }}>Category: {product.category}</div>
-            {selectedRows.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{selectedRows.map((row) => <div key={row.key} className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>{row.label}</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{row.value}</div></div>)}</div> : null}
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Quantity</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{defaultQuantity}</div></div>
-              {selectedDelivery ? <div className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Delivery / turnaround</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{selectedDelivery}</div></div> : null}
-            </div>
-          </div> : null}
-
-          {product ? <CartCheckoutForm tenantSlug={tenantSlug} storeSlug={storeSlug} productSlug={product.slug} categorySlug={product.category} productTitle={product.title} selectedOptions={selectedRows} defaultQuantity={defaultQuantity} selectedDelivery={selectedDelivery} /> : null}
-
-          <div className="mt-7 flex flex-wrap gap-3">
-            <a href={storeBase} className="rounded-full px-5 py-3 text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Continue shopping</a>
-            {configuredProductHref ? <a href={configuredProductHref} className="rounded-full border px-5 py-3 text-[12px] font-black no-underline" style={{ borderColor: BRAND.line, color: BRAND.ink }}>Edit options</a> : null}
-          </div>
-        </div>
-      </Shell>
-    </section>
-  </StorefrontChrome>;
+  return <StorefrontChrome currentPath="/cart" navItems={navItems} storeBase={storeBase} settings={settings}><section className="py-10"><Shell><div className="rounded-[32px] border bg-white p-8 shadow-sm" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>Basket</div><h1 className="mt-4 text-[38px] font-black tracking-[-0.055em]" style={{ color: BRAND.ink }}>{product ? `${product.title} added to basket` : 'Your basket'}</h1><p className="mt-3 max-w-[720px] text-sm leading-7" style={{ color: BRAND.muted }}>{product ? 'Review your SaaS-admin resolved product, options and price before checkout.' : 'Your basket is empty or the product is not currently published in the SaaS admin.'}</p>{product ? <div className="mt-6 rounded-[24px] border p-5" style={{ borderColor: BRAND.line }}><div className="text-[18px] font-black" style={{ color: BRAND.ink }}>{product.title}</div><div className="mt-3 text-sm" style={{ color: BRAND.muted }}>Category: {product.category}</div>{selectedRows.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{selectedRows.map((row) => <div key={row.key} className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>{row.label}</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{row.value}</div></div>)}</div> : null}<div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Quantity</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{defaultQuantity}</div></div>{selectedDelivery ? <div className="rounded-[18px] border p-4" style={{ borderColor: BRAND.line }}><div className="text-[11px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>Delivery / turnaround</div><div className="mt-1 text-sm font-black" style={{ color: BRAND.ink }}>{selectedDelivery}</div></div> : null}</div></div> : null}{checkout}<div className="mt-7 flex flex-wrap gap-3"><a href={storeBase} className="rounded-full px-5 py-3 text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Continue shopping</a>{configuredProductHref ? <a href={configuredProductHref} className="rounded-full border px-5 py-3 text-[12px] font-black no-underline" style={{ borderColor: BRAND.line, color: BRAND.ink }}>Edit options</a> : null}</div></div></Shell></section></StorefrontChrome>;
 }

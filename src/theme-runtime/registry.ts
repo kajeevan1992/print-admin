@@ -1,6 +1,7 @@
 import { ATLANTIS_THEME_DEFINITION } from '@/theme-runtime/built-in/atlantis';
 import { STUDIO_THEME_DEFINITION } from '@/theme-runtime/built-in/studio';
 import { CANVAS_THEME_DEFINITION } from '@/theme-runtime/built-in/canvas';
+import { GENERATED_V0_THEME_DEFINITIONS } from '@/theme-runtime/built-in/generated-v0-themes';
 import type {
   StorefrontRuntimeContext,
   StorefrontThemeDefinition,
@@ -15,6 +16,7 @@ const BUILT_IN_THEME_DEFINITIONS: StorefrontThemeDefinition[] = [
   ATLANTIS_THEME_DEFINITION,
   STUDIO_THEME_DEFINITION,
   CANVAS_THEME_DEFINITION,
+  ...GENERATED_V0_THEME_DEFINITIONS,
 ];
 
 export const BUILT_IN_STOREFRONT_THEMES: StorefrontThemeManifest[] = BUILT_IN_THEME_DEFINITIONS.map((definition) => definition.manifest);

@@ -1,0 +1,99 @@
+import Link from 'next/link';
+import { ArrowRight, MapPin, ShoppingBag } from 'lucide-react';
+import type {
+  V0ThemeCategory,
+  V0ThemeHomeProps,
+  V0ThemeProduct,
+  V0ThemeSection,
+} from '../contracts';
+
+function text(value: unknown) {
+  return String(value || '').trim();
+}
+
+function list(value: unknown) {
+  return Array.isArray(value) ? value : [];
+}
+
+function radius(layout: Record<string, unknown>) {
+  const value = text(layout.cardRadius);
+  if (value === 'small') return 'rounded-xl';
+  if (value === 'large') return 'rounded-[32px]';
+  return 'rounded-[22px]';
+}
+
+function selectedProducts(section: V0ThemeSection, products: V0ThemeProduct[]) {
+  const slugs = list(section.productSlugs).map(String);
+  if (!slugs.length) return products.slice(0, Math.max(1, Number(section.limit || 6)));
+  return slugs.map((slug) => products.find((product) => product.slug === slug)).filter(Boolean) as V0ThemeProduct[];
+}
+
+function selectedCategories(section: V0ThemeSection, categories: V0ThemeCategory[]) {
+  const slugs = list(section.categorySlugs).map(String);
+  if (!slugs.length) return categories.slice(0, Math.max(1, Number(section.limit || 6)));
+  return slugs.map((slug) => categories.find((category) => category.slug === slug)).filter(Boolean) as V0ThemeCategory[];
+}
+
+function Logo({ brand }: Pick<V0ThemeHomeProps, 'brand'>) {
+  if (brand.logoUrl) return <img src={brand.logoUrl} alt={brand.name} className="max-h-10 max-w-[210px] object-contain" />;
+  return <span className="text-[24px] font-black tracking-[-0.05em]" style={{ color: brand.text }}>{brand.name}</span>;
+}
+
+function ProductCard({ product, cardRadius }: { product: V0ThemeProduct; cardRadius: string }) {
+  return <Link href={product.href} className={`${cardRadius} group overflow-hidden border bg-white no-underline transition hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.10)]`} style={{ borderColor: 'var(--canvas-border)' }}>
+    <div className="aspect-[4/3] overflow-hidden bg-slate-100">{product.image ? <img src={product.image} alt={product.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : null}</div>
+    <div className="p-5"><div className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--canvas-primary)' }}>{product.category.replace(/-/g, ' ')}</div><h3 className="mt-2 text-[19px] font-black tracking-[-0.035em]" style={{ color: 'var(--canvas-text)' }}>{product.title}</h3>{product.description ? <p className="mt-2 line-clamp-2 text-[12px] leading-6" style={{ color: 'var(--canvas-muted)' }}>{product.description}</p> : null}<div className="mt-4 flex items-center justify-between gap-3"><span className="text-[13px] font-black" style={{ color: 'var(--canvas-text)' }}>{product.price || 'View options'}</span><ArrowRight className="h-4 w-4" style={{ color: 'var(--canvas-primary)' }} /></div></div>
+  </Link>;
+}
+
+function Section({ section, props, cardRadius }: { section: V0ThemeSection; props: V0ThemeHomeProps; cardRadius: string }) {
+  const title = text(section.title);
+  const body = text(section.subtitle || section.body);
+  const eyebrow = text(section.eyebrow);
+
+  if (section.type === 'hero') {
+    const image = text(section.imageUrl || section.image);
+    const buttonLabel = text(section.buttonLabel || 'Browse products');
+    const buttonHref = text(section.buttonHref || `${props.basePath}/all-products`);
+    return <section className="border-b" style={{ borderColor: 'var(--canvas-border)', background: `linear-gradient(135deg, color-mix(in srgb, ${props.brand.primary} 10%, white), white 55%, color-mix(in srgb, ${props.brand.accent} 8%, white))` }}><div className="mx-auto grid w-full max-w-[1320px] gap-10 px-5 py-14 md:px-8 lg:grid-cols-[1fr_0.9fr] lg:items-center lg:py-20"><div>{eyebrow ? <div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{eyebrow}</div> : null}<h1 className="mt-4 max-w-[780px] text-[48px] font-black leading-[0.92] tracking-[-0.07em] sm:text-[68px]" style={{ color: props.brand.text }}>{title || 'Print made clear, fast and professional.'}</h1>{body ? <p className="mt-6 max-w-[620px] text-[15px] leading-8" style={{ color: props.brand.muted }}>{body}</p> : null}<Link href={buttonHref} className="mt-8 inline-flex items-center gap-2 rounded-full px-6 py-3 text-[12px] font-black text-white no-underline" style={{ backgroundColor: props.brand.primary }}>{buttonLabel}<ArrowRight className="h-4 w-4" /></Link></div>{image ? <div className={`${cardRadius} overflow-hidden border bg-white p-3 shadow-[0_30px_90px_rgba(15,23,42,0.12)]`} style={{ borderColor: props.brand.border }}><img src={image} alt={title || props.brand.name} className={`${cardRadius} h-[390px] w-full object-cover`} /></div> : null}</div></section>;
+  }
+
+  if (section.type === 'product-grid') {
+    const products = selectedProducts(section, props.products);
+    return <section className="py-12"><div className="mx-auto w-full max-w-[1320px] px-5 md:px-8"><div className="mb-7 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div>{eyebrow ? <div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{eyebrow}</div> : null}<h2 className="mt-2 text-[36px] font-black tracking-[-0.055em]" style={{ color: props.brand.text }}>{title || 'Popular products'}</h2>{body ? <p className="mt-3 max-w-[700px] text-[13px] leading-7" style={{ color: props.brand.muted }}>{body}</p> : null}</div>{text(section.buttonLabel) && text(section.buttonHref) ? <Link href={text(section.buttonHref)} className="text-[12px] font-black no-underline" style={{ color: props.brand.primary }}>{text(section.buttonLabel)} →</Link> : null}</div><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{products.map((product) => <ProductCard key={product.slug} product={product} cardRadius={cardRadius} />)}</div></div></section>;
+  }
+
+  if (section.type === 'category-carousel') {
+    const categories = selectedCategories(section, props.categories);
+    return <section className="border-y py-12" style={{ borderColor: props.brand.border, backgroundColor: 'rgba(255,255,255,0.62)' }}><div className="mx-auto w-full max-w-[1320px] px-5 md:px-8"><div className="mb-7"><div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{eyebrow || 'Categories'}</div><h2 className="mt-2 text-[36px] font-black tracking-[-0.055em]" style={{ color: props.brand.text }}>{title || 'Browse by category'}</h2></div><div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{categories.map((category) => <Link key={category.slug} href={category.href} className={`${cardRadius} relative min-h-[240px] overflow-hidden border bg-slate-900 p-6 no-underline`} style={{ borderColor: props.brand.border }}>{category.image ? <img src={category.image} alt={category.title} className="absolute inset-0 h-full w-full object-cover opacity-55" /> : null}<div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" /><div className="relative flex h-full flex-col justify-end"><h3 className="text-[26px] font-black tracking-[-0.045em] text-white">{category.title}</h3><p className="mt-2 text-[12px] text-white/70">{category.productCount} products</p></div></Link>)}</div></div></section>;
+  }
+
+  if (section.type === 'collection-points') {
+    return <section className="py-12"><div className="mx-auto w-full max-w-[1320px] px-5 md:px-8"><div className="mb-7"><div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{eyebrow || 'Collect locally'}</div><h2 className="mt-2 text-[36px] font-black tracking-[-0.055em]" style={{ color: props.brand.text }}>{title || 'Collection points'}</h2></div><div className="grid gap-4 md:grid-cols-3">{props.collectionPoints.map((point) => <div key={point.slug} className={`${cardRadius} border bg-white p-5`} style={{ borderColor: props.brand.border }}><MapPin className="h-5 w-5" style={{ color: props.brand.primary }} /><div className="mt-4 text-[17px] font-black" style={{ color: props.brand.text }}>{point.name}</div><p className="mt-2 text-[12px] leading-6" style={{ color: props.brand.muted }}>{point.address || point.note}</p></div>)}</div></div></section>;
+  }
+
+  if (!title && !body) return null;
+  return <section className="py-12"><div className="mx-auto w-full max-w-[1040px] px-5 text-center md:px-8">{eyebrow ? <div className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: props.brand.primary }}>{eyebrow}</div> : null}{title ? <h2 className="mt-2 text-[38px] font-black tracking-[-0.06em]" style={{ color: props.brand.text }}>{title}</h2> : null}{body ? <p className="mx-auto mt-4 max-w-[760px] text-[14px] leading-8" style={{ color: props.brand.muted }}>{body}</p> : null}</div></section>;
+}
+
+export default function CanvasHomePage(props: V0ThemeHomeProps) {
+  const cardRadius = radius(props.layout);
+  const utilityText = text((props.content.text as Record<string, unknown> | undefined)?.utilityText || props.content.utilityText || 'Professional print, signage and packaging solutions');
+  const footerDescription = text((props.content.text as Record<string, unknown> | undefined)?.footerDescription || props.content.footerDescription || `${props.brand.name} online print storefront.`);
+  const style = {
+    '--canvas-primary': props.brand.primary,
+    '--canvas-accent': props.brand.accent,
+    '--canvas-background': props.brand.background,
+    '--canvas-text': props.brand.text,
+    '--canvas-muted': props.brand.muted,
+    '--canvas-border': props.brand.border,
+  } as React.CSSProperties;
+
+  return <div style={{ ...style, backgroundColor: props.brand.background, color: props.brand.text }} data-v0-theme-package="canvas">
+    {props.slots?.previewBanner}
+    <div className="border-b px-5 py-2 text-center text-[11px] font-semibold text-white" style={{ borderColor: props.brand.border, backgroundColor: props.brand.primary }}>{utilityText}</div>
+    <header className="sticky top-0 z-30 border-b bg-white/92 backdrop-blur" style={{ borderColor: props.brand.border }}><div className="mx-auto grid h-[76px] w-full max-w-[1320px] grid-cols-[auto_1fr_auto] items-center gap-6 px-5 md:px-8"><Link href={props.basePath} className="no-underline"><Logo brand={props.brand} /></Link><nav className="hidden items-center justify-center gap-5 lg:flex">{props.navigation.map((item) => <Link key={`${item.label}-${item.href}`} href={item.href} className="text-[13px] font-semibold no-underline" style={{ color: item.active ? props.brand.primary : props.brand.text }}>{item.label}</Link>)}</nav><Link href={`${props.basePath}/cart`} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[12px] font-black no-underline" style={{ borderColor: props.brand.border, color: props.brand.text }}><ShoppingBag className="h-4 w-4" />Basket</Link></div></header>
+    <main>{props.sections.length ? props.sections.filter((section) => section.enabled !== false).map((section) => <Section key={section.id} section={section} props={props} cardRadius={cardRadius} />) : <section className="py-16"><div className="mx-auto w-full max-w-[1320px] px-5 md:px-8"><div className={`${cardRadius} border bg-white p-8 text-sm`} style={{ borderColor: props.brand.border, color: props.brand.muted }}>Storefront homepage content has not been published for this store.</div></div></section>}</main>
+    <footer className="mt-10 border-t bg-white" style={{ borderColor: props.brand.border }}><div className="mx-auto grid w-full max-w-[1320px] gap-8 px-5 py-10 md:grid-cols-[1fr_auto] md:px-8"><div><Logo brand={props.brand} /><p className="mt-4 max-w-[520px] text-[12px] leading-7" style={{ color: props.brand.muted }}>{footerDescription}</p></div><div className="flex flex-wrap gap-4 text-[12px] font-semibold">{props.navigation.slice(0, 6).map((item) => <Link key={`footer-${item.href}`} href={item.href} className="no-underline" style={{ color: props.brand.text }}>{item.label}</Link>)}</div></div></footer>
+  </div>;
+}

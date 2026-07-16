@@ -37,6 +37,10 @@ function object(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function nonEmptyObject(value: unknown): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(object(value)).filter(([, item]) => String(item ?? '').trim() !== ''));
+}
+
 function alphaColour(value: string, alphaHex: string, fallback: string) {
   return /^#[0-9a-fA-F]{6}$/.test(value) ? `${value}${alphaHex}` : fallback;
 }
@@ -57,7 +61,7 @@ export function resolveProtectedWidgetAppearance(value: unknown): ResolvedProtec
 }
 
 export function mergeProtectedWidgetAppearance(base: unknown, override: unknown): ResolvedProtectedWidgetAppearance {
-  return resolveProtectedWidgetAppearance({ ...object(base), ...object(override) });
+  return resolveProtectedWidgetAppearance({ ...object(base), ...nonEmptyObject(override) });
 }
 
 export function protectedWidgetAppearanceFromSettings(settings?: { layout?: Record<string, any> } | null) {

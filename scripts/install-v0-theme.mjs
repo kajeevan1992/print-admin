@@ -12,7 +12,7 @@ const replace = flags.includes('--replace');
 const MAX_FILES = 400;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 25 * 1024 * 1024;
-const allowedExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif', '.md', '.txt']);
+const allowedExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.gif', '.avif', '.ico', '.md', '.txt']);
 const forbiddenNames = new Set(['package.json', 'pnpm-lock.yaml', 'package-lock.json', 'yarn.lock', 'next.config.js', 'next.config.mjs', 'tsconfig.json']);
 
 function fail(message) {
@@ -46,7 +46,7 @@ function assertAllowedFile(relative, size) {
   if (size > MAX_FILE_BYTES) fail(`Theme package file exceeds 5 MB: ${relative}`);
 }
 
-function copyDirectory(source, destination, state) {
+function copyDirectory(source, destination, state, packageRoot = source) {
   fs.mkdirSync(destination, { recursive: true });
   for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
     if (ignoredName(entry.name)) continue;
@@ -54,11 +54,11 @@ function copyDirectory(source, destination, state) {
     const to = path.join(destination, entry.name);
     if (entry.isSymbolicLink()) fail(`Theme package contains unsupported symbolic link: ${from}`);
     if (entry.isDirectory()) {
-      copyDirectory(from, to, state);
+      copyDirectory(from, to, state, packageRoot);
       continue;
     }
     const size = fs.statSync(from).size;
-    const relative = path.relative(source, from).replaceAll('\\', '/');
+    const relative = path.relative(packageRoot, from).replaceAll('\\', '/');
     assertAllowedFile(relative, size);
     state.files += 1;
     state.bytes += size;
@@ -160,20 +160,24 @@ async function main() {
   fs.mkdirSync(themesRoot, { recursive: true });
 
   const token = `${process.pid}-${Date.now()}`;
-  const stagingContainer = path.join(themesRoot, `.incoming-${token}`);
+  const extractionRoot = path.join(themesRoot, `.incoming-${token}`);
+  const stagedPackage = path.join(themesRoot, `.package-${token}`);
   const backup = path.join(themesRoot, `.backup-${token}`);
   let destination = '';
   let installed = false;
 
   try {
-    const state = { files: 0, bytes: 0 };
-    fs.mkdirSync(stagingContainer, { recursive: true });
-    if (fs.statSync(source).isDirectory()) copyDirectory(source, stagingContainer, state);
-    else if (path.extname(source).toLowerCase() === '.zip') await extractZip(source, stagingContainer, state);
+    const sourceState = { files: 0, bytes: 0 };
+    fs.mkdirSync(extractionRoot, { recursive: true });
+    if (fs.statSync(source).isDirectory()) copyDirectory(source, extractionRoot, sourceState);
+    else if (path.extname(source).toLowerCase() === '.zip') await extractZip(source, extractionRoot, sourceState);
     else fail('Theme source must be a directory or .zip archive.');
 
-    const packageRoot = findPackageRoot(stagingContainer);
-    const manifest = fs.readFileSync(path.join(packageRoot, 'manifest.ts'), 'utf8');
+    const discoveredRoot = findPackageRoot(extractionRoot);
+    const packageState = { files: 0, bytes: 0 };
+    copyDirectory(discoveredRoot, stagedPackage, packageState);
+
+    const manifest = fs.readFileSync(path.join(stagedPackage, 'manifest.ts'), 'utf8');
     const key = manifestValue(manifest, 'key');
     const name = manifestValue(manifest, 'name');
     const version = manifestValue(manifest, 'version');
@@ -184,8 +188,8 @@ async function main() {
     parseVersion(version);
     destination = path.join(themesRoot, slug);
 
-    run('node', ['scripts/validate-v0-themes.mjs', '--package', packageRoot]);
-    const digest = packageDigest(packageRoot);
+    run('node', ['scripts/validate-v0-themes.mjs', '--package', stagedPackage]);
+    const digest = packageDigest(stagedPackage);
 
     if (fs.existsSync(destination)) {
       const existingManifest = fs.readFileSync(path.join(destination, 'manifest.ts'), 'utf8');
@@ -196,7 +200,7 @@ async function main() {
     }
 
     console.log(`Validated ${name} (${key}) v${version}`);
-    console.log(`Files: ${state.files}; uncompressed size: ${state.bytes} bytes; SHA-256: ${digest}`);
+    console.log(`Files: ${packageState.files}; uncompressed size: ${packageState.bytes} bytes; SHA-256: ${digest}`);
     if (dryRun) {
       console.log('Dry run complete. No repository files were changed.');
       return;
@@ -204,7 +208,7 @@ async function main() {
 
     if (fs.existsSync(destination)) fs.renameSync(destination, backup);
     fs.mkdirSync(destination, { recursive: true });
-    copyDirectory(packageRoot, destination, { files: 0, bytes: 0 });
+    copyDirectory(stagedPackage, destination, { files: 0, bytes: 0 });
     installed = true;
 
     run('node', ['scripts/sync-v0-theme-registry.mjs']);
@@ -219,7 +223,8 @@ async function main() {
     try { run('node', ['scripts/sync-v0-theme-registry.mjs']); } catch {}
     throw error;
   } finally {
-    remove(stagingContainer);
+    remove(extractionRoot);
+    remove(stagedPackage);
     remove(backup);
   }
 }

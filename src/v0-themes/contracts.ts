@@ -14,7 +14,7 @@ export type V0ThemeWidgetAppearance = {
   surface?: 'card' | 'soft' | 'flat';
   density?: 'compact' | 'comfortable' | 'spacious';
   radius?: 'small' | 'medium' | 'large';
-  optionStyle?: 'cards' | 'pills' | 'segments';
+  optionStyle?: 'auto' | 'cards' | 'pills' | 'segments';
   fieldStyle?: 'outline' | 'filled' | 'underline';
   buttonStyle?: 'pill' | 'rounded' | 'square';
   priceStyle?: 'panel' | 'highlight' | 'minimal';

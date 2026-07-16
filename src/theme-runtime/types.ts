@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
+import type { V0ThemeRouteViews, V0ThemeWidgetAppearance } from '@/v0-themes/contracts';
 
 export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (string & {});
 export type StorefrontThemeSource = 'built-in' | 'uploaded';
@@ -27,6 +27,7 @@ export type StorefrontThemeManifest = {
   source: StorefrontThemeSource;
   description?: string;
   aliases?: StorefrontThemeKey[];
+  widgetAppearance?: V0ThemeWidgetAppearance;
   editor?: StorefrontThemeEditorSchema;
 };
 

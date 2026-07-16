@@ -1,7 +1,17 @@
 import type { ComponentType } from 'react';
 import { renderAtlantisStorefront } from '@/theme-runtime/atlantis-renderer';
-import type { StorefrontRuntimeContext, StorefrontRuntimeSettings } from '@/theme-runtime/types';
-import type { V0ThemeHomeProps, V0ThemeRouteViews, V0ThemeWidgetAppearance } from '@/v0-themes/contracts';
+import type {
+  StorefrontRuntimeContext,
+  StorefrontRuntimeSettings,
+  StorefrontThemeDefinition,
+  StorefrontThemeManifest,
+} from '@/theme-runtime/types';
+import type {
+  V0ThemeHomeProps,
+  V0ThemePackageManifest,
+  V0ThemeRouteViews,
+  V0ThemeWidgetAppearance,
+} from '@/v0-themes/contracts';
 import { buildV0ThemePageContext, themeCategoryToV0, themeProductToV0 } from '@/theme-runtime/v0-view-props';
 import { mergeProtectedWidgetAppearance } from '@/theme-runtime/protected-widget-appearance';
 
@@ -53,4 +63,31 @@ export async function renderV0ThemePackage(
     return <HomePage {...buildV0ThemeHomeProps(packageContext)} />;
   }
   return renderAtlantisStorefront(packageContext);
+}
+
+export function createV0ThemeDefinition(input: {
+  manifest: V0ThemePackageManifest;
+  HomePage: ComponentType<V0ThemeHomeProps>;
+  routeViews?: V0ThemeRouteViews;
+  themeStyle?: string;
+}): StorefrontThemeDefinition {
+  const themeKey = String(input.manifest.key || '').trim();
+  if (!themeKey) throw new Error('A v0 theme manifest requires a key.');
+  const manifest: StorefrontThemeManifest = {
+    ...input.manifest,
+    key: themeKey,
+    aliases: input.manifest.aliases || [],
+    source: 'built-in',
+  };
+  const themeStyle = String(input.themeStyle || themeKey.replace(/-native$/, '') || 'v0-theme').trim();
+  return {
+    manifest,
+    renderer: (context) => renderV0ThemePackage(context, {
+      themeKey,
+      themeStyle,
+      HomePage: input.HomePage,
+      routeViews: input.routeViews,
+      widgetAppearance: input.manifest.widgetAppearance,
+    }),
+  };
 }

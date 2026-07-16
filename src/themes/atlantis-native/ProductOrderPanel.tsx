@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { BRAND } from './theme-helpers';
+import type { StorefrontBrandSettings } from '@/theme-runtime/types';
+import { protectedWidgetTheme } from '@/theme-runtime/protected-widget-appearance';
 
-type ConfigOption = Record<string, any> & { id?: string; value?: string; label?: string; slug?: string; disabled?: boolean; visible?: boolean; recommended?: boolean; default?: boolean; priceMinor?: number; quantity?: string | number; qty?: string | number; available?: boolean; description?: string };
+ type ConfigOption = Record<string, any> & { id?: string; value?: string; label?: string; slug?: string; disabled?: boolean; visible?: boolean; recommended?: boolean; default?: boolean; priceMinor?: number; quantity?: string | number; qty?: string | number; available?: boolean; description?: string };
 type ConfigGroup = Record<string, any> & { key?: string; label?: string; name?: string; displayType?: string; options?: ConfigOption[]; values?: ConfigOption[] };
 type PriceState = { loading: boolean; ok: boolean; formattedPrice?: string; error?: string; meta?: Record<string, any> };
 
@@ -22,6 +23,8 @@ type Props = {
   initialDelivery?: string | null;
   initialPrice?: Record<string, any> | null;
   searchParams?: Record<string, string>;
+  appearance?: unknown;
+  brand?: Partial<StorefrontBrandSettings>;
 };
 
 function cleanSlug(value: unknown) { return String(value || '').trim().toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''); }
@@ -86,13 +89,14 @@ function basketHref(storeBase: string, category: string, slug: string, rows: { k
   return `${storeBase}/cart?${params.toString()}`;
 }
 
-export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, category, slug, title, optionGroups = [], quantityRows = [], deliveryRows = [], initialSelections = {}, initialQuantity: initialQty, initialDelivery: initialDeliveryValue, initialPrice = null, searchParams = {} }: Props) {
+export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, category, slug, title, optionGroups = [], quantityRows = [], deliveryRows = [], initialSelections = {}, initialQuantity: initialQty, initialDelivery: initialDeliveryValue, initialPrice = null, searchParams = {}, appearance, brand }: Props) {
   const [selected, setSelected] = useState<Record<string, string>>(() => initialSelected(optionGroups, initialSelections, searchParams));
   const [quantity, setQuantity] = useState(() => initialQuantity(quantityRows, initialQty, searchParams));
   const [delivery, setDelivery] = useState(() => initialDelivery(deliveryRows, initialDeliveryValue, searchParams));
   const [price, setPrice] = useState<PriceState>(() => initialPrice?.formattedPrice ? { loading: false, ok: true, formattedPrice: String(initialPrice.formattedPrice), meta: initialPrice } : { loading: true, ok: false });
   const rows = useMemo(() => selectedOptionRows(optionGroups, selected), [optionGroups, selected]);
   const addToBasketHref = useMemo(() => basketHref(storeBase, category, slug, rows, quantity, delivery), [storeBase, category, slug, rows, quantity, delivery]);
+  const widget = protectedWidgetTheme(appearance, brand);
 
   useEffect(() => {
     let alive = true;
@@ -114,60 +118,63 @@ export default function ProductOrderPanel({ tenantSlug, storeSlug, storeBase, ca
     return () => { alive = false; };
   }, [tenantSlug, storeSlug, slug, category, rows, quantity, delivery]);
 
-  return <div className="rounded-[26px] border bg-white p-6 shadow-[0_18px_48px_rgba(0,0,0,0.05)]" style={{ borderColor: BRAND.line }}>
-    <div className="text-[22px] font-black tracking-[-0.04em]" style={{ color: BRAND.ink }}>Order setup</div>
-    <div className="mt-2 text-[13px] font-bold" style={{ color: BRAND.muted }}>These fields come from the backend product configurator contract.</div>
+  return <div data-protected-widget="product-configurator" className={widget.classes.surface} style={{ ...widget.rootStyle, ...widget.styles.surface }}>
+    <div className="text-[22px] font-black tracking-[-0.04em]" style={widget.styles.text}>Order setup</div>
+    <div className="mt-2 text-[13px] font-bold" style={widget.styles.muted}>These fields come from the backend product configurator contract.</div>
 
-    {optionGroups.length ? <div className="mt-5 space-y-4">{optionGroups.map((group) => {
+    {optionGroups.length ? <div className={`${widget.classes.top} space-y-4`}>{optionGroups.map((group) => {
       const key = groupKey(group);
       const display = String(group.displayType || group.style || '').toLowerCase();
-      const tile = display.includes('tile') || display.includes('card');
+      const automaticMode = display.includes('tile') || display.includes('card') ? 'cards' : 'pills';
+      const mode = widget.appearance.optionStyle === 'auto' ? automaticMode : widget.appearance.optionStyle;
+      const optionClass = mode === 'pills' ? widget.classes.optionPill : mode === 'segments' ? widget.classes.optionSegment : widget.classes.optionCard;
+      const layoutClass = mode === 'pills' ? 'mt-2 flex flex-wrap gap-2' : 'mt-2 grid gap-2 sm:grid-cols-2';
       return <div key={key || groupLabel(group)}>
-        <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>{groupLabel(group)}</div>
-        <div className={tile ? 'mt-2 grid gap-2 sm:grid-cols-2' : 'mt-2 flex flex-wrap gap-2'}>{groupOptions(group).map((value) => {
+        <div className={widget.classes.label} style={widget.styles.text}>{groupLabel(group)}</div>
+        <div className={layoutClass}>{groupOptions(group).map((value) => {
           const active = selected[key] === optionSlug(value);
-          return <button key={optionSlug(value)} type="button" onClick={() => setSelected((current) => ({ ...current, [key]: optionSlug(value) }))} className={tile ? 'rounded-[16px] border p-4 text-left text-[12px] font-black' : 'rounded-full border px-4 py-2 text-[12px] font-black'} style={{ borderColor: active ? BRAND.primary : BRAND.line, color: active ? BRAND.primary : BRAND.ink, backgroundColor: active ? 'rgba(24,167,208,0.08)' : 'white' }}>
+          return <button key={optionSlug(value)} type="button" onClick={() => setSelected((current) => ({ ...current, [key]: optionSlug(value) }))} className={optionClass} style={active ? widget.styles.activeControl : widget.styles.inactiveControl}>
             <span>{optionLabel(value)}</span>
-            {value.recommended ? <span className="ml-2 rounded-full px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white" style={{ backgroundColor: BRAND.primary }}>Recommended</span> : null}
-            {value.sublabel || value.description ? <div className="mt-1 text-[11px] font-semibold" style={{ color: BRAND.muted }}>{value.sublabel || value.description}</div> : null}
+            {value.recommended ? <span className="ml-2 rounded-full px-2 py-1 text-[9px] uppercase tracking-[0.1em] text-white" style={widget.styles.primaryButton}>Recommended</span> : null}
+            {value.sublabel || value.description ? <div className="mt-1 text-[11px] font-semibold" style={widget.styles.muted}>{value.sublabel || value.description}</div> : null}
           </button>;
         })}</div>
       </div>;
-    })}</div> : <div className="mt-5 rounded-[18px] border p-4 text-[12px]" style={{ borderColor: BRAND.line, color: BRAND.muted }}>No customer-facing product options are configured for this product yet.</div>}
+    })}</div> : <div className={`${widget.classes.top} ${widget.classes.section} text-[12px]`} style={{ ...widget.styles.section, ...widget.styles.muted }}>No customer-facing product options are configured for this product yet.</div>}
 
-    <div className="mt-5">
-      <label className="block text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Quantity / print run</label>
+    <div className={widget.classes.top}>
+      <label className={`block ${widget.classes.label}`} style={widget.styles.text}>Quantity / print run</label>
       {quantityRows.length ? <div className="mt-2 grid gap-2 sm:grid-cols-2">{quantityRows.map((row) => {
         const qty = Number(rowQty(row));
         const active = qty === quantity;
-        return <button key={String(rowQty(row))} type="button" onClick={() => Number.isFinite(qty) && qty > 0 ? setQuantity(Math.round(qty)) : undefined} className="rounded-[16px] border p-4 text-left" style={{ borderColor: active ? BRAND.primary : BRAND.line, backgroundColor: active ? 'rgba(24,167,208,0.08)' : 'white' }}>
-          <div className="text-[14px] font-black" style={{ color: BRAND.ink }}>{String(rowQty(row))}</div>
-          {rowPrice(row) ? <div className="mt-1 text-[12px] font-bold" style={{ color: BRAND.primary }}>{rowPrice(row)}</div> : null}
+        return <button key={String(rowQty(row))} type="button" onClick={() => Number.isFinite(qty) && qty > 0 ? setQuantity(Math.round(qty)) : undefined} className={widget.classes.optionCard} style={active ? widget.styles.activeControl : widget.styles.inactiveControl}>
+          <div className="text-[14px] font-black" style={widget.styles.text}>{String(rowQty(row))}</div>
+          {rowPrice(row) ? <div className="mt-1 text-[12px] font-bold" style={widget.styles.primaryText}>{rowPrice(row)}</div> : null}
         </button>;
-      })}</div> : <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} min="1" type="number" className="mt-2 w-full rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: BRAND.line }} />}
+      })}</div> : <input value={quantity} onChange={(event) => setQuantity(Math.max(1, Number(event.target.value || 1)))} min="1" type="number" className={`mt-2 w-full ${widget.classes.field}`} style={widget.styles.field} />}
     </div>
 
-    {deliveryRows.length ? <div className="mt-5">
-      <div className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.ink }}>Turnaround / delivery</div>
+    {deliveryRows.length ? <div className={widget.classes.top}>
+      <div className={widget.classes.label} style={widget.styles.text}>Turnaround / delivery</div>
       <div className="mt-2 space-y-2">{deliveryRows.map((row) => {
         const value = String(row.value || row.id || row.label || '');
         const active = delivery === value;
-        return <button key={value || optionLabel(row)} type="button" onClick={() => setDelivery(value)} className="w-full rounded-[16px] border p-4 text-left" style={{ borderColor: active ? BRAND.primary : BRAND.line, backgroundColor: active ? 'rgba(24,167,208,0.08)' : 'white' }}>
-          <div className="text-[13px] font-black" style={{ color: BRAND.ink }}>{optionLabel(row)}</div>
-          {rowDescription(row) ? <div className="mt-1 text-[12px] font-semibold" style={{ color: BRAND.muted }}>{rowDescription(row)}</div> : null}
-          {row.addon ? <div className="mt-1 text-[12px] font-bold" style={{ color: BRAND.primary }}>{row.addon}</div> : null}
+        return <button key={value || optionLabel(row)} type="button" onClick={() => setDelivery(value)} className={`w-full ${widget.classes.optionCard}`} style={active ? widget.styles.activeControl : widget.styles.inactiveControl}>
+          <div className="text-[13px] font-black" style={widget.styles.text}>{optionLabel(row)}</div>
+          {rowDescription(row) ? <div className="mt-1 text-[12px] font-semibold" style={widget.styles.muted}>{rowDescription(row)}</div> : null}
+          {row.addon ? <div className="mt-1 text-[12px] font-bold" style={widget.styles.primaryText}>{row.addon}</div> : null}
         </button>;
       })}</div>
     </div> : null}
 
-    <div className="mt-5 rounded-[20px] border p-5" style={{ borderColor: BRAND.line }}>
-      <div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.muted }}>Live backend price</div>
-      <div className="mt-1 text-[28px] font-black tracking-[-0.05em]" style={{ color: BRAND.ink }}>{price.loading ? 'Checking price…' : price.ok ? price.formattedPrice : 'Price unavailable'}</div>
-      {!price.loading && !price.ok ? <div className="mt-2 text-[12px]" style={{ color: BRAND.muted }}>{price.error}</div> : null}
-      {price.meta?.vatReason ? <div className="mt-2 text-[11px]" style={{ color: BRAND.muted }}>Tax rule: {String(price.meta.vatReason)}</div> : null}
+    <div className={`${widget.classes.top} ${widget.classes.price}`} style={widget.styles.price}>
+      <div className={widget.classes.label} style={widget.styles.muted}>Live backend price</div>
+      <div className="mt-1 text-[28px] font-black tracking-[-0.05em]" style={widget.styles.text}>{price.loading ? 'Checking price…' : price.ok ? price.formattedPrice : 'Price unavailable'}</div>
+      {!price.loading && !price.ok ? <div className="mt-2 text-[12px]" style={widget.styles.muted}>{price.error}</div> : null}
+      {price.meta?.vatReason ? <div className="mt-2 text-[11px]" style={widget.styles.muted}>Tax rule: {String(price.meta.vatReason)}</div> : null}
     </div>
 
-    {price.ok ? <a href={addToBasketHref} className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white no-underline" style={{ backgroundColor: BRAND.primary }}>Add to basket</a> : <button disabled className="mt-5 block w-full rounded-full px-5 py-3 text-center text-[12px] font-black text-white opacity-50" style={{ backgroundColor: BRAND.primary }}>Add to basket</button>}
-    <div className="mt-4 text-[12px]" style={{ color: BRAND.muted }}>{title} pricing, availability, quantity, delivery and VAT are controlled by backend product setup.</div>
+    {price.ok ? <a href={addToBasketHref} className={`${widget.classes.top} block w-full text-center text-white no-underline ${widget.classes.button}`} style={widget.styles.primaryButton}>Add to basket</a> : <button disabled className={`${widget.classes.top} block w-full text-center text-white opacity-50 ${widget.classes.button}`} style={widget.styles.primaryButton}>Add to basket</button>}
+    <div className="mt-4 text-[12px]" style={widget.styles.muted}>{title} pricing, availability, quantity, delivery and VAT are controlled by backend product setup.</div>
   </div>;
 }

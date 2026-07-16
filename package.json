@@ -9,6 +9,7 @@
     "lint": "next lint",
     "theme:check": "node scripts/validate-v0-themes.mjs",
     "theme:create": "node scripts/create-v0-theme.mjs",
+    "theme:import": "node scripts/import-v0-theme.mjs",
     "prisma:generate": "node scripts/prisma-generate-with-db-env.cjs",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

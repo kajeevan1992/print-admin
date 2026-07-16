@@ -16,5 +16,6 @@ export const CANVAS_THEME_DEFINITION: StorefrontThemeDefinition = {
     themeStyle: 'canvas',
     HomePage: CanvasHomePage,
     routeViews: CANVAS_ROUTE_VIEWS,
+    widgetAppearance: CANVAS_V0_MANIFEST.widgetAppearance,
   }),
 };

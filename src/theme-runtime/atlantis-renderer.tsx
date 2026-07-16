@@ -9,8 +9,8 @@ import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points
 import type { StorefrontRuntimeContext } from './types';
 
 export async function renderAtlantisStorefront(context: StorefrontRuntimeContext) {
-  const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams } = context;
-  if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} products={products} categories={categories} collectionPoints={collectionPoints} />;
+  const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams, settings } = context;
+  if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={settings} products={products} categories={categories} collectionPoints={collectionPoints} />;
   if (routeSegments[0] === 'collection-points') return <CollectionPointsPage storeBase={storeBase} navItems={navItems} points={collectionPoints.length ? collectionPoints : await loadCollectionPoints(tenantIds)} />;
   if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} status="success" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage storeBase={storeBase} navItems={navItems} status="cancel" searchParams={searchParams || {}} />;

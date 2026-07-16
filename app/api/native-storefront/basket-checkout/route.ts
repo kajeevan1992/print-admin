@@ -6,7 +6,7 @@ import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-l
 import { upsertArtworkProductionTicket } from '@/core/storefront/artwork-production-bridge.service';
 import { artworkStorageStatus, saveArtworkMetadataDb } from '@/core/storefront/internal-artwork-db';
 import { saveArtworkUpload, type StoredArtworkUpload } from '@/core/storefront/internal-artwork-storage';
-import { basketCookieName, loadPersistentBasket } from '@/core/storefront/persistent-basket.service';
+import { basketCookieName, loadPersistentBasket, savePersistentBasket, type StorefrontBasketArtwork } from '@/core/storefront/persistent-basket.service';
 import { tenantContextFromRequest } from '@/core/tenant/context';
 
 export const dynamic = 'force-dynamic';
@@ -19,6 +19,7 @@ function clean(value: FormDataEntryValue | null | undefined) { return String(val
 function slug(value: unknown) { return clean(value as any).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
 function bool(value: FormDataEntryValue | null, fallback = false) { const next = clean(value).toLowerCase(); if (!next) return fallback; return ['1', 'true', 'yes', 'on', 'same'].includes(next); }
 function normal(value: string) { return clean(value).toLowerCase().replace(/_/g, '-'); }
+function artworkStatus(value: FormDataEntryValue | null, fallback: StorefrontBasketArtwork['status']) { const next = clean(value); return ['ready', 'send-later', 'need-design'].includes(next) ? next as StorefrontBasketArtwork['status'] : fallback; }
 function address(form: FormData, prefix: string): AddressSnapshot { return { line1: clean(form.get(`${prefix}Address1`)), line2: clean(form.get(`${prefix}Address2`)), town: clean(form.get(`${prefix}Town`)), county: clean(form.get(`${prefix}County`)), postcode: clean(form.get(`${prefix}Postcode`)).toUpperCase(), country: clean(form.get(`${prefix}Country`)) || 'United Kingdom' }; }
 function hasAddress(value: AddressSnapshot | null) { return Boolean(value && (value.line1 || value.line2 || value.town || value.county || value.postcode)); }
 function addressLine(value: AddressSnapshot | null) { if (!value) return ''; return [value.line1, value.line2, value.town, value.county, value.postcode, value.country].filter(Boolean).join(', '); }
@@ -84,8 +85,9 @@ export async function POST(request: NextRequest) {
 
     const scopedRequest = tenantScopedRequest(request, tenantSlug);
     const tenantCtx = tenantContextFromRequest(scopedRequest);
-    const basket = await loadPersistentBasket(scopedRequest, tenantSlug, storeSlug, basketId, { reprice: true, persistRefresh: true });
+    let basket = await loadPersistentBasket(scopedRequest, tenantSlug, storeSlug, basketId, { reprice: true, persistRefresh: true });
     if (!basket.lines.length) return json({ ok: false, error: 'Your basket is empty.' }, { status: 400, headers: rateLimit.headers });
+    basket = await savePersistentBasket({ ...basket, lines: basket.lines.map((line) => ({ ...line, artwork: { ...line.artwork, status: artworkStatus(form.get(`artworkStatus:${line.id}`), line.artwork.status), notes: clean(form.get(`artworkNotes:${line.id}`)) || line.artwork.notes } })) });
 
     const orderNumber = `WEB-${Date.now()}`;
     const contactSnapshot = { name: customerName, email: customerEmail, phone: customerPhone, company: customerCompany };

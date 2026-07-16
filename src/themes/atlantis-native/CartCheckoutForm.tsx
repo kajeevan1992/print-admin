@@ -61,6 +61,7 @@ export default function CartCheckoutForm({ tenantSlug, storeSlug, basket, appear
     <input type="hidden" name="basketId" value={basket.id} />
     <input type="hidden" name="fulfilmentMode" value={fulfilmentMode} />
     <input type="hidden" name="billingSameAsDelivery" value={billingSameAsDelivery ? 'true' : 'false'} />
+    <div className="hidden">{basket.lines.map((line) => <span key={`artwork-state-${line.id}`}><input type="hidden" name={`artworkStatus:${line.id}`} value={line.artwork.status} /><input type="hidden" name={`artworkNotes:${line.id}`} value={line.artwork.notes || ''} /></span>)}</div>
 
     <div className="text-[20px] font-black" style={widget.styles.text}>Checkout details</div>
     <div className={`${widget.classes.top} ${widget.classes.price}`} style={widget.styles.price}>

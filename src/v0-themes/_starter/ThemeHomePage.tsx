@@ -13,7 +13,7 @@ export default function __THEME_NAME_UPPER__HomePage(props: V0ThemeHomeProps) {
       <div className="mx-auto flex h-20 w-full max-w-[1320px] items-center justify-between gap-6 px-5 md:px-8">
         <Link href={props.basePath} className="text-[24px] font-black no-underline" style={{ color: props.brand.text }}>{props.brand.name}</Link>
         <nav className="hidden gap-5 lg:flex">{props.navigation.map((item) => <Link key={item.href} href={item.href} className="text-[13px] font-semibold no-underline" style={{ color: item.active ? props.brand.primary : props.brand.text }}>{item.label}</Link>)}</nav>
-        <Link href={`${props.basePath}/cart`} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[12px] font-black no-underline" style={{ borderColor: props.brand.border, color: props.brand.text }}><ShoppingBag className="h-4 w-4" />Basket</Link>
+        {props.chromeSlots?.basket || <Link href={`${props.basePath}/cart`} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[12px] font-black no-underline" style={{ borderColor: props.brand.border, color: props.brand.text }}><ShoppingBag className="h-4 w-4" />Basket</Link>}
       </div>
     </header>
 

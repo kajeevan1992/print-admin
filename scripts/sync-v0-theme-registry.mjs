@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -28,27 +27,6 @@ function manifestValue(content, field) {
   return clean(match?.[1]);
 }
 
-function walk(directory) {
-  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (['node_modules', '.next', '.git', 'dist', 'coverage'].includes(entry.name)) return [];
-    const absolute = path.join(directory, entry.name);
-    return entry.isDirectory() ? walk(absolute) : [absolute];
-  });
-}
-
-function digestPackage(directory) {
-  const hash = crypto.createHash('sha256');
-  const files = walk(directory).sort((left, right) => left.localeCompare(right));
-  for (const file of files) {
-    const relative = path.relative(directory, file).replaceAll('\\', '/');
-    hash.update(relative);
-    hash.update('\0');
-    hash.update(fs.readFileSync(file));
-    hash.update('\0');
-  }
-  return hash.digest('hex');
-}
-
 function readPackages() {
   if (!fs.existsSync(themesRoot)) throw new Error('src/v0-themes is missing.');
   const folders = fs.readdirSync(themesRoot, { withFileTypes: true })
@@ -76,7 +54,6 @@ function readPackages() {
       version,
       identifier: identifier(folder),
       variable: variable(folder),
-      digest: digestPackage(directory),
     };
   });
 
@@ -97,7 +74,7 @@ function registrySource(packages) {
 function catalogSource(packages) {
   return `${JSON.stringify({
     schemaVersion: 1,
-    themes: packages.map(({ folder, key, name, version, digest }) => ({ folder, key, name, version, digest })),
+    themes: packages.map(({ folder, key, name, version }) => ({ folder, key, name, version })),
   }, null, 2)}\n`;
 }
 

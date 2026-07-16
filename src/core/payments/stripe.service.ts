@@ -4,6 +4,7 @@ import { queueOrderCustomerEmail } from '@/core/email/order-notifications.servic
 import { tenantContextFromRequest } from '@/core/tenant/context';
 import { getOrder, updateOrder } from '@/core/orders/orders.service';
 import { canCreatePaymentSessionForOrder } from '@/core/payments/payment-rules';
+import { buildStorefrontPaymentReturnUrls, storefrontContextFromReturnUrl } from '@/core/payments/storefront-payment-token';
 
 type StripeSessionInput = { orderId: string; successUrl?: string; cancelUrl?: string; customerEmail?: string; tenantSlug?: string; storeSlug?: string; basketId?: string };
 type StripeRefundInput = { orderId: string; amountMinor?: number; reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer'; note?: string; actor?: string };
@@ -111,11 +112,14 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
   const readiness = canCreatePaymentSessionForOrder(order);
   if (!readiness.ok) throw new Error(readiness.reason);
   const tenant = tenantContextFromRequest(request);
-  const successUrl = input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
-  const cancelUrl = input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);
+  const urlContext = storefrontContextFromReturnUrl(input.successUrl) || storefrontContextFromReturnUrl(input.cancelUrl);
+  const tenantSlug = String(input.tenantSlug || order.resolver?.tenantSlug || urlContext?.tenantSlug || tenant.tenantId || '').trim();
+  const storeSlug = String(input.storeSlug || order.resolver?.storeSlug || urlContext?.storeSlug || '').trim();
+  const basketId = String(input.basketId || order.resolver?.basketId || urlContext?.basketId || '').trim();
+  const securedReturns = tenantSlug && storeSlug ? buildStorefrontPaymentReturnUrls(request, { tenantSlug, storeSlug, orderId: order.id, basketId: basketId || undefined }) : null;
+  const successUrl = securedReturns?.successUrl || input.successUrl || defaultReturnUrl(request, '/payment-success', order.id);
+  const cancelUrl = securedReturns?.cancelUrl || input.cancelUrl || defaultReturnUrl(request, '/payment-cancel', order.id);
   const email = input.customerEmail || order.customerEmail || undefined;
-  const storeSlug = String(input.storeSlug || order.resolver?.storeSlug || '').trim();
-  const basketId = String(input.basketId || order.resolver?.basketId || '').trim();
   const session = await stripePost('/checkout/sessions', {
     mode: 'payment', success_url: successUrl, cancel_url: cancelUrl, customer_email: email, client_reference_id: order.id,
     'line_items[0][quantity]': 1,
@@ -126,13 +130,13 @@ export async function createStripeCheckoutSession(request: Request, input: Strip
     'metadata[paymentType]': 'storefront-order',
     'metadata[orderId]': order.id,
     'metadata[orderNumber]': order.orderNumber,
-    'metadata[tenantId]': tenant.tenantId || input.tenantSlug || '',
+    'metadata[tenantId]': tenant.tenantId || tenantSlug,
     'metadata[storeSlug]': storeSlug,
     'metadata[basketId]': basketId,
     'payment_intent_data[metadata][paymentType]': 'storefront-order',
     'payment_intent_data[metadata][orderId]': order.id,
     'payment_intent_data[metadata][orderNumber]': order.orderNumber,
-    'payment_intent_data[metadata][tenantId]': tenant.tenantId || input.tenantSlug || '',
+    'payment_intent_data[metadata][tenantId]': tenant.tenantId || tenantSlug,
     'payment_intent_data[metadata][storeSlug]': storeSlug,
     'payment_intent_data[metadata][basketId]': basketId,
   });
@@ -164,7 +168,7 @@ export async function applyStripeCheckoutSessionToOrder(request: Request, sessio
   const note = paid ? `Stripe payment confirmed. Session: ${session.id}.` : expired ? `Stripe checkout session expired. Session: ${session.id}.` : failed ? `Stripe payment failed. Session: ${session.id}.` : `Stripe payment update (${eventType}). Session: ${session.id}.`;
   const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripeCheckoutSessionId: session.id, stripePaymentIntentId: session.payment_intent || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: expired ? 'checkout.session.expired' : failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
-  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-session-${session.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
+  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-session-${session.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment received email queue failed.' })) : { skipped: true };
   return { ok: true, order: (paymentEmail as any)?.order || updated, paid, expired, failed, eventType, tenantId: stripeObjectTenantId(session) || '', paymentEmail };
 }
 
@@ -188,7 +192,7 @@ export async function applyStripePaymentIntentToOrder(request: Request, intent: 
   const note = `Stripe payment intent update (${eventType}). Intent: ${intent.id}. Status: ${intent.status || 'unknown'}.`;
   const updated = await updateOrder(scopedRequest, order.id, { status: nextStatus, paymentStatus: nextPaymentStatus, paymentProvider: 'stripe', stripePaymentIntentId: intent.id || order.stripePaymentIntentId || '', paidAt: paid ? nowIso() : order.paidAt, paymentFailureReason: failed ? eventType : '', internalNotes: noteList(order, note) });
   await syncTicketPayment(scopedRequest, updated, nextPaymentStatus, note).catch(() => null);
-  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-payment-intent-${intent.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment email queue failed.' })) : { skipped: true };
+  const paymentEmail = paid ? await queuePaymentReceivedNotification(scopedRequest, updated, `stripe-payment-intent-${intent.id || eventType}`).catch((error) => ({ queued: false, error: error instanceof Error ? error.message : 'Payment received email queue failed.' })) : { skipped: true };
   return { ok: true, order: (paymentEmail as any)?.order || updated, paid, authorized, failed, eventType, tenantId: stripeObjectTenantId(intent) || '', paymentEmail };
 }
 

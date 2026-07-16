@@ -1,14 +1,14 @@
 import type { V0ThemePackageManifest } from '../contracts';
 
-const surfaceOptions = [{ label: 'Card', value: 'card' }, { label: 'Soft', value: 'soft' }, { label: 'Flat', value: 'flat' }];
-const densityOptions = [{ label: 'Compact', value: 'compact' }, { label: 'Comfortable', value: 'comfortable' }, { label: 'Spacious', value: 'spacious' }];
-const radiusOptions = [{ label: 'Small', value: 'small' }, { label: 'Medium', value: 'medium' }, { label: 'Large', value: 'large' }];
-const optionOptions = [{ label: 'Cards', value: 'cards' }, { label: 'Pills', value: 'pills' }, { label: 'Segments', value: 'segments' }];
-const fieldOptions = [{ label: 'Outline', value: 'outline' }, { label: 'Filled', value: 'filled' }, { label: 'Underline', value: 'underline' }];
-const buttonOptions = [{ label: 'Pill', value: 'pill' }, { label: 'Rounded', value: 'rounded' }, { label: 'Square', value: 'square' }];
-const priceOptions = [{ label: 'Panel', value: 'panel' }, { label: 'Highlight', value: 'highlight' }, { label: 'Minimal', value: 'minimal' }];
-const shadowOptions = [{ label: 'None', value: 'none' }, { label: 'Soft', value: 'soft' }, { label: 'Strong', value: 'strong' }];
-const labelOptions = [{ label: 'Normal', value: 'normal' }, { label: 'Uppercase', value: 'uppercase' }];
+const surfaceOptions = [{ label: 'Theme default', value: '' }, { label: 'Card', value: 'card' }, { label: 'Soft', value: 'soft' }, { label: 'Flat', value: 'flat' }];
+const densityOptions = [{ label: 'Theme default', value: '' }, { label: 'Compact', value: 'compact' }, { label: 'Comfortable', value: 'comfortable' }, { label: 'Spacious', value: 'spacious' }];
+const radiusOptions = [{ label: 'Theme default', value: '' }, { label: 'Small', value: 'small' }, { label: 'Medium', value: 'medium' }, { label: 'Large', value: 'large' }];
+const optionOptions = [{ label: 'Theme default', value: '' }, { label: 'Automatic', value: 'auto' }, { label: 'Cards', value: 'cards' }, { label: 'Pills', value: 'pills' }, { label: 'Segments', value: 'segments' }];
+const fieldOptions = [{ label: 'Theme default', value: '' }, { label: 'Outline', value: 'outline' }, { label: 'Filled', value: 'filled' }, { label: 'Underline', value: 'underline' }];
+const buttonOptions = [{ label: 'Theme default', value: '' }, { label: 'Pill', value: 'pill' }, { label: 'Rounded', value: 'rounded' }, { label: 'Square', value: 'square' }];
+const priceOptions = [{ label: 'Theme default', value: '' }, { label: 'Panel', value: 'panel' }, { label: 'Highlight', value: 'highlight' }, { label: 'Minimal', value: 'minimal' }];
+const shadowOptions = [{ label: 'Theme default', value: '' }, { label: 'None', value: 'none' }, { label: 'Soft', value: 'soft' }, { label: 'Strong', value: 'strong' }];
+const labelOptions = [{ label: 'Theme default', value: '' }, { label: 'Normal', value: 'normal' }, { label: 'Uppercase', value: 'uppercase' }];
 
 export const CANVAS_V0_MANIFEST = {
   key: 'canvas-native',

@@ -197,7 +197,7 @@ async function loadStorefrontRuntimeSettingsUncached(
     tenantIds,
     storeSlug,
     storeName: brand.brandName,
-    storeStatus: clean(store.status).toLowerCase(),
+    storeStatus: storeRow ? clean(store.status || 'published').toLowerCase() : '',
     storeFound: Boolean(storeRow),
     themeKey: clean(store.theme || store.selectedTheme || 'atlantis-native'),
     brand,

@@ -2,6 +2,7 @@ import EnhancedHomePage from '@/themes/atlantis-native/EnhancedHomePage';
 import CategoryPage from '@/themes/atlantis-native/CategoryPage';
 import ProductPage from '@/themes/atlantis-native/ProductPage';
 import QuoteRequestPage from '@/themes/atlantis-native/QuoteRequestPage';
+import CustomerQuotePage from '@/themes/atlantis-native/CustomerQuotePage';
 import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage';
 import CartPage from '@/themes/atlantis-native/CartPage';
 import CheckoutStatusPage from '@/themes/atlantis-native/CheckoutStatusPage';
@@ -21,6 +22,7 @@ export async function renderAtlantisStorefront(context: StorefrontRuntimeContext
   if (routeSegments[0] === 'login') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="login" returnUrl={searchParams?.return || ''} />;
   if (routeSegments[0] === 'register') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="register" returnUrl={searchParams?.return || ''} />;
   if (routeSegments[0] === 'account') { const requested = routeSegments[1] || 'overview'; const section = ACCOUNT_SECTIONS.has(requested) ? requested as 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses' : 'overview'; return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="dashboard" section={section} returnUrl={`${storeBase}/account${section === 'overview' ? '' : `/${section}`}`} />; }
+  if (routeSegments[0] === 'quote-status' && routeSegments[1]) return <CustomerQuotePage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} quoteId={routeSegments[1]} searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="success" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="cancel" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'cart') return <CartPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} productSlug={searchParams?.product} categorySlug={searchParams?.category} products={products} searchParams={searchParams || {}} />;

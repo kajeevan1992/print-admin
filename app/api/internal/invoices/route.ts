@@ -24,12 +24,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const ctx = tenantContextFromRequest(request);
     const body = await request.json().catch(() => ({}));
     const orderId = clean(body.orderId);
     if (!orderId) return json({ ok: false, error: 'Order ID or order number is required.' }, { status: 400 });
     const order = await getOrder(request, orderId);
     if (!order) return json({ ok: false, error: 'Order was not found.' }, { status: 404 });
-    const result = await ensureInvoiceForPaidOrder(order);
+    const result = await ensureInvoiceForPaidOrder({ ...order, tenantId: ctx.tenantId, resolver: { ...(order.resolver || {}), tenantSlug: clean(order.resolver?.tenantSlug) || ctx.tenantId } });
     return json({ ok: true, source: 'formal-invoice-ledger', data: result });
   } catch (error) {
     return json({ ok: false, error: error instanceof Error ? error.message : 'Invoice could not be created.' }, { status: 400 });

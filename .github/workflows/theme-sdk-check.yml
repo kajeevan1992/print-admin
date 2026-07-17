@@ -68,12 +68,22 @@ jobs:
           pnpm theme:install /tmp/canvas-theme.zip --dry-run --replace
 
       - name: Build
+        id: production-build
         shell: bash
         run: |
           set -o pipefail
           pnpm build > /tmp/storefront-build.log 2>&1 || {
-            echo '--- final build failure ---'
-            tail -n 120 /tmp/storefront-build.log
+            tail -n 140 /tmp/storefront-build.log > /tmp/storefront-build-failure.log
+            cat /tmp/storefront-build-failure.log
             exit 1
           }
           tail -n 40 /tmp/storefront-build.log
+
+      - name: Upload compiler failure
+        if: failure() && steps.production-build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: storefront-build-failure
+          path: /tmp/storefront-build-failure.log
+          if-no-files-found: error
+          retention-days: 3

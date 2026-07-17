@@ -1,69 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { platformPrisma } from '@/core/db/platform-prisma';
-import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
-
-const CONFIG_RESOURCE = 'admin-config' as any;
-const QUOTES_STORE_KEY = 'admin_quotes_store';
+import { createFormalQuote } from '@/core/quotes/formal-quotes.service';
+import { customerFromRequest } from '@/core/storefront/customer-account.service';
+import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 
 function clean(value: FormDataEntryValue | null) { return String(value || '').trim(); }
-function slug(value: string) { return value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
-function stamp() { return new Date().toISOString().slice(0, 16).replace('T', ' '); }
+function slug(value: unknown) { return clean(value as any).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
 function titleFromSlug(value: string) { return String(value || '').split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '); }
 function parseSelectedOptions(value: string) { try { const parsed = JSON.parse(value || '[]'); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
-function optionSummary(items: any[]) { return items.map((item) => `${item?.label || item?.key}: ${item?.value || item?.slug}`).filter(Boolean).join(', '); }
-
-async function resolveTenantId(tenantSlug: string) {
-  const tenant = await platformPrisma.tenant.findFirst({ where: { OR: [{ id: tenantSlug }, { slug: tenantSlug }, { defaultSubdomain: tenantSlug }] }, select: { id: true } });
-  return tenant?.id || tenantSlug;
-}
-
-async function existingQuotes(tenantId: string) {
-  try {
-    const record = await getInternalCatalogRecord({ tenantId }, CONFIG_RESOURCE, QUOTES_STORE_KEY);
-    const items = (record as any)?.metadataJson?.items;
-    return Array.isArray(items) ? items : [];
-  } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message.includes('was not found')) return [];
-    throw error;
-  }
-}
 
 export async function POST(request: NextRequest) {
-  const form = await request.formData();
-  const tenantSlug = slug(clean(form.get('tenantSlug')));
-  const storeSlug = slug(clean(form.get('storeSlug')));
-  const productSlug = slug(clean(form.get('productSlug')));
-  const categorySlug = slug(clean(form.get('categorySlug')));
-  const customerName = clean(form.get('customerName'));
-  const email = clean(form.get('email'));
-  const phone = clean(form.get('phone'));
-  const quantity = clean(form.get('quantity'));
-  const deadline = clean(form.get('deadline'));
-  const artworkStatus = clean(form.get('artworkStatus'));
-  const notes = clean(form.get('notes'));
-  const selectedOptions = parseSelectedOptions(clean(form.get('selectedOptions')));
-  const selectedOptionsSummary = optionSummary(selectedOptions);
+  try {
+    const form = await request.formData();
+    const tenantSlug = slug(form.get('tenantSlug'));
+    const storeSlug = slug(form.get('storeSlug'));
+    const productSlug = slug(form.get('productSlug'));
+    const categorySlug = slug(form.get('categorySlug'));
+    let customerName = clean(form.get('customerName'));
+    let customerEmail = clean(form.get('email')).toLowerCase();
+    let customerPhone = clean(form.get('phone'));
+    const quantity = Math.max(1, Number(clean(form.get('quantity'))) || 1);
+    const deadline = clean(form.get('deadline'));
+    const artworkStatus = clean(form.get('artworkStatus')) || 'send-later';
+    const notes = clean(form.get('notes'));
+    const selectedOptions = parseSelectedOptions(clean(form.get('selectedOptions'))).map((item: any) => ({ key: clean(item?.key), label: clean(item?.label || item?.key), value: clean(item?.value || item?.slug), slug: slug(item?.slug || item?.value) })).filter((item: any) => item.label && item.value);
+    const customer = tenantSlug && storeSlug ? await customerFromRequest(request, tenantSlug, storeSlug).catch(() => null) : null;
+    if (customer) { customerName = customer.name || customerName; customerEmail = customer.email; customerPhone = customerPhone || customer.phone; }
+    const limit = publicRateLimit(request, { scope: 'native-formal-quote-request', limit: 12, windowMs: 10 * 60 * 1000, identifier: [tenantSlug, storeSlug, customerEmail || customerPhone].filter(Boolean).join(':') });
+    if (limit.enforced) return NextResponse.json({ ...rateLimitPayload(limit), source: 'formal-quote-request' }, { status: 429, headers: limit.headers });
+    if (!tenantSlug || !storeSlug || !productSlug || !customerName || (!customerEmail && !customerPhone)) return NextResponse.json({ ok: false, error: 'Missing required quote request details.' }, { status: 400, headers: limit.headers });
 
-  if (!tenantSlug || !storeSlug || !productSlug || !customerName || (!email && !phone)) return NextResponse.json({ ok: false, error: 'Missing required quote request details.' }, { status: 400 });
-
-  const tenantId = await resolveTenantId(tenantSlug);
-  const id = `qt-${Date.now()}`;
-  const quote = {
-    id,
-    customer: customerName,
-    title: `${titleFromSlug(productSlug) || 'Print'} enquiry`,
-    channel: storeSlug || 'Native Storefront',
-    status: 'draft',
-    total: 0,
-    updatedAt: stamp(),
-    source: 'native-storefront',
-    metadataJson: { tenantId, tenantSlug, storeSlug, categorySlug, productSlug, customerName, email, phone, quantity, deadline, artworkStatus, notes, selectedOptions, selectedOptionsSummary },
-  };
-
-  const items = await existingQuotes(tenantId);
-  const next = [quote, ...items.filter((item: any) => item.id !== id)];
-  await upsertInternalCatalogRecord({ tenantId }, CONFIG_RESOURCE, { id: QUOTES_STORE_KEY, slug: QUOTES_STORE_KEY, name: QUOTES_STORE_KEY, description: 'Operations workspace records', metadataJson: { items: next, savedAt: new Date().toISOString(), storageKey: QUOTES_STORE_KEY, source: 'NativeStorefrontQuoteRequest' } } as any);
-
-  return NextResponse.redirect(new URL(`/native-stores/${tenantSlug}/${storeSlug}/${categorySlug}/${productSlug}?quote=${id}`, request.url), { status: 303 });
+    const quote = await createFormalQuote({
+      tenantSlug,
+      storeSlug,
+      customerId: customer?.id,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerCompany: customer?.company,
+      title: `${titleFromSlug(productSlug) || 'Print'} quotation`,
+      status: 'requested',
+      customerNotes: notes,
+      internalNotes: deadline ? `Customer requested completion by ${deadline}.` : '',
+      lines: [{ productId: productSlug, productSlug, categorySlug, productName: titleFromSlug(productSlug) || 'Print item', quantity, unitNetMinor: 0, vatRate: 0, selectedOptions, metadataJson: { source: 'native-storefront-request', artworkStatus, deadline, selectedOptions } }],
+      actorType: customer ? 'customer-account' : 'storefront-guest',
+      actorId: customer?.id || customerEmail || customerPhone,
+    });
+    if (!quote) throw new Error('Quote could not be created.');
+    const redirect = new URL(`/native-stores/${tenantSlug}/${storeSlug}/${categorySlug}/${productSlug}`, request.url);
+    redirect.searchParams.set('quote', quote.quoteNumber);
+    redirect.searchParams.set('quoteStatus', quote.status);
+    return NextResponse.redirect(redirect, { status: 303, headers: limit.headers });
+  } catch (error) {
+    return NextResponse.json({ ok: false, source: 'formal-quote-request', error: error instanceof Error ? error.message : 'Quote request failed.' }, { status: 400 });
+  }
 }

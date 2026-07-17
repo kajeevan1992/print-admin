@@ -6,6 +6,7 @@ import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage'
 import CartPage from '@/themes/atlantis-native/CartPage';
 import CheckoutStatusPage from '@/themes/atlantis-native/CheckoutStatusPage';
 import CustomerAccountPage from '@/themes/atlantis-native/CustomerAccountPage';
+import CatalogSearchPage from '@/themes/atlantis-native/CatalogSearchPage';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 import type { StorefrontRuntimeContext } from './types';
@@ -16,6 +17,7 @@ export async function renderAtlantisStorefront(context: StorefrontRuntimeContext
   const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams, routeViews } = context;
   const settings = context.settings || await loadStorefrontRuntimeSettings(tenantSlug, storeSlug, tenantIds);
   if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={settings} products={products} categories={categories} collectionPoints={collectionPoints} />;
+  if (routeSegments[0] === 'search') return <CatalogSearchPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'collection-points') return <CollectionPointsPage storeBase={storeBase} navItems={navItems} settings={settings} points={collectionPoints.length ? collectionPoints : await loadCollectionPoints(tenantIds)} />;
   if (routeSegments[0] === 'login') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="login" returnUrl={searchParams?.return || ''} />;
   if (routeSegments[0] === 'register') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="register" returnUrl={searchParams?.return || ''} />;

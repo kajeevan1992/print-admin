@@ -94,6 +94,7 @@ export type V0ThemePageContext = {
   content: Record<string, unknown>;
   layout: Record<string, unknown>;
   chromeSlots?: {
+    search?: ReactNode;
     account?: ReactNode;
     basket?: ReactNode;
   };
@@ -214,6 +215,39 @@ export type V0ThemeCustomerAccountPageProps = V0ThemePageContext & {
   };
 };
 
+export type V0ThemeCatalogSearchProduct = {
+  slug: string;
+  categorySlug: string;
+  categoryTitle: string;
+  title: string;
+  description: string;
+  image: string;
+  price: string;
+  sku: string;
+  buyingMode: 'cart' | 'quote';
+  href: string;
+};
+
+export type V0ThemeCatalogSearchCategory = {
+  slug: string;
+  title: string;
+  description: string;
+  image: string;
+  productCount: number;
+  href: string;
+};
+
+export type V0ThemeCatalogSearchPageProps = V0ThemePageContext & {
+  query: string;
+  productCount: number;
+  categoryCount: number;
+  products: V0ThemeCatalogSearchProduct[];
+  categories: V0ThemeCatalogSearchCategory[];
+  slots: {
+    search: ReactNode;
+  };
+};
+
 export type V0ThemeRouteViews = {
   CategoryPage?: ComponentType<V0ThemeCategoryPageProps>;
   ProductPage?: ComponentType<V0ThemeProductPageProps>;
@@ -221,4 +255,5 @@ export type V0ThemeRouteViews = {
   CartPage?: ComponentType<V0ThemeCartPageProps>;
   CheckoutStatusPage?: ComponentType<V0ThemeCheckoutStatusPageProps>;
   CustomerAccountPage?: ComponentType<V0ThemeCustomerAccountPageProps>;
+  SearchPage?: ComponentType<V0ThemeCatalogSearchPageProps>;
 };

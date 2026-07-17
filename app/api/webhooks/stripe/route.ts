@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { applyStripeCheckoutSessionToOrder, applyStripePaymentIntentToOrder, applyStripeRefundToOrder, checkStripeWebhookEventProcessed, parseStripeWebhookEvent, recordStripeWebhookEventProcessed } from '@/core/payments/stripe.service';
 import { getOrder } from '@/core/orders/orders.service';
-import { syncFulfilmentReservationForPayment } from '@/core/storefront/fulfilment-engine.service';
+import { syncFulfilmentReservationForPayment } from '@/core/storefront/fulfilment-reservation.service';
 import { loadPersistentBasket, markBasketConverted } from '@/core/storefront/persistent-basket.service';
 
 export const dynamic = 'force-dynamic';

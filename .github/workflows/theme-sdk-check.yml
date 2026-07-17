@@ -68,4 +68,12 @@ jobs:
           pnpm theme:install /tmp/canvas-theme.zip --dry-run --replace
 
       - name: Build
-        run: pnpm build
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm build > /tmp/storefront-build.log 2>&1 || {
+            echo '--- final build failure ---'
+            tail -n 120 /tmp/storefront-build.log
+            exit 1
+          }
+          tail -n 40 /tmp/storefront-build.log

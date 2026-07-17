@@ -5,15 +5,25 @@ import QuoteRequestPage from '@/themes/atlantis-native/QuoteRequestPage';
 import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage';
 import CartPage from '@/themes/atlantis-native/CartPage';
 import CheckoutStatusPage from '@/themes/atlantis-native/CheckoutStatusPage';
+import CustomerAccountPage from '@/themes/atlantis-native/CustomerAccountPage';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 import type { StorefrontRuntimeContext } from './types';
+
+const ACCOUNT_SECTIONS = new Set(['overview', 'orders', 'quotes', 'artwork', 'invoices', 'addresses']);
 
 export async function renderAtlantisStorefront(context: StorefrontRuntimeContext) {
   const { tenantSlug, storeSlug, storeBase, navItems, products, categories = [], routeSegments, tenantIds, collectionPoints = [], searchParams, routeViews } = context;
   const settings = context.settings || await loadStorefrontRuntimeSettings(tenantSlug, storeSlug, tenantIds);
   if (!routeSegments.length) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={settings} products={products} categories={categories} collectionPoints={collectionPoints} />;
   if (routeSegments[0] === 'collection-points') return <CollectionPointsPage storeBase={storeBase} navItems={navItems} settings={settings} points={collectionPoints.length ? collectionPoints : await loadCollectionPoints(tenantIds)} />;
+  if (routeSegments[0] === 'login') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="login" returnUrl={searchParams?.return || ''} />;
+  if (routeSegments[0] === 'register') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="register" returnUrl={searchParams?.return || ''} />;
+  if (routeSegments[0] === 'account') {
+    const requested = routeSegments[1] || 'overview';
+    const section = ACCOUNT_SECTIONS.has(requested) ? requested as 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses' : 'overview';
+    return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="dashboard" section={section} returnUrl={`${storeBase}/account${section === 'overview' ? '' : `/${section}`}`} />;
+  }
   if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="success" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="cancel" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'cart') return <CartPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} productSlug={searchParams?.product} categorySlug={searchParams?.category} products={products} searchParams={searchParams || {}} />;

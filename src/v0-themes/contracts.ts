@@ -94,6 +94,7 @@ export type V0ThemePageContext = {
   content: Record<string, unknown>;
   layout: Record<string, unknown>;
   chromeSlots?: {
+    account?: ReactNode;
     basket?: ReactNode;
   };
 };
@@ -193,10 +194,31 @@ export type V0ThemeCheckoutStatusPageProps = V0ThemePageContext & {
   };
 };
 
+export type V0ThemeCustomerAccountPageProps = V0ThemePageContext & {
+  mode: 'login' | 'register' | 'dashboard';
+  section: 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses';
+  authenticated: boolean;
+  customer?: {
+    name: string;
+    email: string;
+  };
+  summary?: {
+    orderCount: number;
+    quoteCount: number;
+    artworkCount: number;
+    invoiceCount: number;
+    addressCount: number;
+  };
+  slots: {
+    account: ReactNode;
+  };
+};
+
 export type V0ThemeRouteViews = {
   CategoryPage?: ComponentType<V0ThemeCategoryPageProps>;
   ProductPage?: ComponentType<V0ThemeProductPageProps>;
   QuotePage?: ComponentType<V0ThemeQuotePageProps>;
   CartPage?: ComponentType<V0ThemeCartPageProps>;
   CheckoutStatusPage?: ComponentType<V0ThemeCheckoutStatusPageProps>;
+  CustomerAccountPage?: ComponentType<V0ThemeCustomerAccountPageProps>;
 };

@@ -4,6 +4,8 @@ import type { FormalCreditNote, FormalInvoice } from './formal-invoices.service'
 function money(minor: number, currency = 'GBP') { return `${currency} ${(Number(minor || 0) / 100).toFixed(2)}`; }
 function date(value: string) { try { return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(value)); } catch { return value || ''; } }
 function line(text = '', options: Omit<BasicPdfLine, 'text'> = {}): BasicPdfLine { return { text, ...options }; }
+function vatRegistered(invoice: FormalInvoice) { return Boolean(String(invoice.brandSnapshot?.vatNumber || '').trim()); }
+function taxLabel(invoice: FormalInvoice) { return vatRegistered(invoice) ? 'VAT' : 'Tax'; }
 
 function businessLines(invoice: FormalInvoice) {
   const brand = invoice.brandSnapshot || ({} as any);
@@ -29,19 +31,22 @@ function customerLines(invoice: FormalInvoice) {
 }
 
 function invoiceItemLines(invoice: FormalInvoice) {
+  const label = taxLabel(invoice);
   const rows: BasicPdfLine[] = [line('ITEMS', { bold: true, gapAfter: 2 })];
   for (const item of invoice.lines) {
     rows.push(line(`${item.productName}${item.sku ? ` [${item.sku}]` : ''}`, { bold: true }));
-    rows.push(line(`Qty ${item.quantity} | Unit net ${money(item.unitNetMinor, invoice.currency)} | VAT ${item.vatRate}% | Net ${money(item.netMinor, invoice.currency)} | VAT ${money(item.vatMinor, invoice.currency)} | Gross ${money(item.grossMinor, invoice.currency)}`, { gapAfter: 4 }));
+    rows.push(line(`Qty ${item.quantity} | Unit net ${money(item.unitNetMinor, invoice.currency)} | ${label} ${item.vatRate}% | Net ${money(item.netMinor, invoice.currency)} | ${label} ${money(item.vatMinor, invoice.currency)} | Gross ${money(item.grossMinor, invoice.currency)}`, { gapAfter: 4 }));
   }
   return rows;
 }
 
 export function buildInvoicePdf(invoice: FormalInvoice, receipt = false) {
-  const title = receipt ? `Payment receipt ${invoice.invoiceNumber}` : `VAT invoice ${invoice.invoiceNumber}`;
+  const registered = vatRegistered(invoice);
+  const documentName = registered ? 'VAT invoice' : 'Invoice';
+  const title = receipt ? `Payment receipt ${invoice.invoiceNumber}` : `${documentName} ${invoice.invoiceNumber}`;
   const lines: BasicPdfLine[] = [
     ...businessLines(invoice),
-    line(receipt ? 'PAYMENT RECEIPT' : 'VAT INVOICE', { size: 18, bold: true }),
+    line(receipt ? 'PAYMENT RECEIPT' : registered ? 'VAT INVOICE' : 'INVOICE', { size: 18, bold: true }),
     line(`Invoice number: ${invoice.invoiceNumber}`, { bold: true }),
     line(`Order number: ${invoice.orderNumber}`),
     ...(invoice.quoteReference ? [line(`Quote reference: ${invoice.quoteReference}`)] : []),
@@ -51,7 +56,7 @@ export function buildInvoicePdf(invoice: FormalInvoice, receipt = false) {
     ...customerLines(invoice),
     ...invoiceItemLines(invoice),
     line(`Net total: ${money(invoice.subtotalMinor, invoice.currency)}`, { bold: true }),
-    line(`VAT total: ${money(invoice.vatMinor, invoice.currency)}`, { bold: true }),
+    line(`${taxLabel(invoice)} total: ${money(invoice.vatMinor, invoice.currency)}`, { bold: true }),
     line(`Invoice total: ${money(invoice.totalMinor, invoice.currency)}`, { size: 14, bold: true }),
     ...(invoice.creditedMinor ? [line(`Credit notes issued: ${money(invoice.creditedMinor, invoice.currency)}`, { bold: true })] : []),
     line('', { gapAfter: 5 }),
@@ -63,6 +68,7 @@ export function buildInvoicePdf(invoice: FormalInvoice, receipt = false) {
 }
 
 export function buildCreditNotePdf(invoice: FormalInvoice, creditNote: FormalCreditNote) {
+  const label = taxLabel(invoice);
   const lines: BasicPdfLine[] = [
     ...businessLines(invoice),
     line('CREDIT NOTE', { size: 18, bold: true }),
@@ -75,10 +81,10 @@ export function buildCreditNotePdf(invoice: FormalInvoice, creditNote: FormalCre
     line('CREDITED ITEMS', { bold: true, gapAfter: 2 }),
     ...creditNote.lines.flatMap((item) => [
       line(item.description, { bold: true }),
-      line(`VAT ${item.vatRate}% | Net ${money(item.netMinor, creditNote.currency)} | VAT ${money(item.vatMinor, creditNote.currency)} | Credit ${money(item.grossMinor, creditNote.currency)}`, { gapAfter: 4 }),
+      line(`${label} ${item.vatRate}% | Net ${money(item.netMinor, creditNote.currency)} | ${label} ${money(item.vatMinor, creditNote.currency)} | Credit ${money(item.grossMinor, creditNote.currency)}`, { gapAfter: 4 }),
     ]),
     line(`Net credit: ${money(creditNote.netMinor, creditNote.currency)}`, { bold: true }),
-    line(`VAT credit: ${money(creditNote.vatMinor, creditNote.currency)}`, { bold: true }),
+    line(`${label} credit: ${money(creditNote.vatMinor, creditNote.currency)}`, { bold: true }),
     line(`Total credit: ${money(creditNote.totalMinor, creditNote.currency)}`, { size: 14, bold: true }),
     ...(invoice.brandSnapshot?.footerNote ? [line(invoice.brandSnapshot.footerNote)] : []),
   ];

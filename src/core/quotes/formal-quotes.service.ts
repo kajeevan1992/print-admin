@@ -172,7 +172,7 @@ export async function getFormalQuote(tenantSlug: string, idOrNumber: string, opt
 export async function listFormalQuotes(tenantSlug: string, filters: { storeSlug?: string; customerEmail?: string; customerId?: string; status?: string; limit?: number } = {}) {
   await ensureTables();
   const tenant = await resolveFormalQuoteTenant(tenantSlug);
-  const rows = await platformPrisma.$queryRawUnsafe<QuoteRow[]>('SELECT * FROM "FormalQuote" WHERE "tenantId"=$1 AND ($2='' OR "storeSlug"=$2) AND ($3='' OR lower("customerEmail")=lower($3)) AND ($4='' OR "customerId"=$4) AND ($5='' OR status=$5) ORDER BY "updatedAt" DESC LIMIT $6', tenant.id, slug(filters.storeSlug), email(filters.customerEmail), clean(filters.customerId), clean(filters.status), Math.max(1, Math.min(500, integer(filters.limit, 200))));
+  const rows = await platformPrisma.$queryRawUnsafe<QuoteRow[]>(`SELECT * FROM "FormalQuote" WHERE "tenantId"=$1 AND ($2='' OR "storeSlug"=$2) AND ($3='' OR lower("customerEmail")=lower($3)) AND ($4='' OR "customerId"=$4) AND ($5='' OR status=$5) ORDER BY "updatedAt" DESC LIMIT $6`, tenant.id, slug(filters.storeSlug), email(filters.customerEmail), clean(filters.customerId), clean(filters.status), Math.max(1, Math.min(500, integer(filters.limit, 200))));
   return Promise.all(rows.map(async (row) => rowToQuote(row, await quoteLines(row.id))));
 }
 

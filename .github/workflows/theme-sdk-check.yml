@@ -9,6 +9,7 @@ on:
       - 'app/api/webhooks/stripe/**'
       - 'src/components/layout/app-frame.tsx'
       - 'src/core/payments/**'
+      - 'src/core/storefront/**'
       - 'src/modules/themes/**'
       - 'src/services/themes.service.ts'
       - 'src/theme-runtime/**'

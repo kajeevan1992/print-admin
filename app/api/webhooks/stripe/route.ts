@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { applyStripeCheckoutSessionToOrder, applyStripePaymentIntentToOrder, applyStripeRefundToOrder, checkStripeWebhookEventProcessed, parseStripeWebhookEvent, recordStripeWebhookEventProcessed } from '@/core/payments/stripe.service';
 import { getOrder } from '@/core/orders/orders.service';
+import { syncFulfilmentReservationForPayment } from '@/core/storefront/fulfilment-reservation.service';
 import { loadPersistentBasket, markBasketConverted } from '@/core/storefront/persistent-basket.service';
 
 export const dynamic = 'force-dynamic';
@@ -80,9 +81,10 @@ export async function POST(request: Request) {
       else if (type.startsWith('refund.')) result = await applyStripeRefundToOrder(request, object, type);
     }
 
+    const fulfilment = result?.order ? await syncFulfilmentReservationForPayment(result.order).catch((error) => ({ updated: 0, error: error instanceof Error ? error.message : 'Fulfilment reservation sync failed.' })) : { updated: 0, skipped: true };
     const basket = await convertPaidBasket(request, result).catch((error) => ({ converted: false, error: error instanceof Error ? error.message : 'Paid basket conversion failed.' }));
-    const recorded = await recordStripeWebhookEventProcessed(request, event, { ...result, basket }, object).catch((error) => ({ recorded: false, error: error instanceof Error ? error.message : 'Webhook event record failed.' }));
-    return json({ ok: true, source: 'stripe-webhook', eventId: event.id || '', eventType: type, idempotency, recorded, basket, result });
+    const recorded = await recordStripeWebhookEventProcessed(request, event, { ...result, basket, fulfilment }, object).catch((error) => ({ recorded: false, error: error instanceof Error ? error.message : 'Webhook event record failed.' }));
+    return json({ ok: true, source: 'stripe-webhook', eventId: event.id || '', eventType: type, idempotency, recorded, basket, fulfilment, result });
   } catch (error) {
     return json({ ok: false, source: 'stripe-webhook', error: error instanceof Error ? error.message : 'Stripe webhook failed.' }, { status: 400 });
   }

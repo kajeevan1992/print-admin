@@ -188,7 +188,7 @@ export async function ensureInvoiceForPaidOrder(order: any) {
   if (existing) return { created: false, duplicate: true, invoice: existing };
   const tax = order.taxSummary || buildOrderVatSummary(order);
   const lines = orderLines(order);
-  const settings = await getInvoiceSettings();
+  const settings = await getInvoiceSettings({ tenantId: tenant.id } as any);
   const id = `finv-${crypto.randomUUID()}`;
   await platformPrisma.$transaction(async (tx: any) => {
     const invoiceNumber = await nextNumber(tx, tenant.id, 'INV');

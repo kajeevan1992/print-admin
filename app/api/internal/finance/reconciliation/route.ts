@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     let report = await buildFinanceReconciliation(ctx.tenantId, options(request, body));
     const repaired: Array<{ orderId: string; action: string; ok: boolean; message?: string }> = [];
     if (action === 'repair') {
-      const repairable = report.issues.filter((item) => ['missing-invoice', 'missing-credit-note', 'refund-mismatch'].includes(item.code)).slice(0, 100);
+      const repairable = report.issues.filter((item) => ['missing-invoice', 'missing-credit-note'].includes(item.code)).slice(0, 100);
       for (const item of repairable) {
         try {
           const order = await getOrder(request, item.orderId);

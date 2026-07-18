@@ -8,7 +8,9 @@ function clean(value: unknown) { return String(value || '').trim(); }
 function authorised(request: NextRequest) {
   const secret = clean(process.env.FINANCE_RECONCILIATION_CRON_SECRET || process.env.CRON_SECRET);
   if (!secret) return { ok: false, status: 503, error: 'Finance reconciliation cron secret is not configured.' };
-  const provided = clean(request.headers.get('authorization')).replace(/^Bearer\s+/i, '') || clean(request.nextUrl.searchParams.get('secret'));
+  const authorization = clean(request.headers.get('authorization'));
+  const provided = authorization.replace(/^Bearer\s+/i, '');
+  if (!/^Bearer\s+/i.test(authorization)) return { ok: false, status: 401, error: 'A bearer authorization header is required.' };
   return provided === secret ? { ok: true, status: 200, error: '' } : { ok: false, status: 401, error: 'Invalid reconciliation cron secret.' };
 }
 async function run(request: NextRequest) {

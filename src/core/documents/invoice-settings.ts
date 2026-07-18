@@ -1,5 +1,8 @@
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import path from 'path';
+import { getInternalCatalogRecord, upsertInternalCatalogRecord } from '@/core/catalog/internal-catalog.service';
+import { tenantContextFromRequest } from '@/core/tenant/context';
+import type { TenantContext } from '@/core/tenant/types';
 
 export type InvoiceBrandSettings = {
   brandName: string;
@@ -17,9 +20,13 @@ export type InvoiceBrandSettings = {
   accentColour: string;
 };
 
+const CONFIG_RESOURCE = 'admin-config' as any;
+const SETTINGS_KEY = 'invoice-brand-settings';
 function dataDir() { return path.join(process.cwd(), '.data'); }
 function settingsPath() { return path.join(dataDir(), 'invoice-settings.json'); }
 function clean(value: unknown, fallback = '') { return String(value ?? fallback).trim(); }
+function contextFrom(value?: Request | TenantContext | null): TenantContext | null { if (!value) return null; return value instanceof Request ? tenantContextFromRequest(value) : value; }
+function normalise(input: Partial<InvoiceBrandSettings>, defaults: InvoiceBrandSettings) { return { ...defaults, ...Object.fromEntries(Object.entries(input || {}).map(([key, value]) => [key, clean(value)])) } as InvoiceBrandSettings; }
 
 export function defaultInvoiceSettings(): InvoiceBrandSettings {
   return {
@@ -39,24 +46,36 @@ export function defaultInvoiceSettings(): InvoiceBrandSettings {
   };
 }
 
-export async function getInvoiceSettings(): Promise<InvoiceBrandSettings> {
+async function fileSettings() {
   await mkdir(dataDir(), { recursive: true });
   const defaults = defaultInvoiceSettings();
+  try { const parsed = JSON.parse(await readFile(settingsPath(), 'utf8')); return normalise(parsed && typeof parsed === 'object' ? parsed : {}, defaults); }
+  catch { return defaults; }
+}
+
+export async function getInvoiceSettings(scope?: Request | TenantContext | null): Promise<InvoiceBrandSettings> {
+  const defaults = await fileSettings();
+  const ctx = contextFrom(scope);
+  if (!ctx?.tenantId) return defaults;
   try {
-    const parsed = JSON.parse(await readFile(settingsPath(), 'utf8'));
-    return { ...defaults, ...(parsed && typeof parsed === 'object' ? parsed : {}) };
-  } catch {
+    const record = await getInternalCatalogRecord(ctx, CONFIG_RESOURCE, SETTINGS_KEY);
+    const stored = (record as any)?.metadataJson?.settings;
+    return normalise(stored && typeof stored === 'object' ? stored : {}, defaults);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('was not found')) return defaults;
     return defaults;
   }
 }
 
-export async function saveInvoiceSettings(input: Partial<InvoiceBrandSettings>) {
+export async function saveInvoiceSettings(input: Partial<InvoiceBrandSettings>, scope?: Request | TenantContext | null) {
+  const current = await getInvoiceSettings(scope);
+  const next = normalise(input, current);
+  const ctx = contextFrom(scope);
+  if (ctx?.tenantId) {
+    await upsertInternalCatalogRecord(ctx, CONFIG_RESOURCE, { id: SETTINGS_KEY, slug: SETTINGS_KEY, name: 'Invoice Brand Settings', description: 'Tenant-specific invoice, receipt and credit-note branding', metadataJson: { settings: next, savedAt: new Date().toISOString(), source: 'invoice-settings' } } as any);
+    return next;
+  }
   await mkdir(dataDir(), { recursive: true });
-  const current = await getInvoiceSettings();
-  const next: InvoiceBrandSettings = {
-    ...current,
-    ...Object.fromEntries(Object.entries(input || {}).map(([key, value]) => [key, clean(value)])),
-  };
   await writeFile(settingsPath(), JSON.stringify(next, null, 2));
   return next;
 }

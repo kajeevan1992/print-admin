@@ -45,7 +45,8 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
 export function addLaunchQaLinks(items: AdminSidebarNavigationItem[]) {
   const quoteItem = items.find((item) => item.href === '/quotes');
   const withInvoices = items.some((item) => item.href === '/invoices') ? items : [...items, { label: 'Invoices & Credit Notes', href: '/invoices', iconKey: 'Receipt', order: 205, roles: quoteItem?.roles }];
-  return withInvoices.map((item) => {
+  const withFinance = withInvoices.some((item) => item.href === '/finance-reconciliation') ? withInvoices : [...withInvoices, { label: 'Finance Reconciliation', href: '/finance-reconciliation', iconKey: 'BadgePoundSterling', order: 207, roles: quoteItem?.roles }];
+  return withFinance.map((item) => {
     if (item.label !== 'Launch Operations' || !item.children?.length) return item;
     const next = [...item.children];
     for (const link of launchQaLinks) {

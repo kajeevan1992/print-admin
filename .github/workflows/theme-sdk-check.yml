@@ -9,6 +9,7 @@ on:
       - 'app/api/internal/formal-quotes/**'
       - 'app/api/internal/invoices/**'
       - 'app/api/internal/finance/**'
+      - 'app/api/cron/finance-reconciliation/**'
       - 'app/api/internal/orders/**/documents/**'
       - 'app/api/internal/settings/invoice/**'
       - 'app/api/webhooks/stripe/**'

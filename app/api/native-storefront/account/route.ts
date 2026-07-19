@@ -3,7 +3,8 @@ import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-l
 import { listFormalQuotes } from '@/core/quotes/formal-quotes.service';
 import { accountSummary, attachBasketToCustomer, clearCustomerSessionCookie, customerFromRequest, deleteCustomerAddress, listCustomerAddresses, listCustomerOrders, loginStorefrontCustomer, registerStorefrontCustomer, repeatCustomerOrder, requireCustomerFromRequest, revokeCustomerSession, saveCustomerAddress, setCustomerSessionCookie } from '@/core/storefront/customer-account.service';
 import { issueCustomerSecurityToken, resetStorefrontCustomerPassword, verifyStorefrontCustomerEmail } from '@/core/storefront/customer-account-security.service';
-import { sendCustomerPasswordChangedEmail, sendCustomerPasswordResetEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
+import { sendCustomerEmailChangeCompletedEmails, sendCustomerNewEmailChangeVerification, sendCustomerOldEmailChangeConfirmation, sendCustomerPasswordChangedEmail, sendCustomerPasswordResetEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
+import { cancelStorefrontCustomerEmailChange, confirmStorefrontCustomerEmailChange, getPendingStorefrontCustomerEmailChange, requestStorefrontCustomerEmailChange } from '@/core/storefront/customer-email-change.service';
 import { changeStorefrontCustomerPassword, listStorefrontCustomerSessions, revokeOtherStorefrontCustomerSessions, revokeStorefrontCustomerSession, updateStorefrontCustomerProfile } from '@/core/storefront/customer-profile-security.service';
 import { basketCookieName, newBasketId } from '@/core/storefront/persistent-basket.service';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
@@ -24,14 +25,15 @@ export async function GET(request: NextRequest) {
   if (!tenantSlug || !storeSlug) return json({ ok: false, error: 'Missing storefront account scope.' }, { status: 400 });
   const customer = await customerFromRequest(request, tenantSlug, storeSlug);
   if (!customer) return json({ ok: true, authenticated: false, customer: null });
-  const [orders, addresses, quotes, sessions] = await Promise.all([
+  const [orders, addresses, quotes, sessions, emailChange] = await Promise.all([
     listCustomerOrders(customer, tenantSlug, storeSlug),
     listCustomerAddresses(customer),
     listFormalQuotes(tenantSlug, { storeSlug, customerEmail: customer.email, customerId: customer.id, limit: 100 }),
     listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug),
+    getPendingStorefrontCustomerEmailChange(customer, storeSlug),
   ]);
   const summary = accountSummary(orders, addresses);
-  return json({ ok: true, authenticated: true, customer, addresses, orders, quotes, sessions, summary: { ...summary, quoteCount: quotes.length, quotes } });
+  return json({ ok: true, authenticated: true, customer, addresses, orders, quotes, sessions, emailChange, summary: { ...summary, quoteCount: quotes.length, quotes } });
 }
 
 export async function POST(request: NextRequest) {
@@ -39,9 +41,9 @@ export async function POST(request: NextRequest) {
   const action = clean(body.action).toLowerCase();
   const tenantSlug = slug(body.tenantSlug);
   const storeSlug = slug(body.storeSlug);
-  const identifier = [tenantSlug, storeSlug, clean(body.email), action].filter(Boolean).join(':');
+  const identifier = [tenantSlug, storeSlug, clean(body.email) || clean(body.newEmail), action].filter(Boolean).join(':');
   const authAction = ['login', 'register'].includes(action);
-  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification', 'change-password', 'revoke-other-sessions', 'revoke-session'].includes(action);
+  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification', 'change-password', 'revoke-other-sessions', 'revoke-session', 'request-email-change', 'cancel-email-change', 'confirm-email-change'].includes(action);
   const limit = publicRateLimit(request, { scope: securityAction ? 'storefront-customer-security' : authAction ? 'storefront-customer-auth' : 'storefront-customer-account', limit: securityAction ? 8 : authAction ? 12 : 40, windowMs: 10 * 60 * 1000, identifier });
   if (limit.enforced) return json({ ...rateLimitPayload(limit), source: 'storefront-customer-account' }, { status: 429, headers: limit.headers });
   if (!tenantSlug || !storeSlug || !action) return json({ ok: false, error: 'Missing storefront account action.' }, { status: 400, headers: limit.headers });
@@ -83,9 +85,30 @@ export async function POST(request: NextRequest) {
       setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
       return response;
     }
+    if (action === 'confirm-email-change') {
+      const result = await confirmStorefrontCustomerEmailChange({ tenantSlug, storeSlug, token: clean(body.token) });
+      if (result.completed) {
+        await sendCustomerEmailChangeCompletedEmails(request, { tenantSlug, storeSlug, oldEmail: result.oldEmail, newEmail: result.newEmail, name: result.name, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+        const response = json({ ok: true, completed: true, oldConfirmed: true, newConfirmed: true, notice: 'Both email addresses are confirmed. Your login email was changed and every customer session was signed out.', redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}/login?emailChanged=1` }, { headers: limit.headers });
+        clearCustomerSessionCookie(response, tenantSlug, storeSlug);
+        return response;
+      }
+      const notice = result.side === 'old' ? 'The current email address approved the change. The new email must still be verified.' : 'The new email address is verified. The current email must still approve the change.';
+      return json({ ok: true, completed: false, oldConfirmed: result.oldConfirmed, newConfirmed: result.newConfirmed, notice }, { headers: limit.headers });
+    }
     if (action === 'logout') { await revokeCustomerSession(request, tenantSlug, storeSlug); const response = json({ ok: true, authenticated: false, redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}` }, { headers: limit.headers }); clearCustomerSessionCookie(response, tenantSlug, storeSlug); return response; }
     const customer = await requireCustomerFromRequest(request, tenantSlug, storeSlug);
     if (action === 'update-profile') { const updated = await updateStorefrontCustomerProfile(customer, { name: clean(body.name), phone: clean(body.phone), company: clean(body.company) }); return json({ ok: true, customer: updated, notice: 'Your customer details were updated.' }, { headers: limit.headers }); }
+    if (action === 'request-email-change') {
+      const result = await requestStorefrontCustomerEmailChange(request, customer, { storeSlug, currentPassword: clean(body.currentPassword), newEmail: clean(body.newEmail) });
+      const brand = await brandName(tenantSlug, storeSlug);
+      await Promise.allSettled([
+        sendCustomerOldEmailChangeConfirmation(request, { tenantSlug, storeSlug, oldEmail: result.change.oldEmail, newEmail: result.change.newEmail, name: result.name, token: result.oldToken, brandName: brand }),
+        sendCustomerNewEmailChangeVerification(request, { tenantSlug, storeSlug, oldEmail: result.change.oldEmail, newEmail: result.change.newEmail, name: result.name, token: result.newToken, brandName: brand }),
+      ]);
+      return json({ ok: true, emailChange: result.change, notice: 'Secure confirmation links were queued to both email addresses. Both links must be approved within 24 hours.' }, { headers: limit.headers });
+    }
+    if (action === 'cancel-email-change') { const result = await cancelStorefrontCustomerEmailChange(customer, storeSlug, clean(body.changeId)); return json({ ok: true, ...result, emailChange: null, notice: result.cancelled ? 'The pending email change was cancelled.' : 'No pending email change was found.' }, { headers: limit.headers }); }
     if (action === 'change-password') {
       const newPassword = clean(body.newPassword);
       if (newPassword !== clean(body.newPasswordConfirm)) return json({ ok: false, error: 'The two new passwords do not match.' }, { status: 400, headers: limit.headers });

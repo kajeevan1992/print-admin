@@ -31,3 +31,28 @@ export async function sendCustomerPasswordChangedEmail(request: Request, input: 
   const body = `Hi ${clean(input.name) || 'Customer'},\n\nThe password for your ${brand} customer account was changed. All older customer sessions were signed out.\n\nIf you made this change, no action is needed. If you did not make it, reset the password immediately:\n${recoveryUrl}\n\nKind regards,\n${brand}`;
   return queueAndAttempt(request, input.tenantSlug, { type: 'customer-password-changed', to: input.email, subject: `Your ${brand} customer password was changed`, body });
 }
+
+export async function sendCustomerOldEmailChangeConfirmation(request: Request, input: { tenantSlug: string; storeSlug: string; oldEmail: string; newEmail: string; name: string; token: string; brandName?: string }) {
+  const confirmUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/confirm-email-change?token=${encodeURIComponent(input.token)}`;
+  const brand = clean(input.brandName) || 'Print store';
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\nA request was made to change the login email for your ${brand} customer account from ${input.oldEmail} to ${input.newEmail}.\n\nApprove this change from the current email address:\n${confirmUrl}\n\nThe new address must also be verified before anything changes. This single-use approval expires in 24 hours. If you did not request this, do not approve it and reset your password.\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: 'customer-email-change-old-confirmation', to: input.oldEmail, subject: `Approve your ${brand} login email change`, body });
+}
+
+export async function sendCustomerNewEmailChangeVerification(request: Request, input: { tenantSlug: string; storeSlug: string; oldEmail: string; newEmail: string; name: string; token: string; brandName?: string }) {
+  const confirmUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/confirm-email-change?token=${encodeURIComponent(input.token)}`;
+  const brand = clean(input.brandName) || 'Print store';
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\n${input.oldEmail} requested to use this address as the new login for a ${brand} customer account.\n\nVerify this new email address:\n${confirmUrl}\n\nThe current address must also approve the change before anything changes. This single-use verification expires in 24 hours. If this was not you, ignore this email.\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: 'customer-email-change-new-verification', to: input.newEmail, subject: `Verify your new ${brand} login email`, body });
+}
+
+export async function sendCustomerEmailChangeCompletedEmails(request: Request, input: { tenantSlug: string; storeSlug: string; oldEmail: string; newEmail: string; name: string; brandName?: string }) {
+  const brand = clean(input.brandName) || 'Print store';
+  const signInUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/login`;
+  const oldBody = `Hi ${clean(input.name) || 'Customer'},\n\nThe login email for your ${brand} customer account was changed from ${input.oldEmail} to ${input.newEmail}. Every existing customer session was signed out.\n\nIf you did not approve this change, contact the store and reset the account password immediately.\n\nKind regards,\n${brand}`;
+  const newBody = `Hi ${clean(input.name) || 'Customer'},\n\nThis address is now the verified login email for your ${brand} customer account. Every previous customer session was signed out.\n\nSign in with the new address:\n${signInUrl}\n\nKind regards,\n${brand}`;
+  return Promise.allSettled([
+    queueAndAttempt(request, input.tenantSlug, { type: 'customer-email-change-completed-old', to: input.oldEmail, subject: `Your ${brand} login email was changed`, body: oldBody }),
+    queueAndAttempt(request, input.tenantSlug, { type: 'customer-email-change-completed-new', to: input.newEmail, subject: `Your new ${brand} login email is active`, body: newBody }),
+  ]);
+}

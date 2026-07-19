@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 import { listFormalQuotes } from '@/core/quotes/formal-quotes.service';
-import { accountSummary, attachBasketToCustomer, clearCustomerSessionCookie, customerFromRequest, deleteCustomerAddress, listCustomerAddresses, listCustomerOrders, loginStorefrontCustomer, registerStorefrontCustomer, repeatCustomerOrder, requireCustomerFromRequest, revokeCustomerSession, saveCustomerAddress, setCustomerSessionCookie } from '@/core/storefront/customer-account.service';
+import { accountSummary, attachBasketToCustomer, clearCustomerSessionCookie, customerFromRequest, deleteCustomerAddress, listCustomerAddresses, listCustomerOrders, registerStorefrontCustomer, repeatCustomerOrder, requireCustomerFromRequest, revokeCustomerSession, saveCustomerAddress, setCustomerSessionCookie } from '@/core/storefront/customer-account.service';
 import { issueCustomerSecurityToken, resetStorefrontCustomerPassword, verifyStorefrontCustomerEmail } from '@/core/storefront/customer-account-security.service';
-import { sendCustomerEmailChangeCompletedEmails, sendCustomerNewEmailChangeVerification, sendCustomerOldEmailChangeConfirmation, sendCustomerPasswordChangedEmail, sendCustomerPasswordResetEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
+import { sendCustomerEmailChangeCompletedEmails, sendCustomerNewEmailChangeVerification, sendCustomerOldEmailChangeConfirmation, sendCustomerPasswordChangedEmail, sendCustomerPasswordResetEmail, sendCustomerTwoStepSecurityEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
 import { cancelStorefrontCustomerEmailChange, confirmStorefrontCustomerEmailChange, getPendingStorefrontCustomerEmailChange, requestStorefrontCustomerEmailChange } from '@/core/storefront/customer-email-change.service';
 import { changeStorefrontCustomerPassword, listStorefrontCustomerSessions, revokeOtherStorefrontCustomerSessions, revokeStorefrontCustomerSession, updateStorefrontCustomerProfile } from '@/core/storefront/customer-profile-security.service';
+import { beginStorefrontCustomerLogin, beginStorefrontCustomerTwoStepSetup, clearCustomerTwoStepChallengeCookie, completeStorefrontCustomerTwoStepLogin, confirmStorefrontCustomerTwoStepSetup, disableStorefrontCustomerTwoStep, getStorefrontCustomerTwoStepStatus, isStorefrontCustomerTwoStepEnabled, regenerateStorefrontCustomerRecoveryCodes, revokeUncommittedStorefrontCustomerSession, setCustomerTwoStepChallengeCookie } from '@/core/storefront/customer-two-step.service';
 import { basketCookieName, newBasketId } from '@/core/storefront/persistent-basket.service';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 
@@ -25,15 +26,16 @@ export async function GET(request: NextRequest) {
   if (!tenantSlug || !storeSlug) return json({ ok: false, error: 'Missing storefront account scope.' }, { status: 400 });
   const customer = await customerFromRequest(request, tenantSlug, storeSlug);
   if (!customer) return json({ ok: true, authenticated: false, customer: null });
-  const [orders, addresses, quotes, sessions, emailChange] = await Promise.all([
+  const [orders, addresses, quotes, sessions, emailChange, twoStep] = await Promise.all([
     listCustomerOrders(customer, tenantSlug, storeSlug),
     listCustomerAddresses(customer),
     listFormalQuotes(tenantSlug, { storeSlug, customerEmail: customer.email, customerId: customer.id, limit: 100 }),
     listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug),
     getPendingStorefrontCustomerEmailChange(customer, storeSlug),
+    getStorefrontCustomerTwoStepStatus(customer),
   ]);
   const summary = accountSummary(orders, addresses);
-  return json({ ok: true, authenticated: true, customer, addresses, orders, quotes, sessions, emailChange, summary: { ...summary, quoteCount: quotes.length, quotes } });
+  return json({ ok: true, authenticated: true, customer, addresses, orders, quotes, sessions, emailChange, twoStep, summary: { ...summary, quoteCount: quotes.length, quotes } });
 }
 
 export async function POST(request: NextRequest) {
@@ -42,22 +44,48 @@ export async function POST(request: NextRequest) {
   const tenantSlug = slug(body.tenantSlug);
   const storeSlug = slug(body.storeSlug);
   const identifier = [tenantSlug, storeSlug, clean(body.email) || clean(body.newEmail), action].filter(Boolean).join(':');
-  const authAction = ['login', 'register'].includes(action);
-  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification', 'change-password', 'revoke-other-sessions', 'revoke-session', 'request-email-change', 'cancel-email-change', 'confirm-email-change'].includes(action);
+  const authAction = ['login', 'register', 'complete-two-step-login'].includes(action);
+  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification', 'change-password', 'revoke-other-sessions', 'revoke-session', 'request-email-change', 'cancel-email-change', 'confirm-email-change', 'complete-two-step-login', 'begin-two-step-setup', 'confirm-two-step-setup', 'disable-two-step', 'regenerate-recovery-codes'].includes(action);
   const limit = publicRateLimit(request, { scope: securityAction ? 'storefront-customer-security' : authAction ? 'storefront-customer-auth' : 'storefront-customer-account', limit: securityAction ? 8 : authAction ? 12 : 40, windowMs: 10 * 60 * 1000, identifier });
   if (limit.enforced) return json({ ...rateLimitPayload(limit), source: 'storefront-customer-account' }, { status: 429, headers: limit.headers });
   if (!tenantSlug || !storeSlug || !action) return json({ ok: false, error: 'Missing storefront account action.' }, { status: 400, headers: limit.headers });
   try {
-    if (action === 'register' || action === 'login') {
-      const result = action === 'register' ? await registerStorefrontCustomer({ tenantSlug, storeSlug, email: clean(body.email), password: clean(body.password), name: clean(body.name), phone: clean(body.phone), company: clean(body.company) }) : await loginStorefrontCustomer({ tenantSlug, storeSlug, email: clean(body.email), password: clean(body.password) });
-      if (action === 'register') {
-        const verification = await issueCustomerSecurityToken({ tenantSlug, storeSlug, email: result.customer.email, purpose: 'verify-email' }, request);
-        if (verification?.token) await sendCustomerVerificationEmail(request, { tenantSlug, storeSlug, email: result.customer.email, name: result.customer.name, token: verification.token, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
-      }
-      const response = json({ ok: true, authenticated: true, customer: result.customer, redirectUrl: safeReturn(body.returnUrl, tenantSlug, storeSlug), notice: action === 'register' ? 'Account created. Check your email to verify the address.' : '' }, { headers: limit.headers });
+    if (action === 'register') {
+      const result = await registerStorefrontCustomer({ tenantSlug, storeSlug, email: clean(body.email), password: clean(body.password), name: clean(body.name), phone: clean(body.phone), company: clean(body.company) });
+      const verification = await issueCustomerSecurityToken({ tenantSlug, storeSlug, email: result.customer.email, purpose: 'verify-email' }, request);
+      if (verification?.token) await sendCustomerVerificationEmail(request, { tenantSlug, storeSlug, email: result.customer.email, name: result.customer.name, token: verification.token, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      const response = json({ ok: true, authenticated: true, customer: result.customer, redirectUrl: safeReturn(body.returnUrl, tenantSlug, storeSlug), notice: 'Account created. Check your email to verify the address.' }, { headers: limit.headers });
       setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
+      clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug);
       const basketId = clean(request.cookies.get(basketCookieName(tenantSlug, storeSlug))?.value);
       if (basketId) await attachBasketToCustomer(request, result.customer, tenantSlug, storeSlug, basketId).catch(() => null);
+      return response;
+    }
+    if (action === 'login') {
+      const returnUrl = safeReturn(body.returnUrl, tenantSlug, storeSlug);
+      const result = await beginStorefrontCustomerLogin(request, { tenantSlug, storeSlug, email: clean(body.email), password: clean(body.password), returnUrl });
+      if (result.requiresTwoStep) {
+        const redirectUrl = `/native-stores/${tenantSlug}/${storeSlug}/two-step?return=${encodeURIComponent(returnUrl)}`;
+        const response = json({ ok: true, authenticated: false, requiresTwoStep: true, customer: result.customer, redirectUrl, notice: 'Enter an authenticator or recovery code to finish signing in.' }, { headers: limit.headers });
+        setCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug, result.challengeToken, result.expiresAt);
+        clearCustomerSessionCookie(response, tenantSlug, storeSlug);
+        return response;
+      }
+      const response = json({ ok: true, authenticated: true, customer: result.customer, redirectUrl }, { headers: limit.headers });
+      setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
+      clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug);
+      const basketId = clean(request.cookies.get(basketCookieName(tenantSlug, storeSlug))?.value);
+      if (basketId) await attachBasketToCustomer(request, result.customer, tenantSlug, storeSlug, basketId).catch(() => null);
+      return response;
+    }
+    if (action === 'complete-two-step-login') {
+      const result = await completeStorefrontCustomerTwoStepLogin(request, { tenantSlug, storeSlug, code: clean(body.code) });
+      const response = json({ ok: true, authenticated: true, customer: result.customer, recoveryUsed: result.recoveryUsed, recoveryCodeCount: result.recoveryCodeCount, notice: result.recoveryUsed ? `Recovery code accepted. ${result.recoveryCodeCount} unused recovery codes remain.` : 'Two-step verification complete.', redirectUrl: safeReturn(result.redirectUrl || body.returnUrl, tenantSlug, storeSlug) }, { headers: limit.headers });
+      setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
+      clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug);
+      const basketId = clean(request.cookies.get(basketCookieName(tenantSlug, storeSlug))?.value);
+      if (basketId) await attachBasketToCustomer(request, result.customer, tenantSlug, storeSlug, basketId).catch(() => null);
+      if (result.recoveryUsed) await sendCustomerTwoStepSecurityEmail(request, { tenantSlug, storeSlug, email: result.customer.email, name: result.customer.name, event: 'recovery-used', recoveryCodeCount: result.recoveryCodeCount, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
       return response;
     }
     if (action === 'request-password-reset') {
@@ -81,6 +109,13 @@ export async function POST(request: NextRequest) {
       const password = clean(body.password);
       if (password !== clean(body.passwordConfirm)) return json({ ok: false, error: 'The two passwords do not match.' }, { status: 400, headers: limit.headers });
       const result = await resetStorefrontCustomerPassword({ tenantSlug, storeSlug, token: clean(body.token), password });
+      if (await isStorefrontCustomerTwoStepEnabled(result.customer)) {
+        await revokeUncommittedStorefrontCustomerSession(result.token);
+        const response = json({ ok: true, authenticated: false, requiresTwoStepOnNextLogin: true, customer: result.customer, notice: 'Your password was changed and every existing customer session was signed out. Sign in again and complete two-step verification.', redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}/login?passwordReset=1` }, { headers: limit.headers });
+        clearCustomerSessionCookie(response, tenantSlug, storeSlug);
+        clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug);
+        return response;
+      }
       const response = json({ ok: true, authenticated: true, customer: result.customer, notice: 'Your password has been changed and other customer sessions were signed out.', redirectUrl: `${safeReturn(body.returnUrl, tenantSlug, storeSlug)}?passwordReset=1` }, { headers: limit.headers });
       setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
       return response;
@@ -91,12 +126,13 @@ export async function POST(request: NextRequest) {
         await sendCustomerEmailChangeCompletedEmails(request, { tenantSlug, storeSlug, oldEmail: result.oldEmail, newEmail: result.newEmail, name: result.name, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
         const response = json({ ok: true, completed: true, oldConfirmed: true, newConfirmed: true, notice: 'Both email addresses are confirmed. Your login email was changed and every customer session was signed out.', redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}/login?emailChanged=1` }, { headers: limit.headers });
         clearCustomerSessionCookie(response, tenantSlug, storeSlug);
+        clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug);
         return response;
       }
       const notice = result.side === 'old' ? 'The current email address approved the change. The new email must still be verified.' : 'The new email address is verified. The current email must still approve the change.';
       return json({ ok: true, completed: false, oldConfirmed: result.oldConfirmed, newConfirmed: result.newConfirmed, notice }, { headers: limit.headers });
     }
-    if (action === 'logout') { await revokeCustomerSession(request, tenantSlug, storeSlug); const response = json({ ok: true, authenticated: false, redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}` }, { headers: limit.headers }); clearCustomerSessionCookie(response, tenantSlug, storeSlug); return response; }
+    if (action === 'logout') { await revokeCustomerSession(request, tenantSlug, storeSlug); const response = json({ ok: true, authenticated: false, redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}` }, { headers: limit.headers }); clearCustomerSessionCookie(response, tenantSlug, storeSlug); clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug); return response; }
     const customer = await requireCustomerFromRequest(request, tenantSlug, storeSlug);
     if (action === 'update-profile') { const updated = await updateStorefrontCustomerProfile(customer, { name: clean(body.name), phone: clean(body.phone), company: clean(body.company) }); return json({ ok: true, customer: updated, notice: 'Your customer details were updated.' }, { headers: limit.headers }); }
     if (action === 'request-email-change') {
@@ -109,6 +145,26 @@ export async function POST(request: NextRequest) {
       return json({ ok: true, emailChange: result.change, notice: 'Secure confirmation links were queued to both email addresses. Both links must be approved within 24 hours.' }, { headers: limit.headers });
     }
     if (action === 'cancel-email-change') { const result = await cancelStorefrontCustomerEmailChange(customer, storeSlug, clean(body.changeId)); return json({ ok: true, ...result, emailChange: null, notice: result.cancelled ? 'The pending email change was cancelled.' : 'No pending email change was found.' }, { headers: limit.headers }); }
+    if (action === 'begin-two-step-setup') {
+      const brand = await brandName(tenantSlug, storeSlug);
+      const result = await beginStorefrontCustomerTwoStepSetup(request, customer, { tenantSlug, storeSlug, currentPassword: clean(body.currentPassword), brandName: brand });
+      return json({ ok: true, twoStep: result.status, secret: result.secret, otpauthUri: result.otpauthUri, recoveryCodes: result.recoveryCodes, notice: 'Authenticator setup started. Add the secret to your app, save the recovery codes, then enter a six-digit code.' }, { headers: limit.headers });
+    }
+    if (action === 'confirm-two-step-setup') {
+      const twoStep = await confirmStorefrontCustomerTwoStepSetup(request, customer, { tenantSlug, storeSlug, code: clean(body.code) });
+      await sendCustomerTwoStepSecurityEmail(request, { tenantSlug, storeSlug, email: customer.email, name: customer.name, event: 'enabled', recoveryCodeCount: twoStep.recoveryCodeCount, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      return json({ ok: true, twoStep, sessions: await listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug), notice: 'Two-step verification is enabled. Other customer sessions were signed out.' }, { headers: limit.headers });
+    }
+    if (action === 'disable-two-step') {
+      const twoStep = await disableStorefrontCustomerTwoStep(request, customer, { tenantSlug, storeSlug, currentPassword: clean(body.currentPassword), code: clean(body.code) });
+      await sendCustomerTwoStepSecurityEmail(request, { tenantSlug, storeSlug, email: customer.email, name: customer.name, event: 'disabled', brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      return json({ ok: true, twoStep, sessions: await listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug), notice: 'Two-step verification was disabled. Other customer sessions were signed out.' }, { headers: limit.headers });
+    }
+    if (action === 'regenerate-recovery-codes') {
+      const result = await regenerateStorefrontCustomerRecoveryCodes(customer, { currentPassword: clean(body.currentPassword), code: clean(body.code) });
+      await sendCustomerTwoStepSecurityEmail(request, { tenantSlug, storeSlug, email: customer.email, name: customer.name, event: 'recovery-regenerated', recoveryCodeCount: result.status.recoveryCodeCount, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      return json({ ok: true, twoStep: result.status, recoveryCodes: result.recoveryCodes, notice: 'New recovery codes were generated. Every older recovery code is now invalid.' }, { headers: limit.headers });
+    }
     if (action === 'change-password') {
       const newPassword = clean(body.newPassword);
       if (newPassword !== clean(body.newPasswordConfirm)) return json({ ok: false, error: 'The two new passwords do not match.' }, { status: 400, headers: limit.headers });
@@ -116,6 +172,7 @@ export async function POST(request: NextRequest) {
       await sendCustomerPasswordChangedEmail(request, { tenantSlug, storeSlug, email: result.customer.email, name: result.customer.name, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
       const response = json({ ok: true, authenticated: true, customer: result.customer, notice: 'Password changed. Every older customer session was signed out.', redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}/account/profile?passwordChanged=1` }, { headers: limit.headers });
       setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
+      clearCustomerTwoStepChallengeCookie(response, tenantSlug, storeSlug);
       return response;
     }
     if (action === 'revoke-other-sessions') { const result = await revokeOtherStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug); return json({ ok: true, ...result, sessions: await listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug), notice: result.revokedCount ? `${result.revokedCount} other customer session${result.revokedCount === 1 ? '' : 's'} signed out.` : 'No other active sessions were found.' }, { headers: limit.headers }); }

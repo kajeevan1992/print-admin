@@ -56,3 +56,22 @@ export async function sendCustomerEmailChangeCompletedEmails(request: Request, i
     queueAndAttempt(request, input.tenantSlug, { type: 'customer-email-change-completed-new', to: input.newEmail, subject: `Your new ${brand} login email is active`, body: newBody }),
   ]);
 }
+
+export async function sendCustomerTwoStepSecurityEmail(request: Request, input: { tenantSlug: string; storeSlug: string; email: string; name: string; event: 'enabled' | 'disabled' | 'recovery-regenerated' | 'recovery-used'; recoveryCodeCount?: number; brandName?: string }) {
+  const brand = clean(input.brandName) || 'Print store';
+  const profileUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/account/profile`;
+  const descriptions = {
+    enabled: 'Two-step verification was enabled. Future password sign-ins require an authenticator or recovery code.',
+    disabled: 'Two-step verification was disabled. Future sign-ins will use the account password only.',
+    'recovery-regenerated': `New recovery codes were generated. All older recovery codes are now invalid.${Number.isFinite(input.recoveryCodeCount) ? ` ${input.recoveryCodeCount} new codes remain.` : ''}`,
+    'recovery-used': `A recovery code was used to sign in.${Number.isFinite(input.recoveryCodeCount) ? ` ${input.recoveryCodeCount} unused recovery codes remain.` : ''}`,
+  } as const;
+  const subjects = {
+    enabled: `Two-step verification enabled for ${brand}`,
+    disabled: `Two-step verification disabled for ${brand}`,
+    'recovery-regenerated': `New ${brand} recovery codes generated`,
+    'recovery-used': `${brand} recovery code used`,
+  } as const;
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\n${descriptions[input.event]}\n\nReview account security:\n${profileUrl}\n\nIf you did not make this change, reset your password and contact the store immediately.\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: `customer-two-step-${input.event}`, to: input.email, subject: subjects[input.event], body });
+}

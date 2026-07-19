@@ -75,3 +75,14 @@ export async function sendCustomerTwoStepSecurityEmail(request: Request, input: 
   const body = `Hi ${clean(input.name) || 'Customer'},\n\n${descriptions[input.event]}\n\nReview account security:\n${profileUrl}\n\nIf you did not make this change, reset your password and contact the store immediately.\n\nKind regards,\n${brand}`;
   return queueAndAttempt(request, input.tenantSlug, { type: `customer-two-step-${input.event}`, to: input.email, subject: subjects[input.event], body });
 }
+
+export async function sendCustomerTrustedDeviceSecurityEmail(request: Request, input: { tenantSlug: string; storeSlug: string; email: string; name: string; event: 'added' | 'all-revoked'; brandName?: string }) {
+  const brand = clean(input.brandName) || 'Print store';
+  const profileUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/account/profile`;
+  const description = input.event === 'added'
+    ? 'A browser was trusted for 30 days after a successful password and two-step sign-in. That browser can skip the authenticator step after entering the correct password.'
+    : 'All trusted browsers were removed. Every browser must complete the authenticator or recovery-code step again.';
+  const subject = input.event === 'added' ? `New trusted browser for ${brand}` : `All ${brand} trusted browsers removed`;
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\n${description}\n\nReview trusted browsers:\n${profileUrl}\n\nIf you did not make this change, remove trusted browsers, reset your password and contact the store immediately.\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: `customer-trusted-browser-${input.event}`, to: input.email, subject, body });
+}

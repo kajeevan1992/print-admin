@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 import { listFormalQuotes } from '@/core/quotes/formal-quotes.service';
-import { accountSummary, attachBasketToCustomer, clearCustomerSessionCookie, customerFromRequest, customerSessionCookieName, deleteCustomerAddress, listCustomerAddresses, listCustomerOrders, loginStorefrontCustomer, registerStorefrontCustomer, repeatCustomerOrder, requireCustomerFromRequest, revokeCustomerSession, saveCustomerAddress, setCustomerSessionCookie } from '@/core/storefront/customer-account.service';
+import { accountSummary, attachBasketToCustomer, clearCustomerSessionCookie, customerFromRequest, deleteCustomerAddress, listCustomerAddresses, listCustomerOrders, loginStorefrontCustomer, registerStorefrontCustomer, repeatCustomerOrder, requireCustomerFromRequest, revokeCustomerSession, saveCustomerAddress, setCustomerSessionCookie } from '@/core/storefront/customer-account.service';
+import { issueCustomerSecurityToken, resetStorefrontCustomerPassword, verifyStorefrontCustomerEmail } from '@/core/storefront/customer-account-security.service';
+import { sendCustomerPasswordResetEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
 import { basketCookieName, newBasketId } from '@/core/storefront/persistent-basket.service';
+import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -12,6 +15,7 @@ function bool(value: unknown) { return ['true', '1', 'yes', 'on'].includes(clean
 function json(data: unknown, init?: ResponseInit) { return NextResponse.json(data, init); }
 async function payload(request: NextRequest) { const contentType = request.headers.get('content-type') || ''; if (contentType.includes('application/json')) return request.json().catch(() => ({})); const form = await request.formData(); return Object.fromEntries(form.entries()); }
 function safeReturn(value: unknown, tenantSlug: string, storeSlug: string) { const base = `/native-stores/${tenantSlug}/${storeSlug}`; const next = clean(value); return next.startsWith(`${base}/`) || next === base ? next : `${base}/account`; }
+async function brandName(tenantSlug: string, storeSlug: string) { const settings = await loadStorefrontRuntimeSettings(tenantSlug, storeSlug).catch(() => null); return settings?.brand?.brandName || settings?.storeName || 'Print store'; }
 
 export async function GET(request: NextRequest) {
   const tenantSlug = slug(request.nextUrl.searchParams.get('tenantSlug'));
@@ -31,16 +35,46 @@ export async function POST(request: NextRequest) {
   const storeSlug = slug(body.storeSlug);
   const identifier = [tenantSlug, storeSlug, clean(body.email), action].filter(Boolean).join(':');
   const authAction = ['login', 'register'].includes(action);
-  const limit = publicRateLimit(request, { scope: authAction ? 'storefront-customer-auth' : 'storefront-customer-account', limit: authAction ? 12 : 40, windowMs: 10 * 60 * 1000, identifier });
+  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification'].includes(action);
+  const limit = publicRateLimit(request, { scope: securityAction ? 'storefront-customer-security' : authAction ? 'storefront-customer-auth' : 'storefront-customer-account', limit: securityAction ? 8 : authAction ? 12 : 40, windowMs: 10 * 60 * 1000, identifier });
   if (limit.enforced) return json({ ...rateLimitPayload(limit), source: 'storefront-customer-account' }, { status: 429, headers: limit.headers });
   if (!tenantSlug || !storeSlug || !action) return json({ ok: false, error: 'Missing storefront account action.' }, { status: 400, headers: limit.headers });
   try {
     if (action === 'register' || action === 'login') {
       const result = action === 'register' ? await registerStorefrontCustomer({ tenantSlug, storeSlug, email: clean(body.email), password: clean(body.password), name: clean(body.name), phone: clean(body.phone), company: clean(body.company) }) : await loginStorefrontCustomer({ tenantSlug, storeSlug, email: clean(body.email), password: clean(body.password) });
-      const response = json({ ok: true, authenticated: true, customer: result.customer, redirectUrl: safeReturn(body.returnUrl, tenantSlug, storeSlug) }, { headers: limit.headers });
+      if (action === 'register') {
+        const verification = await issueCustomerSecurityToken({ tenantSlug, storeSlug, email: result.customer.email, purpose: 'verify-email' }, request);
+        if (verification?.token) await sendCustomerVerificationEmail(request, { tenantSlug, storeSlug, email: result.customer.email, name: result.customer.name, token: verification.token, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      }
+      const response = json({ ok: true, authenticated: true, customer: result.customer, redirectUrl: safeReturn(body.returnUrl, tenantSlug, storeSlug), notice: action === 'register' ? 'Account created. Check your email to verify the address.' : '' }, { headers: limit.headers });
       setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
       const basketId = clean(request.cookies.get(basketCookieName(tenantSlug, storeSlug))?.value);
       if (basketId) await attachBasketToCustomer(request, result.customer, tenantSlug, storeSlug, basketId).catch(() => null);
+      return response;
+    }
+    if (action === 'request-password-reset') {
+      const reset = await issueCustomerSecurityToken({ tenantSlug, storeSlug, email: clean(body.email), purpose: 'reset-password' }, request).catch(() => null);
+      if (reset?.token) await sendCustomerPasswordResetEmail(request, { tenantSlug, storeSlug, email: reset.customer.email, name: reset.customer.name, token: reset.token, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      return json({ ok: true, notice: 'If an active customer account matches that email, a secure reset link has been sent.' }, { headers: limit.headers });
+    }
+    if (action === 'resend-verification') {
+      const signedIn = await customerFromRequest(request, tenantSlug, storeSlug).catch(() => null);
+      const requestedEmail = signedIn?.email || clean(body.email);
+      const verification = await issueCustomerSecurityToken({ tenantSlug, storeSlug, email: requestedEmail, purpose: 'verify-email' }, request).catch(() => null);
+      if (verification?.token) await sendCustomerVerificationEmail(request, { tenantSlug, storeSlug, email: verification.customer.email, name: verification.customer.name, token: verification.token, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      return json({ ok: true, notice: verification?.alreadyComplete ? 'This email address is already verified.' : 'If the account needs verification, a new secure link has been sent.' }, { headers: limit.headers });
+    }
+    if (action === 'verify-email') {
+      await verifyStorefrontCustomerEmail({ tenantSlug, storeSlug, token: clean(body.token) });
+      const signedIn = await customerFromRequest(request, tenantSlug, storeSlug).catch(() => null);
+      return json({ ok: true, verified: true, notice: 'Your email address is verified.', redirectUrl: signedIn ? `${safeReturn(body.returnUrl, tenantSlug, storeSlug)}?verified=1` : `/native-stores/${tenantSlug}/${storeSlug}/login?verified=1` }, { headers: limit.headers });
+    }
+    if (action === 'reset-password') {
+      const password = clean(body.password);
+      if (password !== clean(body.passwordConfirm)) return json({ ok: false, error: 'The two passwords do not match.' }, { status: 400, headers: limit.headers });
+      const result = await resetStorefrontCustomerPassword({ tenantSlug, storeSlug, token: clean(body.token), password });
+      const response = json({ ok: true, authenticated: true, customer: result.customer, notice: 'Your password has been changed and other customer sessions were signed out.', redirectUrl: `${safeReturn(body.returnUrl, tenantSlug, storeSlug)}?passwordReset=1` }, { headers: limit.headers });
+      setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
       return response;
     }
     if (action === 'logout') { await revokeCustomerSession(request, tenantSlug, storeSlug); const response = json({ ok: true, authenticated: false, redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}` }, { headers: limit.headers }); clearCustomerSessionCookie(response, tenantSlug, storeSlug); return response; }

@@ -21,6 +21,8 @@ export type StorefrontCustomer = {
   name: string;
   phone: string;
   company: string;
+  emailVerified: boolean;
+  emailVerifiedAt: string;
   createdAt: string;
 };
 
@@ -44,6 +46,7 @@ type CustomerRow = StorefrontCustomer & {
   passwordHash?: string;
   isActive?: boolean;
   sessionVersion?: number;
+  emailVerifiedAt?: Date | string | null;
 };
 
 type SessionRow = CustomerRow & {
@@ -64,14 +67,15 @@ function verifyPassword(secret: string, stored: string) { const [scheme, iterati
 function validEmail(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value); }
 function cookieValue(header: string | null, name: string) { const item = clean(header).split(';').map((part) => part.trim()).find((part) => part.startsWith(`${name}=`)); return item ? decodeURIComponent(item.slice(name.length + 1)) : ''; }
 function requestMeta() { const h = headers(); return { ip: h.get('x-forwarded-for')?.split(',')[0]?.trim() || h.get('x-real-ip') || '', userAgent: h.get('user-agent') || '' }; }
-function customerSafe(row: CustomerRow): StorefrontCustomer { return { id: row.id, tenantId: row.tenantId, email: row.email, name: row.name || row.email, phone: row.phone || '', company: row.company || '', createdAt: nowIso(row.createdAt) }; }
+function customerSafe(row: CustomerRow): StorefrontCustomer { const verifiedAt = row.emailVerifiedAt ? nowIso(row.emailVerifiedAt) : ''; return { id: row.id, tenantId: row.tenantId, email: row.email, name: row.name || row.email, phone: row.phone || '', company: row.company || '', emailVerified: Boolean(verifiedAt), emailVerifiedAt: verifiedAt, createdAt: nowIso(row.createdAt) }; }
 
 export function customerSessionCookieName(tenantSlug: string, storeSlug: string) { const digest = crypto.createHash('sha1').update(`${slug(tenantSlug)}:${slug(storeSlug)}`).digest('hex').slice(0, 18); return `sf_customer_${digest}`; }
 export function setCustomerSessionCookie(response: NextResponse, tenantSlug: string, storeSlug: string, token: string, expiresAt: Date) { response.cookies.set(customerSessionCookieName(tenantSlug, storeSlug), token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', expires: expiresAt }); }
 export function clearCustomerSessionCookie(response: NextResponse, tenantSlug: string, storeSlug: string) { response.cookies.set(customerSessionCookieName(tenantSlug, storeSlug), '', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 0 }); }
 
-async function ensureCustomerTables() {
-  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StorefrontCustomer" ("id" TEXT PRIMARY KEY,"tenantId" TEXT NOT NULL,"email" TEXT NOT NULL,"name" TEXT NOT NULL,"phone" TEXT NOT NULL DEFAULT '',"company" TEXT NOT NULL DEFAULT '',"passwordHash" TEXT NOT NULL,"isActive" BOOLEAN NOT NULL DEFAULT true,"sessionVersion" INTEGER NOT NULL DEFAULT 1,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE("tenantId","email"));`);
+export async function ensureStorefrontCustomerTables() {
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StorefrontCustomer" ("id" TEXT PRIMARY KEY,"tenantId" TEXT NOT NULL,"email" TEXT NOT NULL,"name" TEXT NOT NULL,"phone" TEXT NOT NULL DEFAULT '',"company" TEXT NOT NULL DEFAULT '',"passwordHash" TEXT NOT NULL,"isActive" BOOLEAN NOT NULL DEFAULT true,"sessionVersion" INTEGER NOT NULL DEFAULT 1,"emailVerifiedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE("tenantId","email"));`);
+  await platformPrisma.$executeRawUnsafe('ALTER TABLE "StorefrontCustomer" ADD COLUMN IF NOT EXISTS "emailVerifiedAt" TIMESTAMP(3)');
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StorefrontCustomerSession" ("id" TEXT PRIMARY KEY,"customerId" TEXT NOT NULL,"tenantId" TEXT NOT NULL,"storeSlug" TEXT NOT NULL,"tokenHash" TEXT NOT NULL UNIQUE,"sessionVersion" INTEGER NOT NULL DEFAULT 1,"ipAddress" TEXT,"userAgent" TEXT,"expiresAt" TIMESTAMP(3) NOT NULL,"revokedAt" TIMESTAMP(3),"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StorefrontCustomerAddress" ("id" TEXT PRIMARY KEY,"customerId" TEXT NOT NULL,"tenantId" TEXT NOT NULL,"label" TEXT NOT NULL DEFAULT 'Address',"recipientName" TEXT NOT NULL DEFAULT '',"company" TEXT NOT NULL DEFAULT '',"line1" TEXT NOT NULL,"line2" TEXT NOT NULL DEFAULT '',"town" TEXT NOT NULL,"county" TEXT NOT NULL DEFAULT '',"postcode" TEXT NOT NULL,"country" TEXT NOT NULL DEFAULT 'United Kingdom',"phone" TEXT NOT NULL DEFAULT '',"isDefaultShipping" BOOLEAN NOT NULL DEFAULT false,"isDefaultBilling" BOOLEAN NOT NULL DEFAULT false,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "StorefrontCustomer_tenant_email_idx" ON "StorefrontCustomer"("tenantId","email")');
@@ -80,6 +84,7 @@ async function ensureCustomerTables() {
   await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "StorefrontCustomerAddress_customer_idx" ON "StorefrontCustomerAddress"("customerId")');
 }
 
+const ensureCustomerTables = ensureStorefrontCustomerTables;
 async function resolveTenantId(tenantSlug: string) { const key = slug(tenantSlug); const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string }>>('SELECT id FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1', key); if (!rows[0]) throw new Error('Storefront tenant was not found.'); return rows[0].id; }
 function scopedOrderRequest(tenantSlug: string) { return new Request(`https://internal.local/customer-account?tenantId=${encodeURIComponent(tenantSlug)}`, { headers: { 'x-tenant-id': tenantSlug } }); }
 
@@ -99,18 +104,18 @@ export async function registerStorefrontCustomer(input: { tenantSlug: string; st
   if (!validEmail(customerEmail)) throw new Error('Enter a valid email address.');
   if (clean(input.password).length < 10) throw new Error('Password must contain at least 10 characters.');
   if (name.length < 2) throw new Error('Enter your name.');
-  const existing = await platformPrisma.$queryRawUnsafe<CustomerRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","createdAt" FROM "StorefrontCustomer" WHERE "tenantId"=$1 AND lower(email)=lower($2) LIMIT 1', tenantId, customerEmail);
+  const existing = await platformPrisma.$queryRawUnsafe<CustomerRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","emailVerifiedAt","createdAt" FROM "StorefrontCustomer" WHERE "tenantId"=$1 AND lower(email)=lower($2) LIMIT 1', tenantId, customerEmail);
   if (existing[0]) throw new Error('An account already exists for this email. Sign in instead.');
   const id = `sfc-${crypto.randomUUID()}`;
   await platformPrisma.$executeRawUnsafe('INSERT INTO "StorefrontCustomer" (id,"tenantId",email,name,phone,company,"passwordHash","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())', id, tenantId, customerEmail, name, clean(input.phone), clean(input.company), passwordHash(input.password));
-  const rows = await platformPrisma.$queryRawUnsafe<CustomerRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","createdAt" FROM "StorefrontCustomer" WHERE id=$1 LIMIT 1', id);
+  const rows = await platformPrisma.$queryRawUnsafe<CustomerRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","emailVerifiedAt","createdAt" FROM "StorefrontCustomer" WHERE id=$1 LIMIT 1', id);
   return createCustomerSession(rows[0], tenantId, input.storeSlug);
 }
 
 export async function loginStorefrontCustomer(input: { tenantSlug: string; storeSlug: string; email: string; password: string }) {
   await ensureCustomerTables();
   const tenantId = await resolveTenantId(input.tenantSlug);
-  const rows = await platformPrisma.$queryRawUnsafe<CustomerRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","createdAt" FROM "StorefrontCustomer" WHERE "tenantId"=$1 AND lower(email)=lower($2) LIMIT 1', tenantId, email(input.email));
+  const rows = await platformPrisma.$queryRawUnsafe<CustomerRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","emailVerifiedAt","createdAt" FROM "StorefrontCustomer" WHERE "tenantId"=$1 AND lower(email)=lower($2) LIMIT 1', tenantId, email(input.email));
   const customer = rows[0];
   if (!customer?.passwordHash || customer.isActive === false || !verifyPassword(input.password, customer.passwordHash)) throw new Error('Invalid email or password.');
   await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomer" SET "updatedAt"=NOW() WHERE id=$1', customer.id);
@@ -122,7 +127,7 @@ export async function readStorefrontCustomerSessionFromToken(token: string, tena
   await ensureCustomerTables();
   const tenantId = await resolveTenantId(tenantSlug).catch(() => '');
   if (!tenantId) return null;
-  const rows = await platformPrisma.$queryRawUnsafe<SessionRow[]>(`SELECT s.id AS "sessionId",s."sessionVersion" AS "sessionVersionSnapshot",s."expiresAt",s."revokedAt",s."storeSlug",c.id,c."tenantId",c.email,c.name,c.phone,c.company,c."isActive",c."sessionVersion",c."createdAt" FROM "StorefrontCustomerSession" s JOIN "StorefrontCustomer" c ON c.id=s."customerId" WHERE s."tokenHash"=$1 AND s."tenantId"=$2 AND s."storeSlug"=$3 LIMIT 1`, tokenHash(token), tenantId, slug(storeSlug));
+  const rows = await platformPrisma.$queryRawUnsafe<SessionRow[]>(`SELECT s.id AS "sessionId",s."sessionVersion" AS "sessionVersionSnapshot",s."expiresAt",s."revokedAt",s."storeSlug",c.id,c."tenantId",c.email,c.name,c.phone,c.company,c."isActive",c."sessionVersion",c."emailVerifiedAt",c."createdAt" FROM "StorefrontCustomerSession" s JOIN "StorefrontCustomer" c ON c.id=s."customerId" WHERE s."tokenHash"=$1 AND s."tenantId"=$2 AND s."storeSlug"=$3 LIMIT 1`, tokenHash(token), tenantId, slug(storeSlug));
   const row = rows[0];
   if (!row || row.revokedAt || row.isActive === false || new Date(row.expiresAt).getTime() <= Date.now() || Number(row.sessionVersionSnapshot || 1) !== Number(row.sessionVersion || 1)) return null;
   return customerSafe(row);

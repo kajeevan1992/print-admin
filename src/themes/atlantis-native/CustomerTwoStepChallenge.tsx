@@ -26,7 +26,7 @@ export default function CustomerTwoStepChallenge({ tenantSlug, storeSlug, storeB
     <h1 className="mt-3 text-[36px] font-black tracking-[-0.055em]">Finish signing in</h1>
     <p className="mt-3 text-sm leading-7 text-slate-500">Enter the six-digit code from your authenticator app. A saved recovery code also works once.</p>
     <form onSubmit={submit} className="mt-7 space-y-4">
-      <label className="grid gap-2 text-xs font-bold text-slate-600">Authenticator or recovery code<input required name="code" autoComplete="one-time-code" inputMode="numeric" placeholder="123456 or ABCD-EFGH" className="w-full rounded-xl border px-4 py-3 text-center text-lg font-black tracking-[0.18em]" /></label>
+      <label className="grid gap-2 text-xs font-bold text-slate-600">Authenticator or recovery code<input required name="code" autoComplete="one-time-code" inputMode="text" autoCapitalize="characters" spellCheck={false} placeholder="123456 or ABCD-EFGH" className="w-full rounded-xl border px-4 py-3 text-center text-lg font-black tracking-[0.18em]" /></label>
       {error ? <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{error}</div> : null}
       <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white disabled:opacity-50" style={{ backgroundColor: 'var(--storefront-primary, #18A7D0)' }}><KeyRound className="h-4 w-4" />{busy ? 'Checking code…' : 'Verify and sign in'}</button>
     </form>

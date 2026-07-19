@@ -1,6 +1,7 @@
 import StorefrontChrome from './StorefrontChrome';
 import CustomerAccountClient from './CustomerAccountClient';
 import CustomerEmailChangeConfirmation from './CustomerEmailChangeConfirmation';
+import CustomerTrustedBrowserPanel from './CustomerTrustedBrowserPanel';
 import CustomerTwoStepChallenge from './CustomerTwoStepChallenge';
 import CustomerTwoStepSecurityPanel from './CustomerTwoStepSecurityPanel';
 import type { NavItem } from './types';
@@ -40,7 +41,7 @@ export default async function CustomerAccountPage({ tenantSlug, storeSlug, store
     : resolvedMode === 'two-step'
       ? <CustomerTwoStepChallenge tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} returnUrl={returnUrl || `${storeBase}/account`} />
       : section === 'profile' && dashboardCustomer
-        ? <>{standardAccount}<CustomerTwoStepSecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /></>
+        ? <>{standardAccount}<CustomerTwoStepSecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTrustedBrowserPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /></>
         : standardAccount;
   if (routeViews?.CustomerAccountPage) { const View = routeViews.CustomerAccountPage; const themeMode = resolvedMode === 'register' ? 'register' : resolvedMode === 'dashboard' ? 'dashboard' : 'login'; const themeSection = section === 'profile' ? 'overview' : section; return <View {...buildV0ThemePageContext({ storeBase, currentPath, navItems, settings })} mode={themeMode} section={themeSection} authenticated={Boolean(dashboardCustomer)} customer={dashboardCustomer ? { name: dashboardCustomer.name, email: dashboardCustomer.email } : undefined} summary={dashboardCustomer ? { orderCount: summary.orderCount, quoteCount: safeQuotes.length, artworkCount: summary.artworkCount, invoiceCount: safeInvoices.length, addressCount: summary.addressCount } : undefined} slots={{ account: accountSlot }} />; }
   return <StorefrontChrome currentPath={currentPath} navItems={navItems} storeBase={storeBase} settings={settings}><section className="py-10 sm:py-14"><Shell>{accountSlot}</Shell></section></StorefrontChrome>;

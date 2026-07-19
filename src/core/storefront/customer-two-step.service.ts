@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { customerSessionCookieName, ensureStorefrontCustomerTables, loginStorefrontCustomer, type StorefrontCustomer } from '@/core/storefront/customer-account.service';
+import { consumeStorefrontCustomerTrustedDevice, createStorefrontCustomerTrustedDevice, revokeAllStorefrontCustomerTrustedDevices } from '@/core/storefront/customer-trusted-device.service';
 
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const SESSION_DAYS = 30;
@@ -180,7 +181,13 @@ export async function beginStorefrontCustomerLogin(request: Request, input: { te
   const customer = rows[0];
   if (!customer?.passwordHash || customer.isActive === false || !verifyPassword(clean(input.password), customer.passwordHash)) throw new Error('Invalid email or password.');
   const configuration = await mfaRow(customer.id, tenantId);
-  if (!configuration?.enabledAt || !configuration.secretCiphertext) return { requiresTwoStep: false as const, ...(await loginStorefrontCustomer(input)) };
+  if (!configuration?.enabledAt || !configuration.secretCiphertext) return { requiresTwoStep: false as const, trustedDeviceUsed: false as const, ...(await loginStorefrontCustomer(input)) };
+
+  const trusted = await consumeStorefrontCustomerTrustedDevice(request, { customerId: customer.id, tenantId, tenantSlug: input.tenantSlug, storeSlug: input.storeSlug, sessionVersion: customer.sessionVersion });
+  if (trusted.trusted) {
+    const session = await loginStorefrontCustomer(input);
+    return { requiresTwoStep: false as const, trustedDeviceUsed: true as const, trustedDeviceToken: trusted.token, trustedDeviceExpiresAt: trusted.expiresAt, ...session };
+  }
 
   const token = crypto.randomBytes(48).toString('base64url');
   const expiresAt = new Date(Date.now() + CHALLENGE_TTL_MS);
@@ -189,10 +196,10 @@ export async function beginStorefrontCustomerLogin(request: Request, input: { te
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerMfaChallenge" SET "usedAt"=COALESCE("usedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "storeSlug"=$3 AND "usedAt" IS NULL', customer.id, tenantId, slug(input.storeSlug));
     await tx.$executeRawUnsafe('INSERT INTO "StorefrontCustomerMfaChallenge" (id,"customerId","tenantId","storeSlug","tokenHash","sessionVersion","returnUrl","expiresAt","ipAddress","userAgent","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW())', `sfcmfa-${crypto.randomUUID()}`, customer.id, tenantId, slug(input.storeSlug), hashToken(token), customer.sessionVersion, clean(input.returnUrl), expiresAt, meta.ip, meta.userAgent);
   });
-  return { requiresTwoStep: true as const, challengeToken: token, expiresAt, customer: safeCustomer(customer) };
+  return { requiresTwoStep: true as const, challengeToken: token, expiresAt, customer: safeCustomer(customer), clearTrustedDevice: trusted.clearCookie };
 }
 
-export async function completeStorefrontCustomerTwoStepLogin(request: Request, input: { tenantSlug: string; storeSlug: string; code: string }) {
+export async function completeStorefrontCustomerTwoStepLogin(request: Request, input: { tenantSlug: string; storeSlug: string; code: string; rememberDevice?: boolean }) {
   await ensureTwoStepTables();
   const tenantId = await resolveTenantId(input.tenantSlug);
   const rawToken = cookieValue(request, customerTwoStepChallengeCookieName(input.tenantSlug, input.storeSlug));
@@ -222,7 +229,9 @@ export async function completeStorefrontCustomerTwoStepLogin(request: Request, i
     return { ok: true as const, customer: safeCustomer(row), token: sessionToken, expiresAt: sessionExpiresAt, redirectUrl: row.returnUrl, recoveryUsed, recoveryCodeCount: nextRecoveryHashes.length };
   });
   if (!outcome.ok) throw new Error(outcome.expired ? 'This two-step sign-in has expired. Start again.' : 'That authenticator or recovery code is not valid.');
-  return outcome;
+  if (!input.rememberDevice) return outcome;
+  const trusted = await createStorefrontCustomerTrustedDevice(request, outcome.customer, input.storeSlug);
+  return { ...outcome, trustedDeviceToken: trusted.token, trustedDeviceExpiresAt: trusted.expiresAt, trustedDeviceId: trusted.deviceId };
 }
 
 export async function beginStorefrontCustomerTwoStepSetup(request: Request, customer: StorefrontCustomer, input: { tenantSlug: string; storeSlug: string; currentPassword: string; brandName: string }) {
@@ -268,6 +277,7 @@ export async function disableStorefrontCustomerTwoStep(request: Request, custome
   await verifyCurrentTwoStep(customer, input.code);
   await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerMfa" SET "secretCiphertext"=NULL,"pendingSecretCiphertext"=NULL,"recoveryCodesJson"=\'[]\'::jsonb,"pendingRecoveryCodesJson"=\'[]\'::jsonb,"enabledAt"=NULL,"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2', customer.id, customer.tenantId);
   await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerMfaChallenge" SET "usedAt"=COALESCE("usedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "usedAt" IS NULL', customer.id, customer.tenantId);
+  await revokeAllStorefrontCustomerTrustedDevices(customer, input.storeSlug);
   await revokeOtherSessions(request, customer, input.tenantSlug, input.storeSlug);
   return getStorefrontCustomerTwoStepStatus(customer);
 }

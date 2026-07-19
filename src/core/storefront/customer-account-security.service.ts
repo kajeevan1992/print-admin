@@ -103,5 +103,6 @@ export async function resetStorefrontCustomerPassword(input: { tenantSlug: strin
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSession" SET "revokedAt"=COALESCE("revokedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2', row.id, tenantId);
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSecurityToken" SET "usedAt"=COALESCE("usedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND purpose=\'reset-password\' AND "usedAt" IS NULL', row.id);
   });
+  await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=COALESCE("cancelledAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', row.id, tenantId).catch(() => 0);
   return loginStorefrontCustomer({ tenantSlug: input.tenantSlug, storeSlug: input.storeSlug, email: row.email, password });
 }

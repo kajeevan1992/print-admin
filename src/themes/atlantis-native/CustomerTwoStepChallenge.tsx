@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { FormEvent, useState } from 'react';
-import { KeyRound, ShieldCheck } from 'lucide-react';
+import { KeyRound, Laptop, ShieldCheck } from 'lucide-react';
 
 export default function CustomerTwoStepChallenge({ tenantSlug, storeSlug, storeBase, returnUrl }: { tenantSlug: string; storeSlug: string; storeBase: string; returnUrl: string }) {
   const [busy, setBusy] = useState(false);
@@ -27,6 +27,7 @@ export default function CustomerTwoStepChallenge({ tenantSlug, storeSlug, storeB
     <p className="mt-3 text-sm leading-7 text-slate-500">Enter the six-digit code from your authenticator app. A saved recovery code also works once.</p>
     <form onSubmit={submit} className="mt-7 space-y-4">
       <label className="grid gap-2 text-xs font-bold text-slate-600">Authenticator or recovery code<input required name="code" autoComplete="one-time-code" inputMode="text" autoCapitalize="characters" spellCheck={false} placeholder="123456 or ABCD-EFGH" className="w-full rounded-xl border px-4 py-3 text-center text-lg font-black tracking-[0.18em]" /></label>
+      <label className="flex cursor-pointer items-start gap-3 rounded-2xl border bg-slate-50 p-4 text-left"><input type="checkbox" name="rememberDevice" value="true" className="mt-1 h-4 w-4" /><span><span className="flex items-center gap-2 text-sm font-black text-slate-900"><Laptop className="h-4 w-4" />Trust this browser for 30 days</span><span className="mt-1 block text-xs leading-5 text-slate-500">After entering the correct password, this browser can skip the authenticator step. Do not use this on a shared or public computer.</span></span></label>
       {error ? <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{error}</div> : null}
       <button disabled={busy} className="inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-black text-white disabled:opacity-50" style={{ backgroundColor: 'var(--storefront-primary, #18A7D0)' }}><KeyRound className="h-4 w-4" />{busy ? 'Checking code…' : 'Verify and sign in'}</button>
     </form>

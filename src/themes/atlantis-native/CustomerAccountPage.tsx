@@ -9,7 +9,7 @@ import type { StorefrontRuntimeSettings } from '@/theme-runtime/types';
 import { buildV0ThemePageContext } from '@/theme-runtime/v0-view-props';
 import type { V0ThemeRouteViews } from '@/v0-themes/contracts';
 
-type Section = 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses';
+type Section = 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses' | 'profile';
 type Mode = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email' | 'dashboard';
 function clean(value: unknown) { return String(value || '').trim(); }
 function money(value: number, currency: string) { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: currency || 'GBP' }).format(Number(value || 0) / 100); }

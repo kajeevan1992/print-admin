@@ -94,13 +94,13 @@ export function clearCustomerTrustedDeviceCookie(response: NextResponse, tenantS
   response.cookies.set(customerTrustedDeviceCookieName(tenantSlug, storeSlug), '', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 0 });
 }
 
-export async function consumeStorefrontCustomerTrustedDevice(request: Request, input: { customerId: string; tenantId: string; storeSlug: string; sessionVersion: number }) {
+export async function consumeStorefrontCustomerTrustedDevice(request: Request, input: { customerId: string; tenantId: string; tenantSlug: string; storeSlug: string; sessionVersion: number }) {
   await ensureTrustedDeviceTable();
-  const rawToken = cookieValue(request, customerTrustedDeviceCookieName(input.tenantId, input.storeSlug));
+  const rawToken = cookieValue(request, customerTrustedDeviceCookieName(input.tenantSlug, input.storeSlug));
   if (!rawToken) return { trusted: false as const, clearCookie: false };
   const tokenHash = hashToken(rawToken);
   const meta = requestMeta(request);
-  const result = await platformPrisma.$transaction(async (tx) => {
+  return platformPrisma.$transaction(async (tx) => {
     const rows = await tx.$queryRawUnsafe<TrustedDeviceRow[]>('SELECT id,"tokenHash","sessionVersion","ipAddress","userAgent","expiresAt","createdAt","lastUsedAt","revokedAt" FROM "StorefrontCustomerTrustedDevice" WHERE "tokenHash"=$1 AND "customerId"=$2 AND "tenantId"=$3 AND "storeSlug"=$4 LIMIT 1 FOR UPDATE', tokenHash, input.customerId, input.tenantId, slug(input.storeSlug));
     const row = rows[0];
     const valid = Boolean(row && !row.revokedAt && row.sessionVersion === input.sessionVersion && new Date(row.expiresAt).getTime() > Date.now());
@@ -110,13 +110,13 @@ export async function consumeStorefrontCustomerTrustedDevice(request: Request, i
     }
     const nextToken = crypto.randomBytes(48).toString('base64url');
     const expiresAt = new Date(Date.now() + TRUST_DAYS * 86400000);
-    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerTrustedDevice" SET "tokenHash"=$1,"ipAddress"=$2,"userAgent"=$3,"lastUsedAt"=NOW(),"expiresAt"=$4,"updatedAt"=NOW() WHERE id=$5 AND "tokenHash"=$6', hashToken(nextToken), meta.ip, meta.userAgent, expiresAt, row.id, tokenHash);
+    const updated = await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerTrustedDevice" SET "tokenHash"=$1,"ipAddress"=$2,"userAgent"=$3,"lastUsedAt"=NOW(),"expiresAt"=$4,"updatedAt"=NOW() WHERE id=$5 AND "tokenHash"=$6 AND "revokedAt" IS NULL', hashToken(nextToken), meta.ip, meta.userAgent, expiresAt, row.id, tokenHash);
+    if (!updated) return { trusted: false as const, clearCookie: true };
     return { trusted: true as const, clearCookie: false, token: nextToken, expiresAt, deviceId: row.id };
   });
-  return result;
 }
 
-export async function createStorefrontCustomerTrustedDevice(request: Request, customer: StorefrontCustomer, tenantSlug: string, storeSlug: string) {
+export async function createStorefrontCustomerTrustedDevice(request: Request, customer: StorefrontCustomer, storeSlug: string) {
   const security = await customerSecurityRow(customer);
   const token = crypto.randomBytes(48).toString('base64url');
   const expiresAt = new Date(Date.now() + TRUST_DAYS * 86400000);
@@ -150,9 +150,9 @@ export async function revokeStorefrontCustomerTrustedDevice(request: Request, cu
   return { revoked: true, current: Boolean(currentHash && row.tokenHash === currentHash), deviceId: id };
 }
 
-export async function revokeAllStorefrontCustomerTrustedDevices(customer: StorefrontCustomer, input?: { currentPassword?: string }) {
+export async function revokeAllStorefrontCustomerTrustedDevices(customer: StorefrontCustomer, storeSlug: string, input?: { currentPassword?: string }) {
   const security = await customerSecurityRow(customer);
   if (input?.currentPassword !== undefined && !verifyPassword(clean(input.currentPassword), security.passwordHash)) throw new Error('Current password is incorrect.');
-  const count = await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerTrustedDevice" SET "revokedAt"=COALESCE("revokedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "revokedAt" IS NULL', customer.id, customer.tenantId);
+  const count = await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerTrustedDevice" SET "revokedAt"=COALESCE("revokedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "storeSlug"=$3 AND "revokedAt" IS NULL', customer.id, customer.tenantId, slug(storeSlug));
   return { revokedCount: Number(count || 0) };
 }

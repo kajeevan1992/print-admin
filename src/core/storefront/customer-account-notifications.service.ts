@@ -86,3 +86,15 @@ export async function sendCustomerTrustedDeviceSecurityEmail(request: Request, i
   const body = `Hi ${clean(input.name) || 'Customer'},\n\n${description}\n\nReview trusted browsers:\n${profileUrl}\n\nIf you did not make this change, remove trusted browsers, reset your password and contact the store immediately.\n\nKind regards,\n${brand}`;
   return queueAndAttempt(request, input.tenantSlug, { type: `customer-trusted-browser-${input.event}`, to: input.email, subject, body });
 }
+
+export async function sendCustomerPasskeySecurityEmail(request: Request, input: { tenantSlug: string; storeSlug: string; email: string; name: string; event: 'added' | 'removed'; passkeyName?: string; brandName?: string }) {
+  const brand = clean(input.brandName) || 'Print store';
+  const profileUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/account/profile`;
+  const label = clean(input.passkeyName) || 'Passkey';
+  const description = input.event === 'added'
+    ? `${label} was added to your customer account. It can sign in using device verification without entering the account password or authenticator code.`
+    : `${label} was removed from your customer account and can no longer be used to sign in.`;
+  const subject = input.event === 'added' ? `New passkey added for ${brand}` : `Passkey removed from ${brand}`;
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\n${description}\n\nReview passkeys:\n${profileUrl}\n\nIf you did not make this change, remove unknown passkeys, reset your password and contact the store immediately.\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: `customer-passkey-${input.event}`, to: input.email, subject, body });
+}

@@ -35,7 +35,7 @@ The storefront customer account supports authenticator-app two-step verification
 - Password changes, password resets and verified email changes invalidate older challenges through session-version mismatch.
 - No authenticated customer session is created until the second factor succeeds or a valid trusted browser is accepted after the correct password.
 - Enabling or disabling protection signs out other storefront customer sessions while preserving the current session.
-- Password reset does not bypass two-step verification. Protected customers must sign in again and complete the challenge unless a still-valid trusted browser exists; password reset itself invalidates all older trusted browsers.
+- Password reset does not bypass two-step verification. Protected customers must sign in again and complete a fresh challenge because the reset invalidates every older trusted browser.
 - New trusted-browser and remove-all events generate security alerts through tenant SMTP and the existing internal email outbox.
 
 ## Theme authority boundary

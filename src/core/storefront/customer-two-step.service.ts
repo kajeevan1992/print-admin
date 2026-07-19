@@ -229,6 +229,8 @@ export async function beginStorefrontCustomerTwoStepSetup(request: Request, cust
   const credential = await credentialByCustomer(customer);
   if (!credential.emailVerifiedAt) throw new Error('Verify your login email before enabling two-step verification.');
   if (!verifyPassword(clean(input.currentPassword), credential.passwordHash)) throw new Error('Current password is incorrect.');
+  const existing = await mfaRow(customer.id, customer.tenantId);
+  if (existing?.enabledAt && existing.secretCiphertext) throw new Error('Two-step verification is already enabled. Disable it with your current authenticator or recovery code before setting up a replacement.');
   const secret = base32Encode(crypto.randomBytes(20));
   const recovery = createRecoveryCodes();
   await platformPrisma.$executeRawUnsafe(`INSERT INTO "StorefrontCustomerMfa" ("customerId","tenantId","pendingSecretCiphertext","pendingRecoveryCodesJson","updatedAt") VALUES ($1,$2,$3,$4::jsonb,NOW()) ON CONFLICT ("customerId") DO UPDATE SET "pendingSecretCiphertext"=EXCLUDED."pendingSecretCiphertext","pendingRecoveryCodesJson"=EXCLUDED."pendingRecoveryCodesJson","updatedAt"=NOW()`, customer.id, customer.tenantId, encryptSecret(secret), JSON.stringify(recovery.hashes));
@@ -240,6 +242,7 @@ export async function beginStorefrontCustomerTwoStepSetup(request: Request, cust
 export async function confirmStorefrontCustomerTwoStepSetup(request: Request, customer: StorefrontCustomer, input: { tenantSlug: string; storeSlug: string; code: string }) {
   const row = await mfaRow(customer.id, customer.tenantId);
   if (!row?.pendingSecretCiphertext) throw new Error('Start two-step setup again.');
+  if (row.enabledAt && row.secretCiphertext) throw new Error('Two-step verification is already enabled. Disable it with your current authenticator or recovery code before setting up a replacement.');
   const secret = decryptSecret(row.pendingSecretCiphertext);
   if (!verifyTotp(secret, input.code)) throw new Error('That authenticator code is not valid.');
   await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerMfa" SET "secretCiphertext"="pendingSecretCiphertext","recoveryCodesJson"="pendingRecoveryCodesJson","pendingSecretCiphertext"=NULL,"pendingRecoveryCodesJson"=\'[]\'::jsonb,"enabledAt"=NOW(),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2', customer.id, customer.tenantId);

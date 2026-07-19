@@ -3,7 +3,8 @@ import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-l
 import { listFormalQuotes } from '@/core/quotes/formal-quotes.service';
 import { accountSummary, attachBasketToCustomer, clearCustomerSessionCookie, customerFromRequest, deleteCustomerAddress, listCustomerAddresses, listCustomerOrders, loginStorefrontCustomer, registerStorefrontCustomer, repeatCustomerOrder, requireCustomerFromRequest, revokeCustomerSession, saveCustomerAddress, setCustomerSessionCookie } from '@/core/storefront/customer-account.service';
 import { issueCustomerSecurityToken, resetStorefrontCustomerPassword, verifyStorefrontCustomerEmail } from '@/core/storefront/customer-account-security.service';
-import { sendCustomerPasswordResetEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
+import { sendCustomerPasswordChangedEmail, sendCustomerPasswordResetEmail, sendCustomerVerificationEmail } from '@/core/storefront/customer-account-notifications.service';
+import { changeStorefrontCustomerPassword, listStorefrontCustomerSessions, revokeOtherStorefrontCustomerSessions, revokeStorefrontCustomerSession, updateStorefrontCustomerProfile } from '@/core/storefront/customer-profile-security.service';
 import { basketCookieName, newBasketId } from '@/core/storefront/persistent-basket.service';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 
@@ -23,9 +24,14 @@ export async function GET(request: NextRequest) {
   if (!tenantSlug || !storeSlug) return json({ ok: false, error: 'Missing storefront account scope.' }, { status: 400 });
   const customer = await customerFromRequest(request, tenantSlug, storeSlug);
   if (!customer) return json({ ok: true, authenticated: false, customer: null });
-  const [orders, addresses, quotes] = await Promise.all([listCustomerOrders(customer, tenantSlug, storeSlug), listCustomerAddresses(customer), listFormalQuotes(tenantSlug, { storeSlug, customerEmail: customer.email, customerId: customer.id, limit: 100 })]);
+  const [orders, addresses, quotes, sessions] = await Promise.all([
+    listCustomerOrders(customer, tenantSlug, storeSlug),
+    listCustomerAddresses(customer),
+    listFormalQuotes(tenantSlug, { storeSlug, customerEmail: customer.email, customerId: customer.id, limit: 100 }),
+    listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug),
+  ]);
   const summary = accountSummary(orders, addresses);
-  return json({ ok: true, authenticated: true, customer, addresses, orders, quotes, summary: { ...summary, quoteCount: quotes.length, quotes } });
+  return json({ ok: true, authenticated: true, customer, addresses, orders, quotes, sessions, summary: { ...summary, quoteCount: quotes.length, quotes } });
 }
 
 export async function POST(request: NextRequest) {
@@ -35,7 +41,7 @@ export async function POST(request: NextRequest) {
   const storeSlug = slug(body.storeSlug);
   const identifier = [tenantSlug, storeSlug, clean(body.email), action].filter(Boolean).join(':');
   const authAction = ['login', 'register'].includes(action);
-  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification'].includes(action);
+  const securityAction = ['request-password-reset', 'reset-password', 'verify-email', 'resend-verification', 'change-password', 'revoke-other-sessions', 'revoke-session'].includes(action);
   const limit = publicRateLimit(request, { scope: securityAction ? 'storefront-customer-security' : authAction ? 'storefront-customer-auth' : 'storefront-customer-account', limit: securityAction ? 8 : authAction ? 12 : 40, windowMs: 10 * 60 * 1000, identifier });
   if (limit.enforced) return json({ ...rateLimitPayload(limit), source: 'storefront-customer-account' }, { status: 429, headers: limit.headers });
   if (!tenantSlug || !storeSlug || !action) return json({ ok: false, error: 'Missing storefront account action.' }, { status: 400, headers: limit.headers });
@@ -79,6 +85,18 @@ export async function POST(request: NextRequest) {
     }
     if (action === 'logout') { await revokeCustomerSession(request, tenantSlug, storeSlug); const response = json({ ok: true, authenticated: false, redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}` }, { headers: limit.headers }); clearCustomerSessionCookie(response, tenantSlug, storeSlug); return response; }
     const customer = await requireCustomerFromRequest(request, tenantSlug, storeSlug);
+    if (action === 'update-profile') { const updated = await updateStorefrontCustomerProfile(customer, { name: clean(body.name), phone: clean(body.phone), company: clean(body.company) }); return json({ ok: true, customer: updated, notice: 'Your customer details were updated.' }, { headers: limit.headers }); }
+    if (action === 'change-password') {
+      const newPassword = clean(body.newPassword);
+      if (newPassword !== clean(body.newPasswordConfirm)) return json({ ok: false, error: 'The two new passwords do not match.' }, { status: 400, headers: limit.headers });
+      const result = await changeStorefrontCustomerPassword(request, customer, { tenantSlug, storeSlug, currentPassword: clean(body.currentPassword), newPassword });
+      await sendCustomerPasswordChangedEmail(request, { tenantSlug, storeSlug, email: result.customer.email, name: result.customer.name, brandName: await brandName(tenantSlug, storeSlug) }).catch(() => null);
+      const response = json({ ok: true, authenticated: true, customer: result.customer, notice: 'Password changed. Every older customer session was signed out.', redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}/account/profile?passwordChanged=1` }, { headers: limit.headers });
+      setCustomerSessionCookie(response, tenantSlug, storeSlug, result.token, result.expiresAt);
+      return response;
+    }
+    if (action === 'revoke-other-sessions') { const result = await revokeOtherStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug); return json({ ok: true, ...result, sessions: await listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug), notice: result.revokedCount ? `${result.revokedCount} other customer session${result.revokedCount === 1 ? '' : 's'} signed out.` : 'No other active sessions were found.' }, { headers: limit.headers }); }
+    if (action === 'revoke-session') { await revokeStorefrontCustomerSession(request, customer, tenantSlug, storeSlug, clean(body.sessionId)); return json({ ok: true, sessions: await listStorefrontCustomerSessions(request, customer, tenantSlug, storeSlug), notice: 'That customer session was signed out.' }, { headers: limit.headers }); }
     if (action === 'save-address') { const address = await saveCustomerAddress(customer, { id: clean(body.id) || undefined, label: clean(body.label), recipientName: clean(body.recipientName), company: clean(body.company), line1: clean(body.line1), line2: clean(body.line2), town: clean(body.town), county: clean(body.county), postcode: clean(body.postcode), country: clean(body.country), phone: clean(body.phone), isDefaultShipping: bool(body.isDefaultShipping), isDefaultBilling: bool(body.isDefaultBilling) }); return json({ ok: true, address, addresses: await listCustomerAddresses(customer) }, { headers: limit.headers }); }
     if (action === 'delete-address') { await deleteCustomerAddress(customer, clean(body.id)); return json({ ok: true, addresses: await listCustomerAddresses(customer) }, { headers: limit.headers }); }
     if (action === 'repeat-order') { const cookieName = basketCookieName(tenantSlug, storeSlug); const existingBasketId = clean(request.cookies.get(cookieName)?.value); const basketId = existingBasketId || newBasketId(); const basket = await repeatCustomerOrder(request, customer, tenantSlug, storeSlug, clean(body.orderId), basketId); const response = json({ ok: true, basket: { id: basket.id, lineCount: basket.lineCount, itemCount: basket.itemCount, formattedTotal: basket.formattedTotal }, redirectUrl: `/native-stores/${tenantSlug}/${storeSlug}/cart` }, { headers: limit.headers }); if (!existingBasketId) response.cookies.set(cookieName, basket.id, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 30 * 24 * 60 * 60 }); return response; }

@@ -24,3 +24,10 @@ export async function sendCustomerPasswordResetEmail(request: Request, input: { 
   const body = `Hi ${clean(input.name) || 'Customer'},\n\nA password reset was requested for your ${brand} customer account.\n\nReset password:\n${resetUrl}\n\nThis single-use link expires in one hour. If you did not request a reset, your password has not been changed and you can ignore this email.\n\nKind regards,\n${brand}`;
   return queueAndAttempt(request, input.tenantSlug, { type: 'customer-password-reset', to: input.email, subject: `Reset your ${brand} customer account password`, body });
 }
+
+export async function sendCustomerPasswordChangedEmail(request: Request, input: { tenantSlug: string; storeSlug: string; email: string; name: string; brandName?: string }) {
+  const recoveryUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/forgot-password`;
+  const brand = clean(input.brandName) || 'Print store';
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\nThe password for your ${brand} customer account was changed. All older customer sessions were signed out.\n\nIf you made this change, no action is needed. If you did not make it, reset the password immediately:\n${recoveryUrl}\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: 'customer-password-changed', to: input.email, subject: `Your ${brand} customer password was changed`, body });
+}

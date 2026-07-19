@@ -95,7 +95,7 @@ export async function requestStorefrontCustomerEmailChange(request: Request, cus
   const meta = requestMeta(request);
   const scope = slug(input.storeSlug);
   await platformPrisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=COALESCE("cancelledAt",NOW()),"oldTokenHash"=$1,"newTokenHash"=$2,"updatedAt"=NOW() WHERE "customerId"=$3 AND "tenantId"=$4 AND "storeSlug"=$5 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', retiredTokenHash(), retiredTokenHash(), customer.id, customer.tenantId, scope);
+    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=COALESCE("cancelledAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "storeSlug"=$3 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', customer.id, customer.tenantId, scope);
     await tx.$executeRawUnsafe('INSERT INTO "StorefrontCustomerEmailChange" (id,"customerId","tenantId","storeSlug","oldEmail","newEmail","oldTokenHash","newTokenHash","expiresAt","ipAddress","userAgent","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())', id, customer.id, customer.tenantId, scope, email(row.email), newEmail, hashToken(oldToken), hashToken(newToken), expiresAt, meta.ip, meta.userAgent);
   });
   return { change: { id, oldEmail: email(row.email), newEmail, oldConfirmed: false, newConfirmed: false, expiresAt: expiresAt.toISOString(), createdAt: new Date().toISOString() } as StorefrontCustomerEmailChangeView, oldToken, newToken, name: row.name || customer.name };
@@ -105,8 +105,8 @@ export async function cancelStorefrontCustomerEmailChange(customer: StorefrontCu
   await ensureEmailChangeTable();
   const id = clean(changeId);
   const count = id
-    ? await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=NOW(),"oldTokenHash"=$1,"newTokenHash"=$2,"updatedAt"=NOW() WHERE id=$3 AND "customerId"=$4 AND "tenantId"=$5 AND "storeSlug"=$6 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', retiredTokenHash(), retiredTokenHash(), id, customer.id, customer.tenantId, slug(storeSlug))
-    : await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=NOW(),"oldTokenHash"=$1,"newTokenHash"=$2,"updatedAt"=NOW() WHERE "customerId"=$3 AND "tenantId"=$4 AND "storeSlug"=$5 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', retiredTokenHash(), retiredTokenHash(), customer.id, customer.tenantId, slug(storeSlug));
+    ? await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=NOW(),"updatedAt"=NOW() WHERE id=$1 AND "customerId"=$2 AND "tenantId"=$3 AND "storeSlug"=$4 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', id, customer.id, customer.tenantId, slug(storeSlug))
+    : await platformPrisma.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=NOW(),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "storeSlug"=$3 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', customer.id, customer.tenantId, slug(storeSlug));
   return { cancelled: Number(count || 0) > 0 };
 }
 
@@ -139,8 +139,8 @@ export async function confirmStorefrontCustomerEmailChange(input: { tenantSlug: 
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomer" SET email=$1,"emailVerifiedAt"=NOW(),"sessionVersion"="sessionVersion"+1,"updatedAt"=NOW() WHERE id=$2 AND "tenantId"=$3', row.newEmail, row.customerId, tenantId);
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSession" SET "revokedAt"=COALESCE("revokedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2', row.customerId, tenantId);
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSecurityToken" SET "usedAt"=COALESCE("usedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND "usedAt" IS NULL', row.customerId, tenantId);
-    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "completedAt"=NOW(),"oldTokenHash"=$1,"newTokenHash"=$2,"updatedAt"=NOW() WHERE id=$3 AND "completedAt" IS NULL', retiredTokenHash(), retiredTokenHash(), row.id);
-    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=COALESCE("cancelledAt",NOW()),"oldTokenHash"=$1,"newTokenHash"=$2,"updatedAt"=NOW() WHERE "customerId"=$3 AND "tenantId"=$4 AND id<>$5 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', retiredTokenHash(), retiredTokenHash(), row.customerId, tenantId, row.id);
+    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "completedAt"=NOW(),"updatedAt"=NOW() WHERE id=$1 AND "completedAt" IS NULL', row.id);
+    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerEmailChange" SET "cancelledAt"=COALESCE("cancelledAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2 AND id<>$3 AND "completedAt" IS NULL AND "cancelledAt" IS NULL', row.customerId, tenantId, row.id);
     return { completed: true, side, oldConfirmed: true, newConfirmed: true, oldEmail: row.oldEmail, newEmail: row.newEmail, name: row.name || 'Customer' };
   });
 }

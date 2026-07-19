@@ -72,6 +72,11 @@ function safeCustomer(row: CustomerCredentialRow): StorefrontCustomer {
   return { id: row.id, tenantId: row.tenantId, email: row.email, name: row.name || row.email, phone: row.phone || '', company: row.company || '', emailVerified: Boolean(verifiedAt), emailVerifiedAt: verifiedAt, createdAt: iso(row.createdAt) };
 }
 
+async function ensureProfileSecurityTables() {
+  await ensureStorefrontCustomerTables();
+  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StorefrontCustomerSecurityToken" ("id" TEXT PRIMARY KEY,"customerId" TEXT NOT NULL,"tenantId" TEXT NOT NULL,"storeSlug" TEXT NOT NULL,"purpose" TEXT NOT NULL,"tokenHash" TEXT NOT NULL UNIQUE,"expiresAt" TIMESTAMP(3) NOT NULL,"usedAt" TIMESTAMP(3),"ipAddress" TEXT,"userAgent" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
+}
+
 async function credentialRow(customer: StorefrontCustomer) {
   await ensureStorefrontCustomerTables();
   const rows = await platformPrisma.$queryRawUnsafe<CustomerCredentialRow[]>('SELECT id,"tenantId",email,name,phone,company,"passwordHash","isActive","sessionVersion","emailVerifiedAt","createdAt" FROM "StorefrontCustomer" WHERE id=$1 AND "tenantId"=$2 LIMIT 1', customer.id, customer.tenantId);
@@ -110,13 +115,14 @@ export async function changeStorefrontCustomerPassword(request: Request, custome
   const currentPassword = clean(input.currentPassword);
   const newPassword = clean(input.newPassword);
   if (newPassword.length < 10) throw new Error('New password must contain at least 10 characters.');
+  await ensureProfileSecurityTables();
   const row = await credentialRow(customer);
   if (!verifyPassword(currentPassword, row.passwordHash)) throw new Error('Current password is incorrect.');
   if (verifyPassword(newPassword, row.passwordHash)) throw new Error('Choose a different password from your current password.');
   await platformPrisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomer" SET "passwordHash"=$1,"sessionVersion"="sessionVersion"+1,"updatedAt"=NOW() WHERE id=$2 AND "tenantId"=$3', hashPassword(newPassword), customer.id, customer.tenantId);
     await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSession" SET "revokedAt"=COALESCE("revokedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND "tenantId"=$2', customer.id, customer.tenantId);
-    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSecurityToken" SET "usedAt"=COALESCE("usedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND purpose='reset-password' AND "usedAt" IS NULL', customer.id).catch(() => 0);
+    await tx.$executeRawUnsafe('UPDATE "StorefrontCustomerSecurityToken" SET "usedAt"=COALESCE("usedAt",NOW()),"updatedAt"=NOW() WHERE "customerId"=$1 AND purpose=\'reset-password\' AND "usedAt" IS NULL', customer.id);
   });
   return loginStorefrontCustomer({ tenantSlug: input.tenantSlug, storeSlug: input.storeSlug, email: row.email, password: newPassword });
 }

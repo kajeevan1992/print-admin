@@ -24,7 +24,9 @@ export default function CustomerProfileSecurityPanel({ tenantSlug, storeSlug, st
   }, []);
 
   async function accountRequest(url: string, init?: RequestInit) {
-    const response = await fetch(url, { ...init, headers: { Accept: 'application/json', ...(init?.headers || {}) } });
+    const headers = new Headers(init?.headers);
+    headers.set('Accept', 'application/json');
+    const response = await fetch(url, { ...init, headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || payload?.ok === false) throw new Error(payload?.error || 'Customer account action failed.');
     return payload;

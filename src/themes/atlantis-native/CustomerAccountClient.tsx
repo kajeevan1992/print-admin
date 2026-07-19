@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Download, FileText, KeyRound, LogOut, MailCheck, MapPin, Package, Palette, Receipt, RefreshCw, ShieldCheck, UserRound } from 'lucide-react';
+import CustomerProfileSecurityPanel from './CustomerProfileSecurityPanel';
 
 type Address = { id: string; label: string; recipientName: string; company: string; line1: string; line2: string; town: string; county: string; postcode: string; country: string; phone: string; isDefaultShipping: boolean; isDefaultBilling: boolean };
 type OrderItem = { id: string; productName: string; quantity: number; totalPrice: number; metadataJson?: Record<string, any> };
@@ -10,7 +11,7 @@ type AccountOrder = { id: string; orderNumber: string; status: string; paymentSt
 type AccountQuote = { id: string; quoteNumber: string; title: string; status: string; currency: string; totalMinor: number; formattedTotal: string; expiresAt: string; updatedAt: string; revision: number; convertedOrderId: string; lineCount: number; href: string };
 type AccountInvoice = { id: string; invoiceNumber: string; orderNumber: string; status: string; currency: string; totalMinor: number; creditedMinor: number; formattedTotal: string; formattedCredited: string; issuedAt: string; invoiceHref: string; receiptHref: string; creditNotes: Array<{ id: string; creditNoteNumber: string; reason: string; totalMinor: number; formattedTotal: string; issuedAt: string; href: string }> };
 type Summary = { orderCount: number; quoteCount: number; invoiceCount: number; artworkCount: number; addressCount: number; artwork: Array<{ orderId: string; orderNumber: string; productName: string; status: string; uploadId: string }> };
-type Section = 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses';
+type Section = 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses' | 'profile';
 type Mode = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email' | 'dashboard';
 type Customer = { id: string; name: string; email: string; phone: string; company: string; emailVerified: boolean };
 
@@ -60,8 +61,7 @@ export default function CustomerAccountClient({ mode, section = 'overview', tena
 
   async function forgotPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy('forgot-password');
-    setNotice('');
+    setBusy('forgot-password'); setNotice('');
     try {
       const data = Object.fromEntries(new FormData(event.currentTarget).entries());
       const payload = await post({ action: 'request-password-reset', ...data });
@@ -73,8 +73,7 @@ export default function CustomerAccountClient({ mode, section = 'overview', tena
 
   async function resetPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setBusy('reset-password');
-    setNotice('');
+    setBusy('reset-password'); setNotice('');
     try {
       const data = Object.fromEntries(new FormData(event.currentTarget).entries());
       const payload = await post({ action: 'reset-password', token, ...data, returnUrl: returnUrl || `${storeBase}/account` });
@@ -84,8 +83,7 @@ export default function CustomerAccountClient({ mode, section = 'overview', tena
   }
 
   async function verifyEmail() {
-    setBusy('verify-email');
-    setNotice('');
+    setBusy('verify-email'); setNotice('');
     try {
       const payload = await post({ action: 'verify-email', token, returnUrl: returnUrl || `${storeBase}/account` });
       setNotice(payload.notice || 'Your email address is verified.');
@@ -95,12 +93,9 @@ export default function CustomerAccountClient({ mode, section = 'overview', tena
   }
 
   async function resendVerification() {
-    setBusy('resend-verification');
-    setNotice('');
-    try {
-      const payload = await post({ action: 'resend-verification', email: customer?.email || '' });
-      setNotice(payload.notice || 'If verification is still needed, a new secure link has been sent.');
-    } catch (next) { setError(next instanceof Error ? next.message : 'A new verification email could not be requested.'); }
+    setBusy('resend-verification'); setNotice('');
+    try { const payload = await post({ action: 'resend-verification', email: customer?.email || '' }); setNotice(payload.notice || 'If verification is still needed, a new secure link has been sent.'); }
+    catch (next) { setError(next instanceof Error ? next.message : 'A new verification email could not be requested.'); }
     finally { setBusy(''); }
   }
 
@@ -145,7 +140,7 @@ export default function CustomerAccountClient({ mode, section = 'overview', tena
 
   if (!customer) return <div className="rounded-[28px] border bg-white p-8 text-center"><h1 className="text-3xl font-black">Sign in required</h1><Link href={`${storeBase}/login`} className="mt-5 inline-flex rounded-full px-5 py-3 font-black text-white no-underline" style={{ backgroundColor: 'var(--storefront-primary, #18A7D0)' }}>Customer sign in</Link></div>;
 
-  const nav: Array<[Section, string, any]> = [['overview', 'Overview', UserRound], ['orders', 'Orders', Package], ['quotes', 'Quotes', FileText], ['artwork', 'Artwork', Palette], ['invoices', 'Invoices', Receipt], ['addresses', 'Addresses', MapPin]];
+  const nav: Array<[Section, string, any]> = [['overview', 'Overview', UserRound], ['orders', 'Orders', Package], ['quotes', 'Quotes', FileText], ['artwork', 'Artwork', Palette], ['invoices', 'Invoices', Receipt], ['addresses', 'Addresses', MapPin], ['profile', 'Profile & security', ShieldCheck]];
   const cards = [{ label: 'Orders', value: summary?.orderCount || 0, href: `${storeBase}/account/orders` }, { label: 'Quotes', value: summary?.quoteCount || 0, href: `${storeBase}/account/quotes` }, { label: 'Artwork items', value: summary?.artworkCount || 0, href: `${storeBase}/account/artwork` }, { label: 'Invoices', value: summary?.invoiceCount || 0, href: `${storeBase}/account/invoices` }];
 
   function OrderList({ values, empty }: { values: AccountOrder[]; empty: string }) { return values.length ? <div className="space-y-4">{values.map((order) => <article key={order.id} className="rounded-[22px] border bg-white p-5" style={{ borderColor: 'var(--storefront-line, #E3E8F0)' }}><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: 'var(--storefront-primary, #18A7D0)' }}>{order.orderNumber}</div><h3 className="mt-2 text-xl font-black">{order.items.length} item{order.items.length === 1 ? '' : 's'} · {order.formattedTotal}</h3><p className="mt-1 text-xs text-slate-500">{date(order.createdAt)} · {statusLabel(order.status)} · Payment {statusLabel(order.paymentStatus)}</p></div><button disabled={busy === `repeat:${order.id}`} onClick={() => repeatOrder(order.id)} className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-black disabled:opacity-50"><RefreshCw className="h-4 w-4" />{busy === `repeat:${order.id}` ? 'Repricing…' : 'Order again'}</button></div><div className="mt-4 grid gap-2">{order.items.slice(0, 6).map((item) => <div key={item.id} className="flex justify-between gap-4 rounded-xl bg-slate-50 px-3 py-2 text-xs"><span>{item.productName} × {item.quantity}</span><strong>{new Intl.NumberFormat('en-GB', { style: 'currency', currency: order.currency || 'GBP' }).format(item.totalPrice || 0)}</strong></div>)}</div></article>)}</div> : <div className="rounded-[22px] border border-dashed p-8 text-center text-sm text-slate-500">{empty}</div>; }
@@ -159,15 +154,16 @@ export default function CustomerAccountClient({ mode, section = 'overview', tena
       <button onClick={logout} disabled={busy === 'logout'} className="mt-4 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-red-700 disabled:opacity-50"><LogOut className="h-4 w-4" />Sign out</button>
     </aside>
     <section>
-      {error ? <div className="mb-5">{messageBox(error, 'error')}</div> : null}
-      {notice ? <div className="mb-5">{messageBox(notice)}</div> : null}
-      {!customer.emailVerified ? <div className="mb-6 flex flex-col gap-4 rounded-[20px] border border-amber-300 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 font-black text-amber-950"><MailCheck className="h-5 w-5" />Verify your email address</div><p className="mt-1 text-sm leading-6 text-amber-900">Verification protects password recovery and confirms where account documents should be sent.</p></div><button type="button" onClick={resendVerification} disabled={busy === 'resend-verification'} className="shrink-0 rounded-full bg-amber-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy === 'resend-verification' ? 'Sending…' : 'Resend verification'}</button></div> : null}
+      {section !== 'profile' && error ? <div className="mb-5">{messageBox(error, 'error')}</div> : null}
+      {section !== 'profile' && notice ? <div className="mb-5">{messageBox(notice)}</div> : null}
+      {!customer.emailVerified && section !== 'profile' ? <div className="mb-6 flex flex-col gap-4 rounded-[20px] border border-amber-300 bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between"><div><div className="flex items-center gap-2 font-black text-amber-950"><MailCheck className="h-5 w-5" />Verify your email address</div><p className="mt-1 text-sm leading-6 text-amber-900">Verification protects password recovery and confirms where account documents should be sent.</p></div><button type="button" onClick={resendVerification} disabled={busy === 'resend-verification'} className="shrink-0 rounded-full bg-amber-950 px-4 py-2.5 text-xs font-black text-white disabled:opacity-50">{busy === 'resend-verification' ? 'Sending…' : 'Resend verification'}</button></div> : null}
       {section === 'overview' ? <><div><div className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: 'var(--storefront-primary, #18A7D0)' }}>Account overview</div><h1 className="mt-3 text-[38px] font-black tracking-[-0.055em]">Hello, {customer.name.split(' ')[0]}</h1><p className="mt-2 text-sm text-slate-500">Track print jobs, quotes, artwork, VAT invoices and saved delivery details.</p></div><div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map((card) => <Link key={card.label} href={card.href} className="rounded-[20px] border bg-white p-5 no-underline" style={{ borderColor: 'var(--storefront-line, #E3E8F0)', color: 'var(--storefront-ink, #111827)' }}><div className="text-3xl font-black">{card.value}</div><div className="mt-2 text-xs font-bold text-slate-500">{card.label}</div></Link>)}</div><div className="mt-8"><h2 className="mb-4 text-2xl font-black">Recent orders</h2><OrderList values={orders.slice(0, 5)} empty="No orders have been placed with this email yet." /></div></> : null}
       {section === 'orders' ? <><h1 className="mb-6 text-[38px] font-black tracking-[-0.055em]">Orders</h1><OrderList values={orders} empty="Your completed and active orders will appear here." /></> : null}
       {section === 'quotes' ? <><h1 className="mb-6 text-[38px] font-black tracking-[-0.055em]">Quotes</h1><QuoteList /></> : null}
       {section === 'invoices' ? <><h1 className="text-[38px] font-black tracking-[-0.055em]">Invoices</h1><p className="mb-6 mt-2 text-sm text-slate-500">Download VAT invoices, payment receipts and any refund credit notes.</p><InvoiceList /></> : null}
       {section === 'artwork' ? <><h1 className="mb-6 text-[38px] font-black tracking-[-0.055em]">Artwork</h1>{summary?.artwork?.length ? <div className="grid gap-4">{summary.artwork.map((item, index) => <div key={`${item.orderId}-${item.productName}-${index}`} className="rounded-[20px] border bg-white p-5" style={{ borderColor: 'var(--storefront-line, #E3E8F0)' }}><div className="text-xs font-black" style={{ color: 'var(--storefront-primary, #18A7D0)' }}>{item.orderNumber}</div><div className="mt-2 font-black">{item.productName}</div><div className="mt-1 text-xs text-slate-500">Artwork status: {statusLabel(item.status)}</div></div>)}</div> : <div className="rounded-[22px] border border-dashed p-8 text-center text-sm text-slate-500">Artwork linked to your orders will appear here.</div>}</> : null}
       {section === 'addresses' ? <><h1 className="text-[38px] font-black tracking-[-0.055em]">Saved addresses</h1><p className="mt-2 text-sm text-slate-500">Save delivery and billing details for future checkout.</p><form onSubmit={saveAddress} className="mt-6 rounded-[24px] border bg-white p-5" style={{ borderColor: 'var(--storefront-line, #E3E8F0)' }}><div className="grid gap-3 sm:grid-cols-2"><input name="label" placeholder="Label, e.g. Office" className="rounded-xl border px-3 py-2.5 text-sm" /><input name="recipientName" placeholder="Recipient name" defaultValue={customer.name} className="rounded-xl border px-3 py-2.5 text-sm" /><input name="company" placeholder="Company" defaultValue={customer.company} className="rounded-xl border px-3 py-2.5 text-sm" /><input name="phone" placeholder="Phone" defaultValue={customer.phone} className="rounded-xl border px-3 py-2.5 text-sm" /><input required name="line1" placeholder="Address line 1" className="rounded-xl border px-3 py-2.5 text-sm sm:col-span-2" /><input name="line2" placeholder="Address line 2" className="rounded-xl border px-3 py-2.5 text-sm sm:col-span-2" /><input required name="town" placeholder="Town / city" className="rounded-xl border px-3 py-2.5 text-sm" /><input name="county" placeholder="County" className="rounded-xl border px-3 py-2.5 text-sm" /><input required name="postcode" placeholder="Postcode" className="rounded-xl border px-3 py-2.5 text-sm" /><input name="country" defaultValue="United Kingdom" className="rounded-xl border px-3 py-2.5 text-sm" /></div><div className="mt-4 flex flex-wrap gap-5 text-xs font-bold"><label><input type="checkbox" name="isDefaultShipping" className="mr-2" />Default delivery</label><label><input type="checkbox" name="isDefaultBilling" className="mr-2" />Default billing</label></div><button disabled={busy === 'address'} className="mt-5 rounded-full px-5 py-2.5 text-sm font-black text-white disabled:opacity-50" style={{ backgroundColor: 'var(--storefront-primary, #18A7D0)' }}>{busy === 'address' ? 'Saving…' : 'Save address'}</button></form><div className="mt-6 grid gap-4 md:grid-cols-2">{addresses.map((address) => <div key={address.id} className="rounded-[20px] border bg-white p-5" style={{ borderColor: 'var(--storefront-line, #E3E8F0)' }}><div className="flex justify-between gap-3"><div><div className="font-black">{address.label}</div><div className="mt-2 text-sm leading-6 text-slate-500">{address.recipientName}<br />{address.company ? <>{address.company}<br /></> : null}{address.line1}<br />{address.line2 ? <>{address.line2}<br /></> : null}{address.town}, {address.postcode}<br />{address.country}</div></div><button onClick={() => removeAddress(address.id)} disabled={busy === `delete:${address.id}`} className="h-fit text-xs font-black text-red-700">Remove</button></div><div className="mt-3 flex gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">{address.isDefaultShipping ? <span>Delivery default</span> : null}{address.isDefaultBilling ? <span>Billing default</span> : null}</div></div>)}</div></> : null}
+      {section === 'profile' ? <CustomerProfileSecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} initialCustomer={customer} /> : null}
     </section>
   </div>;
 }

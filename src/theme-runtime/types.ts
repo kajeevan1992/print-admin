@@ -7,6 +7,26 @@ export type StorefrontThemeStatus = 'draft' | 'active' | 'archived' | 'failed';
 
 export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
 export type StorefrontThemeFieldOption = { label: string; value: string };
+export type StorefrontThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
+export type StorefrontThemeSectionFieldSchema = {
+  key: string;
+  label: string;
+  type: StorefrontThemeSectionFieldType;
+  description?: string;
+  placeholder?: string;
+  options?: StorefrontThemeFieldOption[];
+  min?: number;
+  max?: number;
+  itemLabel?: string;
+  itemFields?: StorefrontThemeSectionFieldSchema[];
+};
+export type StorefrontThemeSectionTypeSchema = {
+  type: string;
+  label: string;
+  description?: string;
+  defaults?: Record<string, unknown>;
+  fields: StorefrontThemeSectionFieldSchema[];
+};
 export type StorefrontThemeFieldSchema = {
   path: string;
   label: string;
@@ -14,6 +34,8 @@ export type StorefrontThemeFieldSchema = {
   group?: string;
   description?: string;
   options?: StorefrontThemeFieldOption[];
+  sectionTypes?: StorefrontThemeSectionTypeSchema[];
+  maxItems?: number;
 };
 export type StorefrontThemeEditorSchema = {
   content: StorefrontThemeFieldSchema[];

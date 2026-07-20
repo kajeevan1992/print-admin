@@ -1,4 +1,5 @@
 import { renderAtlantisStorefront } from '@/theme-runtime/atlantis-renderer';
+import { CORE_HOMEPAGE_SECTION_TYPES } from '@/theme-runtime/built-in/homepage-section-library';
 import type { StorefrontThemeDefinition } from '@/theme-runtime/types';
 
 export const ATLANTIS_THEME_DEFINITION: StorefrontThemeDefinition = {
@@ -6,7 +7,7 @@ export const ATLANTIS_THEME_DEFINITION: StorefrontThemeDefinition = {
     key: 'atlantis-native',
     aliases: ['atlantis-print-hosted'],
     name: 'Atlantis',
-    version: '1.0.0',
+    version: '1.1.0',
     source: 'built-in',
     description: 'Internal Atlantis storefront using direct SaaS catalogue, pricing, VAT, basket and checkout services.',
     editor: {
@@ -16,7 +17,7 @@ export const ATLANTIS_THEME_DEFINITION: StorefrontThemeDefinition = {
         { path: 'content.text.utilityText', label: 'Announcement bar text', type: 'text', group: 'Header' },
         { path: 'content.seoDescription', label: 'SEO description', type: 'textarea', group: 'SEO' },
         { path: 'content.socialImage', label: 'Social sharing image', type: 'image', group: 'SEO' },
-        { path: 'sections', label: 'Homepage sections', type: 'sections', group: 'Homepage' },
+        { path: 'sections', label: 'Homepage sections', type: 'sections', group: 'Homepage', description: 'Add, edit, reorder, duplicate, hide and remove homepage blocks. Drafts remain private until published.', sectionTypes: CORE_HOMEPAGE_SECTION_TYPES, maxItems: 30 },
       ],
       settings: [
         { path: 'brand.primary', label: 'Primary colour', type: 'colour', group: 'Colours' },

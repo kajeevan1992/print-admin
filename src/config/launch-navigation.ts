@@ -41,9 +41,18 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Button Audit', href: '/button-audit', iconKey: 'MousePointerClick', order: 39 },
 ];
 
+function consolidateStorefrontEditors(items: AdminSidebarNavigationItem[]) {
+  return items.filter((item) => item.href !== '/site-designer').map((item) => {
+    if (item.href === '/themes') return { ...item, label: 'Storefront Builder' };
+    if (item.label === 'Content' && item.children?.length) return { ...item, children: item.children.filter((child) => !['/page-content', '/landing-pages'].includes(child.href)) };
+    return item;
+  });
+}
+
 export function addLaunchQaLinks(items: AdminSidebarNavigationItem[]) {
-  const quoteItem = items.find((item) => item.href === '/quotes');
-  let nextItems = items.some((item) => item.href === '/invoices') ? items : [...items, { label: 'Invoices & Credit Notes', href: '/invoices', iconKey: 'Receipt', order: 205, roles: quoteItem?.roles }];
+  const consolidated = consolidateStorefrontEditors(items);
+  const quoteItem = consolidated.find((item) => item.href === '/quotes');
+  let nextItems = consolidated.some((item) => item.href === '/invoices') ? consolidated : [...consolidated, { label: 'Invoices & Credit Notes', href: '/invoices', iconKey: 'Receipt', order: 205, roles: quoteItem?.roles }];
   if (!nextItems.some((item) => item.href === '/accounting-reconciliation')) nextItems = [...nextItems, { label: 'Accounting Reconciliation', href: '/accounting-reconciliation', iconKey: 'BadgePoundSterling', order: 207, roles: quoteItem?.roles }];
   return nextItems.map((item) => {
     if (item.label !== 'Launch Operations' || !item.children?.length) return item;

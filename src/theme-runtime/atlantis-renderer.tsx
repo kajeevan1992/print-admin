@@ -9,6 +9,7 @@ import CheckoutStatusPage from '@/themes/atlantis-native/CheckoutStatusPage';
 import CustomerAccountPage from '@/themes/atlantis-native/CustomerAccountPage';
 import SearchResultsPage from '@/themes/atlantis-native/SearchResultsPage';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
+import { resolveStorefrontContentPage } from '@/theme-runtime/content-pages';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 import type { StorefrontRuntimeContext } from './types';
 
@@ -32,6 +33,8 @@ export async function renderAtlantisStorefront(context: StorefrontRuntimeContext
   if (routeSegments[0] === 'checkout-cancel') return <CheckoutStatusPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="cancel" searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'cart') return <CartPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} productSlug={searchParams?.product} categorySlug={searchParams?.category} products={products} searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'quote' && routeSegments.length >= 3) return <QuoteRequestPage storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} tenantSlug={tenantSlug} storeSlug={storeSlug} category={routeSegments[1]} slug={routeSegments[2]} products={products} searchParams={searchParams || {}} />;
+  const contentPage = resolveStorefrontContentPage(settings.pages || [], routeSegments, products, categories, { includeDisabled: context.isDraftPreview });
+  if (contentPage) return <EnhancedHomePage storeBase={storeBase} navItems={navItems} settings={{ ...settings, sections: contentPage.sections }} products={products} categories={categories} collectionPoints={collectionPoints} />;
   if (routeSegments.length >= 2) return <ProductPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} category={routeSegments[0]} slug={routeSegments[routeSegments.length - 1]} products={products} searchParams={searchParams || {}} />;
   return <CategoryPage storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} slug={routeSegments[0]} products={products} categories={categories} />;
 }

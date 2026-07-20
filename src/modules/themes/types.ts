@@ -1,6 +1,6 @@
 import type { Id } from '@/types/common';
 
-export type ThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections' | 'pages';
+export type ThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
 export type ThemeFieldOption = { label: string; value: string };
 export type ThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
 export type ThemeSectionField = {
@@ -31,6 +31,7 @@ export type ThemeEditorField = {
   options?: ThemeFieldOption[];
   sectionTypes?: ThemeSectionType[];
   maxItems?: number;
+  pageCollection?: boolean;
 };
 export type ThemeEditorSchema = {
   content: ThemeEditorField[];

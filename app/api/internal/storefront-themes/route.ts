@@ -5,6 +5,7 @@ import {
   mutateStorefrontThemeAdmin,
   type StorefrontThemeAdminAction,
 } from '@/theme-runtime/admin-service';
+import { validateStorefrontSectionValues } from '@/theme-runtime/section-payload';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -23,7 +24,7 @@ function errorResponse(cause: unknown) {
   if (/admin session required/i.test(message)) return responseError(401, 'ADMIN_SESSION_REQUIRED', message);
   if (/tenant access denied/i.test(message)) return responseError(403, 'TENANT_ACCESS_DENIED', message);
   if (/not found|not registered/i.test(message)) return responseError(404, 'STOREFRONT_THEME_NOT_FOUND', message);
-  if (/must be|invalid|unsupported|required/i.test(message)) return responseError(400, 'STOREFRONT_THEME_INVALID', message);
+  if (/must be|invalid|unsupported|required|too large|too many|nested/i.test(message)) return responseError(400, 'STOREFRONT_THEME_INVALID', message);
   return responseError(500, 'STOREFRONT_THEME_FAILED', message);
 }
 
@@ -47,11 +48,13 @@ export async function POST(request: Request) {
     if (!requestedAction) return responseError(400, 'STOREFRONT_THEME_ACTION_INVALID', 'Choose save-draft, publish or discard-draft.');
     const storeSlug = String(body.storeSlug || '').trim();
     if (!storeSlug) return responseError(400, 'STOREFRONT_STORE_REQUIRED', 'Choose a storefront before changing its theme.');
+    const rawValues = body.values && typeof body.values === 'object' && !Array.isArray(body.values) ? body.values as Record<string, unknown> : {};
+    const values = requestedAction === 'discard-draft' ? rawValues : validateStorefrontSectionValues(rawValues);
     const data = await mutateStorefrontThemeAdmin(session.tenantId, {
       action: requestedAction,
       storeSlug,
       themeKey: String(body.themeKey || '').trim() || undefined,
-      values: body.values && typeof body.values === 'object' && !Array.isArray(body.values) ? body.values as Record<string, unknown> : {},
+      values,
     });
     return NextResponse.json({ ok: true, resource: 'internal.storefront-themes', data });
   } catch (cause) {

@@ -1,13 +1,15 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
+import { normaliseStorefrontContentPages } from '@/theme-runtime/content-pages';
 import { normaliseRuntimeMenuItem } from '@/theme-runtime/menu-normaliser';
 import type {
   StorefrontBrandSettings,
+  StorefrontContentPage,
   StorefrontHomepageSection,
   StorefrontMenuItem,
   StorefrontRuntimeSettings,
 } from '@/theme-runtime/types';
 
-export type { StorefrontBrandSettings, StorefrontHomepageSection, StorefrontRuntimeSettings } from '@/theme-runtime/types';
+export type { StorefrontBrandSettings, StorefrontContentPage, StorefrontHomepageSection, StorefrontRuntimeSettings } from '@/theme-runtime/types';
 
 type CatalogRow = {
   id: string;
@@ -191,6 +193,7 @@ async function loadStorefrontRuntimeSettingsUncached(
     text: { ...object(storeContent.text), ...themeText },
   };
   const sections = normaliseSections(theme.sections?.length ? theme.sections : storeContent.sections);
+  const pages: StorefrontContentPage[] = normaliseStorefrontContentPages(content.pages);
   const navigation = normaliseNavigation(theme.navigation?.length ? theme.navigation : store.navigation);
 
   return {
@@ -205,6 +208,7 @@ async function loadStorefrontRuntimeSettingsUncached(
     layout: { ...object(store.layout), ...object(theme.layout) },
     navigation,
     sections,
+    pages,
     themePublished: Boolean(themeRow),
     themeVersion: Number(theme.publishedVersion || 0),
     source: themeRow ? 'store-and-published-theme' : storeRow ? 'store' : 'defaults',

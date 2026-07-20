@@ -98,3 +98,24 @@ export async function sendCustomerPasskeySecurityEmail(request: Request, input: 
   const body = `Hi ${clean(input.name) || 'Customer'},\n\n${description}\n\nReview passkeys:\n${profileUrl}\n\nIf you did not make this change, remove unknown passkeys, reset your password and contact the store immediately.\n\nKind regards,\n${brand}`;
   return queueAndAttempt(request, input.tenantSlug, { type: `customer-passkey-${input.event}`, to: input.email, subject, body });
 }
+
+export async function sendCustomerAdminSecurityEmail(request: Request, input: { tenantSlug: string; storeSlug: string; email: string; name: string; event: 'suspended' | 'reactivated' | 'sessions-revoked' | 'trusted-browsers-revoked' | 'passkeys-revoked'; brandName?: string }) {
+  const brand = clean(input.brandName) || 'Print store';
+  const accountUrl = `${baseUrl(request, input.tenantSlug, input.storeSlug)}/account/profile`;
+  const descriptions = {
+    suspended: 'Store support suspended this customer account. Sign-in and active customer sessions are unavailable until support reactivates it.',
+    reactivated: 'Store support reactivated this customer account. You can sign in again using your existing verified credentials.',
+    'sessions-revoked': 'Store support signed this customer account out from every browser and removed trusted-browser access. Your password, authenticator and passkeys were not changed.',
+    'trusted-browsers-revoked': 'Store support removed every trusted browser. Future password sign-ins must complete the authenticator or recovery-code step again.',
+    'passkeys-revoked': 'Store support removed every passkey from this customer account. Password and account-recovery sign-in remain available.',
+  } as const;
+  const subjects = {
+    suspended: `${brand} customer account suspended`,
+    reactivated: `${brand} customer account reactivated`,
+    'sessions-revoked': `All ${brand} customer sessions signed out`,
+    'trusted-browsers-revoked': `All ${brand} trusted browsers removed`,
+    'passkeys-revoked': `All ${brand} customer passkeys removed`,
+  } as const;
+  const body = `Hi ${clean(input.name) || 'Customer'},\n\n${descriptions[input.event]}\n\nCustomer account:\n${accountUrl}\n\nIf you did not ask store support for this action, contact the store before signing in again.\n\nKind regards,\n${brand}`;
+  return queueAndAttempt(request, input.tenantSlug, { type: `customer-admin-${input.event}`, to: input.email, subject: subjects[input.event], body });
+}

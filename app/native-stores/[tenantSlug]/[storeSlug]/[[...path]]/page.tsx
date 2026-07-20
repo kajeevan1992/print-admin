@@ -6,6 +6,7 @@ import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points
 import StorefrontSensitiveUrlGuard from '@/themes/atlantis-native/StorefrontSensitiveUrlGuard';
 import { appendStorefrontContentPageMenuItems, resolveStorefrontContentPage } from '@/theme-runtime/content-pages';
 import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
+import { STOREFRONT_PRIVATE_ROUTE_TITLES, STOREFRONT_SENSITIVE_URL_ROUTES } from '@/theme-runtime/private-route-policy';
 import { getStorefrontThemeManifest, renderStorefrontTheme } from '@/theme-runtime/registry';
 import { loadStorefrontRuntimeSettings, resolveStorefrontTenantIds } from '@/theme-runtime/storefront-settings-loader';
 import type { StorefrontRuntimeContext, StorefrontRuntimeSearchParams } from '@/theme-runtime/types';
@@ -18,26 +19,8 @@ const titleFromSlug = (value: string) => String(value || '').split('-').filter(B
 function normaliseSearchParams(input: RawSearchParams | undefined): StorefrontRuntimeSearchParams { const out: StorefrontRuntimeSearchParams = {}; Object.entries(input || {}).forEach(([key, value]) => { const first = Array.isArray(value) ? value[0] : value; if (typeof first === 'string' && first.trim()) out[key] = first.trim(); }); return out; }
 const isPublishedStore = (status: string) => ['published', 'active', 'live'].includes(String(status || '').toLowerCase());
 
-const PRIVATE_ROUTE_TITLES: Record<string, string> = {
-  login: 'Customer sign in',
-  'two-step': 'Two-step verification',
-  register: 'Create customer account',
-  'forgot-password': 'Forgot password',
-  'reset-password': 'Reset password',
-  'verify-email': 'Verify email',
-  'confirm-email-change': 'Confirm email change',
-  account: 'Customer account',
-  'quote-status': 'Quote status',
-  'checkout-success': 'Order confirmation',
-  'checkout-cancel': 'Checkout cancelled',
-  cart: 'Basket',
-  quote: 'Request a quote',
-  search: 'Search results',
-};
-const SENSITIVE_URL_ROUTES = new Set(['reset-password', 'verify-email', 'confirm-email-change']);
-
 function privateRouteMetadata(routeRoot: string, storeName: string): Metadata {
-  const title = `${PRIVATE_ROUTE_TITLES[routeRoot] || 'Private storefront page'} | ${storeName}`;
+  const title = `${STOREFRONT_PRIVATE_ROUTE_TITLES[routeRoot] || 'Private storefront page'} | ${storeName}`;
   return {
     title,
     description: '',
@@ -61,7 +44,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const settings = await loadStorefrontRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids).catch(() => null);
   if (!settings?.storeFound || !isPublishedStore(settings.storeStatus)) return { title: 'Storefront unavailable', referrer: 'no-referrer', robots: { index: false, follow: false } };
   const routeRoot = cleanPath[0] || '';
-  if (PRIVATE_ROUTE_TITLES[routeRoot]) return privateRouteMetadata(routeRoot, settings.storeName);
+  if (STOREFRONT_PRIVATE_ROUTE_TITLES[routeRoot]) return privateRouteMetadata(routeRoot, settings.storeName);
   let title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : settings.storeName;
   let description = cleanPath.length ? `${title} from ${settings.storeName}.` : String(settings.content?.seoDescription || settings.content?.description || '');
   let image = String(settings.content?.socialImage || settings.content?.heroImage || '');
@@ -91,5 +74,5 @@ export default async function NativeStorePreview({ params, searchParams }: PageP
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
   const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments, searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings };
   const rendered = await renderStorefrontTheme(context);
-  return <>{SENSITIVE_URL_ROUTES.has(routeSegments[0] || '') ? <StorefrontSensitiveUrlGuard /> : null}{rendered}</>;
+  return <>{STOREFRONT_SENSITIVE_URL_ROUTES.has(routeSegments[0] || '') ? <StorefrontSensitiveUrlGuard /> : null}{rendered}</>;
 }

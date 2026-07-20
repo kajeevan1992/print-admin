@@ -5,7 +5,7 @@ export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (
 export type StorefrontThemeSource = 'built-in' | 'uploaded';
 export type StorefrontThemeStatus = 'draft' | 'active' | 'archived' | 'failed';
 
-export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections' | 'pages';
+export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
 export type StorefrontThemeFieldOption = { label: string; value: string };
 export type StorefrontThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
 export type StorefrontThemeSectionFieldSchema = {
@@ -36,6 +36,7 @@ export type StorefrontThemeFieldSchema = {
   options?: StorefrontThemeFieldOption[];
   sectionTypes?: StorefrontThemeSectionTypeSchema[];
   maxItems?: number;
+  pageCollection?: boolean;
 };
 export type StorefrontThemeEditorSchema = {
   content: StorefrontThemeFieldSchema[];

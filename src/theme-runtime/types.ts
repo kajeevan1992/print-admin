@@ -5,7 +5,7 @@ export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (
 export type StorefrontThemeSource = 'built-in' | 'uploaded';
 export type StorefrontThemeStatus = 'draft' | 'active' | 'archived' | 'failed';
 
-export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
+export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections' | 'pages';
 export type StorefrontThemeFieldOption = { label: string; value: string };
 export type StorefrontThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
 export type StorefrontThemeSectionFieldSchema = {
@@ -119,6 +119,21 @@ export type StorefrontHomepageSection = Record<string, any> & {
   type: string;
   enabled: boolean;
 };
+export type StorefrontContentPage = Record<string, any> & {
+  id: string;
+  path: string;
+  title: string;
+  summary: string;
+  enabled: boolean;
+  showInNavigation: boolean;
+  navigationLabel: string;
+  navigationOrder: number;
+  seoTitle: string;
+  seoDescription: string;
+  socialImage: string;
+  noIndex: boolean;
+  sections: StorefrontHomepageSection[];
+};
 export type StorefrontRuntimeSettings = {
   tenantIds: string[];
   storeSlug: string;
@@ -131,6 +146,7 @@ export type StorefrontRuntimeSettings = {
   layout: Record<string, any>;
   navigation: StorefrontMenuItem[];
   sections: StorefrontHomepageSection[];
+  pages: StorefrontContentPage[];
   themePublished: boolean;
   themeVersion: number;
   source: 'store-and-published-theme' | 'store' | 'defaults';
@@ -158,6 +174,7 @@ export type StorefrontRuntimeContext = {
   collectionPoints?: StorefrontCollectionPoint[];
   settings?: StorefrontRuntimeSettings;
   routeViews?: V0ThemeRouteViews;
+  isDraftPreview?: boolean;
 };
 
 export type StorefrontThemeRenderer = (context: StorefrontRuntimeContext) => Promise<ReactNode> | ReactNode;

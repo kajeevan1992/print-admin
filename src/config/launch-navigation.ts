@@ -35,23 +35,29 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
   { label: 'Store Allowances', href: '/store-allowances', iconKey: 'ShieldCheck', order: 35.65 },
   { label: 'Store Theme Selector', href: '/store-theme-selector', iconKey: 'Store', order: 35.7 },
   { label: 'Store Design Live', href: '/store-design-live', iconKey: 'Rocket', order: 35.75 },
-  { label: 'Block Editor', href: '/site-block-editor', iconKey: 'LayoutPanelTop', order: 35.8 },
   { label: 'Launch Guard', href: '/admin-launch-security', iconKey: 'ShieldCheck', order: 36 },
   { label: 'Data Check', href: '/data-continuity', iconKey: 'ShieldCheck', order: 37 },
   { label: 'Final Check', href: '/final-check', iconKey: 'ShieldCheck', order: 38 },
   { label: 'Button Audit', href: '/button-audit', iconKey: 'MousePointerClick', order: 39 },
 ];
 
+function consolidateStorefrontEditors(items: AdminSidebarNavigationItem[]) {
+  return items.filter((item) => item.href !== '/site-designer').map((item) => {
+    if (item.href === '/themes') return { ...item, label: 'Storefront Builder' };
+    if (item.label === 'Content' && item.children?.length) return { ...item, children: item.children.filter((child) => !['/page-content', '/landing-pages'].includes(child.href)) };
+    return item;
+  });
+}
+
 export function addLaunchQaLinks(items: AdminSidebarNavigationItem[]) {
-  const quoteItem = items.find((item) => item.href === '/quotes');
-  let nextItems = items.some((item) => item.href === '/invoices') ? items : [...items, { label: 'Invoices & Credit Notes', href: '/invoices', iconKey: 'Receipt', order: 205, roles: quoteItem?.roles }];
+  const consolidated = consolidateStorefrontEditors(items);
+  const quoteItem = consolidated.find((item) => item.href === '/quotes');
+  let nextItems = consolidated.some((item) => item.href === '/invoices') ? consolidated : [...consolidated, { label: 'Invoices & Credit Notes', href: '/invoices', iconKey: 'Receipt', order: 205, roles: quoteItem?.roles }];
   if (!nextItems.some((item) => item.href === '/accounting-reconciliation')) nextItems = [...nextItems, { label: 'Accounting Reconciliation', href: '/accounting-reconciliation', iconKey: 'BadgePoundSterling', order: 207, roles: quoteItem?.roles }];
   return nextItems.map((item) => {
     if (item.label !== 'Launch Operations' || !item.children?.length) return item;
     const next = [...item.children];
-    for (const link of launchQaLinks) {
-      if (!next.some((child) => child.href === link.href)) next.push(link);
-    }
+    for (const link of launchQaLinks) if (!next.some((child) => child.href === link.href)) next.push(link);
     return { ...item, children: next.sort((a, b) => (a.order ?? 999) - (b.order ?? 999)) };
   });
 }

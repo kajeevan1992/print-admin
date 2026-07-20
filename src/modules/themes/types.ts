@@ -31,6 +31,7 @@ export type ThemeEditorField = {
   options?: ThemeFieldOption[];
   sectionTypes?: ThemeSectionType[];
   maxItems?: number;
+  pageCollection?: boolean;
 };
 export type ThemeEditorSchema = {
   content: ThemeEditorField[];

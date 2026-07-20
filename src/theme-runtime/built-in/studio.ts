@@ -7,7 +7,7 @@ export const STUDIO_THEME_DEFINITION: StorefrontThemeDefinition = {
     key: 'studio-native',
     aliases: ['studio'],
     name: 'Studio',
-    version: '1.1.0',
+    version: '1.2.0',
     source: 'built-in',
     description: 'Editorial storefront with a bold dark hero and studio-style product presentation, powered by the same internal SaaS services.',
     editor: {
@@ -18,6 +18,7 @@ export const STUDIO_THEME_DEFINITION: StorefrontThemeDefinition = {
         { path: 'content.seoDescription', label: 'SEO description', type: 'textarea', group: 'SEO' },
         { path: 'content.socialImage', label: 'Social sharing image', type: 'image', group: 'SEO' },
         { path: 'sections', label: 'Homepage sections', type: 'sections', group: 'Homepage', description: 'Add, edit, reorder, duplicate, hide and remove homepage blocks. Drafts remain private until published.', sectionTypes: CORE_HOMEPAGE_SECTION_TYPES, maxItems: 30 },
+        { path: 'content.pages', label: 'Storefront content pages', type: 'sections', group: 'Pages', description: 'Build About, Contact, service and campaign pages with the same approved blocks and publishing workflow.', sectionTypes: CORE_HOMEPAGE_SECTION_TYPES, maxItems: 24, pageCollection: true },
       ],
       settings: [
         { path: 'brand.primary', label: 'Primary colour', type: 'colour', group: 'Colours' },

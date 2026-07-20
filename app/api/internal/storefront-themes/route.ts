@@ -19,12 +19,19 @@ function action(value: unknown): StorefrontThemeAdminAction | null {
   return ['save-draft', 'publish', 'discard-draft'].includes(next) ? next as StorefrontThemeAdminAction : null;
 }
 
+function validatedValues(values: Record<string, unknown>) {
+  if (!Object.prototype.hasOwnProperty.call(values, 'content.pages')) return validateStorefrontSectionValues(values);
+  const validated = validateStorefrontSectionValues({ ...values, pages: values['content.pages'] });
+  const { pages, ...rest } = validated;
+  return { ...rest, 'content.pages': pages };
+}
+
 function errorResponse(cause: unknown) {
   const message = cause instanceof Error ? cause.message : 'Storefront theme operation failed.';
   if (/admin session required/i.test(message)) return responseError(401, 'ADMIN_SESSION_REQUIRED', message);
   if (/tenant access denied/i.test(message)) return responseError(403, 'TENANT_ACCESS_DENIED', message);
   if (/not found|not registered/i.test(message)) return responseError(404, 'STOREFRONT_THEME_NOT_FOUND', message);
-  if (/must be|invalid|unsupported|required|too large|too many|nested/i.test(message)) return responseError(400, 'STOREFRONT_THEME_INVALID', message);
+  if (/must be|invalid|unsupported|required|too large|too many|nested|reserved|used more than once/i.test(message)) return responseError(400, 'STOREFRONT_THEME_INVALID', message);
   return responseError(500, 'STOREFRONT_THEME_FAILED', message);
 }
 
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
     const storeSlug = String(body.storeSlug || '').trim();
     if (!storeSlug) return responseError(400, 'STOREFRONT_STORE_REQUIRED', 'Choose a storefront before changing its theme.');
     const rawValues = body.values && typeof body.values === 'object' && !Array.isArray(body.values) ? body.values as Record<string, unknown> : {};
-    const values = requestedAction === 'discard-draft' ? rawValues : validateStorefrontSectionValues(rawValues);
+    const values = requestedAction === 'discard-draft' ? rawValues : validatedValues(rawValues);
     const data = await mutateStorefrontThemeAdmin(session.tenantId, {
       action: requestedAction,
       storeSlug,

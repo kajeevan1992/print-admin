@@ -1,4 +1,5 @@
 import { platformPrisma } from '@/core/db/platform-prisma';
+import { normaliseStorefrontContentPages } from '@/theme-runtime/content-pages';
 import { normaliseThemeKey } from '@/theme-runtime/registry';
 import {
   loadStorefrontRuntimeSettings,
@@ -85,13 +86,15 @@ export async function loadStorefrontDraftRuntimeSettings(
   if (!Object.keys(draft).length) return live;
 
   const draftSections = Array.isArray(draft.sections) ? normaliseSections(draft.sections) : live.sections;
+  const content = { ...live.content, ...object(draft.content) };
   return {
     ...live,
     themeKey: normaliseThemeKey(draft.themeKey || storeMetadata.draftTheme || live.themeKey),
     brand: { ...live.brand, ...object(draft.brand) },
-    content: { ...live.content, ...object(draft.content) },
+    content,
     layout: { ...live.layout, ...object(draft.layout) },
     sections: draftSections,
+    pages: normaliseStorefrontContentPages(content.pages),
     themePublished: false,
     themeVersion: Number(themeMetadata.draftVersion || themeMetadata.publishedVersion || live.themeVersion || 0),
   };

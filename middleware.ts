@@ -1,66 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isStorefrontPrivateRouteRoot, storefrontRouteRootFromPathname } from '@/theme-runtime/private-route-policy';
 
 const RESERVED_PREFIXES = [
   '/api', '/_next', '/admin', '/app', '/account-dashboard', '/products', '/categories', '/orders', '/settings', '/super-admin', '/theme', '/storefront',
 ];
 const PROTECTED_PAGE_PREFIXES = [
-  '/',
-  '/workspace',
-  '/super-admin',
-  '/products',
-  '/categories',
-  '/orders',
-  '/settings',
-  '/tenant-control',
-  '/shop-login-setup',
-  '/memberships',
-  '/fresh-db-setup',
-  '/admin-users',
-  '/api-keys',
-  '/credentials',
-  '/security-events',
-  '/oauth',
-  '/database-manager',
-  '/launch',
-  '/launch-command-centre',
-  '/launch-security-access-audit',
-  '/customer-data-exposure-audit',
-  '/customer-public-flow-audit',
-  '/public-endpoint-abuse-readiness',
-  '/theme-saas-connection-audit',
-  '/first-live-order-monitor',
-  '/post-launch-health',
-  '/live-environment-readiness',
-  '/final-launch-blockers',
-  '/production-smoke-test',
-  '/storefront-content-readiness',
-  '/launch-design-proof-readiness',
-  '/launch-signoff',
-  '/launch-test-order',
-  '/launch-test-data-cleanup',
-  '/artwork-preflight',
-  '/artwork-uploads',
-  '/artwork-proofing',
-  '/design-briefs',
-  '/production-planner',
-  '/dispatch-center',
-  '/email-outbox',
-  '/email-order-notification-qa',
-  '/payment-checkout-qa',
-  '/live-flow-check',
-  '/theme-library',
-  '/design-bundles',
-  '/theme-versions',
-  '/theme-marketplace',
-  '/store-domains',
-  '/store-allowances',
-  '/store-theme-selector',
-  '/store-design-live',
-  '/site-block-editor',
-  '/admin-launch-security',
-  '/button-audit',
-  '/data-continuity',
-  '/final-check',
+  '/', '/workspace', '/super-admin', '/products', '/categories', '/orders', '/settings', '/tenant-control', '/shop-login-setup', '/memberships', '/fresh-db-setup', '/admin-users', '/api-keys', '/credentials', '/security-events', '/oauth', '/database-manager', '/launch', '/launch-command-centre', '/launch-security-access-audit', '/customer-data-exposure-audit', '/customer-public-flow-audit', '/public-endpoint-abuse-readiness', '/theme-saas-connection-audit', '/first-live-order-monitor', '/post-launch-health', '/live-environment-readiness', '/final-launch-blockers', '/production-smoke-test', '/storefront-content-readiness', '/launch-design-proof-readiness', '/launch-signoff', '/launch-test-order', '/launch-test-data-cleanup', '/artwork-preflight', '/artwork-uploads', '/artwork-proofing', '/design-briefs', '/production-planner', '/dispatch-center', '/email-outbox', '/email-order-notification-qa', '/payment-checkout-qa', '/live-flow-check', '/theme-library', '/design-bundles', '/theme-versions', '/theme-marketplace', '/store-domains', '/store-allowances', '/store-theme-selector', '/store-design-live', '/site-block-editor', '/admin-launch-security', '/button-audit', '/data-continuity', '/final-check',
 ];
 const PUBLIC_PAGE_PREFIXES = ['/login', '/logout', '/accept-invite', '/theme', '/storefront', '/product', '/category', '/cart', '/checkout', '/track-order', '/proof-action', '/design-brief', '/payment-success', '/payment-cancel'];
 const PUBLIC_INTERNAL_PREFIXES = ['/api/internal/auth/', '/api/internal/storefront/', '/api/internal/catalog/', '/api/internal/seo/', '/api/internal/config/'];
@@ -76,6 +21,7 @@ function hasAdminCookie(request: NextRequest) { return Boolean(request.cookies.g
 function isPublicPage(pathname: string) { return PUBLIC_PAGE_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)); }
 function isProtectedPage(pathname: string) { if (pathname.startsWith('/api') || pathname.startsWith('/_next')) return false; if (isPublicPage(pathname)) return false; return PROTECTED_PAGE_PREFIXES.some((prefix) => prefix === '/' ? pathname === '/' : pathname === prefix || pathname.startsWith(`${prefix}/`)); }
 function withCors(request: NextRequest, response: NextResponse) { const origin = (request.headers.get('origin') || '').replace(/\/$/, ''); if (!origin || !allowedStorefrontOrigins().has(origin)) return response; response.headers.set('Access-Control-Allow-Origin', origin); response.headers.set('Access-Control-Allow-Credentials', 'true'); response.headers.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS'); response.headers.set('Access-Control-Allow-Headers', 'Accept, Content-Type, Authorization, X-Requested-With, X-Print-Tenant, X-Print-Hosted-Theme, X-Tenant-Id, X-Site-Id'); response.headers.set('Access-Control-Max-Age', '86400'); response.headers.set('Vary', 'Origin'); return response; }
+function withPrivateStorefrontHeaders(response: NextResponse) { response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex'); response.headers.set('Referrer-Policy', 'no-referrer'); response.headers.set('Cache-Control', 'private, no-store, max-age=0, must-revalidate'); response.headers.set('Pragma', 'no-cache'); return response; }
 function hostedThemeResponse(request: NextRequest, pathname: string, url: NextRequest['nextUrl']) { if (!wantsHostedTheme(request)) return null; if (RESERVED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) return null; if (pathname === '/') { const rewriteUrl = url.clone(); rewriteUrl.pathname = '/theme/atlantis'; rewriteUrl.searchParams.set('host', cleanHost(request)); return NextResponse.rewrite(rewriteUrl); } if (pathname.startsWith('/category/') || pathname.startsWith('/product/') || pathname === '/cart' || pathname === '/checkout') return NextResponse.next(); const rewriteUrl = url.clone(); rewriteUrl.pathname = `/theme/atlantis${pathname === '/' ? '' : pathname}`; rewriteUrl.searchParams.set('host', cleanHost(request)); return NextResponse.rewrite(rewriteUrl); }
 
 export function middleware(request: NextRequest) {
@@ -86,6 +32,8 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith('/api/internal/') && !isInternalStorefrontApi(pathname) && !hasAdminCookie(request)) return NextResponse.json({ ok: false, error: 'Admin session required.' }, { status: 401 });
   if (isProtectedPage(pathname) && !hasAdminCookie(request)) { const loginUrl = url.clone(); loginUrl.pathname = '/login'; loginUrl.searchParams.set('next', pathname); return NextResponse.redirect(loginUrl); }
   if (isInternalStorefrontApi(pathname)) { if (request.method === 'OPTIONS') return withCors(request, new NextResponse(null, { status: 204 })); return withCors(request, NextResponse.next()); }
+  const storefrontRouteRoot = storefrontRouteRootFromPathname(pathname);
+  if (isStorefrontPrivateRouteRoot(storefrontRouteRoot)) return withPrivateStorefrontHeaders(NextResponse.next());
   return NextResponse.next();
 }
 

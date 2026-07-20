@@ -3,6 +3,7 @@ import CustomerAccountClient from './CustomerAccountClient';
 import CustomerEmailChangeConfirmation from './CustomerEmailChangeConfirmation';
 import CustomerPasskeyLogin from './CustomerPasskeyLogin';
 import CustomerPasskeySecurityPanel from './CustomerPasskeySecurityPanel';
+import CustomerPrivacyPanel from './CustomerPrivacyPanel';
 import CustomerTrustedBrowserPanel from './CustomerTrustedBrowserPanel';
 import CustomerTwoStepChallenge from './CustomerTwoStepChallenge';
 import CustomerTwoStepSecurityPanel from './CustomerTwoStepSecurityPanel';
@@ -44,7 +45,7 @@ export default async function CustomerAccountPage({ tenantSlug, storeSlug, store
     : resolvedMode === 'two-step'
       ? <CustomerTwoStepChallenge tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} returnUrl={resolvedReturnUrl} />
       : section === 'profile' && dashboardCustomer
-        ? <>{standardAccount}<CustomerPasskeySecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTwoStepSecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTrustedBrowserPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /></>
+        ? <>{standardAccount}<CustomerPasskeySecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTwoStepSecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTrustedBrowserPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerPrivacyPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} /></>
         : resolvedMode === 'login'
           ? <>{standardAccount}<CustomerPasskeyLogin tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} returnUrl={resolvedReturnUrl} /></>
           : standardAccount;

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
 import { loadTenantThemeCategories, loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
+import StorefrontSensitiveUrlGuard from '@/themes/atlantis-native/StorefrontSensitiveUrlGuard';
 import { appendStorefrontContentPageMenuItems, resolveStorefrontContentPage } from '@/theme-runtime/content-pages';
 import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
 import { getStorefrontThemeManifest, renderStorefrontTheme } from '@/theme-runtime/registry';
@@ -17,12 +18,50 @@ const titleFromSlug = (value: string) => String(value || '').split('-').filter(B
 function normaliseSearchParams(input: RawSearchParams | undefined): StorefrontRuntimeSearchParams { const out: StorefrontRuntimeSearchParams = {}; Object.entries(input || {}).forEach(([key, value]) => { const first = Array.isArray(value) ? value[0] : value; if (typeof first === 'string' && first.trim()) out[key] = first.trim(); }); return out; }
 const isPublishedStore = (status: string) => ['published', 'active', 'live'].includes(String(status || '').toLowerCase());
 
+const PRIVATE_ROUTE_TITLES: Record<string, string> = {
+  login: 'Customer sign in',
+  'two-step': 'Two-step verification',
+  register: 'Create customer account',
+  'forgot-password': 'Forgot password',
+  'reset-password': 'Reset password',
+  'verify-email': 'Verify email',
+  'confirm-email-change': 'Confirm email change',
+  account: 'Customer account',
+  'quote-status': 'Quote status',
+  'checkout-success': 'Order confirmation',
+  'checkout-cancel': 'Checkout cancelled',
+  cart: 'Basket',
+  quote: 'Request a quote',
+  search: 'Search results',
+};
+const SENSITIVE_URL_ROUTES = new Set(['reset-password', 'verify-email', 'confirm-email-change']);
+
+function privateRouteMetadata(routeRoot: string, storeName: string): Metadata {
+  const title = `${PRIVATE_ROUTE_TITLES[routeRoot] || 'Private storefront page'} | ${storeName}`;
+  return {
+    title,
+    description: '',
+    referrer: 'no-referrer',
+    robots: {
+      index: false,
+      follow: false,
+      nocache: true,
+      noarchive: true,
+      nosnippet: true,
+      noimageindex: true,
+      googleBot: { index: false, follow: false, noimageindex: true, 'max-snippet': 0, 'max-image-preview': 'none' },
+    },
+  };
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { tenantSlug, storeSlug, path = [] } = await params;
   const cleanTenantSlug = clean(tenantSlug), cleanStoreSlug = clean(storeSlug), cleanPath = path.map(clean).filter(Boolean);
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const settings = await loadStorefrontRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids).catch(() => null);
-  if (!settings?.storeFound || !isPublishedStore(settings.storeStatus)) return { title: 'Storefront unavailable', robots: { index: false, follow: false } };
+  if (!settings?.storeFound || !isPublishedStore(settings.storeStatus)) return { title: 'Storefront unavailable', referrer: 'no-referrer', robots: { index: false, follow: false } };
+  const routeRoot = cleanPath[0] || '';
+  if (PRIVATE_ROUTE_TITLES[routeRoot]) return privateRouteMetadata(routeRoot, settings.storeName);
   let title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : settings.storeName;
   let description = cleanPath.length ? `${title} from ${settings.storeName}.` : String(settings.content?.seoDescription || settings.content?.description || '');
   let image = String(settings.content?.socialImage || settings.content?.heroImage || '');
@@ -51,5 +90,6 @@ export default async function NativeStorePreview({ params, searchParams }: PageP
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || []);
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
   const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments, searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings };
-  return renderStorefrontTheme(context);
+  const rendered = await renderStorefrontTheme(context);
+  return <>{SENSITIVE_URL_ROUTES.has(routeSegments[0] || '') ? <StorefrontSensitiveUrlGuard /> : null}{rendered}</>;
 }

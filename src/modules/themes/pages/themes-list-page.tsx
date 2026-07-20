@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
 import { Input } from '@/components/forms/input';
 import { Select } from '@/components/forms/select';
+import { StorefrontSectionBuilder } from '@/modules/themes/components/storefront-section-builder';
 import { EmptyModuleState } from '@/modules/products/components/empty-module-state';
 import { themesService } from '@/services/themes.service';
 import type {
@@ -20,16 +21,11 @@ function fieldValue(value: unknown) {
   return typeof value === 'string' ? value : String(value);
 }
 
-function sectionsValue(value: unknown) {
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(Array.isArray(value) ? value : [], null, 2);
-  } catch {
-    return '[]';
-  }
-}
-
 function FieldControl({ field, value, onChange }: { field: ThemeEditorField; value: unknown; onChange: (value: unknown) => void }) {
+  if (field.type === 'sections') {
+    return <StorefrontSectionBuilder field={field} value={value} onChange={onChange} />;
+  }
+
   if (field.type === 'boolean') {
     return (
       <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-white/8 bg-panelMuted/90 px-3.5 text-[13px] text-text">
@@ -43,13 +39,12 @@ function FieldControl({ field, value, onChange }: { field: ThemeEditorField; val
     return <Select value={fieldValue(value)} options={(field.options || []).map((option) => ({ label: option.label, value: option.value }))} onChange={(event) => onChange(event.target.value)} />;
   }
 
-  if (field.type === 'textarea' || field.type === 'sections') {
+  if (field.type === 'textarea') {
     return (
       <textarea
-        value={field.type === 'sections' ? sectionsValue(value) : fieldValue(value)}
+        value={fieldValue(value)}
         onChange={(event) => onChange(event.target.value)}
-        rows={field.type === 'sections' ? 12 : 5}
-        spellCheck={field.type !== 'sections'}
+        rows={5}
         className="w-full rounded-xl border border-white/8 bg-panelMuted/90 px-3.5 py-3 text-[13px] leading-6 text-text outline-none transition placeholder:text-textMuted/70 focus:border-accent/70 focus:bg-panelMuted"
       />
     );
@@ -82,9 +77,10 @@ function EditorGroup({ title, fields, values, onChange }: { title: string; field
     output[group] = [...(output[group] || []), field];
     return output;
   }, {});
+  const wide = fields.some((field) => field.type === 'sections');
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-panel p-5 shadow-card">
+    <div className={`rounded-2xl border border-white/8 bg-panel p-5 shadow-card ${wide ? 'xl:col-span-2' : ''}`}>
       <div className="mb-5">
         <h2 className="text-base font-semibold text-white">{title}</h2>
         <p className="mt-1 text-xs leading-5 text-textMuted">Fields are supplied by the selected theme manifest.</p>
@@ -210,7 +206,7 @@ export function ThemesListPage() {
     <div>
       <PageHeader
         title="Storefront Themes"
-        subtitle="Choose a registered theme, edit tenant-safe settings, save and preview a private draft, then publish it to one storefront. Pricing, VAT, products and checkout remain controlled by the SaaS."
+        subtitle="Choose a registered theme, edit tenant-safe settings, build homepage sections, save and preview a private draft, then publish it to one storefront. Pricing, VAT, products and checkout remain controlled by the SaaS."
         actions={selectedStore ? <>
           <Link href={selectedStore.previewUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.018] px-3.5 py-2 text-[12px] font-medium text-text no-underline transition hover:border-white/15 hover:bg-panelMuted"><ExternalLink className="h-4 w-4" />Live storefront</Link>
           <Link href={draftPreviewUrl} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3.5 py-2 text-[12px] font-medium text-amber-100 no-underline transition hover:border-amber-300/50 hover:bg-amber-400/15"><ExternalLink className="h-4 w-4" />Preview saved draft</Link>

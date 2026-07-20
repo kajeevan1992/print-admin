@@ -2,6 +2,26 @@ import type { Id } from '@/types/common';
 
 export type ThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
 export type ThemeFieldOption = { label: string; value: string };
+export type ThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
+export type ThemeSectionField = {
+  key: string;
+  label: string;
+  type: ThemeSectionFieldType;
+  description?: string;
+  placeholder?: string;
+  options?: ThemeFieldOption[];
+  min?: number;
+  max?: number;
+  itemLabel?: string;
+  itemFields?: ThemeSectionField[];
+};
+export type ThemeSectionType = {
+  type: string;
+  label: string;
+  description?: string;
+  defaults?: Record<string, unknown>;
+  fields: ThemeSectionField[];
+};
 export type ThemeEditorField = {
   path: string;
   label: string;
@@ -9,6 +29,8 @@ export type ThemeEditorField = {
   group?: string;
   description?: string;
   options?: ThemeFieldOption[];
+  sectionTypes?: ThemeSectionType[];
+  maxItems?: number;
 };
 export type ThemeEditorSchema = {
   content: ThemeEditorField[];

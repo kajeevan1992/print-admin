@@ -28,10 +28,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   let image = String(settings.content?.socialImage || settings.content?.heroImage || '');
   let index = true;
   try {
-    const products = await loadTenantThemeProducts(ids);
-    const categories = await loadTenantThemeCategories(ids, products);
-    const contentPage = resolveStorefrontContentPage(settings.pages || [], cleanPath, products, categories);
-    if (contentPage) { title = contentPage.seoTitle || contentPage.title; description = contentPage.seoDescription || contentPage.summary || description; image = contentPage.socialImage || image; index = !contentPage.noIndex; }
+    const products = await loadTenantThemeProducts(ids), categories = await loadTenantThemeCategories(ids, products);
+    const contentPage = resolveStorefrontContentPage(settings.pages || [], cleanPath, products, categories, { includeDisabled: true });
+    if (contentPage) { title = contentPage.seoTitle || contentPage.title; description = contentPage.seoDescription || contentPage.summary || description; image = contentPage.socialImage || image; index = contentPage.enabled && !contentPage.noIndex; }
     else { const category = cleanPath[0] ? categories.find((item) => item.slug === cleanPath[0]) : undefined; const product = cleanPath[1] ? products.find((item) => item.category === cleanPath[0] && item.slug === cleanPath[cleanPath.length - 1]) : undefined; title = product?.title || category?.title || title; description = product?.text || category?.description || description; image = product?.image || category?.image || image; }
   } catch {}
   const canonical = `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}${cleanPath.length ? `/${cleanPath.join('/')}` : ''}`;
@@ -41,14 +40,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function NativeStorePreview({ params, searchParams }: PageProps) {
   const { tenantSlug, storeSlug, path = [] } = await params;
-  const cleanTenantSlug = clean(tenantSlug), cleanStoreSlug = clean(storeSlug);
+  const cleanTenantSlug = clean(tenantSlug), cleanStoreSlug = clean(storeSlug), routeSegments = path.map(clean).filter(Boolean);
   if (!cleanTenantSlug || !cleanStoreSlug) notFound();
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const [products, settings] = await Promise.all([loadTenantThemeProducts(ids), loadStorefrontRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids)]);
   if (!settings.storeFound || !isPublishedStore(settings.storeStatus)) notFound();
   const [rawMenuItems, categories, collectionPoints] = await Promise.all([settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids), loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
+  const hiddenPage = resolveStorefrontContentPage(settings.pages || [], routeSegments, products, categories, { includeDisabled: true });
+  if (hiddenPage && !hiddenPage.enabled) notFound();
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || []);
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
-  const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments: path.map(clean).filter(Boolean), searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings };
+  const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments, searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings };
   return renderStorefrontTheme(context);
 }

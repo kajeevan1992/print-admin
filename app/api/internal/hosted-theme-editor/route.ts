@@ -1,25 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getHostedThemeSettings, publishHostedTheme, saveHostedThemeDraft } from '@/core/themes/hosted-theme-editor.service';
+import { requireTenantSession } from '@/core/auth/session-guard.service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function GET(request: Request) {
-  try {
-    const url = new URL(request.url);
-    const data = await getHostedThemeSettings(url.searchParams.get('channelSlug') || 'default-store');
-    return NextResponse.json({ ok: true, data });
-  } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Theme settings could not load.' }, { status: 500 });
-  }
+async function retired() {
+  await requireTenantSession();
+  return NextResponse.json({ ok: false, error: 'This duplicate editor has been retired. Use Storefront Builder at /themes and /api/internal/storefront-themes.', redirectUrl: '/themes' }, { status: 410 });
 }
 
-export async function POST(request: Request) {
-  try {
-    const body = await request.json().catch(() => ({}));
-    const data = body.action === 'publish' ? await publishHostedTheme(body.channelSlug || 'default-store') : await saveHostedThemeDraft(body);
-    return NextResponse.json({ ok: true, data });
-  } catch (error) {
-    return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Theme settings could not be saved.' }, { status: 400 });
-  }
+export async function GET() {
+  try { return await retired(); }
+  catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Admin session required.' }, { status: 401 }); }
+}
+
+export async function POST() {
+  try { return await retired(); }
+  catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Admin session required.' }, { status: 401 }); }
 }

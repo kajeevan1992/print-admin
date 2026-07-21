@@ -1,5 +1,6 @@
 import StorefrontChrome from './StorefrontChrome';
 import CustomerAccountClient from './CustomerAccountClient';
+import CustomerArtworkProofPanel from './CustomerArtworkProofPanel';
 import CustomerEmailChangeConfirmation from './CustomerEmailChangeConfirmation';
 import CustomerPasskeyLogin from './CustomerPasskeyLogin';
 import CustomerPasskeySecurityPanel from './CustomerPasskeySecurityPanel';
@@ -46,9 +47,11 @@ export default async function CustomerAccountPage({ tenantSlug, storeSlug, store
       ? <CustomerTwoStepChallenge tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} returnUrl={resolvedReturnUrl} />
       : section === 'profile' && dashboardCustomer
         ? <>{standardAccount}<CustomerPasskeySecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTwoStepSecurityPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerTrustedBrowserPanel tenantSlug={tenantSlug} storeSlug={storeSlug} /><CustomerPrivacyPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} /></>
-        : resolvedMode === 'login'
-          ? <>{standardAccount}<CustomerPasskeyLogin tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} returnUrl={resolvedReturnUrl} /></>
-          : standardAccount;
+        : section === 'artwork' && dashboardCustomer
+          ? <>{standardAccount}<CustomerArtworkProofPanel tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} /></>
+          : resolvedMode === 'login'
+            ? <>{standardAccount}<CustomerPasskeyLogin tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} returnUrl={resolvedReturnUrl} /></>
+            : standardAccount;
   if (routeViews?.CustomerAccountPage) { const View = routeViews.CustomerAccountPage; const themeMode = resolvedMode === 'register' ? 'register' : resolvedMode === 'dashboard' ? 'dashboard' : 'login'; const themeSection = section === 'profile' ? 'overview' : section; return <View {...buildV0ThemePageContext({ storeBase, currentPath, navItems, settings })} mode={themeMode} section={themeSection} authenticated={Boolean(dashboardCustomer)} customer={dashboardCustomer ? { name: dashboardCustomer.name, email: dashboardCustomer.email } : undefined} summary={dashboardCustomer ? { orderCount: summary.orderCount, quoteCount: safeQuotes.length, artworkCount: summary.artworkCount, invoiceCount: safeInvoices.length, addressCount: summary.addressCount } : undefined} slots={{ account: accountSlot }} />; }
   return <StorefrontChrome currentPath={currentPath} navItems={navItems} storeBase={storeBase} settings={settings}><section className="py-10 sm:py-14"><Shell>{accountSlot}</Shell></section></StorefrontChrome>;
 }

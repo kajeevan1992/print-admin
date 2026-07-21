@@ -4,7 +4,7 @@ import type { V0ThemeRouteViews, V0ThemeWidgetAppearance } from '@/v0-themes/con
 export type StorefrontThemeKey = 'atlantis-print-hosted' | 'atlantis-native' | (string & {});
 export type StorefrontThemeSource = 'built-in' | 'uploaded';
 export type StorefrontThemeStatus = 'draft' | 'active' | 'archived' | 'failed';
-export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
+export type StorefrontThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections' | 'navigation';
 export type StorefrontThemeFieldOption = { label: string; value: string };
 export type StorefrontThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
 export type StorefrontThemeSectionFieldSchema = { key: string; label: string; type: StorefrontThemeSectionFieldType; description?: string; placeholder?: string; options?: StorefrontThemeFieldOption[]; min?: number; max?: number; itemLabel?: string; itemFields?: StorefrontThemeSectionFieldSchema[]; };
@@ -12,7 +12,7 @@ export type StorefrontThemeSectionTypeSchema = { type: string; label: string; de
 export type StorefrontThemeFieldSchema = { path: string; label: string; type: StorefrontThemeFieldType; group?: string; description?: string; options?: StorefrontThemeFieldOption[]; sectionTypes?: StorefrontThemeSectionTypeSchema[]; maxItems?: number; pageCollection?: boolean; };
 export type StorefrontThemeEditorSchema = { content: StorefrontThemeFieldSchema[]; settings: StorefrontThemeFieldSchema[]; };
 export type StorefrontThemeManifest = { key: StorefrontThemeKey; name: string; version: string; source: StorefrontThemeSource; description?: string; aliases?: StorefrontThemeKey[]; widgetAppearance?: V0ThemeWidgetAppearance; editor?: StorefrontThemeEditorSchema; };
-export type StorefrontMenuItem = { id: string; slug: string; label: string; path: string; order: number; parentId: string; parentSlug: string; description: string; enabled: boolean; };
+export type StorefrontMenuItem = { id: string; slug: string; label: string; path: string; order: number; parentId: string; parentSlug: string; description: string; enabled: boolean; group?: string; imageUrl?: string; };
 export type StorefrontNavColumn = { title: string; links: [string, string][] };
 export type StorefrontNavItem = { label: string; path: string; feature: { title: string; body: string; image: string; cta: string }; columns: StorefrontNavColumn[]; };
 export type StorefrontProductOptionValue = { slug: string; label: string; value?: string };

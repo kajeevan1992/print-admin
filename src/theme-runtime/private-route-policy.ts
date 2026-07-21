@@ -6,6 +6,7 @@ export const STOREFRONT_PRIVATE_ROUTE_TITLES: Record<string, string> = {
   'reset-password': 'Reset password',
   'verify-email': 'Verify email',
   'confirm-email-change': 'Confirm email change',
+  'artwork-proof': 'Artwork proof',
   account: 'Customer account',
   'quote-status': 'Quote status',
   'checkout-success': 'Order confirmation',
@@ -19,6 +20,7 @@ export const STOREFRONT_SENSITIVE_URL_ROUTES = new Set([
   'reset-password',
   'verify-email',
   'confirm-email-change',
+  'artwork-proof',
 ]);
 
 export function isStorefrontPrivateRouteRoot(value: string | null | undefined) {

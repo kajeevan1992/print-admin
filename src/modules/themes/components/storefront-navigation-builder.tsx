@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { ChevronDown, ChevronUp, Copy, Eye, EyeOff, Menu, Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/components/forms/input';
+import { StorefrontMediaField } from '@/modules/themes/components/storefront-media-library';
 import type { ThemeEditorField } from '@/modules/themes/types';
 
 type NavigationItem = {
@@ -155,7 +156,7 @@ export function StorefrontNavigationBuilder({ field, value, onChange }: { field:
             <div><FieldLabel>Menu label</FieldLabel><Input value={item.label} onChange={(event) => update(item.id, { label: event.target.value })} /></div>
             <div><FieldLabel>Internal path</FieldLabel><Input value={item.path} placeholder="/about" onChange={(event) => update(item.id, { path: event.target.value })} /></div>
             <div className="lg:col-span-2"><FieldLabel>Mega-menu description</FieldLabel><Input value={item.description} placeholder="Brief description shown in the feature area" onChange={(event) => update(item.id, { description: event.target.value })} /></div>
-            <div className="lg:col-span-2"><FieldLabel>Feature image</FieldLabel><Input value={item.imageUrl} placeholder="https://… or /images/…" onChange={(event) => update(item.id, { imageUrl: event.target.value })} /></div>
+            <div className="lg:col-span-2"><FieldLabel>Feature image</FieldLabel><StorefrontMediaField value={item.imageUrl} onChange={(imageUrl) => update(item.id, { imageUrl })} /></div>
           </div>
 
           <div className="mt-4 border-t border-white/8 pt-4">

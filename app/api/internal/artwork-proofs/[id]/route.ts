@@ -42,7 +42,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const action = clean(body.action);
     if (action === 'resend') {
       const result = await resendArtworkProof(session.tenantId, { storeSlug: clean(body.storeSlug), proofId: context.params.id, actorId: session.id, actorLabel: session.name || session.email });
-      await sendArtworkProofReadyEmail(request, {
+      const notification = await sendArtworkProofReadyEmail(request, {
         tenantSlug: result.tenantSlug,
         storeSlug: result.proof.storeSlug,
         storeName: result.storeName,
@@ -53,8 +53,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         revisionNumber: result.proof.revisionNumber,
         message: result.proof.message,
         accessToken: result.accessToken,
-      });
-      return json({ ok: true, source: 'internal-artwork-proofs', data: { proof: result.proof, notificationQueued: true } });
+      }).catch(() => null);
+      return json({ ok: true, source: 'internal-artwork-proofs', data: { proof: result.proof, notificationRequested: true, notificationQueued: Boolean(notification) } });
     }
     if (action === 'withdraw') {
       const proof = await withdrawArtworkProof(session.tenantId, { storeSlug: clean(body.storeSlug), proofId: context.params.id, actorId: session.id, actorLabel: session.name || session.email, note: clean(body.note) });

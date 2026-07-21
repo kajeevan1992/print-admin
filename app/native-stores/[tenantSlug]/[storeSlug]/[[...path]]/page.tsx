@@ -67,12 +67,13 @@ export default async function NativeStorePreview({ params, searchParams }: PageP
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const [products, settings] = await Promise.all([loadTenantThemeProducts(ids), loadStorefrontRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids)]);
   if (!settings.storeFound || !isPublishedStore(settings.storeStatus)) notFound();
-  const [rawMenuItems, categories, collectionPoints] = await Promise.all([settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids), loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
+  const menuPromise = settings.navigationManaged || settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids);
+  const [rawMenuItems, categories, collectionPoints] = await Promise.all([menuPromise, loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
   const hiddenPage = resolveStorefrontContentPage(settings.pages || [], routeSegments, products, categories, { includeDisabled: true });
   if (hiddenPage && !hiddenPage.enabled) notFound();
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || []);
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
-  const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments, searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings };
+  const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments, searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems, { allowFallback: !settings.navigationManaged }), products, categories, collectionPoints, settings };
   const rendered = await renderStorefrontTheme(context);
   return <>{STOREFRONT_SENSITIVE_URL_ROUTES.has(routeSegments[0] || '') ? <StorefrontSensitiveUrlGuard /> : null}{rendered}</>;
 }

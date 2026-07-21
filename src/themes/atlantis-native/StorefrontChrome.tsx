@@ -37,11 +37,20 @@ function StorefrontLogo({ settings, size = 'header', studio = false }: { setting
   return <span className={size === 'footer' ? 'text-[42px] font-black tracking-[-0.05em]' : studio ? 'text-[28px] font-black uppercase tracking-[0.08em]' : 'text-[32px] font-black tracking-[-0.045em]'} style={{ color: studio ? 'white' : BRAND.ink }}>{brandName}</span>;
 }
 
+function utilityItems(value: unknown) {
+  const items = Array.isArray(value)
+    ? value.map(String)
+    : String(value || '').split(/\r?\n|,/g);
+  return items.map((item) => item.trim()).filter(Boolean).slice(0, 4);
+}
+
 function UtilityBar({ settings, studio }: { settings: StorefrontRuntimeSettings; studio: boolean }) {
+  if (settings.layout?.showUtilityBar === false) return null;
   const content = settings.content?.text || {};
   const utilityText = String(content.utilityText || settings.content?.utilityText || 'Professional print, signage and packaging solutions');
-  const utilityItems = Array.isArray(settings.content?.utilityItems) && settings.content.utilityItems.length ? settings.content.utilityItems.slice(0, 4).map(String) : ['Business orders', 'Bulk pricing', 'Fast turnaround', 'Bespoke quote support'];
-  return <div style={{ backgroundColor: studio ? BRAND.primary : BRAND.black, color: 'white' }}><Shell><div className="flex h-8 items-center justify-between text-[11px] font-medium"><span>{utilityText}</span><div className="hidden gap-5 sm:flex">{utilityItems.map((item) => <span key={item}>{item}</span>)}</div></div></Shell></div>;
+  const configuredItems = utilityItems(settings.content?.utilityItems);
+  const highlights = configuredItems.length ? configuredItems : ['Business orders', 'Bulk pricing', 'Fast turnaround', 'Bespoke quote support'];
+  return <div style={{ backgroundColor: studio ? BRAND.primary : BRAND.black, color: 'white' }}><Shell><div className="flex min-h-8 items-center justify-between gap-4 py-1.5 text-[11px] font-medium"><span>{utilityText}</span><div className="hidden gap-5 sm:flex">{highlights.map((item) => <span key={item}>{item}</span>)}</div></div></Shell></div>;
 }
 
 function Header({ currentPath = '/', navItems, storeBase, settings, collectionPoints, studio }: { currentPath?: string; navItems: NavItem[]; storeBase: string; settings: StorefrontRuntimeSettings; collectionPoints: CollectionPoint[]; studio: boolean }) {
@@ -58,5 +67,5 @@ export default async function StorefrontChrome({ currentPath = '/', children, na
   const collectionPoints = await loadCollectionPoints(settings.tenantIds).catch(() => []);
   const studio = settings.themeKey === 'studio-native' || settings.layout?.themeStyle === 'studio';
   const style = { '--storefront-bg': settings.brand.background, '--storefront-line': settings.brand.border, '--storefront-ink': settings.brand.text, '--storefront-muted': settings.brand.muted, '--storefront-primary': settings.brand.primary, '--storefront-primary-dark': settings.brand.primary, '--storefront-accent': settings.brand.accent, '--storefront-black': settings.content?.utilityBarColour || '#0F1012', backgroundColor: BRAND.bg, color: BRAND.ink } as CSSProperties;
-  return <div style={style} data-storefront-theme={studio ? 'studio' : 'atlantis'}><UtilityBar settings={settings} studio={studio} /><Header currentPath={currentPath} navItems={navItems} storeBase={storeBase} settings={settings} collectionPoints={collectionPoints} studio={studio} />{children}<ChromeFooter storeBase={storeBase} settings={settings} navItems={navItems} logo={<StorefrontLogo settings={settings} size="footer" studio={studio} />} studio={studio} /></div>;
+  return <div style={style} data-storefront-theme={studio ? 'studio' : 'atlantis'}><UtilityBar settings={settings} studio={studio} /><Header currentPath={currentPath} navItems={navItems} storeBase={storeBase} settings={settings} collectionPoints={collectionPoints} studio={studio} />{children}{settings.layout?.showFooter !== false ? <ChromeFooter storeBase={storeBase} settings={settings} navItems={navItems} logo={<StorefrontLogo settings={settings} size="footer" studio={studio} />} studio={studio} /> : null}</div>;
 }

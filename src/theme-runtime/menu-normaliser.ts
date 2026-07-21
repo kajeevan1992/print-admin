@@ -17,5 +17,7 @@ export function normaliseRuntimeMenuItem(raw: any, index: number): MenuItem {
     parentId: String(raw?.parentId || raw?.parent || raw?.parentKey || ''),
     parentSlug: clean(String(raw?.parentSlug || raw?.parentLabel || '')),
     description: String(raw?.description || raw?.featureBody || ''),
+    group: String(raw?.group || raw?.column || 'Menu'),
+    imageUrl: String(raw?.imageUrl || raw?.image || ''),
   };
 }

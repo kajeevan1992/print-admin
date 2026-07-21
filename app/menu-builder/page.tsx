@@ -1,7 +1,7 @@
+import { redirect } from 'next/navigation';
+
 export const dynamic = 'force-dynamic';
 
-import { StorefrontMenuBuilderPage } from '@/modules/content/pages/storefront-menu-builder-page';
-
 export default function Page() {
-  return <StorefrontMenuBuilderPage />;
+  redirect('/themes#storefront-navigation-field');
 }

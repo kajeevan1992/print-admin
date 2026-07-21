@@ -26,11 +26,12 @@ export default async function ThemeDraftPreview({ params, searchParams }: PagePr
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const [products, settings] = await Promise.all([loadTenantThemeProducts(ids), loadStorefrontDraftRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids)]);
   if (!settings.storeFound) notFound();
-  const [rawMenuItems, categories, collectionPoints] = await Promise.all([settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids), loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
+  const menuPromise = settings.navigationManaged || settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids);
+  const [rawMenuItems, categories, collectionPoints] = await Promise.all([menuPromise, loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || [], { includeDisabled: true });
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
   const storeBase = `/theme-preview/${cleanTenantSlug}/${cleanStoreSlug}`;
-  const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase, routeSegments: path.map(clean).filter(Boolean), searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings, isDraftPreview: true };
+  const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase, routeSegments: path.map(clean).filter(Boolean), searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems, { allowFallback: !settings.navigationManaged }), products, categories, collectionPoints, settings, isDraftPreview: true };
   const storefront = await renderStorefrontTheme(context);
   return <><div className="sticky top-0 z-[1000] flex min-h-10 items-center justify-center bg-amber-300 px-4 py-2 text-center text-[12px] font-black text-black shadow-md">Draft preview · Only authenticated store administrators can view this page · Changes are not live</div>{storefront}</>;
 }

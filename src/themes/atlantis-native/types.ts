@@ -8,6 +8,8 @@ export type MenuItem = {
   parentSlug: string;
   description: string;
   enabled: boolean;
+  group?: string;
+  imageUrl?: string;
 };
 
 export type NavColumn = { title: string; links: [string, string][] };

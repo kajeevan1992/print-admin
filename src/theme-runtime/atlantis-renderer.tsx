@@ -7,6 +7,7 @@ import CollectionPointsPage from '@/themes/atlantis-native/CollectionPointsPage'
 import CartPage from '@/themes/atlantis-native/CartPage';
 import CheckoutStatusPage from '@/themes/atlantis-native/CheckoutStatusPage';
 import CustomerAccountPage from '@/themes/atlantis-native/CustomerAccountPage';
+import CustomerArtworkProofPage from '@/themes/atlantis-native/CustomerArtworkProofPage';
 import SearchResultsPage from '@/themes/atlantis-native/SearchResultsPage';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
 import { resolveStorefrontContentPage } from '@/theme-runtime/content-pages';
@@ -27,6 +28,7 @@ export async function renderAtlantisStorefront(context: StorefrontRuntimeContext
   if (routeSegments[0] === 'reset-password') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="reset-password" token={searchParams?.token || ''} returnUrl={searchParams?.return || ''} />;
   if (routeSegments[0] === 'verify-email') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="verify-email" token={searchParams?.token || ''} returnUrl={searchParams?.return || ''} />;
   if (routeSegments[0] === 'confirm-email-change') return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="confirm-email-change" token={searchParams?.token || ''} />;
+  if (routeSegments[0] === 'artwork-proof') return <CustomerArtworkProofPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} token={searchParams?.token || ''} proofId={searchParams?.proof || ''} />;
   if (routeSegments[0] === 'account') { const requested = routeSegments[1] || 'overview'; const section = ACCOUNT_SECTIONS.has(requested) ? requested as 'overview' | 'orders' | 'quotes' | 'artwork' | 'invoices' | 'addresses' | 'profile' : 'overview'; return <CustomerAccountPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} mode="dashboard" section={section} returnUrl={`${storeBase}/account${section === 'overview' ? '' : `/${section}`}`} />; }
   if (routeSegments[0] === 'quote-status' && routeSegments[1]) return <CustomerQuotePage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} quoteId={routeSegments[1]} searchParams={searchParams || {}} />;
   if (routeSegments[0] === 'checkout-success') return <CheckoutStatusPage tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} navItems={navItems} settings={settings} routeViews={routeViews} status="success" searchParams={searchParams || {}} />;

@@ -1,6 +1,6 @@
 import type { Id } from '@/types/common';
 
-export type ThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections';
+export type ThemeFieldType = 'text' | 'textarea' | 'image' | 'colour' | 'boolean' | 'number' | 'select' | 'sections' | 'navigation';
 export type ThemeFieldOption = { label: string; value: string };
 export type ThemeSectionFieldType = 'text' | 'textarea' | 'image' | 'boolean' | 'number' | 'select' | 'string-list' | 'repeater';
 export type ThemeSectionField = {

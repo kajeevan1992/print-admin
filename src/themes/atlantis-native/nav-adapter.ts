@@ -2,9 +2,11 @@ import type { MenuItem, NavItem } from './types';
 import { FALLBACK_NAV_ITEMS } from './nav-fallback';
 import { cleanSlug } from './theme-helpers';
 
-export function buildNavItems(menuItems: MenuItem[]): NavItem[] {
+type BuildNavOptions = { allowFallback?: boolean };
+
+export function buildNavItems(menuItems: MenuItem[], options: BuildNavOptions = {}): NavItem[] {
   const enabledItems = (menuItems || []).filter((item) => item.enabled !== false && item.label && item.path);
-  if (!enabledItems.length) return FALLBACK_NAV_ITEMS;
+  if (!enabledItems.length) return options.allowFallback === false ? [] : FALLBACK_NAV_ITEMS;
   const byParent = new Map<string, MenuItem[]>();
   const top: MenuItem[] = [];
 
@@ -16,6 +18,7 @@ export function buildNavItems(menuItems: MenuItem[]): NavItem[] {
     }
   });
 
+  if (!top.length) return options.allowFallback === false ? [] : FALLBACK_NAV_ITEMS;
   const fallbackByLabel = new Map(FALLBACK_NAV_ITEMS.map((item) => [cleanSlug(item.label), item]));
 
   return top.sort((a, b) => a.order - b.order).slice(0, 10).map((item) => {

@@ -60,30 +60,8 @@ export async function POST(request: Request) {
         actorId: session.id,
         actorLabel: session.name || session.email,
       });
-      let notification: unknown = null;
-      if (bool(form.get('sendEmail'), true)) {
-        notification = await sendArtworkProofReadyEmail(request, {
-          tenantSlug: result.tenantSlug,
-          storeSlug: result.proof.storeSlug,
-          storeName: result.storeName,
-          email: result.customerEmail,
-          customerName: result.customerName,
-          orderNumber: result.proof.orderNumber,
-          productName: result.proof.productName,
-          revisionNumber: result.proof.revisionNumber,
-          message: result.proof.message,
-          accessToken: result.accessToken,
-        });
-      }
-      return json({ ok: true, source: 'internal-artwork-proofs', data: { proof: result.proof, notificationQueued: Boolean(notification) } }, 201);
-    }
-
-    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-    if (!body) return json({ ok: false, error: 'An artwork proof request body is required.' }, 400);
-    const action = clean(body.action);
-    if (action === 'resend') {
-      const result = await resendArtworkProof(session.tenantId, { storeSlug: clean(body.storeSlug), proofId: clean(body.proofId), actorId: session.id, actorLabel: session.name || session.email });
-      await sendArtworkProofReadyEmail(request, {
+      const shouldEmail = bool(form.get('sendEmail'), true);
+      const notification = shouldEmail ? await sendArtworkProofReadyEmail(request, {
         tenantSlug: result.tenantSlug,
         storeSlug: result.proof.storeSlug,
         storeName: result.storeName,
@@ -94,8 +72,28 @@ export async function POST(request: Request) {
         revisionNumber: result.proof.revisionNumber,
         message: result.proof.message,
         accessToken: result.accessToken,
-      });
-      return json({ ok: true, source: 'internal-artwork-proofs', data: { proof: result.proof, notificationQueued: true } });
+      }).catch(() => null) : null;
+      return json({ ok: true, source: 'internal-artwork-proofs', data: { proof: result.proof, notificationRequested: shouldEmail, notificationQueued: Boolean(notification) } }, 201);
+    }
+
+    const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+    if (!body) return json({ ok: false, error: 'An artwork proof request body is required.' }, 400);
+    const action = clean(body.action);
+    if (action === 'resend') {
+      const result = await resendArtworkProof(session.tenantId, { storeSlug: clean(body.storeSlug), proofId: clean(body.proofId), actorId: session.id, actorLabel: session.name || session.email });
+      const notification = await sendArtworkProofReadyEmail(request, {
+        tenantSlug: result.tenantSlug,
+        storeSlug: result.proof.storeSlug,
+        storeName: result.storeName,
+        email: result.customerEmail,
+        customerName: result.customerName,
+        orderNumber: result.proof.orderNumber,
+        productName: result.proof.productName,
+        revisionNumber: result.proof.revisionNumber,
+        message: result.proof.message,
+        accessToken: result.accessToken,
+      }).catch(() => null);
+      return json({ ok: true, source: 'internal-artwork-proofs', data: { proof: result.proof, notificationRequested: true, notificationQueued: Boolean(notification) } });
     }
     if (action === 'withdraw') {
       const proof = await withdrawArtworkProof(session.tenantId, { storeSlug: clean(body.storeSlug), proofId: clean(body.proofId), actorId: session.id, actorLabel: session.name || session.email, note: clean(body.note) });

@@ -84,4 +84,30 @@ export type StorefrontThemeAdminState = {
   revision: StorefrontThemeRevision | null;
 };
 
+export type StorefrontMediaAsset = {
+  id: string;
+  storeSlug: string;
+  filename: string;
+  label: string;
+  altText: string;
+  mimeType: string;
+  sizeBytes: number;
+  checksum: string;
+  url: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StorefrontMediaState = {
+  storeSlug: string;
+  assets: StorefrontMediaAsset[];
+  usage: { count: number; total: number };
+  limits: {
+    maxFileBytes: number;
+    maxStoreBytes: number;
+    maxAssets: number;
+    acceptedMimeTypes: string[];
+  };
+};
+
 export type StorefrontThemeAdminAction = 'save-draft' | 'publish' | 'discard-draft';

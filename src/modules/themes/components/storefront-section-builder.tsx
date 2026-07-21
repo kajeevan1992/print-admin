@@ -4,6 +4,7 @@ import { useMemo, useState, type DragEvent } from 'react';
 import { ChevronDown, ChevronUp, Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/components/forms/input';
 import { Select } from '@/components/forms/select';
+import { StorefrontMediaField } from '@/modules/themes/components/storefront-media-library';
 import type { ThemeEditorField, ThemeSectionField, ThemeSectionType } from '@/modules/themes/types';
 
 type SectionRecord = Record<string, unknown> & { id: string; type: string; enabled: boolean };
@@ -79,7 +80,7 @@ function defaultValue(field: ThemeSectionField): unknown {
 }
 
 function fieldSpan(field: ThemeSectionField) {
-  return field.type === 'textarea' || field.type === 'repeater' || field.type === 'string-list' ? 'lg:col-span-2' : '';
+  return field.type === 'textarea' || field.type === 'repeater' || field.type === 'string-list' || field.type === 'image' ? 'lg:col-span-2' : '';
 }
 
 function RepeaterEditor({ field, value, onChange }: { field: ThemeSectionField; value: unknown; onChange: (value: unknown) => void }) {
@@ -130,6 +131,10 @@ function RepeaterEditor({ field, value, onChange }: { field: ThemeSectionField; 
 }
 
 function SectionFieldControl({ field, value, onChange }: { field: ThemeSectionField; value: unknown; onChange: (value: unknown) => void }) {
+  if (field.type === 'image') {
+    return <StorefrontMediaField value={value} onChange={onChange} placeholder={field.placeholder || 'Upload, choose or paste an image URL'} />;
+  }
+
   if (field.type === 'boolean') {
     return (
       <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-white/8 bg-panelMuted/90 px-3.5 text-[13px] text-text">
@@ -160,7 +165,7 @@ function SectionFieldControl({ field, value, onChange }: { field: ThemeSectionFi
     return <input type="number" value={Number.isFinite(numeric) ? numeric : ''} min={field.min} max={field.max} onChange={(event) => onChange(event.target.value === '' ? '' : event.target.valueAsNumber)} className="h-11 w-full rounded-xl border border-white/8 bg-panelMuted/90 px-3.5 text-[13px] text-text outline-none transition focus:border-accent/70 focus:bg-panelMuted" />;
   }
 
-  return <Input type={field.type === 'image' ? 'url' : 'text'} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder || (field.type === 'image' ? 'https://… or /images/…' : '')} />;
+  return <Input type="text" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} placeholder={field.placeholder || ''} />;
 }
 
 function SectionCard({ section, definition, index, total, open, dragging, onToggleOpen, onUpdate, onMove, onDuplicate, onRemove, onDragStart, onDrop }: {

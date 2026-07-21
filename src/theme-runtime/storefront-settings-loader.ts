@@ -194,7 +194,8 @@ async function loadStorefrontRuntimeSettingsUncached(
   };
   const sections = normaliseSections(theme.sections?.length ? theme.sections : storeContent.sections);
   const pages: StorefrontContentPage[] = normaliseStorefrontContentPages(content.pages);
-  const navigation = normaliseNavigation(theme.navigation?.length ? theme.navigation : store.navigation);
+  const navigationManaged = theme.navigationManaged === true;
+  const navigation = normaliseNavigation(navigationManaged ? theme.navigation : theme.navigation?.length ? theme.navigation : store.navigation);
 
   return {
     tenantIds,
@@ -207,6 +208,7 @@ async function loadStorefrontRuntimeSettingsUncached(
     content,
     layout: { ...object(store.layout), ...object(theme.layout) },
     navigation,
+    navigationManaged,
     sections,
     pages,
     themePublished: Boolean(themeRow),

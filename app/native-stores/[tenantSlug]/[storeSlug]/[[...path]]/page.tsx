@@ -3,8 +3,10 @@ import { notFound } from 'next/navigation';
 import { buildNavItems } from '@/themes/atlantis-native/nav-adapter';
 import { loadTenantThemeCategories, loadTenantThemeProducts } from '@/themes/atlantis-native/catalog-adapter';
 import { loadCollectionPoints } from '@/themes/atlantis-native/collection-points';
+import StorefrontSensitiveUrlGuard from '@/themes/atlantis-native/StorefrontSensitiveUrlGuard';
 import { appendStorefrontContentPageMenuItems, resolveStorefrontContentPage } from '@/theme-runtime/content-pages';
 import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
+import { STOREFRONT_PRIVATE_ROUTE_TITLES, STOREFRONT_SENSITIVE_URL_ROUTES } from '@/theme-runtime/private-route-policy';
 import { getStorefrontThemeManifest, renderStorefrontTheme } from '@/theme-runtime/registry';
 import { loadStorefrontRuntimeSettings, resolveStorefrontTenantIds } from '@/theme-runtime/storefront-settings-loader';
 import type { StorefrontRuntimeContext, StorefrontRuntimeSearchParams } from '@/theme-runtime/types';
@@ -17,12 +19,32 @@ const titleFromSlug = (value: string) => String(value || '').split('-').filter(B
 function normaliseSearchParams(input: RawSearchParams | undefined): StorefrontRuntimeSearchParams { const out: StorefrontRuntimeSearchParams = {}; Object.entries(input || {}).forEach(([key, value]) => { const first = Array.isArray(value) ? value[0] : value; if (typeof first === 'string' && first.trim()) out[key] = first.trim(); }); return out; }
 const isPublishedStore = (status: string) => ['published', 'active', 'live'].includes(String(status || '').toLowerCase());
 
+function privateRouteMetadata(routeRoot: string, storeName: string): Metadata {
+  const title = `${STOREFRONT_PRIVATE_ROUTE_TITLES[routeRoot] || 'Private storefront page'} | ${storeName}`;
+  return {
+    title,
+    description: '',
+    referrer: 'no-referrer',
+    robots: {
+      index: false,
+      follow: false,
+      nocache: true,
+      noarchive: true,
+      nosnippet: true,
+      noimageindex: true,
+      googleBot: { index: false, follow: false, noimageindex: true, 'max-snippet': 0, 'max-image-preview': 'none' },
+    },
+  };
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { tenantSlug, storeSlug, path = [] } = await params;
   const cleanTenantSlug = clean(tenantSlug), cleanStoreSlug = clean(storeSlug), cleanPath = path.map(clean).filter(Boolean);
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const settings = await loadStorefrontRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids).catch(() => null);
-  if (!settings?.storeFound || !isPublishedStore(settings.storeStatus)) return { title: 'Storefront unavailable', robots: { index: false, follow: false } };
+  if (!settings?.storeFound || !isPublishedStore(settings.storeStatus)) return { title: 'Storefront unavailable', referrer: 'no-referrer', robots: { index: false, follow: false } };
+  const routeRoot = cleanPath[0] || '';
+  if (STOREFRONT_PRIVATE_ROUTE_TITLES[routeRoot]) return privateRouteMetadata(routeRoot, settings.storeName);
   let title = cleanPath.length ? titleFromSlug(cleanPath[cleanPath.length - 1]) : settings.storeName;
   let description = cleanPath.length ? `${title} from ${settings.storeName}.` : String(settings.content?.seoDescription || settings.content?.description || '');
   let image = String(settings.content?.socialImage || settings.content?.heroImage || '');
@@ -51,5 +73,6 @@ export default async function NativeStorePreview({ params, searchParams }: PageP
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || []);
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
   const context: StorefrontRuntimeContext = { tenantSlug: cleanTenantSlug, storeSlug: cleanStoreSlug, tenantIds: ids, storeBase: `/native-stores/${cleanTenantSlug}/${cleanStoreSlug}`, routeSegments, searchParams: normaliseSearchParams(await searchParams), themeKey: themeManifest.key, themeSource: settings.source === 'defaults' ? 'default' : 'tenant-setting', themeManifest, uploadedThemes: [], navItems: buildNavItems(menuItems), products, categories, collectionPoints, settings };
-  return renderStorefrontTheme(context);
+  const rendered = await renderStorefrontTheme(context);
+  return <>{STOREFRONT_SENSITIVE_URL_ROUTES.has(routeSegments[0] || '') ? <StorefrontSensitiveUrlGuard /> : null}{rendered}</>;
 }

@@ -67,7 +67,8 @@ export default async function NativeStorePreview({ params, searchParams }: PageP
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const [products, settings] = await Promise.all([loadTenantThemeProducts(ids), loadStorefrontRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids)]);
   if (!settings.storeFound || !isPublishedStore(settings.storeStatus)) notFound();
-  const [rawMenuItems, categories, collectionPoints] = await Promise.all([settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids), loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
+  const menuPromise = settings.navigationManaged || settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids);
+  const [rawMenuItems, categories, collectionPoints] = await Promise.all([menuPromise, loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
   const hiddenPage = resolveStorefrontContentPage(settings.pages || [], routeSegments, products, categories, { includeDisabled: true });
   if (hiddenPage && !hiddenPage.enabled) notFound();
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || []);

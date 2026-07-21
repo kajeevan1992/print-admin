@@ -7,7 +7,7 @@ export const runtime = 'nodejs';
 
 function clean(value: unknown) { return String(value || '').trim(); }
 function slug(value: unknown) { return clean(value).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/(^-|-$)/g, ''); }
-function json(data: unknown, status = 200, headers?: Headers) { return NextResponse.json(data, { status, headers: { ...(headers ? Object.fromEntries(headers.entries()) : {}), 'Cache-Control': 'private, no-store' } }); }
+function json(data: unknown, status = 200, headers: Record<string, string> = {}) { return NextResponse.json(data, { status, headers: { ...headers, 'Cache-Control': 'private, no-store' } }); }
 function errorStatus(message: string) { if (/sign-in|required|valid proof link/i.test(message)) return 401; if (/does not belong/i.test(message)) return 403; if (/not found/i.test(message)) return 404; return 400; }
 
 export async function GET(request: NextRequest) {

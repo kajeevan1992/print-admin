@@ -24,7 +24,7 @@ type Proof = {
   viewedAt: string;
   decidedAt: string;
   decisionNote: string;
-  events?: Array<{ id: string; action: string; actorLabel: string; note: string; createdAt: string }>;
+  events?: Array<{ id: string; action: string; actorType?: string; actorLabel: string; note: string; createdAt: string }>;
 };
 
 type AdminData = {
@@ -91,7 +91,8 @@ export function ArtworkProofAdminPanel({ ticketId }: { ticketId: string }) {
       const response = await fetch('/api/internal/artwork-proofs', { method: 'POST', body: form });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Proof revision could not be created.');
-      setNotice(sendEmail ? 'Proof revision uploaded and customer notification queued.' : 'Proof revision uploaded without an email.');
+      const queued = Boolean(payload.data?.notificationQueued);
+      setNotice(!sendEmail ? 'Proof revision uploaded without an email.' : queued ? 'Proof revision uploaded and the customer notification was queued.' : 'Proof revision uploaded, but the email could not be queued. Use Resend after checking email settings.');
       setFile(null); setMessage('');
       const input = document.getElementById(`proof-file-${ticketId}`) as HTMLInputElement | null; if (input) input.value = '';
       await load(storeSlug);
@@ -107,7 +108,8 @@ export function ArtworkProofAdminPanel({ ticketId }: { ticketId: string }) {
       const response = await fetch('/api/internal/artwork-proofs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: name, proofId: proof.id, storeSlug, note: name === 'withdraw' ? 'Withdrawn by artwork team.' : '' }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || `Proof could not be ${name === 'resend' ? 'resent' : 'withdrawn'}.`);
-      setNotice(name === 'resend' ? 'A new secure proof link was queued for the customer.' : 'Proof withdrawn and production gate held.');
+      const queued = Boolean(payload.data?.notificationQueued);
+      setNotice(name === 'withdraw' ? 'Proof withdrawn and production gate held.' : queued ? 'A new secure proof link was queued for the customer.' : 'The secure link was rotated, but the email could not be queued. Check email settings and resend again.');
       await load(storeSlug);
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Artwork proof action failed.'); }
     finally { setWorking(false); }

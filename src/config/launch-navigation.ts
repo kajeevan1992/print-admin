@@ -44,7 +44,7 @@ export const launchQaLinks: NonNullable<AdminSidebarNavigationItem['children']> 
 function consolidateStorefrontEditors(items: AdminSidebarNavigationItem[]) {
   return items.filter((item) => item.href !== '/site-designer').map((item) => {
     if (item.href === '/themes') return { ...item, label: 'Storefront Builder' };
-    if (item.label === 'Content' && item.children?.length) return { ...item, children: item.children.filter((child) => !['/page-content', '/landing-pages'].includes(child.href)) };
+    if (item.label === 'Content' && item.children?.length) return { ...item, children: item.children.filter((child) => !['/page-content', '/landing-pages', '/menu-builder'].includes(child.href)) };
     return item;
   });
 }

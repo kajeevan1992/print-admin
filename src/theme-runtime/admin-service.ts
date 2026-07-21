@@ -157,13 +157,17 @@ function sanitizeField(field: StorefrontThemeFieldSchema, value: unknown) {
   return clean(value);
 }
 
+function defaultEditorValue(field: StorefrontThemeFieldSchema) {
+  if (field.type === 'boolean') return field.path.startsWith('layout.show') ? true : false;
+  if (field.type === 'sections' || field.type === 'navigation') return [];
+  return '';
+}
+
 function editorValues(manifest: StorefrontThemeManifest, snapshot: ThemeSnapshot) {
   const values: Record<string, unknown> = {};
   for (const field of themeFields(manifest)) {
     const value = getPath(snapshot, field.path);
-    values[field.path] = value === undefined
-      ? field.type === 'boolean' ? false : ['sections', 'navigation'].includes(field.type) ? [] : ''
-      : jsonClone(value);
+    values[field.path] = value === undefined ? defaultEditorValue(field) : jsonClone(value);
   }
   return values;
 }

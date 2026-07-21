@@ -5,6 +5,7 @@ import {
   mutateStorefrontThemeAdmin,
   type StorefrontThemeAdminAction,
 } from '@/theme-runtime/admin-service';
+import { validateStorefrontNavigationValues } from '@/theme-runtime/navigation-payload';
 import { validateStorefrontSectionValues } from '@/theme-runtime/section-payload';
 
 export const dynamic = 'force-dynamic';
@@ -20,10 +21,14 @@ function action(value: unknown): StorefrontThemeAdminAction | null {
 }
 
 function validatedValues(values: Record<string, unknown>) {
-  if (!Object.prototype.hasOwnProperty.call(values, 'content.pages')) return validateStorefrontSectionValues(values);
-  const validated = validateStorefrontSectionValues({ ...values, pages: values['content.pages'] });
-  const { pages, ...rest } = validated;
-  return { ...rest, 'content.pages': pages };
+  const sectionValues = Object.prototype.hasOwnProperty.call(values, 'content.pages')
+    ? (() => {
+        const validated = validateStorefrontSectionValues({ ...values, pages: values['content.pages'] });
+        const { pages, ...rest } = validated;
+        return { ...rest, 'content.pages': pages };
+      })()
+    : validateStorefrontSectionValues(values);
+  return validateStorefrontNavigationValues(sectionValues);
 }
 
 function errorResponse(cause: unknown) {
@@ -31,7 +36,7 @@ function errorResponse(cause: unknown) {
   if (/admin session required/i.test(message)) return responseError(401, 'ADMIN_SESSION_REQUIRED', message);
   if (/tenant access denied/i.test(message)) return responseError(403, 'TENANT_ACCESS_DENIED', message);
   if (/not found|not registered/i.test(message)) return responseError(404, 'STOREFRONT_THEME_NOT_FOUND', message);
-  if (/must be|invalid|unsupported|required|too large|too many|nested|reserved|used more than once/i.test(message)) return responseError(400, 'STOREFRONT_THEME_INVALID', message);
+  if (/must be|invalid|unsupported|required|too large|too many|nested|reserved|used more than once|at most|missing top-level|internal storefront path/i.test(message)) return responseError(400, 'STOREFRONT_THEME_INVALID', message);
   return responseError(500, 'STOREFRONT_THEME_FAILED', message);
 }
 

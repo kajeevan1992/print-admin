@@ -26,7 +26,8 @@ export default async function ThemeDraftPreview({ params, searchParams }: PagePr
   const ids = await resolveStorefrontTenantIds(cleanTenantSlug);
   const [products, settings] = await Promise.all([loadTenantThemeProducts(ids), loadStorefrontDraftRuntimeSettings(cleanTenantSlug, cleanStoreSlug, ids)]);
   if (!settings.storeFound) notFound();
-  const [rawMenuItems, categories, collectionPoints] = await Promise.all([settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids), loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
+  const menuPromise = settings.navigationManaged || settings.navigation.length ? Promise.resolve(settings.navigation) : loadRuntimeMenuItems(ids);
+  const [rawMenuItems, categories, collectionPoints] = await Promise.all([menuPromise, loadTenantThemeCategories(ids, products), loadCollectionPoints(ids)]);
   const menuItems = appendStorefrontContentPageMenuItems(rawMenuItems, settings.pages || [], { includeDisabled: true });
   const themeManifest = getStorefrontThemeManifest(settings.themeKey);
   const storeBase = `/theme-preview/${cleanTenantSlug}/${cleanStoreSlug}`;

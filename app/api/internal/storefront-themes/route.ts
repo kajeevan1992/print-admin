@@ -7,6 +7,7 @@ import {
 } from '@/theme-runtime/admin-service';
 import { validateStorefrontNavigationValues } from '@/theme-runtime/navigation-payload';
 import { validateStorefrontSectionValues } from '@/theme-runtime/section-payload';
+import { captureStorefrontPublishHistory } from '@/theme-runtime/storefront-publish-history.service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -68,7 +69,13 @@ export async function POST(request: Request) {
       themeKey: String(body.themeKey || '').trim() || undefined,
       values,
     });
-    return NextResponse.json({ ok: true, resource: 'internal.storefront-themes', data });
+    let warning = '';
+    if (requestedAction === 'publish') {
+      await captureStorefrontPublishHistory(session.tenantId, storeSlug, session.id).catch((cause) => {
+        warning = cause instanceof Error ? cause.message : 'The publish succeeded, but its history snapshot could not be recorded.';
+      });
+    }
+    return NextResponse.json({ ok: true, resource: 'internal.storefront-themes', data, ...(warning ? { warning } : {}) });
   } catch (cause) {
     return errorResponse(cause);
   }

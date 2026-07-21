@@ -4,6 +4,8 @@ import {
   getRegisteredStorefrontThemes,
   normaliseThemeKey,
 } from '@/theme-runtime/registry';
+import { loadRuntimeMenuItems } from '@/theme-runtime/menu-loader';
+import { sanitizeStorefrontNavigation } from '@/theme-runtime/navigation-payload';
 import { clearStorefrontRuntimeSettingsCache } from '@/theme-runtime/storefront-settings-loader';
 import type {
   StorefrontThemeFieldSchema,
@@ -140,6 +142,7 @@ function sanitizeField(field: StorefrontThemeFieldSchema, value: unknown) {
     if (field.options?.length && !field.options.some((option) => option.value === selected)) throw new Error(`${field.label} has an invalid option.`);
     return selected;
   }
+  if (field.type === 'navigation') return sanitizeStorefrontNavigation(value);
   if (field.type === 'sections') {
     if (Array.isArray(value)) return jsonClone(value);
     if (!clean(value)) return [];
@@ -158,7 +161,9 @@ function editorValues(manifest: StorefrontThemeManifest, snapshot: ThemeSnapshot
   const values: Record<string, unknown> = {};
   for (const field of themeFields(manifest)) {
     const value = getPath(snapshot, field.path);
-    values[field.path] = value === undefined ? (field.type === 'boolean' ? false : field.type === 'sections' ? [] : '') : jsonClone(value);
+    values[field.path] = value === undefined
+      ? field.type === 'boolean' ? false : ['sections', 'navigation'].includes(field.type) ? [] : ''
+      : jsonClone(value);
   }
   return values;
 }
@@ -229,28 +234,31 @@ async function loadThemeRow(store: StoreRow) {
   return rows[0] || null;
 }
 
-function snapshotFromPublished(store: StoreRow, themeMetadata: JsonObject): ThemeSnapshot {
+function snapshotFromPublished(store: StoreRow, themeMetadata: JsonObject, fallbackNavigation: any[]): ThemeSnapshot {
   const storeMetadata = object(store.metadataJson);
   const storeContent = object(storeMetadata.content);
   const published = object(themeMetadata.published);
+  const navigationManaged = themeMetadata.navigationManaged === true;
   if (hasKeys(published)) {
+    const publishedNavigation = array(published.navigation);
     return {
       themeKey: normaliseThemeKey(published.themeKey || themeMetadata.themeKey || store.liveThemeKey),
       brand: object(published.brand),
       content: object(published.content),
       layout: object(published.layout),
-      navigation: array(published.navigation),
+      navigation: navigationManaged || publishedNavigation.length ? publishedNavigation : jsonClone(fallbackNavigation),
       sections: array(published.sections),
       updatedAt: clean(published.updatedAt),
       publishedAt: clean(published.publishedAt),
     };
   }
+  const storedNavigation = array(themeMetadata.navigation).length ? array(themeMetadata.navigation) : array(storeMetadata.navigation);
   return {
     themeKey: normaliseThemeKey(themeMetadata.themeKey || store.liveThemeKey),
     brand: { ...object(storeMetadata.branding || storeMetadata.brand), ...object(themeMetadata.brand) },
     content: { ...storeContent, ...object(themeMetadata.contentOverrides || themeMetadata.content) },
     layout: { ...object(storeMetadata.layout), ...object(themeMetadata.layout) },
-    navigation: array(themeMetadata.navigation).length ? array(themeMetadata.navigation) : array(storeMetadata.navigation),
+    navigation: navigationManaged || storedNavigation.length ? storedNavigation : jsonClone(fallbackNavigation),
     sections: array(themeMetadata.sections).length ? array(themeMetadata.sections) : array(storeContent.sections),
     updatedAt: '',
     publishedAt: '',
@@ -262,12 +270,14 @@ function snapshotFromDraft(published: ThemeSnapshot, themeMetadata: JsonObject, 
   if (!hasKeys(draft)) {
     return { ...jsonClone(published), themeKey: normaliseThemeKey(storeMetadata.draftTheme || published.themeKey) };
   }
+  const draftNavigation = array(draft.navigation);
+  const draftNavigationManaged = themeMetadata.draftNavigationManaged === true;
   return {
     themeKey: normaliseThemeKey(draft.themeKey || storeMetadata.draftTheme || published.themeKey),
     brand: object(draft.brand),
     content: object(draft.content),
     layout: object(draft.layout),
-    navigation: array(draft.navigation),
+    navigation: draftNavigationManaged || draftNavigation.length ? draftNavigation : jsonClone(published.navigation),
     sections: array(draft.sections),
     updatedAt: clean(draft.updatedAt),
     publishedAt: clean(draft.publishedAt),
@@ -290,11 +300,11 @@ function serialiseManifest(manifest: StorefrontThemeManifest) {
   };
 }
 
-function stateFromRows(scope: TenantScope, stores: StoreRow[], selectedStore: StoreRow | null, themeRow: CatalogRow | null) {
+function stateFromRows(scope: TenantScope, stores: StoreRow[], selectedStore: StoreRow | null, themeRow: CatalogRow | null, fallbackNavigation: any[]) {
   const manifests = getRegisteredStorefrontThemes();
   const themeMetadata = object(themeRow?.metadataJson);
   const storeMetadata = object(selectedStore?.metadataJson);
-  const published = selectedStore ? snapshotFromPublished(selectedStore, themeMetadata) : null;
+  const published = selectedStore ? snapshotFromPublished(selectedStore, themeMetadata, fallbackNavigation) : null;
   const draft = published ? snapshotFromDraft(published, themeMetadata, storeMetadata) : null;
   const selectedManifest = draft ? resolveManifest(draft.themeKey) : manifests[0];
   const publishedManifest = published ? resolveManifest(published.themeKey) : manifests[0];
@@ -346,13 +356,16 @@ async function loadAdminRows(tenantSlugOrId: string, requestedStoreSlug?: string
   const exactStore = requested ? stores.find((store) => store.storeSlug === requested) || null : null;
   if (requireExactStore && requested && !exactStore) throw new Error('Storefront store not found for this tenant.');
   const selectedStore = exactStore || (!requested ? stores[0] || null : null);
-  const themeRow = selectedStore ? await loadThemeRow(selectedStore) : null;
-  return { scope, stores, selectedStore, themeRow };
+  const [themeRow, fallbackNavigation] = await Promise.all([
+    selectedStore ? loadThemeRow(selectedStore) : Promise.resolve(null),
+    selectedStore ? loadRuntimeMenuItems(scope.tenantIds).catch(() => []) : Promise.resolve([]),
+  ]);
+  return { scope, stores, selectedStore, themeRow, fallbackNavigation };
 }
 
 export async function getStorefrontThemeAdminState(tenantSlugOrId: string, requestedStoreSlug?: string) {
   const rows = await loadAdminRows(tenantSlugOrId, requestedStoreSlug);
-  return stateFromRows(rows.scope, rows.stores, rows.selectedStore, rows.themeRow);
+  return stateFromRows(rows.scope, rows.stores, rows.selectedStore, rows.themeRow, rows.fallbackNavigation);
 }
 
 async function upsertThemeRecord(tx: any, store: StoreRow, metadata: JsonObject) {
@@ -388,15 +401,17 @@ export async function mutateStorefrontThemeAdmin(
   input: StorefrontThemeAdminMutation,
 ) {
   const rows = await loadAdminRows(tenantSlugOrId, input.storeSlug, true);
-  const { scope, selectedStore, themeRow } = rows;
+  const { scope, selectedStore, themeRow, fallbackNavigation } = rows;
   if (!selectedStore) throw new Error('Storefront store not found for this tenant.');
 
   const storeMetadata = object(selectedStore.metadataJson);
   const themeMetadata = object(themeRow?.metadataJson);
-  const published = snapshotFromPublished(selectedStore, themeMetadata);
+  const published = snapshotFromPublished(selectedStore, themeMetadata, fallbackNavigation);
   const currentDraft = snapshotFromDraft(published, themeMetadata, storeMetadata);
   const manifest = resolveManifest(input.themeKey || currentDraft.themeKey);
   const now = new Date().toISOString();
+  const managesNavigation = themeFields(manifest).some((field) => field.type === 'navigation' && field.path === 'navigation')
+    && Object.prototype.hasOwnProperty.call(object(input.values), 'navigation');
 
   if (input.action === 'save-draft') {
     const draft = applyEditorValues(manifest, { ...currentDraft, themeKey: manifest.key }, object(input.values));
@@ -406,6 +421,7 @@ export async function mutateStorefrontThemeAdmin(
       themeKey: published.themeKey,
       status: Number(themeMetadata.publishedVersion || 0) > 0 ? 'published' : 'draft',
       draftVersion,
+      draftNavigationManaged: managesNavigation || themeMetadata.draftNavigationManaged === true,
       draft: { ...draft, themeKey: manifest.key, updatedAt: now },
     };
     const nextStoreMetadata = { ...storeMetadata, draftTheme: manifest.key };
@@ -417,6 +433,7 @@ export async function mutateStorefrontThemeAdmin(
     const draft = applyEditorValues(manifest, { ...currentDraft, themeKey: manifest.key }, object(input.values));
     const publishedVersion = Math.max(Number(themeMetadata.publishedVersion || 0), 0) + 1;
     const publishedSnapshot = { ...draft, themeKey: manifest.key, updatedAt: now, publishedAt: now };
+    const navigationManaged = managesNavigation || themeMetadata.draftNavigationManaged === true || themeMetadata.navigationManaged === true;
     const nextThemeMetadata = {
       ...themeMetadata,
       themeKey: manifest.key,
@@ -424,6 +441,8 @@ export async function mutateStorefrontThemeAdmin(
       publishedVersion,
       draftVersion: publishedVersion,
       publishedAt: now,
+      navigationManaged,
+      draftNavigationManaged: navigationManaged,
       brand: publishedSnapshot.brand,
       contentOverrides: publishedSnapshot.content,
       layout: publishedSnapshot.layout,
@@ -446,6 +465,7 @@ export async function mutateStorefrontThemeAdmin(
     const nextThemeMetadata = {
       ...themeMetadata,
       draftVersion: Number(themeMetadata.publishedVersion || 0),
+      draftNavigationManaged: themeMetadata.navigationManaged === true,
       draft: published,
     };
     const nextStoreMetadata = { ...storeMetadata, draftTheme: published.themeKey };
@@ -461,5 +481,5 @@ export async function mutateStorefrontThemeAdmin(
   const refreshedThemeRow = await loadThemeRow(selectedStore);
   const refreshedStores = await loadStores(scope);
   const refreshedStore = refreshedStores.find((store) => store.storeSlug === selectedStore.storeSlug) || selectedStore;
-  return stateFromRows(scope, refreshedStores, refreshedStore, refreshedThemeRow);
+  return stateFromRows(scope, refreshedStores, refreshedStore, refreshedThemeRow, fallbackNavigation);
 }

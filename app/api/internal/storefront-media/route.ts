@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireTenantSession } from '@/core/auth/session-guard.service';
 import {
+  STOREFRONT_MEDIA_LIMITS,
   createStorefrontMediaAsset,
   deleteStorefrontMediaAsset,
   listStorefrontMediaAssets,
@@ -39,6 +40,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await requireTenantSession();
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (contentLength > STOREFRONT_MEDIA_LIMITS.maxFileBytes + 1024 * 1024) {
+      return responseError(413, 'STOREFRONT_MEDIA_TOO_LARGE', `Storefront images must be ${Math.round(STOREFRONT_MEDIA_LIMITS.maxFileBytes / 1024 / 1024)} MB or smaller.`);
+    }
     const form = await request.formData();
     const storeSlug = String(form.get('storeSlug') || '').trim();
     const file = form.get('file');

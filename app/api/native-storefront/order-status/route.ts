@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveCustomerOrderStatus } from '@/core/storefront/customer-order-status.service';
 import { customerShipmentForOrder } from '@/core/dispatch/shipment.service';
+import { customerPackageSummaryForShipment } from '@/core/dispatch/shipment-packages.service';
 import { publicRateLimit, rateLimitPayload } from '@/core/security/public-rate-limit.service';
 
 export const dynamic = 'force-dynamic';
@@ -30,11 +31,12 @@ function shipmentMessage(shipment: any) {
   if (shipment.status === 'manifested') return 'Your shipment has been manifested for carrier handover.';
   return 'Your order is packed and being prepared for dispatch.';
 }
-function withShipment(status: any, shipment: any) {
+function withShipment(status: any, shipment: any, packing: any) {
   if (!shipment) return status;
   const complete = ['delivered', 'collected'].includes(shipment.status);
   const currentStage = complete ? 'complete' : 'dispatch';
-  return { ...status, currentStage, message: shipmentMessage(shipment), progress: progress(currentStage), dispatch: shipment, shipmentEvents: shipment.events || [] };
+  const dispatch = { ...shipment, packages: packing?.items || [], packageSummary: packing?.summary || null };
+  return { ...status, currentStage, message: shipmentMessage(shipment), progress: progress(currentStage), dispatch, shipmentEvents: shipment.events || [] };
 }
 
 export async function OPTIONS() { return new NextResponse(null, { status: 204, headers: corsHeaders() }); }
@@ -51,7 +53,8 @@ export async function GET(request: NextRequest) {
     if (!status) return json({ ok: false, error: 'Order was not found.' }, { status: 404, headers: rate.headers });
     if ((status as any).forbidden) return json({ ok: false, error: 'Order email does not match.' }, { status: 403, headers: rate.headers });
     const shipment = await customerShipmentForOrder(request, orderId, email).catch(() => null);
-    return json({ ok: true, source: 'native-storefront-order-status', data: normalizedStatus(withShipment(status, shipment)) }, { headers: rate.headers });
+    const packing = shipment ? await customerPackageSummaryForShipment(request, shipment.id).catch(() => null) : null;
+    return json({ ok: true, source: 'native-storefront-order-status', data: normalizedStatus(withShipment(status, shipment, packing)) }, { headers: rate.headers });
   } catch (error) {
     return json({ ok: false, source: 'native-storefront-order-status', error: error instanceof Error ? error.message : 'Order status failed.' }, { status: 500 });
   }

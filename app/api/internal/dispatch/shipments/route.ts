@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireTenantSession } from '@/core/auth/session-guard.service';
 import { listAdminShipments, readAdminShipment, recordShipmentNotification, runShipmentAction, saveShipmentDetails } from '@/core/dispatch/shipment.service';
+import { listShipmentPackages } from '@/core/dispatch/shipment-packages.service';
 import { sendShipmentCustomerEmail } from '@/core/dispatch/shipment-notifications.service';
 import { loadStorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 
@@ -14,7 +15,7 @@ function errorResponse(cause: unknown) {
   if (/admin session required/i.test(message)) return json({ ok: false, error: message }, 401);
   if (/tenant access denied/i.test(message)) return json({ ok: false, error: message }, 403);
   if (/not found/i.test(message)) return json({ ok: false, error: message }, 404);
-  if (/required|choose|add |only |cannot|must |unsupported|invalid|https|describe|complete /i.test(message)) return json({ ok: false, error: message }, 400);
+  if (/required|choose|add |only |cannot|must |unsupported|invalid|https|describe|complete|box|verified/i.test(message)) return json({ ok: false, error: message }, 400);
   return json({ ok: false, error: message }, 500);
 }
 
@@ -76,6 +77,12 @@ export async function POST(request: Request) {
       const shipment = await readAdminShipment(session.tenantId, clean(input.storeSlug), clean(input.shipmentId));
       const notification = await notify(request, session.tenantId, shipment.storeSlug, shipment, actor, clean(input.note));
       return json({ ok: true, source: 'tenant-shipment-tracking', shipment, notification });
+    }
+    if (action === 'dispatch' || action === 'collected') {
+      const packing = await listShipmentPackages(session.tenantId, clean(input.storeSlug), clean(input.shipmentId));
+      if (!packing.summary.totalPackages || packing.summary.verifiedPackages !== packing.summary.totalPackages) {
+        throw new Error(`Every box must be packed and verified before handover (${packing.summary.verifiedPackages}/${packing.summary.totalPackages} verified).`);
+      }
     }
     const shipment = await runShipmentAction(request, session.tenantId, input, actor);
     const shouldNotify = input.sendNotification !== false && ['collection-ready', 'dispatch', 'collected', 'in-transit', 'exception', 'delivered'].includes(action);

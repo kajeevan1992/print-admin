@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bell, CheckCircle2, ClipboardCheck, ExternalLink, MapPinned, PackageCheck, Printer, RefreshCw, ScanLine, Search, Send, Truck } from 'lucide-react';
+import { AlertTriangle, Bell, Boxes, CheckCircle2, ClipboardCheck, MapPinned, PackageCheck, Plus, Printer, RefreshCw, ScanLine, Search, Send, ShieldCheck, Trash2, Truck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card } from '@/components/ui/card';
 import { Button, PrimaryButton } from '@/components/ui/buttons';
@@ -11,9 +11,56 @@ import { BaseModal } from '@/components/modals/base-modal';
 
 type ShipmentStatus = 'ready' | 'manifested' | 'collection-ready' | 'dispatched' | 'in-transit' | 'exception' | 'delivered' | 'collected' | 'cancelled';
 type Shipment = {
-  id: string; storeSlug: string; productionJobId: string; plannerJobId: string; orderNumber: string; customerName: string; customerEmail: string; customerPhone: string; productName: string; quantity: number; fulfilmentMode: string; carrier: string; service: string; trackingNumber: string; trackingUrl: string; manifestNumber: string; packageCount: number; weightGrams: number; status: ShipmentStatus; scanStatus: string; destination: Record<string, string>; destinationLabel: string; sender: Record<string, string>; release: Record<string, any>; notes: string; manifestedAt: string; dispatchedAt: string; deliveredAt: string; notificationSentAt: string; updatedAt: string;
+  id: string;
+  storeSlug: string;
+  productionJobId: string;
+  plannerJobId: string;
+  orderNumber: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  productName: string;
+  quantity: number;
+  fulfilmentMode: string;
+  carrier: string;
+  service: string;
+  trackingNumber: string;
+  trackingUrl: string;
+  manifestNumber: string;
+  packageCount: number;
+  weightGrams: number;
+  status: ShipmentStatus;
+  scanStatus: string;
+  destination: Record<string, string>;
+  destinationLabel: string;
+  sender: Record<string, string>;
+  release: Record<string, any>;
+  notes: string;
+  manifestedAt: string;
+  dispatchedAt: string;
+  deliveredAt: string;
+  notificationSentAt: string;
+  updatedAt: string;
   events: Array<{ id: string; status: string; label: string; note: string; source: string; actorLabel: string; occurredAt: string }>;
 };
+type PackingBox = {
+  id: string;
+  shipmentId: string;
+  packageNumber: number;
+  label: string;
+  contents: string[];
+  weightGrams: number;
+  lengthMm: number;
+  widthMm: number;
+  heightMm: number;
+  barcode: string;
+  scanStatus: string;
+  trackingNumber: string;
+  notes: string;
+  verifiedBy: string;
+  verifiedAt: string;
+};
+type PackingSummary = { totalPackages: number; verifiedPackages: number; totalWeightGrams: number; scanStatus: string };
 type DispatchData = { stores: Array<{ slug: string; name: string }>; selectedStore: { slug: string; name: string }; items: Shipment[]; heldByArtworkGate: number; heldByPaymentGate: number };
 
 const columns: Array<{ key: string; title: string; statuses: ShipmentStatus[] }> = [
@@ -23,7 +70,6 @@ const columns: Array<{ key: string; title: string; statuses: ShipmentStatus[] }>
   { key: 'complete', title: 'Complete', statuses: ['delivered', 'collected', 'cancelled'] },
 ];
 
-function clean(value: unknown) { return String(value || '').trim(); }
 function formatDate(value: string) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-GB'); }
 function formatWeight(value: number) { return value ? value >= 1000 ? `${(value / 1000).toFixed(2)} kg` : `${value} g` : 'not set'; }
 function statusTone(status: string) { if (['delivered', 'collected'].includes(status)) return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'; if (status === 'exception' || status === 'cancelled') return 'border-rose-500/30 bg-rose-500/10 text-rose-200'; if (['dispatched', 'in-transit'].includes(status)) return 'border-violet-500/30 bg-violet-500/10 text-violet-200'; return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-200'; }
@@ -36,35 +82,55 @@ export function DispatchCenterPage() {
   const [search, setSearch] = useState('');
   const [carrier, setCarrier] = useState('all');
   const [editing, setEditing] = useState<Shipment | null>(null);
+  const [packing, setPacking] = useState<Shipment | null>(null);
+  const [boxes, setBoxes] = useState<PackingBox[]>([]);
+  const [packingSummary, setPackingSummary] = useState<PackingSummary | null>(null);
   const [working, setWorking] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [packingLoading, setPackingLoading] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   async function load(requestedStore = storeSlug) {
-    setLoading(true); setError('');
+    setLoading(true);
+    setError('');
     try {
-      const params = new URLSearchParams(); if (requestedStore) params.set('storeSlug', requestedStore);
+      const params = new URLSearchParams();
+      if (requestedStore) params.set('storeSlug', requestedStore);
       const response = await fetch(`/api/internal/dispatch/shipments${params.toString() ? `?${params}` : ''}`, { cache: 'no-store' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Dispatch shipments could not load.');
       const next = payload.data as DispatchData;
-      setData(next); setStoreSlug(next.selectedStore?.slug || requestedStore || next.stores[0]?.slug || '');
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Dispatch shipments could not load.'); }
-    finally { setLoading(false); }
+      setData(next);
+      setStoreSlug(next.selectedStore?.slug || requestedStore || next.stores[0]?.slug || '');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Dispatch shipments could not load.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { void load(''); }, []);
+
   const items = data?.items || [];
   const carriers = useMemo(() => ['all', ...Array.from(new Set(items.map((item) => item.carrier).filter(Boolean)))], [items]);
   const filtered = useMemo(() => items.filter((item) => {
     const text = `${item.orderNumber} ${item.customerName} ${item.customerEmail} ${item.productName} ${item.carrier} ${item.service} ${item.trackingNumber} ${item.manifestNumber} ${item.destinationLabel}`.toLowerCase();
     return (!search || text.includes(search.toLowerCase())) && (carrier === 'all' || item.carrier === carrier);
   }), [items, search, carrier]);
-  const stats = useMemo(() => ({ total: filtered.length, ready: filtered.filter((item) => columns[0].statuses.includes(item.status)).length, handed: filtered.filter((item) => columns[1].statuses.includes(item.status)).length, exceptions: filtered.filter((item) => item.status === 'exception').length, complete: filtered.filter((item) => ['delivered', 'collected'].includes(item.status)).length, scanBlocked: filtered.filter((item) => item.scanStatus !== 'complete' && !['delivered', 'collected', 'cancelled'].includes(item.status)).length }), [filtered]);
+  const stats = useMemo(() => ({
+    total: filtered.length,
+    ready: filtered.filter((item) => columns[0].statuses.includes(item.status)).length,
+    handed: filtered.filter((item) => columns[1].statuses.includes(item.status)).length,
+    exceptions: filtered.filter((item) => item.status === 'exception').length,
+    complete: filtered.filter((item) => ['delivered', 'collected'].includes(item.status)).length,
+    scanBlocked: filtered.filter((item) => item.scanStatus !== 'complete' && !['delivered', 'collected', 'cancelled'].includes(item.status)).length,
+  }), [filtered]);
 
   async function post(body: Record<string, any>) {
-    setWorking(true); setError(''); setNotice('');
+    setWorking(true);
+    setError('');
+    setNotice('');
     try {
       const response = await fetch('/api/internal/dispatch/shipments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ storeSlug, ...body }) });
       const payload = await response.json().catch(() => ({}));
@@ -73,13 +139,31 @@ export function DispatchCenterPage() {
       setNotice(notification?.attempted ? notification.sent ? 'Shipment updated and customer notification queued.' : `Shipment updated, but email was not sent: ${notification.message}` : 'Shipment updated.');
       await load(storeSlug);
       return payload;
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Shipment update failed.'); return null; }
-    finally { setWorking(false); }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Shipment update failed.');
+      return null;
+    } finally {
+      setWorking(false);
+    }
   }
 
   async function save() {
     if (!editing) return;
-    const payload = await post({ action: 'save', shipmentId: editing.id, carrier: editing.carrier, service: editing.service, trackingNumber: editing.trackingNumber, trackingUrl: editing.trackingUrl, manifestNumber: editing.manifestNumber, packageCount: editing.packageCount, weightGrams: editing.weightGrams, scanStatus: editing.scanStatus, destination: editing.destination, sender: editing.sender, notes: editing.notes });
+    const payload = await post({
+      action: 'save',
+      shipmentId: editing.id,
+      carrier: editing.carrier,
+      service: editing.service,
+      trackingNumber: editing.trackingNumber,
+      trackingUrl: editing.trackingUrl,
+      manifestNumber: editing.manifestNumber,
+      packageCount: editing.packageCount,
+      weightGrams: editing.weightGrams,
+      scanStatus: editing.scanStatus,
+      destination: editing.destination,
+      sender: editing.sender,
+      notes: editing.notes,
+    });
     if (payload) setEditing(null);
   }
 
@@ -90,15 +174,81 @@ export function DispatchCenterPage() {
     await post({ action, shipmentId: item.id, note, sendNotification: ['dispatch', 'collection-ready', 'collected', 'in-transit', 'exception', 'delivered'].includes(action) });
   }
 
+  async function openPacking(item: Shipment) {
+    setPacking(item);
+    setPackingLoading(true);
+    setError('');
+    try {
+      const response = await fetch(`/api/internal/dispatch/shipments/${encodeURIComponent(item.id)}/packages?storeSlug=${encodeURIComponent(storeSlug)}`, { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Boxes could not load.');
+      setBoxes(payload.data.items || []);
+      setPackingSummary(payload.data.summary || null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Boxes could not load.');
+      setPacking(null);
+    } finally {
+      setPackingLoading(false);
+    }
+  }
+
+  function patchBox(id: string, patch: Partial<PackingBox>) {
+    setBoxes((current) => current.map((box) => box.id === id ? { ...box, ...patch } : box));
+  }
+
+  async function packagePost(action: string, values: Record<string, any> = {}) {
+    if (!packing) return null;
+    setWorking(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch(`/api/internal/dispatch/shipments/${encodeURIComponent(packing.id)}/packages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeSlug, action, ...values }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || 'Box update failed.');
+      setBoxes(payload.data.items || []);
+      setPackingSummary(payload.data.summary || null);
+      setPacking(payload.data.shipment || packing);
+      setNotice('Packing plan updated. Shipment totals and scan gate were recalculated.');
+      await load(storeSlug);
+      return payload.data;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Box update failed.');
+      return null;
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function saveBox(box: PackingBox) {
+    await packagePost('save', { ...box, packageId: box.id, contents: box.contents });
+  }
+
+  async function verifyBox(box: PackingBox) {
+    const scanned = window.prompt(`Scan or enter the code printed on ${box.label}:`, '');
+    if (!scanned) return;
+    await packagePost('verify', { packageId: box.id, barcode: scanned });
+  }
+
+  async function removeBox(box: PackingBox) {
+    if (!window.confirm(`Remove ${box.label}?`)) return;
+    await packagePost('delete', { packageId: box.id });
+  }
+
   function actionButtons(item: Shipment) {
     const collection = item.fulfilmentMode === 'collection' || item.service === 'collection';
+    const packingReady = item.scanStatus === 'complete';
     return <>
       <Button onClick={() => setEditing(item)}>Edit</Button>
-      <a href={`/api/internal/dispatch/shipments/${encodeURIComponent(item.id)}/label?storeSlug=${encodeURIComponent(storeSlug)}`} target="_blank" rel="noreferrer"><Button><Printer size={14} /> Label</Button></a>
+      <Button onClick={() => void openPacking(item)}><Boxes size={14} /> Boxes</Button>
+      <a href={`/api/internal/dispatch/shipments/${encodeURIComponent(item.id)}/label?storeSlug=${encodeURIComponent(storeSlug)}`} target="_blank" rel="noreferrer"><Button><Printer size={14} /> Shipment label</Button></a>
       {item.status === 'ready' && !collection ? <Button disabled={working} onClick={() => void run(item, 'manifest')}><ClipboardCheck size={14} /> Manifest</Button> : null}
       {item.status === 'ready' && collection ? <PrimaryButton disabled={working} onClick={() => void run(item, 'collection-ready')}><PackageCheck size={14} /> Ready collection</PrimaryButton> : null}
-      {['ready', 'manifested'].includes(item.status) && !collection ? <PrimaryButton disabled={working || !paymentReady(item) || !proofReady(item)} onClick={() => void run(item, 'dispatch')}><Send size={14} /> Dispatch</PrimaryButton> : null}
-      {item.status === 'collection-ready' ? <PrimaryButton disabled={working} onClick={() => void run(item, 'collected')}><CheckCircle2 size={14} /> Collected</PrimaryButton> : null}
+      {['ready', 'manifested'].includes(item.status) && !collection ? <PrimaryButton disabled={working || !paymentReady(item) || !proofReady(item) || !packingReady} onClick={() => void run(item, 'dispatch')}><Send size={14} /> Dispatch</PrimaryButton> : null}
+      {item.status === 'collection-ready' ? <PrimaryButton disabled={working || !packingReady} onClick={() => void run(item, 'collected')}><CheckCircle2 size={14} /> Collected</PrimaryButton> : null}
       {['dispatched', 'exception'].includes(item.status) ? <Button disabled={working} onClick={() => void run(item, 'in-transit')}><Truck size={14} /> In transit</Button> : null}
       {['dispatched', 'in-transit', 'exception'].includes(item.status) ? <PrimaryButton disabled={working} onClick={() => void run(item, 'delivered')}><CheckCircle2 size={14} /> Delivered</PrimaryButton> : null}
       {!['delivered', 'collected', 'cancelled'].includes(item.status) ? <Button disabled={working} onClick={() => void run(item, 'exception')}><AlertTriangle size={14} /> Exception</Button> : null}
@@ -107,13 +257,29 @@ export function DispatchCenterPage() {
   }
 
   return <div className="space-y-6">
-    <PageHeader title="Shipment & Dispatch Center" subtitle="Persistent shipment records, proof/payment release gates, labels, customer notifications and delivery timelines." actions={<><a href="/production"><Button>Production</Button></a><Button disabled={loading} onClick={() => void load(storeSlug)}><RefreshCw size={14} /> Refresh</Button></>} />
+    <PageHeader title="Shipment & Dispatch Center" subtitle="Persistent shipment records, multi-box packing, proof/payment release gates, labels, customer notifications and delivery timelines." actions={<><a href="/production"><Button>Production</Button></a><Button disabled={loading} onClick={() => void load(storeSlug)}><RefreshCw size={14} /> Refresh</Button></>} />
     {error ? <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-100">{error}</div> : null}
     {notice ? <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">{notice}</div> : null}
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-8"><Card><p className="text-xs uppercase text-textMuted">Shipments</p><p className="mt-2 text-3xl font-semibold text-white">{stats.total}</p></Card><Card><p className="text-xs uppercase text-textMuted">Ready</p><p className="mt-2 text-3xl font-semibold text-white">{stats.ready}</p></Card><Card><p className="text-xs uppercase text-textMuted">Handover</p><p className="mt-2 text-3xl font-semibold text-white">{stats.handed}</p></Card><Card><p className="text-xs uppercase text-textMuted">Exceptions</p><p className="mt-2 text-3xl font-semibold text-white">{stats.exceptions}</p></Card><Card><p className="text-xs uppercase text-textMuted">Complete</p><p className="mt-2 text-3xl font-semibold text-white">{stats.complete}</p></Card><Card><p className="text-xs uppercase text-textMuted">Scan blockers</p><p className="mt-2 text-3xl font-semibold text-white">{stats.scanBlocked}</p></Card><Card><p className="text-xs uppercase text-textMuted">Proof held</p><p className="mt-2 text-3xl font-semibold text-white">{data?.heldByArtworkGate || 0}</p></Card><Card><p className="text-xs uppercase text-textMuted">Payment held</p><p className="mt-2 text-3xl font-semibold text-white">{data?.heldByPaymentGate || 0}</p></Card></div>
-    <Card className="border-cyan-500/20 bg-cyan-500/5"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-[11px] uppercase tracking-[0.22em] text-cyan-200">Authoritative dispatch feed</p><p className="mt-2 text-sm text-textMuted">Only proof-approved and paid production work at packing/dispatch enters this queue. Browser-local demo batches are no longer used.</p></div><span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-100">Tenant secured · PostgreSQL</span></div></Card>
+
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-8">
+      <Card><p className="text-xs uppercase text-textMuted">Shipments</p><p className="mt-2 text-3xl font-semibold text-white">{stats.total}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Ready</p><p className="mt-2 text-3xl font-semibold text-white">{stats.ready}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Handover</p><p className="mt-2 text-3xl font-semibold text-white">{stats.handed}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Exceptions</p><p className="mt-2 text-3xl font-semibold text-white">{stats.exceptions}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Complete</p><p className="mt-2 text-3xl font-semibold text-white">{stats.complete}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Box blockers</p><p className="mt-2 text-3xl font-semibold text-white">{stats.scanBlocked}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Proof held</p><p className="mt-2 text-3xl font-semibold text-white">{data?.heldByArtworkGate || 0}</p></Card>
+      <Card><p className="text-xs uppercase text-textMuted">Payment held</p><p className="mt-2 text-3xl font-semibold text-white">{data?.heldByPaymentGate || 0}</p></Card>
+    </div>
+
+    <Card className="border-cyan-500/20 bg-cyan-500/5"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><p className="text-[11px] uppercase tracking-[0.22em] text-cyan-200">Authoritative dispatch feed</p><p className="mt-2 text-sm text-textMuted">Each shipment owns its boxes. Package count, total weight and scan release are calculated from verified box records; every box must pass before handover.</p></div><span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs text-cyan-100">Tenant secured · PostgreSQL</span></div></Card>
+
     <Card><div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)_220px]"><Select value={storeSlug} options={(data?.stores || []).map((store) => ({ value: store.slug, label: store.name }))} onChange={(event) => { setStoreSlug(event.target.value); void load(event.target.value); }} /><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={16} /><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search order, customer, product, tracking or destination…" /></div><Select value={carrier} options={carriers} onChange={(event) => setCarrier(event.target.value)} /></div></Card>
-    {loading ? <Card>Loading released shipments…</Card> : <div className="grid gap-4 2xl:grid-cols-4">{columns.map((column) => <Card key={column.key} className="overflow-hidden p-0"><div className="border-b border-white/8 px-4 py-3"><h3 className="font-semibold text-white">{column.title}</h3><p className="text-xs text-textMuted">{filtered.filter((item) => column.statuses.includes(item.status)).length} shipments</p></div><div className="space-y-3 p-3">{filtered.filter((item) => column.statuses.includes(item.status)).map((item) => <div key={item.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-white">{item.orderNumber}</p><p className="mt-1 text-xs text-textMuted">{item.productName} · Qty {item.quantity}</p><p className="mt-1 text-xs text-textMuted">{item.customerName || 'Customer'} · {item.customerEmail || 'email not set'}</p></div><span className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] ${statusTone(item.status)}`}>{item.status.replace(/-/g, ' ')}</span></div><div className="mt-3 space-y-1.5 text-xs text-textMuted"><p className="flex gap-2"><Truck size={14} /> {item.carrier} · {item.service}</p><p className="flex gap-2"><ScanLine size={14} /> Scan {item.scanStatus} · {item.packageCount} package(s)</p><p className="flex gap-2"><MapPinned size={14} /> {item.destinationLabel || (item.fulfilmentMode === 'collection' ? 'Store collection' : 'Address not set')}</p><p>Tracking: {item.trackingNumber || 'not set'} · Weight {formatWeight(item.weightGrams)}</p><p>Proof {proofReady(item) ? 'released' : 'held'} · Payment {paymentReady(item) ? 'released' : 'held'}</p></div>{item.notes ? <p className="mt-3 rounded-xl border border-white/8 bg-black/20 p-2 text-xs text-textMuted">{item.notes}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{actionButtons(item)}</div>{item.events?.length ? <details className="mt-3"><summary className="cursor-pointer text-xs text-cyan-200">Shipment timeline ({item.events.length})</summary><div className="mt-2 space-y-2">{item.events.slice().reverse().map((event) => <div key={event.id} className="rounded-lg border border-white/8 bg-black/10 p-2 text-xs text-textMuted"><p className="font-semibold text-white">{event.label}</p><p>{formatDate(event.occurredAt)} · {event.actorLabel || event.source}</p>{event.note ? <p className="mt-1">{event.note}</p> : null}</div>)}</div></details> : null}</div>)}{!filtered.some((item) => column.statuses.includes(item.status)) ? <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-textMuted">No shipments in this stage.</div> : null}</div></Card>)}</div>}
-    <BaseModal open={!!editing} onClose={() => setEditing(null)} title={editing ? `Shipment ${editing.orderNumber}` : 'Shipment'}>{editing ? <div className="space-y-4"><div className="grid gap-3 md:grid-cols-2"><Select value={editing.carrier} options={['DPD', 'DHL', 'Royal Mail', 'UPS', 'Other', 'Collection']} onChange={(event) => setEditing({ ...editing, carrier: event.target.value })} /><Select value={editing.service} options={['next-day', 'tracked-24', 'tracked-48', 'economy', 'same-day', 'collection', 'other']} onChange={(event) => setEditing({ ...editing, service: event.target.value })} /><Input value={editing.trackingNumber} onChange={(event) => setEditing({ ...editing, trackingNumber: event.target.value })} placeholder="Tracking number" /><Input value={editing.trackingUrl} onChange={(event) => setEditing({ ...editing, trackingUrl: event.target.value })} placeholder="HTTPS carrier tracking URL" /><Input value={editing.manifestNumber} onChange={(event) => setEditing({ ...editing, manifestNumber: event.target.value })} placeholder="Manifest number" /><Input type="number" min="1" value={editing.packageCount} onChange={(event) => setEditing({ ...editing, packageCount: Number(event.target.value) || 1 })} placeholder="Package count" /><Input type="number" min="0" value={editing.weightGrams} onChange={(event) => setEditing({ ...editing, weightGrams: Number(event.target.value) || 0 })} placeholder="Weight grams" /><Select value={editing.scanStatus} options={['complete', 'partial', 'missing']} onChange={(event) => setEditing({ ...editing, scanStatus: event.target.value })} /></div><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-textMuted">Delivery address</p><div className="grid gap-3 md:grid-cols-2"><Input value={editing.destination.recipientName || editing.customerName} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, recipientName: event.target.value } })} placeholder="Recipient" /><Input value={editing.destination.company || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, company: event.target.value } })} placeholder="Company" /><Input value={editing.destination.line1 || editing.destination.address1 || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, line1: event.target.value } })} placeholder="Address line 1" /><Input value={editing.destination.line2 || editing.destination.address2 || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, line2: event.target.value } })} placeholder="Address line 2" /><Input value={editing.destination.town || editing.destination.city || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, town: event.target.value } })} placeholder="Town / city" /><Input value={editing.destination.postcode || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, postcode: event.target.value } })} placeholder="Postcode" /><Input value={editing.destination.country || 'United Kingdom'} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, country: event.target.value } })} placeholder="Country" /></div></div><Input value={editing.notes} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} placeholder="Dispatch notes" /><div className="flex justify-end gap-2"><Button onClick={() => setEditing(null)}>Cancel</Button><PrimaryButton disabled={working} onClick={() => void save()}>Save shipment</PrimaryButton></div></div> : null}</BaseModal>
+
+    {loading ? <Card>Loading released shipments…</Card> : <div className="grid gap-4 2xl:grid-cols-4">{columns.map((column) => <Card key={column.key} className="overflow-hidden p-0"><div className="border-b border-white/8 px-4 py-3"><h3 className="font-semibold text-white">{column.title}</h3><p className="text-xs text-textMuted">{filtered.filter((item) => column.statuses.includes(item.status)).length} shipments</p></div><div className="space-y-3 p-3">{filtered.filter((item) => column.statuses.includes(item.status)).map((item) => <div key={item.id} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-white">{item.orderNumber}</p><p className="mt-1 text-xs text-textMuted">{item.productName} · Qty {item.quantity}</p><p className="mt-1 text-xs text-textMuted">{item.customerName || 'Customer'} · {item.customerEmail || 'email not set'}</p></div><span className={`rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] ${statusTone(item.status)}`}>{item.status.replace(/-/g, ' ')}</span></div><div className="mt-3 space-y-1.5 text-xs text-textMuted"><p className="flex gap-2"><Truck size={14} /> {item.carrier} · {item.service}</p><p className="flex gap-2"><Boxes size={14} /> {item.packageCount} box(es) · {formatWeight(item.weightGrams)}</p><p className="flex gap-2"><ScanLine size={14} /> Box verification {item.scanStatus}</p><p className="flex gap-2"><MapPinned size={14} /> {item.destinationLabel || (item.fulfilmentMode === 'collection' ? 'Store collection' : 'Address not set')}</p><p>Tracking: {item.trackingNumber || 'not set'}</p><p>Proof {proofReady(item) ? 'released' : 'held'} · Payment {paymentReady(item) ? 'released' : 'held'}</p></div>{item.notes ? <p className="mt-3 rounded-xl border border-white/8 bg-black/20 p-2 text-xs text-textMuted">{item.notes}</p> : null}<div className="mt-3 flex flex-wrap gap-2">{actionButtons(item)}</div>{item.events?.length ? <details className="mt-3"><summary className="cursor-pointer text-xs text-cyan-200">Shipment timeline ({item.events.length})</summary><div className="mt-2 space-y-2">{item.events.slice().reverse().map((event) => <div key={event.id} className="rounded-lg border border-white/8 bg-black/10 p-2 text-xs text-textMuted"><p className="font-semibold text-white">{event.label}</p><p>{formatDate(event.occurredAt)} · {event.actorLabel || event.source}</p>{event.note ? <p className="mt-1">{event.note}</p> : null}</div>)}</div></details> : null}</div>)}{!filtered.some((item) => column.statuses.includes(item.status)) ? <div className="rounded-2xl border border-dashed border-white/10 p-5 text-center text-xs text-textMuted">No shipments in this stage.</div> : null}</div></Card>)}</div>}
+
+    <BaseModal open={!!editing} onClose={() => setEditing(null)} title={editing ? `Shipment ${editing.orderNumber}` : 'Shipment'}>{editing ? <div className="space-y-4"><div className="grid gap-3 md:grid-cols-2"><Select value={editing.carrier} options={['DPD', 'DHL', 'Royal Mail', 'UPS', 'Other', 'Collection']} onChange={(event) => setEditing({ ...editing, carrier: event.target.value })} /><Select value={editing.service} options={['next-day', 'tracked-24', 'tracked-48', 'economy', 'same-day', 'collection', 'other']} onChange={(event) => setEditing({ ...editing, service: event.target.value })} /><Input value={editing.trackingNumber} onChange={(event) => setEditing({ ...editing, trackingNumber: event.target.value })} placeholder="Shipment tracking number" /><Input value={editing.trackingUrl} onChange={(event) => setEditing({ ...editing, trackingUrl: event.target.value })} placeholder="HTTPS carrier tracking URL" /><Input value={editing.manifestNumber} onChange={(event) => setEditing({ ...editing, manifestNumber: event.target.value })} placeholder="Manifest number" /><div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-xs text-textMuted">Packing totals: {editing.packageCount} box(es) · {formatWeight(editing.weightGrams)} · {editing.scanStatus}. Manage these under Boxes.</div></div><div><p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-textMuted">Delivery address</p><div className="grid gap-3 md:grid-cols-2"><Input value={editing.destination.recipientName || editing.customerName} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, recipientName: event.target.value } })} placeholder="Recipient" /><Input value={editing.destination.company || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, company: event.target.value } })} placeholder="Company" /><Input value={editing.destination.line1 || editing.destination.address1 || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, line1: event.target.value } })} placeholder="Address line 1" /><Input value={editing.destination.line2 || editing.destination.address2 || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, line2: event.target.value } })} placeholder="Address line 2" /><Input value={editing.destination.town || editing.destination.city || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, town: event.target.value } })} placeholder="Town / city" /><Input value={editing.destination.postcode || ''} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, postcode: event.target.value } })} placeholder="Postcode" /><Input value={editing.destination.country || 'United Kingdom'} onChange={(event) => setEditing({ ...editing, destination: { ...editing.destination, country: event.target.value } })} placeholder="Country" /></div></div><Input value={editing.notes} onChange={(event) => setEditing({ ...editing, notes: event.target.value })} placeholder="Dispatch notes" /><div className="flex justify-end gap-2"><Button onClick={() => setEditing(null)}>Cancel</Button><PrimaryButton disabled={working} onClick={() => void save()}>Save shipment</PrimaryButton></div></div> : null}</BaseModal>
+
+    <BaseModal open={!!packing} onClose={() => { setPacking(null); setBoxes([]); setPackingSummary(null); }} title={packing ? `Boxes · ${packing.orderNumber}` : 'Boxes'}>{packing ? <div className="space-y-4">{packingLoading ? <div className="rounded-xl border border-white/8 p-4 text-sm text-textMuted">Loading boxes…</div> : <><div className="flex flex-col gap-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4 md:flex-row md:items-center md:justify-between"><div><p className="text-sm font-semibold text-white">{packingSummary?.verifiedPackages || 0} of {packingSummary?.totalPackages || boxes.length} boxes verified</p><p className="mt-1 text-xs text-textMuted">Total packed weight {formatWeight(packingSummary?.totalWeightGrams || 0)}. Saving changed contents or weight resets that box verification.</p></div><Button disabled={working} onClick={() => void packagePost('add')}><Plus size={14} /> Add box</Button></div><div className="space-y-4">{boxes.map((box) => <div key={box.id} className={`rounded-2xl border p-4 ${box.scanStatus === 'verified' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-white/10 bg-white/[0.02]'}`}><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><p className="font-semibold text-white">{box.label}</p><p className="mt-1 font-mono text-xs text-cyan-200">{box.barcode}</p></div><span className={`rounded-full border px-3 py-1 text-xs ${box.scanStatus === 'verified' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-amber-500/30 bg-amber-500/10 text-amber-100'}`}>{box.scanStatus === 'verified' ? `Verified${box.verifiedBy ? ` by ${box.verifiedBy}` : ''}` : 'Pending verification'}</span></div><div className="mt-4 grid gap-3 md:grid-cols-2"><Input value={box.label} onChange={(event) => patchBox(box.id, { label: event.target.value })} placeholder="Box label" /><Input value={box.trackingNumber} onChange={(event) => patchBox(box.id, { trackingNumber: event.target.value })} placeholder="Optional box tracking number" /><textarea className="min-h-28 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-white outline-none ring-cyan-500/30 placeholder:text-textMuted focus:ring-2 md:col-span-2" value={box.contents.join('\n')} onChange={(event) => patchBox(box.id, { contents: event.target.value.split(/\r?\n/) })} placeholder="One contents line per row, for example: 250 × A5 booklets" /><Input type="number" min="0" value={box.weightGrams} onChange={(event) => patchBox(box.id, { weightGrams: Number(event.target.value) || 0 })} placeholder="Packed weight grams" /><Input value={box.notes} onChange={(event) => patchBox(box.id, { notes: event.target.value })} placeholder="Packing notes" /><Input type="number" min="0" value={box.lengthMm} onChange={(event) => patchBox(box.id, { lengthMm: Number(event.target.value) || 0 })} placeholder="Length mm" /><Input type="number" min="0" value={box.widthMm} onChange={(event) => patchBox(box.id, { widthMm: Number(event.target.value) || 0 })} placeholder="Width mm" /><Input type="number" min="0" value={box.heightMm} onChange={(event) => patchBox(box.id, { heightMm: Number(event.target.value) || 0 })} placeholder="Height mm" /></div><div className="mt-4 flex flex-wrap gap-2"><PrimaryButton disabled={working} onClick={() => void saveBox(box)}>Save box</PrimaryButton><a href={`/api/internal/dispatch/shipments/${encodeURIComponent(packing.id)}/packages/${encodeURIComponent(box.id)}/label?storeSlug=${encodeURIComponent(storeSlug)}`} target="_blank" rel="noreferrer"><Button><Printer size={14} /> Print label</Button></a>{box.scanStatus === 'verified' ? <Button disabled={working} onClick={() => void packagePost('unverify', { packageId: box.id })}><ShieldCheck size={14} /> Reopen</Button> : <Button disabled={working} onClick={() => void verifyBox(box)}><ScanLine size={14} /> Verify scan</Button>}<Button disabled={working || boxes.length <= 1} onClick={() => void removeBox(box)}><Trash2 size={14} /> Remove</Button></div></div>)}</div></>}</div> : null}</BaseModal>
   </div>;
 }

@@ -30,6 +30,7 @@ on:
       - 'src/core/documents/**'
       - 'src/core/invoices/**'
       - 'src/core/operations/artwork-proofs.service.ts'
+      - 'src/core/orders/**'
       - 'src/core/payments/**'
       - 'src/core/quotes/**'
       - 'src/core/storefront/**'

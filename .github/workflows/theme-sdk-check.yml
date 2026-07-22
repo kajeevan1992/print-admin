@@ -21,6 +21,7 @@ on:
       - 'app/invoices/**'
       - 'app/production/jobs/**'
       - 'app/track-order/**'
+      - 'middleware.ts'
       - 'src/components/layout/app-frame.tsx'
       - 'src/config/launch-navigation.ts'
       - 'src/core/accounting/**'

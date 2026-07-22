@@ -6,6 +6,12 @@
       "key": "canvas-native",
       "name": "Canvas",
       "version": "1.1.0"
+    },
+    {
+      "folder": "holo-v2",
+      "key": "holo-v2-native",
+      "name": "HOLO V2",
+      "version": "1.0.0"
     }
   ]
 }

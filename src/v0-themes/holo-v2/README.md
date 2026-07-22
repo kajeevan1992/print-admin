@@ -1,12 +1,6 @@
-# v0 Theme Starter
+# HOLO V2 v0 Theme Starter
 
-This directory is copied by:
-
-```bash
-pnpm theme:create modern "Modern"
-```
-
-The generated package is presentation-only. It may edit layout, typography, colours, images, sections, cards and animations.
+This generated package is presentation-only. It may edit layout, typography, colours, images, sections, cards and animations.
 
 It must not import or call:
 
@@ -17,11 +11,19 @@ It must not import or call:
 - basket or checkout services
 - environment variables or credentials
 
-The package receives safe display props from `src/v0-themes/contracts.ts`. A reviewed adapter under `src/theme-runtime/built-in/` connects it to the SaaS.
+The package receives safe display props from `src/v0-themes/contracts.ts`. A reviewed adapter under `src/theme-runtime/built-in/` connects it to the SaaS only after the finished design passes validation and deployment.
 
-Before creating a pull request, run:
+For v0, share only:
+
+```text
+src/v0-themes/holo-v2/
+src/v0-themes/contracts.ts
+```
+
+Before release, run:
 
 ```bash
 pnpm theme:check
+pnpm theme:registry:check
 pnpm build
 ```

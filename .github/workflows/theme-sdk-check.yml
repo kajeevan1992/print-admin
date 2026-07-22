@@ -5,6 +5,7 @@ on:
     paths:
       - 'app/native-stores/**'
       - 'app/theme-preview/**'
+      - 'app/api/dev/**'
       - 'app/api/native-storefront/**'
       - 'app/api/internal/accounting/**'
       - 'app/api/internal/artwork-proofs/**'
@@ -12,6 +13,7 @@ on:
       - 'app/api/internal/dispatch/**'
       - 'app/api/internal/formal-quotes/**'
       - 'app/api/internal/invoices/**'
+      - 'app/api/internal/launch/**'
       - 'app/api/internal/orders/**/documents/**'
       - 'app/api/internal/settings/invoice/**'
       - 'app/api/webhooks/stripe/**'
@@ -19,6 +21,7 @@ on:
       - 'app/customers/**'
       - 'app/dispatch-center/**'
       - 'app/invoices/**'
+      - 'app/launch-command-centre/**'
       - 'app/production/jobs/**'
       - 'app/track-order/**'
       - 'middleware.ts'
@@ -29,11 +32,13 @@ on:
       - 'src/core/dispatch/**'
       - 'src/core/documents/**'
       - 'src/core/invoices/**'
+      - 'src/core/launch/**'
       - 'src/core/operations/artwork-proofs.service.ts'
       - 'src/core/orders/**'
       - 'src/core/payments/**'
       - 'src/core/quotes/**'
       - 'src/core/storefront/**'
+      - 'src/modules/launch/**'
       - 'src/modules/operations/components/artwork-proof-admin-panel.tsx'
       - 'src/modules/operations/pages/accounting-reconciliation-page.tsx'
       - 'src/modules/operations/pages/customers-page.tsx'
@@ -48,8 +53,10 @@ on:
       - 'scripts/create-v0-theme.mjs'
       - 'scripts/install-v0-theme.mjs'
       - 'scripts/sync-v0-theme-registry.mjs'
+      - 'scripts/validate-launch-hardening.mjs'
       - 'scripts/validate-v0-themes.mjs'
       - 'package.json'
+      - '.nvmrc'
       - '.env.example'
       - '.github/workflows/theme-sdk-check.yml'
   workflow_dispatch:
@@ -73,10 +80,13 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22.13.0
+          node-version: 22.13.1
 
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
+
+      - name: Validate launch hardening
+        run: pnpm launch:hardening:check
 
       - name: Validate v0 theme boundaries
         run: pnpm theme:check

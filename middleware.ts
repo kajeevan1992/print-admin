@@ -9,10 +9,11 @@ const PROTECTED_PAGE_PREFIXES = [
 ];
 const PUBLIC_PAGE_PREFIXES = ['/login', '/logout', '/accept-invite', '/theme', '/storefront', '/product', '/category', '/cart', '/checkout', '/track-order', '/proof-action', '/design-brief', '/payment-success', '/payment-cancel'];
 const PUBLIC_INTERNAL_PREFIXES = ['/api/internal/auth/', '/api/internal/storefront/', '/api/internal/catalog/', '/api/internal/seo/', '/api/internal/config/'];
-const DEFAULT_STOREFRONT_ORIGINS = ['http://localhost:5173', 'http://localhost:3000', 'https://hosted-theme.vercel.app', 'http://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io', 'https://gvlasyi01xyshahhxvvsot1u.13.61.22.39.sslip.io'];
+const DEVELOPMENT_STOREFRONT_ORIGINS = ['http://localhost:5173', 'http://localhost:3000'];
 
 function envOrigins() { return [process.env.CORS_ORIGIN, process.env.CORS_ORIGINS, process.env.ALLOWED_ORIGINS, process.env.STOREFRONT_URL, process.env.NEXT_PUBLIC_STOREFRONT_URL].filter(Boolean).flatMap((value) => String(value).split(',')).map((value) => value.trim().replace(/\/$/, '')).filter(Boolean); }
-function allowedStorefrontOrigins() { return new Set([...DEFAULT_STOREFRONT_ORIGINS, ...envOrigins()].map((value) => value.replace(/\/$/, ''))); }
+function defaultOrigins() { return process.env.NODE_ENV === 'production' ? [] : DEVELOPMENT_STOREFRONT_ORIGINS; }
+function allowedStorefrontOrigins() { return new Set([...defaultOrigins(), ...envOrigins()].map((value) => value.replace(/\/$/, ''))); }
 function cleanHost(request: NextRequest) { return String(request.headers.get('host') || '').toLowerCase().replace(/:\d+$/, ''); }
 function isCustomStoreHost(request: NextRequest) { const host = cleanHost(request); if (!host || host.includes('localhost') || host.includes('vercel.app') || host.includes('print-admin')) return false; return host.includes('.'); }
 function wantsHostedTheme(request: NextRequest) { const url = request.nextUrl; const host = cleanHost(request); const mode = url.searchParams.get('hostedTheme') || request.headers.get('x-print-hosted-theme'); return mode === '1' || mode === 'true' || host.startsWith('theme.') || host.startsWith('store.') || isCustomStoreHost(request); }

@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
   const pathname = url.pathname;
   const hosted = hostedThemeResponse(request, pathname, url);
   if (hosted) return hosted;
-  if (pathname.startsWith('/api/internal/') && !isInternalStorefrontApi(pathname) && !hasAdminCookie(request)) return NextResponse.json({ ok: false, error: 'Admin session required.' }, { status: 401 });
+  if (pathname.startsWith('/api/internal/') && !isInternalStorefrontApi(pathname) && !hasAdminCookie(request)) return withPrivateStorefrontHeaders(NextResponse.json({ ok: false, error: 'Admin session required.' }, { status: 401 }));
   if (isProtectedPage(pathname) && !hasAdminCookie(request)) { const loginUrl = url.clone(); loginUrl.pathname = '/login'; loginUrl.searchParams.set('next', pathname); return NextResponse.redirect(loginUrl); }
   if (isInternalStorefrontApi(pathname)) { if (request.method === 'OPTIONS') return withCors(request, new NextResponse(null, { status: 204 })); return withCors(request, NextResponse.next()); }
   const storefrontRouteRoot = storefrontRouteRootFromPathname(pathname);

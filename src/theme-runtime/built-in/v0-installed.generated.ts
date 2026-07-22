@@ -5,6 +5,11 @@ import {
   themeManifest as canvasThemeManifest,
   themeRouteViews as canvasThemeRouteViews,
 } from '@/v0-themes/canvas';
+import {
+  ThemeHomePage as HoloV2ThemeHomePage,
+  themeManifest as holoV2ThemeManifest,
+  themeRouteViews as holoV2ThemeRouteViews,
+} from '@/v0-themes/holo-v2';
 
 export const INSTALLED_V0_THEME_DEFINITIONS = [
   createV0ThemeDefinition({
@@ -12,5 +17,11 @@ export const INSTALLED_V0_THEME_DEFINITIONS = [
     HomePage: CanvasThemeHomePage,
     routeViews: canvasThemeRouteViews,
     themeStyle: 'canvas',
+  }),
+  createV0ThemeDefinition({
+    manifest: holoV2ThemeManifest,
+    HomePage: HoloV2ThemeHomePage,
+    routeViews: holoV2ThemeRouteViews,
+    themeStyle: 'holo-v2',
   }),
 ];

@@ -12,6 +12,7 @@
     "theme:install": "node scripts/install-v0-theme.mjs",
     "theme:registry": "node scripts/sync-v0-theme-registry.mjs",
     "theme:registry:check": "node scripts/sync-v0-theme-registry.mjs --check",
+    "launch:hardening:check": "node scripts/validate-launch-hardening.mjs",
     "prisma:generate": "node scripts/prisma-generate-with-db-env.cjs",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",

@@ -34,4 +34,4 @@ Before returning the design, keep these files and exports intact:
 - `themeRouteViews`
 - `themeManifest`
 
-This package is intentionally not registered as a live theme yet. It must return through the controlled theme installer, safety checks, GitHub review and deployment before it can appear in the Storefront Builder.
+The starter is registered in the generated theme catalogue so the safety workflow can validate it, but it is not selected or published for HOLO Print. Atlantis and the current live storefront remain unchanged until HOLO V2 is deliberately chosen, previewed and published from the Storefront Builder after the finished design is reviewed and deployed.

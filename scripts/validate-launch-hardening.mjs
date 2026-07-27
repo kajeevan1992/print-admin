@@ -24,6 +24,19 @@ requireText('app/api/dev/seed/route.ts', 'DEV_SEED_SECRET', 'Production seed sec
 requireText('middleware.ts', "process.env.NODE_ENV === 'production' ? []", 'Production CORS defaults');
 forbidText('middleware.ts', 'sslip.io', 'Production CORS defaults');
 
+const repairService = 'src/core/api/holo-storefront-repair.service.ts';
+const repairRoute = 'app/api/internal/platform/holo-storefront-repair/route.ts';
+requireText(repairRoute, 'requireSuperAdmin', 'HOLO storefront repair authentication');
+requireText(repairRoute, 'REPAIR HOLO STOREFRONT', 'HOLO storefront repair confirmation');
+requireText(repairService, "tenantSlug: 'holo-print-sidcup'", 'HOLO storefront repair tenant target');
+requireText(repairService, "storeId: 'default-store'", 'HOLO storefront repair store target');
+requireText(repairService, "liveTheme: 'base-atlantis'", 'HOLO storefront repair live theme');
+requireText(repairService, 'createStore', 'HOLO storefront repair create boundary');
+requireText(repairService, 'publishStore', 'HOLO storefront repair publish boundary');
+forbidText(repairService, 'ensureProduct', 'HOLO storefront repair catalogue isolation');
+forbidText(repairService, 'createOrRotateCredential', 'HOLO storefront repair credential isolation');
+forbidText(repairService, 'holo-v2-native', 'HOLO storefront repair draft-theme isolation');
+
 for (const key of [
   'DATABASE_URL',
   'NEXT_PUBLIC_APP_URL',

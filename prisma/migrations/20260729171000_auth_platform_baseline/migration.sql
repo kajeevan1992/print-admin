@@ -1,0 +1,265 @@
+-- Baseline the platform authentication schema that was previously created at runtime.
+-- Every statement is intentionally idempotent because production already contains
+-- a partial legacy schema and tenant/storefront data must not be replaced.
+
+DO $$ BEGIN
+  CREATE TYPE "TenantStatus" AS ENUM ('ACTIVE', 'TRIAL', 'SUSPENDED', 'PENDING_ACTIVATION');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "DomainType" AS ENUM ('PLATFORM_SUBDOMAIN', 'CUSTOM_DOMAIN');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "DomainVerificationStatus" AS ENUM ('VERIFIED', 'PENDING', 'NOT_ADDED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "SSLStatus" AS ENUM ('ISSUED', 'PENDING', 'NOT_STARTED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "UserRole" AS ENUM ('SUPERADMIN', 'TENANT_OWNER', 'TENANT_ADMIN', 'TENANT_STAFF', 'CUSTOMER');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "ProductType" AS ENUM ('STANDARD', 'QUOTE_LED', 'TEMPLATE_LED', 'UPLOAD_LED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "OrderStatus" AS ENUM ('DRAFT', 'AWAITING_PAYMENT', 'ARTWORK_CHECK', 'AWAITING_APPROVAL', 'APPROVED', 'IN_PRODUCTION', 'QUALITY_CHECK', 'DISPATCHED', 'DELIVERED', 'CANCELLED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE "ArtworkStatus" AS ENUM ('UPLOADED', 'CHECKING', 'APPROVED', 'CHANGES_REQUESTED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS "Tenant" (
+  "id" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "slug" TEXT NOT NULL,
+  "status" "TenantStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
+  "defaultSubdomain" TEXT NOT NULL,
+  "primaryDomain" TEXT,
+  "planName" TEXT NOT NULL DEFAULT 'Starter',
+  "storefrontsLimit" INTEGER NOT NULL DEFAULT 1,
+  "adminUsersLimit" INTEGER NOT NULL DEFAULT 3,
+  "storageLimitGb" INTEGER NOT NULL DEFAULT 10,
+  "themeKey" TEXT NOT NULL DEFAULT 'base',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "name" TEXT;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "slug" TEXT;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "status" "TenantStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION';
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "defaultSubdomain" TEXT;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "primaryDomain" TEXT;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "planName" TEXT NOT NULL DEFAULT 'Starter';
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "storefrontsLimit" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "adminUsersLimit" INTEGER NOT NULL DEFAULT 3;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "storageLimitGb" INTEGER NOT NULL DEFAULT 10;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "themeKey" TEXT NOT NULL DEFAULT 'base';
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "Tenant" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_slug_key" ON "Tenant"("slug");
+CREATE UNIQUE INDEX IF NOT EXISTS "Tenant_defaultSubdomain_key" ON "Tenant"("defaultSubdomain");
+
+CREATE TABLE IF NOT EXISTS "User" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT,
+  "email" TEXT NOT NULL,
+  "name" TEXT,
+  "role" "UserRole" NOT NULL DEFAULT 'CUSTOMER',
+  "passwordHash" TEXT,
+  "isActive" BOOLEAN NOT NULL DEFAULT true,
+  "lastLoginAt" TIMESTAMP(3),
+  "sessionVersion" INTEGER NOT NULL DEFAULT 1,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "email" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "name" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "role" "UserRole" NOT NULL DEFAULT 'CUSTOMER';
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordHash" TEXT;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "User_email_key" ON "User"("email");
+CREATE INDEX IF NOT EXISTS "User_tenantId_idx" ON "User"("tenantId");
+
+CREATE TABLE IF NOT EXISTS "TenantMembership" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "role" "UserRole" NOT NULL DEFAULT 'TENANT_STAFF',
+  "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+  "permissions" JSONB,
+  "invitedBy" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "TenantMembership_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "userId" TEXT;
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "role" "UserRole" NOT NULL DEFAULT 'TENANT_STAFF';
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "permissions" JSONB;
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "invitedBy" TEXT;
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "TenantMembership" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "TenantMembership_tenantId_userId_key" ON "TenantMembership"("tenantId", "userId");
+CREATE INDEX IF NOT EXISTS "TenantMembership_tenantId_idx" ON "TenantMembership"("tenantId");
+CREATE INDEX IF NOT EXISTS "TenantMembership_userId_idx" ON "TenantMembership"("userId");
+CREATE INDEX IF NOT EXISTS "TenantMembership_role_idx" ON "TenantMembership"("role");
+
+CREATE TABLE IF NOT EXISTS "AdminInvitation" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "email" TEXT NOT NULL,
+  "name" TEXT,
+  "role" "UserRole" NOT NULL DEFAULT 'TENANT_STAFF',
+  "tokenHash" TEXT NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'PENDING',
+  "expiresAt" TIMESTAMP(3) NOT NULL,
+  "acceptedAt" TIMESTAMP(3),
+  "revokedAt" TIMESTAMP(3),
+  "invitedBy" TEXT,
+  "acceptedUserId" TEXT,
+  "metadata" JSONB,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "AdminInvitation_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "email" TEXT;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "name" TEXT;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "role" "UserRole" NOT NULL DEFAULT 'TENANT_STAFF';
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "tokenHash" TEXT;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'PENDING';
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "acceptedAt" TIMESTAMP(3);
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3);
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "invitedBy" TEXT;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "acceptedUserId" TEXT;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "AdminInvitation" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "AdminInvitation_tokenHash_key" ON "AdminInvitation"("tokenHash");
+CREATE INDEX IF NOT EXISTS "AdminInvitation_tenantId_idx" ON "AdminInvitation"("tenantId");
+CREATE INDEX IF NOT EXISTS "AdminInvitation_email_idx" ON "AdminInvitation"("email");
+CREATE INDEX IF NOT EXISTS "AdminInvitation_status_idx" ON "AdminInvitation"("status");
+CREATE INDEX IF NOT EXISTS "AdminInvitation_expiresAt_idx" ON "AdminInvitation"("expiresAt");
+
+CREATE TABLE IF NOT EXISTS "AdminSession" (
+  "id" TEXT NOT NULL,
+  "userId" TEXT NOT NULL,
+  "tenantId" TEXT,
+  "tokenHash" TEXT NOT NULL,
+  "roleSnapshot" TEXT NOT NULL,
+  "sessionVersion" INTEGER NOT NULL DEFAULT 1,
+  "ipAddress" TEXT,
+  "userAgent" TEXT,
+  "expiresAt" TIMESTAMP(3) NOT NULL,
+  "revokedAt" TIMESTAMP(3),
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "AdminSession_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "userId" TEXT;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "tokenHash" TEXT;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "roleSnapshot" TEXT;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "ipAddress" TEXT;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "userAgent" TEXT;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "expiresAt" TIMESTAMP(3);
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "revokedAt" TIMESTAMP(3);
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "AdminSession" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "AdminSession_tokenHash_key" ON "AdminSession"("tokenHash");
+CREATE INDEX IF NOT EXISTS "AdminSession_userId_idx" ON "AdminSession"("userId");
+CREATE INDEX IF NOT EXISTS "AdminSession_tenantId_idx" ON "AdminSession"("tenantId");
+CREATE INDEX IF NOT EXISTS "AdminSession_expiresAt_idx" ON "AdminSession"("expiresAt");
+
+CREATE TABLE IF NOT EXISTS "Domain" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "domain" TEXT NOT NULL,
+  "type" "DomainType" NOT NULL,
+  "verificationStatus" "DomainVerificationStatus" NOT NULL DEFAULT 'PENDING',
+  "sslStatus" "SSLStatus" NOT NULL DEFAULT 'NOT_STARTED',
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "Domain_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "domain" TEXT;
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "type" "DomainType";
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "verificationStatus" "DomainVerificationStatus" NOT NULL DEFAULT 'PENDING';
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "sslStatus" "SSLStatus" NOT NULL DEFAULT 'NOT_STARTED';
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "Domain" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "Domain_domain_key" ON "Domain"("domain");
+
+CREATE TABLE IF NOT EXISTS "AuditLog" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT,
+  "action" TEXT NOT NULL,
+  "actor" TEXT,
+  "metadata" JSONB,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "AuditLog_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "action" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "actor" TEXT;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "metadata" JSONB;
+ALTER TABLE "AuditLog" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE INDEX IF NOT EXISTS "AuditLog_tenantId_idx" ON "AuditLog"("tenantId");
+CREATE INDEX IF NOT EXISTS "AuditLog_action_idx" ON "AuditLog"("action");
+CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_idx" ON "AuditLog"("createdAt");
+
+CREATE TABLE IF NOT EXISTS "CoreCatalogRecord" (
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "resource" TEXT NOT NULL,
+  "slug" TEXT NOT NULL,
+  "name" TEXT NOT NULL,
+  "description" TEXT NOT NULL DEFAULT '',
+  "metadataJson" JSONB,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "CoreCatalogRecord_pkey" PRIMARY KEY ("id")
+);
+
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "tenantId" TEXT;
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "resource" TEXT;
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "slug" TEXT;
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "name" TEXT;
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT '';
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "metadataJson" JSONB;
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE "CoreCatalogRecord" ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE UNIQUE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_slug_key" ON "CoreCatalogRecord"("tenantId", "resource", "slug");
+CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_tenantId_resource_idx" ON "CoreCatalogRecord"("tenantId", "resource");
+CREATE INDEX IF NOT EXISTS "CoreCatalogRecord_resource_slug_idx" ON "CoreCatalogRecord"("resource", "slug");

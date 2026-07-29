@@ -15,8 +15,12 @@ const forbidText = (file, text, label) => {
 
 const packageJson = JSON.parse(read('package.json'));
 if (packageJson.engines?.node !== '>=22.13.0 <23') failures.push('Node runtime must be pinned to supported Node 22 LTS.');
-if (!String(packageJson.scripts?.start || '').includes('prisma migrate deploy &&')) failures.push('Production start must stop when prisma migrate deploy fails.');
-if (String(packageJson.scripts?.start || '').includes('|| echo')) failures.push('Production start must not swallow Prisma or migration failures.');
+for (const scriptName of ['build', 'start']) {
+  const script = String(packageJson.scripts?.[scriptName] || '');
+  if (!script.includes('prisma-migrate-with-db-env.cjs')) failures.push(`${scriptName} must run the tracked Prisma migration runner.`);
+  if (!script.includes('bootstrap-admin-with-db-env.cjs')) failures.push(`${scriptName} must restore the configured bootstrap admin after migrations.`);
+  if (script.includes('|| echo')) failures.push(`${scriptName} must not swallow Prisma or migration failures.`);
+}
 
 requireText('app/api/dev/seed/route.ts', 'requireSuperAdmin', 'Development seed authentication');
 requireText('app/api/dev/seed/route.ts', 'ALLOW_PRODUCTION_DEV_SEED', 'Production seed kill switch');
@@ -48,6 +52,13 @@ for (const file of runtimeAuthFiles) {
   forbidText(file, 'CREATE INDEX', 'Runtime auth schema ownership');
   forbidText(file, 'CREATE TYPE', 'Runtime auth schema ownership');
 }
+const authMigration = 'prisma/migrations/20260729171000_auth_platform_baseline/migration.sql';
+requireText('prisma/migrations/migration_lock.toml', 'provider = "postgresql"', 'Prisma migration provider lock');
+requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "User"', 'Tracked User schema');
+requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "AdminSession"', 'Tracked admin session schema');
+requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "AuditLog"', 'Tracked security audit schema');
+requireText('scripts/prisma-migrate-with-db-env.cjs', 'POSTGRES_URL_NON_POOLING', 'Direct migration database preference');
+requireText('scripts/bootstrap-admin-with-db-env.cjs', 'BOOTSTRAP_ADMIN_EMAIL', 'Deployment admin bootstrap');
 requireText('src/core/db/platform-prisma.ts', 'PRISMA_CONNECTION_LIMIT, 1)', 'Serverless Prisma connection cap');
 requireText('app/api/internal/auth/admin-login/route.ts', "status: 503", 'Retryable login capacity response');
 requireText('app/api/internal/auth/admin-login/route.ts', 'disconnectPlatformPrisma', 'Failed login connection release');

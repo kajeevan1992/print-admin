@@ -30,10 +30,9 @@ export default function BasketHeaderSummary({ tenantSlug, storeSlug, storeBase, 
     return () => { alive = false; window.removeEventListener('storefront:basket-changed', onChange); };
   }, [tenantSlug, storeSlug]);
 
-  return <a href={`${storeBase}/cart`} aria-label={`Basket with ${summary.lineCount} line${summary.lineCount === 1 ? '' : 's'}`} className="relative flex items-center gap-2 rounded-xl border px-3 py-2 text-[12px] font-semibold no-underline" style={{ borderColor: studio ? 'rgba(255,255,255,0.18)' : 'var(--storefront-line, #E3E8F0)', color: studio ? 'white' : 'var(--storefront-muted, #667487)', backgroundColor: studio ? 'rgba(255,255,255,0.08)' : 'white' }}>
+  return <a href={`${storeBase}/cart`} aria-label={`Basket with ${summary.lineCount} line${summary.lineCount === 1 ? '' : 's'}`} className="relative flex items-center gap-2 whitespace-nowrap rounded-xl border px-3 py-2 text-[12px] font-semibold no-underline" style={{ borderColor: studio ? 'rgba(255,255,255,0.18)' : 'var(--storefront-line, #E3E8F0)', color: studio ? 'white' : 'var(--storefront-muted, #667487)', backgroundColor: studio ? 'rgba(255,255,255,0.08)' : 'white' }}>
     <ShoppingCart className="h-4 w-4" />
-    <span>Basket</span>
-    <span className="grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[10px] font-black text-white" style={{ backgroundColor: 'var(--storefront-primary, #18A7D0)' }}>{summary.lineCount}</span>
-    <span className="hidden font-black sm:inline" style={{ color: studio ? 'white' : 'var(--storefront-ink, #161A22)' }}>{summary.formattedTotal}</span>
+    <span className="font-semibold" style={{ color: studio ? 'white' : 'var(--storefront-muted, #667487)' }}>{summary.formattedTotal}</span>
+    {summary.lineCount > 0 ? <span className="rounded-full px-1.5 py-0.5 text-[10px] text-white" style={{ background: 'linear-gradient(135deg, var(--storefront-primary, #18A7D0), var(--storefront-accent, #7B3FE4))' }}>{summary.lineCount}</span> : null}
   </a>;
 }

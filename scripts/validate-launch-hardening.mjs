@@ -41,6 +41,19 @@ forbidText(repairService, 'ensureProduct', 'HOLO storefront repair catalogue iso
 forbidText(repairService, 'createOrRotateCredential', 'HOLO storefront repair credential isolation');
 forbidText(repairService, 'holo-v2-native', 'HOLO storefront repair draft-theme isolation');
 
+const storeChannelService = 'src/core/storefront/store-channels.service.ts';
+const storeAllowanceService = 'src/core/platform/store-allowance.service.ts';
+const storefrontThemeRoute = 'app/api/internal/storefront-themes/route.ts';
+requireText(storeChannelService, "const CANONICAL_RESOURCE = 'storefront-stores'", 'Canonical storefront store authority');
+requireText(storeChannelService, "const LEGACY_RESOURCE = 'store-channels'", 'Legacy channel compatibility source');
+requireText(storeChannelService, 'ensureCanonicalStorefrontStoresForTenant', 'Legacy channel promotion');
+requireText(storeChannelService, 'ON CONFLICT ("tenantId",resource,slug)', 'Idempotent canonical store promotion');
+forbidText(storeChannelService, 'CREATE TABLE IF NOT EXISTS "CoreCatalogRecord"', 'Runtime storefront schema ownership');
+requireText(storeAllowanceService, 'COUNT(DISTINCT COALESCE(', 'Deduplicated store allowance counting');
+requireText(storeAllowanceService, 'resource IN ($2,$3)', 'Canonical and legacy store allowance compatibility');
+forbidText(storeAllowanceService, 'CREATE TABLE IF NOT EXISTS "CoreCatalogRecord"', 'Runtime store allowance schema ownership');
+requireText(storefrontThemeRoute, 'await ensureCanonicalStorefrontStoresForTenant(session.tenantId)', 'Builder legacy store promotion');
+
 const runtimeAuthFiles = [
   'src/core/auth/admin-auth.service.ts',
   'src/core/auth/session-guard.service.ts',

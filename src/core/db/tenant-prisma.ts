@@ -9,10 +9,7 @@ const globalForTenantPrisma = globalThis as unknown as {
 };
 
 const tenantPrismaClients = globalForTenantPrisma.tenantPrismaClients ?? new Map<string, PrismaClientType>();
-
-if (process.env.NODE_ENV !== 'production') {
-  globalForTenantPrisma.tenantPrismaClients = tenantPrismaClients;
-}
+globalForTenantPrisma.tenantPrismaClients = tenantPrismaClients;
 
 export type TenantPrismaResolution = {
   ok: boolean;
@@ -22,8 +19,21 @@ export type TenantPrismaResolution = {
   usingPlatformDatabase?: boolean;
 };
 
+function positiveInteger(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
 function clientCacheKey(record: TenantDatabaseConnection) {
   return `${record.id}:${record.updatedAt}:${record.status}`;
+}
+
+function retireStaleTenantClients(record: TenantDatabaseConnection, keepKey: string) {
+  for (const [key, client] of tenantPrismaClients.entries()) {
+    if (!key.startsWith(`${record.id}:`) || key === keepKey) continue;
+    tenantPrismaClients.delete(key);
+    void client.$disconnect().catch(() => undefined);
+  }
 }
 
 function makeTenantClient(record: TenantDatabaseConnection) {
@@ -31,7 +41,12 @@ function makeTenantClient(record: TenantDatabaseConnection) {
   const cached = tenantPrismaClients.get(key);
   if (cached) return cached;
 
-  const url = normalizePrismaPostgresUrl(buildPostgresConnectionString(toConnectionInput(record)));
+  retireStaleTenantClients(record, key);
+  const url = normalizePrismaPostgresUrl(buildPostgresConnectionString(toConnectionInput(record)), {
+    connectionLimit: positiveInteger(process.env.PRISMA_TENANT_CONNECTION_LIMIT, 1),
+    poolTimeoutSeconds: positiveInteger(process.env.PRISMA_POOL_TIMEOUT_SECONDS, 20),
+    connectTimeoutSeconds: positiveInteger(process.env.PRISMA_CONNECT_TIMEOUT_SECONDS, 10),
+  });
   allowSelfSignedDbCertificatesForNode();
   // Lazy require prevents Next.js build-time route collection from loading
   // @prisma/client before the generated client exists.

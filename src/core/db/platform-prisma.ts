@@ -21,9 +21,11 @@ function positiveInteger(value: string | undefined, fallback: number) {
 
 function firstConfiguredDatabaseUrl() {
   const candidates = [
+    ['PRISMA_DATABASE_URL', cleanUrl(process.env.PRISMA_DATABASE_URL)],
+    ['DATABASE_POOL_URL', cleanUrl(process.env.DATABASE_POOL_URL)],
+    ['POSTGRES_PRISMA_URL', cleanUrl(process.env.POSTGRES_PRISMA_URL)],
     ['AIVEN_DATABASE_URL', cleanUrl(process.env.AIVEN_DATABASE_URL)],
     ['DATABASE_URL', cleanUrl(process.env.DATABASE_URL)],
-    ['POSTGRES_PRISMA_URL', cleanUrl(process.env.POSTGRES_PRISMA_URL)],
     ['POSTGRES_URL', cleanUrl(process.env.POSTGRES_URL)],
     ['POSTGRES_URL_NON_POOLING', cleanUrl(process.env.POSTGRES_URL_NON_POOLING)],
   ] as const;
@@ -38,7 +40,7 @@ function createPlatformPrisma(): PrismaClientType {
   const { PrismaClient } = require('@prisma/client') as typeof import('@prisma/client');
   const dbUrl = getRuntimeDatabaseUrl();
   const url = dbUrl ? normalizePrismaPostgresUrl(dbUrl, {
-    connectionLimit: positiveInteger(process.env.PRISMA_PLATFORM_CONNECTION_LIMIT || process.env.PRISMA_CONNECTION_LIMIT, 3),
+    connectionLimit: positiveInteger(process.env.PRISMA_PLATFORM_CONNECTION_LIMIT || process.env.PRISMA_CONNECTION_LIMIT, 1),
     poolTimeoutSeconds: positiveInteger(process.env.PRISMA_POOL_TIMEOUT_SECONDS, 20),
     connectTimeoutSeconds: positiveInteger(process.env.PRISMA_CONNECT_TIMEOUT_SECONDS, 10),
   }) : '';

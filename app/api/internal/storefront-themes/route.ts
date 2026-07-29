@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireTenantSession } from '@/core/auth/session-guard.service';
+import { ensureCanonicalStorefrontStoresForTenant } from '@/core/storefront/store-channels.service';
 import {
   getStorefrontThemeAdminState,
   mutateStorefrontThemeAdmin,
@@ -44,6 +45,7 @@ function errorResponse(cause: unknown) {
 export async function GET(request: Request) {
   try {
     const session = await requireTenantSession();
+    await ensureCanonicalStorefrontStoresForTenant(session.tenantId);
     const url = new URL(request.url);
     const data = await getStorefrontThemeAdminState(session.tenantId, url.searchParams.get('storeSlug') || undefined);
     return NextResponse.json({ ok: true, resource: 'internal.storefront-themes', data });
@@ -55,6 +57,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await requireTenantSession();
+    await ensureCanonicalStorefrontStoresForTenant(session.tenantId);
     const body = await request.json().catch(() => null) as Record<string, unknown> | null;
     if (!body) return responseError(400, 'STOREFRONT_THEME_BODY_REQUIRED', 'A storefront theme request body is required.');
     const requestedAction = action(body.action);

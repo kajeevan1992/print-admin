@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { platformPrisma } from '@/core/db/platform-prisma';
+import { retryDatabaseConnection } from '@/core/db/database-errors';
 
 export type AdminAuthSession = {
   id: string;
@@ -49,50 +50,10 @@ function mapRole(role: string): AdminAuthSession['role'] {
   return 'tenant_admin';
 }
 function defaultRoute(role: AdminAuthSession['role']) { return role === 'super_admin' ? '/super-admin' : '/workspace'; }
-
-async function ensureAuthTables() {
-  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "TenantStatus" AS ENUM ('ACTIVE','TRIAL','SUSPENDED','PENDING_ACTIVATION'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
-  await platformPrisma.$executeRawUnsafe(`DO $$ BEGIN CREATE TYPE "UserRole" AS ENUM ('SUPERADMIN','TENANT_OWNER','TENANT_ADMIN','TENANT_STAFF','CUSTOMER'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`);
-  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "Tenant" (
-    "id" TEXT PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "slug" TEXT NOT NULL UNIQUE,
-    "status" "TenantStatus" NOT NULL DEFAULT 'PENDING_ACTIVATION',
-    "defaultSubdomain" TEXT NOT NULL UNIQUE,
-    "primaryDomain" TEXT,
-    "planName" TEXT NOT NULL DEFAULT 'Starter',
-    "storefrontsLimit" INTEGER NOT NULL DEFAULT 1,
-    "adminUsersLimit" INTEGER NOT NULL DEFAULT 3,
-    "storageLimitGb" INTEGER NOT NULL DEFAULT 10,
-    "themeKey" TEXT NOT NULL DEFAULT 'base',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );`);
-  await platformPrisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "User" (
-    "id" TEXT PRIMARY KEY,
-    "tenantId" TEXT,
-    "email" TEXT NOT NULL UNIQUE,
-    "name" TEXT,
-    "role" "UserRole" NOT NULL DEFAULT 'CUSTOMER',
-    "passwordHash" TEXT,
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "lastLoginAt" TIMESTAMP(3),
-    "sessionVersion" INTEGER NOT NULL DEFAULT 1,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );`);
-  await platformPrisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "User_tenantId_idx" ON "User"("tenantId")');
-}
-
-async function ensureAuthColumns() {
-  await ensureAuthTables();
-  await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "passwordHash" TEXT');
-  await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true');
-  await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "lastLoginAt" TIMESTAMP(3)');
-  await platformPrisma.$executeRawUnsafe('ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 1');
-}
+function runtimeBootstrapEnabled() { return env('ALLOW_RUNTIME_AUTH_BOOTSTRAP').toLowerCase() === 'true'; }
 
 async function bootstrapOwnerIfConfigured() {
+  if (!runtimeBootstrapEnabled()) return;
   const email = env('BOOTSTRAP_ADMIN_EMAIL').toLowerCase();
   const secret = env('BOOTSTRAP_ADMIN_PASSWORD');
   if (!email || !secret) return;
@@ -112,22 +73,41 @@ async function bootstrapOwnerIfConfigured() {
 }
 
 export async function verifyAdminLogin(email: string, secret: string): Promise<VerifiedAdminLogin> {
-  await ensureAuthColumns();
-  await bootstrapOwnerIfConfigured();
-  const rows = await platformPrisma.$queryRawUnsafe<UserRow[]>('SELECT u.id, u."tenantId", u.email, u.name, u.role::text as role, u."passwordHash", u."isActive", u."sessionVersion", t.name as "tenantName", t.slug as "tenantSlug" FROM "User" u LEFT JOIN "Tenant" t ON t.id = u."tenantId" WHERE lower(u.email)=lower($1) LIMIT 1', email.trim());
-  const user = rows[0];
-  if (!user || !user.passwordHash) return { ok: false, error: 'Admin account was not found or has no login password set.' };
-  if (user.isActive === false) return { ok: false, error: 'Admin account is disabled.' };
-  if (!verifyHash(secret, user.passwordHash)) return { ok: false, error: 'Invalid email or password.' };
-  await platformPrisma.$executeRawUnsafe('UPDATE "User" SET "lastLoginAt"=NOW(), "updatedAt"=NOW() WHERE id=$1', user.id);
-  const role = mapRole(user.role);
-  return { ok: true, dbUser: { id: user.id, tenantId: user.tenantId, role: user.role, sessionVersion: user.sessionVersion || 1 }, session: { id: user.id, name: user.name || user.email, email: user.email, role, company: user.tenantName || (role === 'super_admin' ? 'Print Admin SaaS' : 'Print Admin'), tenantId: user.tenantSlug || env('DEFAULT_TENANT_ID') || 'holo-print', defaultRoute: defaultRoute(role) } };
+  return retryDatabaseConnection(async () => {
+    await bootstrapOwnerIfConfigured();
+    const rows = await platformPrisma.$queryRawUnsafe<UserRow[]>('SELECT u.id, u."tenantId", u.email, u.name, u.role::text as role, u."passwordHash", u."isActive", u."sessionVersion", t.name as "tenantName", t.slug as "tenantSlug" FROM "User" u LEFT JOIN "Tenant" t ON t.id = u."tenantId" WHERE lower(u.email)=lower($1) LIMIT 1', email.trim());
+    const user = rows[0];
+    if (!user || !user.passwordHash) return { ok: false, error: 'Admin account was not found or has no login password set.' };
+    if (user.isActive === false) return { ok: false, error: 'Admin account is disabled.' };
+    if (!verifyHash(secret, user.passwordHash)) return { ok: false, error: 'Invalid email or password.' };
+    await platformPrisma.$executeRawUnsafe('UPDATE "User" SET "lastLoginAt"=NOW(), "updatedAt"=NOW() WHERE id=$1', user.id);
+    const role = mapRole(user.role);
+    return {
+      ok: true,
+      dbUser: { id: user.id, tenantId: user.tenantId, role: user.role, sessionVersion: user.sessionVersion || 1 },
+      session: {
+        id: user.id,
+        name: user.name || user.email,
+        email: user.email,
+        role,
+        company: user.tenantName || (role === 'super_admin' ? 'Print Admin SaaS' : 'Print Admin'),
+        tenantId: user.tenantSlug || env('DEFAULT_TENANT_ID') || 'holo-print',
+        defaultRoute: defaultRoute(role),
+      },
+    };
+  }, 3);
 }
 
 export async function dbAuthStatus() {
-  await ensureAuthColumns();
-  await bootstrapOwnerIfConfigured();
-  const rows = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "User" WHERE "passwordHash" IS NOT NULL AND "isActive" IS NOT FALSE');
-  const sessions = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "AdminSession" WHERE "revokedAt" IS NULL AND "expiresAt" > NOW()').catch(() => [{ count: 0 }]);
-  return { ok: true, activeLoginUsers: Number(rows[0]?.count || 0), activeServerSessions: Number(sessions[0]?.count || 0), bootstrapConfigured: Boolean(env('BOOTSTRAP_ADMIN_EMAIL') && env('BOOTSTRAP_ADMIN_PASSWORD')) };
+  return retryDatabaseConnection(async () => {
+    const rows = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "User" WHERE "passwordHash" IS NOT NULL AND "isActive" IS NOT FALSE');
+    const sessions = await platformPrisma.$queryRawUnsafe<Array<{ count: bigint | number | string }>>('SELECT COUNT(*)::bigint AS count FROM "AdminSession" WHERE "revokedAt" IS NULL AND "expiresAt" > NOW()').catch(() => [{ count: 0 }]);
+    return {
+      ok: true,
+      activeLoginUsers: Number(rows[0]?.count || 0),
+      activeServerSessions: Number(sessions[0]?.count || 0),
+      bootstrapConfigured: Boolean(env('BOOTSTRAP_ADMIN_EMAIL') && env('BOOTSTRAP_ADMIN_PASSWORD')),
+      runtimeBootstrapEnabled: runtimeBootstrapEnabled(),
+    };
+  }, 2);
 }

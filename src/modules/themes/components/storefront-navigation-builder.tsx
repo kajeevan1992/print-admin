@@ -20,27 +20,29 @@ type NavigationItem = {
   imageUrl: string;
 };
 
-const text = (value: unknown) => String(value ?? '').trim();
-const slug = (value: unknown) => text(value).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const inputText = (value: unknown) => String(value ?? '');
+const clean = (value: unknown) => inputText(value).trim();
+const owns = (value: unknown, key: string) => Boolean(value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, key));
+const slug = (value: unknown) => clean(value).toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const newId = (prefix = 'menu') => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 
 function normalise(value: unknown): NavigationItem[] {
   if (!Array.isArray(value)) return [];
   return value.map((raw: any, index) => {
-    const label = text(raw?.label || raw?.name || raw?.title || `Menu ${index + 1}`);
-    const id = text(raw?.id || raw?.slug) || newId('menu');
+    const label = owns(raw, 'label') ? inputText(raw.label) : clean(raw?.name || raw?.title || `Menu ${index + 1}`);
+    const id = clean(raw?.id || raw?.slug) || newId('menu');
     return {
       id,
       slug: slug(raw?.slug || label) || id,
       label,
-      path: text(raw?.path || raw?.href || raw?.url || '/'),
+      path: owns(raw, 'path') ? inputText(raw.path) : clean(raw?.href || raw?.url || '/'),
       enabled: raw?.enabled !== false,
       order: Number.isFinite(Number(raw?.order)) ? Number(raw.order) : (index + 1) * 10,
-      parentId: text(raw?.parentId || raw?.parent || ''),
+      parentId: clean(raw?.parentId || raw?.parent || ''),
       parentSlug: slug(raw?.parentSlug || raw?.parentLabel || ''),
-      group: text(raw?.group || raw?.column || 'Menu'),
-      description: text(raw?.description || raw?.featureBody || ''),
-      imageUrl: text(raw?.imageUrl || raw?.image || ''),
+      group: owns(raw, 'group') ? inputText(raw.group) : clean(raw?.column || 'Menu'),
+      description: owns(raw, 'description') ? inputText(raw.description) : clean(raw?.featureBody || ''),
+      imageUrl: owns(raw, 'imageUrl') ? inputText(raw.imageUrl) : clean(raw?.image || ''),
     };
   }).sort((a, b) => a.order - b.order);
 }

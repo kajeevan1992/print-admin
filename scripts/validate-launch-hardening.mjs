@@ -37,6 +37,21 @@ forbidText(repairService, 'ensureProduct', 'HOLO storefront repair catalogue iso
 forbidText(repairService, 'createOrRotateCredential', 'HOLO storefront repair credential isolation');
 forbidText(repairService, 'holo-v2-native', 'HOLO storefront repair draft-theme isolation');
 
+const runtimeAuthFiles = [
+  'src/core/auth/admin-auth.service.ts',
+  'src/core/auth/session-guard.service.ts',
+  'src/core/security/security-audit.service.ts',
+];
+for (const file of runtimeAuthFiles) {
+  forbidText(file, 'CREATE TABLE', 'Runtime auth schema ownership');
+  forbidText(file, 'ALTER TABLE', 'Runtime auth schema ownership');
+  forbidText(file, 'CREATE INDEX', 'Runtime auth schema ownership');
+  forbidText(file, 'CREATE TYPE', 'Runtime auth schema ownership');
+}
+requireText('src/core/db/platform-prisma.ts', 'PRISMA_CONNECTION_LIMIT, 1)', 'Serverless Prisma connection cap');
+requireText('app/api/internal/auth/admin-login/route.ts', "status: 503", 'Retryable login capacity response');
+requireText('app/api/internal/auth/admin-login/route.ts', 'disconnectPlatformPrisma', 'Failed login connection release');
+
 for (const key of [
   'DATABASE_URL',
   'NEXT_PUBLIC_APP_URL',

@@ -1,3 +1,4 @@
+import { isDatabaseConnectionCapacityError, retryDatabaseConnection } from '@/core/db/database-errors';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { normaliseStorefrontContentPages } from '@/theme-runtime/content-pages';
 import { normaliseRuntimeMenuItem } from '@/theme-runtime/menu-normaliser';
@@ -46,33 +47,46 @@ function normaliseNavigation(value: unknown): StorefrontMenuItem[] {
 
 async function findStoreAndTheme(tenantIds: string[], storeSlug: string) {
   for (const tenantId of tenantIds) {
-    const stores = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
-      `SELECT "tenantId","metadataJson"
-       FROM "CoreCatalogRecord"
-       WHERE "tenantId"=$1
-         AND resource='storefront-stores'
-         AND (
-           slug=$2
-           OR "metadataJson"->>'storeId'=$2
-           OR "metadataJson"->>'slug'=$2
-           OR "metadataJson"->>'storeSlug'=$2
-         )
-       ORDER BY "updatedAt" DESC
-       LIMIT 1`,
-      tenantId,
-      storeSlug,
-    ).catch(() => []);
+    let stores: CatalogRow[];
+    try {
+      stores = await retryDatabaseConnection(() => platformPrisma.$queryRawUnsafe<CatalogRow[]>(
+        `SELECT "tenantId","metadataJson"
+         FROM "CoreCatalogRecord"
+         WHERE "tenantId"=$1
+           AND resource='storefront-stores'
+           AND (
+             slug=$2
+             OR "metadataJson"->>'storeId'=$2
+             OR "metadataJson"->>'slug'=$2
+             OR "metadataJson"->>'storeSlug'=$2
+           )
+         ORDER BY "updatedAt" DESC
+         LIMIT 1`,
+        tenantId,
+        storeSlug,
+      ));
+    } catch (cause) {
+      if (isDatabaseConnectionCapacityError(cause)) throw cause;
+      stores = [];
+    }
     const store = stores[0];
     if (!store) continue;
-    const themes = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
-      `SELECT "tenantId","metadataJson"
-       FROM "CoreCatalogRecord"
-       WHERE "tenantId"=$1 AND resource='hosted-theme-settings' AND slug=$2
-       ORDER BY "updatedAt" DESC
-       LIMIT 1`,
-      store.tenantId,
-      storeSlug,
-    ).catch(() => []);
+
+    let themes: CatalogRow[];
+    try {
+      themes = await retryDatabaseConnection(() => platformPrisma.$queryRawUnsafe<CatalogRow[]>(
+        `SELECT "tenantId","metadataJson"
+         FROM "CoreCatalogRecord"
+         WHERE "tenantId"=$1 AND resource='hosted-theme-settings' AND slug=$2
+         ORDER BY "updatedAt" DESC
+         LIMIT 1`,
+        store.tenantId,
+        storeSlug,
+      ));
+    } catch (cause) {
+      if (isDatabaseConnectionCapacityError(cause)) throw cause;
+      themes = [];
+    }
     return { store, theme: themes[0] || null };
   }
   return null;

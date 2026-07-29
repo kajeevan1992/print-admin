@@ -7,6 +7,12 @@ export type PostgresConnectionInput = {
   sslMode?: 'disable' | 'prefer' | 'require';
 };
 
+export type PrismaPostgresPoolOptions = {
+  connectionLimit?: number;
+  poolTimeoutSeconds?: number;
+  connectTimeoutSeconds?: number;
+};
+
 export function buildPostgresConnectionString(input: PostgresConnectionInput) {
   const user = encodeURIComponent(input.username);
   const password = encodeURIComponent(input.password);
@@ -47,7 +53,17 @@ export function removePostgresSslQueryParams(value: string) {
   }
 }
 
-export function normalizePrismaPostgresUrl(value?: string | null) {
+function positiveInteger(value: number | undefined) {
+  if (!Number.isFinite(value) || Number(value) <= 0) return null;
+  return Math.floor(Number(value));
+}
+
+function setPoolDefault(url: URL, key: string, value: number | undefined) {
+  const next = positiveInteger(value);
+  if (next && !url.searchParams.has(key)) url.searchParams.set(key, String(next));
+}
+
+export function normalizePrismaPostgresUrl(value?: string | null, pool: PrismaPostgresPoolOptions = {}) {
   if (!value) return value || '';
 
   try {
@@ -62,6 +78,10 @@ export function normalizePrismaPostgresUrl(value?: string | null) {
       url.searchParams.set('sslmode', 'require');
       url.searchParams.set('sslaccept', 'accept_invalid_certs');
     }
+
+    setPoolDefault(url, 'connection_limit', pool.connectionLimit);
+    setPoolDefault(url, 'pool_timeout', pool.poolTimeoutSeconds);
+    setPoolDefault(url, 'connect_timeout', pool.connectTimeoutSeconds);
 
     return url.toString();
   } catch {

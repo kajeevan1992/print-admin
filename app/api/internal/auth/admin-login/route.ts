@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyAdminLogin } from '@/core/auth/admin-auth.service';
 import { createAdminServerSession, setAdminSessionCookie } from '@/core/auth/session-guard.service';
+import { isDatabaseConnectionCapacityError } from '@/core/db/database-errors';
+import { disconnectPlatformPrisma } from '@/core/db/platform-prisma';
 import { recordAdminLoginFailure, recordAdminLoginSuccess } from '@/core/security/security-audit.service';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +25,13 @@ export async function POST(request: Request) {
     setAdminSessionCookie(response, serverSession.token, serverSession.expiresAt);
     return response;
   } catch (error) {
+    if (isDatabaseConnectionCapacityError(error)) {
+      await disconnectPlatformPrisma();
+      return NextResponse.json(
+        { ok: false, error: 'The database is temporarily busy. Please wait a few seconds and try again.' },
+        { status: 503, headers: { 'Retry-After': '5' } },
+      );
+    }
     return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : 'Login failed.' }, { status: 500 });
   }
 }

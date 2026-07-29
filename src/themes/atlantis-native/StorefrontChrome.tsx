@@ -13,6 +13,8 @@ import CustomerAccountHeader from './CustomerAccountHeader';
 import { loadCollectionPoints, type CollectionPoint } from './collection-points';
 import { loadStorefrontRuntimeSettings, type StorefrontRuntimeSettings } from '@/theme-runtime/storefront-settings-loader';
 
+const MEGA_MENU_BENEFITS = ['Fast turnaround', 'Premium stock', 'Bulk pricing', 'Artwork support'];
+
 function Shell({ children }: { children: ReactNode }) {
   return <div className="mx-auto w-full max-w-[1360px] px-4 sm:px-6 lg:px-8">{children}</div>;
 }
@@ -55,25 +57,31 @@ function UtilityBar({ settings, studio }: { settings: StorefrontRuntimeSettings;
 }
 
 function DesktopNavigation({ currentPath, navItems, storeBase, studio }: { currentPath: string; navItems: NavItem[]; storeBase: string; studio: boolean }) {
-  return <nav className="hidden items-center justify-center gap-4 xl:flex">
+  return <nav className="relative hidden items-center justify-center gap-4 xl:flex">
     {navItems.map((item) => {
       const active = currentPath === item.path || currentPath.startsWith(`${item.path}/`);
-      const hasDropdown = item.columns.some((column) => column.links.length > 0);
+      const columns = item.columns.filter((column) => column.links.length > 0).slice(0, 4);
+      const hasDropdown = columns.length > 0;
       const colour = active ? BRAND.primary : studio ? 'rgba(255,255,255,0.78)' : BRAND.ink;
       if (!hasDropdown) return <Link key={`${item.label}-${item.path}`} href={storeHref(storeBase, item.path)} className="text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: colour }}>{item.label}</Link>;
 
-      return <div key={`${item.label}-${item.path}`} className="group relative">
+      return <div key={`${item.label}-${item.path}`} className="group static">
         <Link href={storeHref(storeBase, item.path)} aria-haspopup="true" className="inline-flex items-center gap-1 text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: colour }}>
           {item.label}<ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180 group-focus-within:rotate-180" />
         </Link>
-        <div className="pointer-events-none invisible absolute left-1/2 top-full z-50 w-[min(820px,calc(100vw-3rem))] -translate-x-1/2 pt-4 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
-          <div className="grid grid-cols-[220px_1fr] gap-6 rounded-[22px] border bg-white p-5 shadow-2xl" style={{ borderColor: BRAND.line }}>
-            <div className="overflow-hidden rounded-2xl bg-[#F6F7F8]">
-              {item.feature.image ? <img src={item.feature.image} alt="" className="h-28 w-full object-cover" /> : null}
-              <div className="p-4"><div className="text-[15px] font-black" style={{ color: BRAND.ink }}>{item.feature.title || item.label}</div><p className="mt-2 text-[11px] leading-5" style={{ color: BRAND.muted }}>{item.feature.body}</p><Link href={storeHref(storeBase, item.path)} className="mt-3 inline-flex text-[11px] font-black no-underline" style={{ color: BRAND.primary }}>{item.feature.cta || `View ${item.label}`}</Link></div>
+        <div className="pointer-events-none invisible absolute left-1/2 top-full z-50 w-[min(1180px,calc(100vw-3rem))] -translate-x-1/2 pt-4 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
+          <div className="overflow-hidden rounded-[24px] border bg-white shadow-2xl" style={{ borderColor: BRAND.line }}>
+            <div className="grid grid-cols-[230px_minmax(0,1fr)] gap-8 p-5">
+              <div className="overflow-hidden rounded-[18px] border bg-[#F6F7F8]" style={{ borderColor: BRAND.line }}>
+                <div className="h-32 w-full bg-[#EAF6FA] bg-cover bg-center" style={item.feature.image ? { backgroundImage: `url(${item.feature.image})` } : undefined} />
+                <div className="p-4"><div className="text-[16px] font-black" style={{ color: BRAND.ink }}>{item.feature.title || item.label}</div><p className="mt-2 text-[11px] leading-5" style={{ color: BRAND.muted }}>{item.feature.body}</p><Link href={storeHref(storeBase, item.path)} className="mt-3 inline-flex text-[11px] font-black no-underline" style={{ color: BRAND.primary }}>{item.feature.cta || `View ${item.label}`}</Link></div>
+              </div>
+              <div className="grid min-w-0 gap-8 py-1" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+                {columns.map((column) => <div key={column.title} className="min-w-0"><div className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.primary }}>{column.title}</div><div className="mt-4 grid gap-3">{column.links.slice(0, 8).map(([label, path]) => <Link key={`${label}-${path}`} href={storeHref(storeBase, path)} className="truncate text-[12px] font-semibold no-underline hover:underline" style={{ color: BRAND.ink }}>{label}</Link>)}</div></div>)}
+              </div>
             </div>
-            <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${Math.min(Math.max(item.columns.length, 1), 4)}, minmax(0, 1fr))` }}>
-              {item.columns.slice(0, 4).map((column) => <div key={column.title}><div className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: BRAND.muted }}>{column.title}</div><div className="mt-3 grid gap-2">{column.links.slice(0, 8).map(([label, path]) => <Link key={`${label}-${path}`} href={storeHref(storeBase, path)} className="text-[12px] font-semibold no-underline hover:underline" style={{ color: BRAND.ink }}>{label}</Link>)}</div></div>)}
+            <div className="grid grid-cols-4 gap-3 border-t p-4" style={{ borderColor: BRAND.line }}>
+              {MEGA_MENU_BENEFITS.map((benefit) => <div key={benefit} className="rounded-full border px-4 py-2 text-center text-[10px] font-semibold" style={{ borderColor: BRAND.line, color: BRAND.muted }}>{benefit}</div>)}
             </div>
           </div>
         </div>

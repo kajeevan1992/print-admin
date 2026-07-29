@@ -1,15 +1,15 @@
 const crypto = require('node:crypto');
 
 const DB_KEYS = [
-  'POSTGRES_URL_NON_POOLING',
   'DATABASE_DIRECT_URL',
   'DIRECT_DATABASE_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'PRISMA_DATABASE_URL',
+  'DATABASE_POOL_URL',
+  'POSTGRES_PRISMA_URL',
   'AIVEN_DATABASE_URL',
   'DATABASE_URL',
   'POSTGRES_URL',
-  'POSTGRES_PRISMA_URL',
-  'PRISMA_DATABASE_URL',
-  'DATABASE_POOL_URL',
 ];
 
 function clean(value) {
@@ -40,16 +40,9 @@ function passwordHash(secret, salt = crypto.randomBytes(16).toString('hex')) {
 }
 
 async function main() {
-  const email = env('BOOTSTRAP_ADMIN_EMAIL').toLowerCase();
-  const secret = env('BOOTSTRAP_ADMIN_PASSWORD');
-  if (!email || !secret) {
-    console.log('Bootstrap admin credentials are not configured; skipping deployment-time admin bootstrap.');
-    return;
-  }
-
   const selectedKey = DB_KEYS.find((key) => isPostgresUrl(process.env[key]));
   if (!selectedKey) {
-    console.log('No PostgreSQL URL is available; skipping deployment-time admin bootstrap.');
+    console.log('No PostgreSQL URL is available; skipping deployment-time admin verification.');
     return;
   }
 
@@ -63,6 +56,21 @@ async function main() {
   const prisma = new PrismaClient({ datasources: { db: { url: process.env.DATABASE_URL } }, log: ['error'] });
 
   try {
+    const counts = await prisma.$queryRawUnsafe(
+      'SELECT COUNT(*)::bigint AS count FROM "User" WHERE "passwordHash" IS NOT NULL AND "isActive" IS NOT FALSE',
+    );
+    const activeLoginUsers = Number(counts[0]?.count || 0);
+    const email = env('BOOTSTRAP_ADMIN_EMAIL').toLowerCase();
+    const secret = env('BOOTSTRAP_ADMIN_PASSWORD');
+
+    if (!email || !secret) {
+      if (activeLoginUsers > 0) {
+        console.log(`Auth migration verified ${activeLoginUsers} existing login account(s); bootstrap credentials are not required.`);
+        return;
+      }
+      throw new Error('The migrated production database has no login account. Configure BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD before deploying.');
+    }
+
     const existing = await prisma.$queryRawUnsafe(
       'SELECT id, "passwordHash" FROM "User" WHERE lower(email)=lower($1) LIMIT 1',
       email,
@@ -120,7 +128,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Deployment-time admin bootstrap failed.');
+  console.error('Deployment-time admin verification failed.');
   console.error(error);
   process.exit(1);
 });

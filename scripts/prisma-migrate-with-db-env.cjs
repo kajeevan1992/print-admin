@@ -26,9 +26,24 @@ function isPostgresUrl(value) {
   return /^postgres(ql)?:\/\//i.test(clean(value));
 }
 
+function isDisconnectedCiPlaceholder(value) {
+  if (String(process.env.GITHUB_ACTIONS || '').toLowerCase() !== 'true') return false;
+  try {
+    const url = new URL(clean(value));
+    return ['127.0.0.1', 'localhost'].includes(url.hostname) && url.pathname.replace(/^\//, '') === 'build';
+  } catch {
+    return false;
+  }
+}
+
 const selectedKey = DB_KEYS.find((key) => isPostgresUrl(process.env[key]));
 if (!selectedKey) {
   console.log('No PostgreSQL URL is available; skipping Prisma migrate deploy for this build.');
+  process.exit(0);
+}
+
+if (isDisconnectedCiPlaceholder(process.env[selectedKey])) {
+  console.log('Skipping Prisma migrate deploy for the disconnected GitHub Actions database placeholder.');
   process.exit(0);
 }
 

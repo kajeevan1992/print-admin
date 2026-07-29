@@ -60,9 +60,10 @@ requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "AdminSession"', 'Tracked
 requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "AuditLog"', 'Tracked security audit schema');
 requireText(migrationRunner, 'POSTGRES_URL_NON_POOLING', 'Direct migration database preference');
 requireText(migrationRunner, "output.includes('P3005')", 'Existing production schema detection');
-requireText(migrationRunner, "['db', 'execute'", 'Idempotent baseline execution');
-requireText(migrationRunner, "['migrate', 'resolve', '--applied'", 'Prisma migration history baseline');
-requireText(migrationRunner, 'Re-running Prisma migrate deploy after baselining.', 'Post-baseline migration verification');
+requireText(migrationRunner, "['db', 'execute'", 'Idempotent authentication baseline execution');
+requireText(migrationRunner, 'historical migrations are not replayed', 'Legacy migration replay guard');
+forbidText(migrationRunner, "['migrate', 'resolve', '--applied'", 'Unaudited migration history baseline');
+forbidText(migrationRunner, 'Re-running Prisma migrate deploy after baselining.', 'Unaudited migration replay');
 requireText('scripts/bootstrap-admin-with-db-env.cjs', 'BOOTSTRAP_ADMIN_EMAIL', 'Deployment admin bootstrap');
 requireText('src/core/db/platform-prisma.ts', 'PRISMA_CONNECTION_LIMIT, 1)', 'Serverless Prisma connection cap');
 requireText('app/api/internal/auth/admin-login/route.ts', "status: 503", 'Retryable login capacity response');

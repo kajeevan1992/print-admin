@@ -1,15 +1,15 @@
 const { spawnSync } = require('node:child_process');
 
 const DB_KEYS = [
-  'POSTGRES_URL_NON_POOLING',
   'DATABASE_DIRECT_URL',
   'DIRECT_DATABASE_URL',
+  'POSTGRES_URL_NON_POOLING',
+  'PRISMA_DATABASE_URL',
+  'DATABASE_POOL_URL',
+  'POSTGRES_PRISMA_URL',
   'AIVEN_DATABASE_URL',
   'DATABASE_URL',
   'POSTGRES_URL',
-  'POSTGRES_PRISMA_URL',
-  'PRISMA_DATABASE_URL',
-  'DATABASE_POOL_URL',
 ];
 
 function clean(value) {

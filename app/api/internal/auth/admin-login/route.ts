@@ -8,6 +8,7 @@ import { recordAdminLoginFailure, recordAdminLoginSuccess } from '@/core/securit
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// Authentication tables are migration-owned; live login requests must never create or alter schema.
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));

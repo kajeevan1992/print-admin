@@ -1,5 +1,7 @@
 const { spawnSync } = require('node:child_process');
+const path = require('node:path');
 
+const AUTH_BASELINE_SQL = path.join('prisma', 'migrations', '20260729171000_auth_platform_baseline', 'migration.sql');
 const DB_KEYS = [
   'DATABASE_DIRECT_URL',
   'DIRECT_DATABASE_URL',
@@ -36,24 +38,44 @@ function isDisconnectedCiPlaceholder(value) {
   }
 }
 
+function runPrisma(args, capture = false) {
+  const result = spawnSync('npx', ['prisma', ...args], {
+    stdio: capture ? 'pipe' : 'inherit',
+    encoding: capture ? 'utf8' : undefined,
+    shell: process.platform === 'win32',
+    env: process.env,
+  });
+  if (capture) {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
+  return result;
+}
+
 const selectedKey = DB_KEYS.find((key) => isPostgresUrl(process.env[key]));
 if (!selectedKey) {
-  console.log('No PostgreSQL URL is available; skipping Prisma migrate deploy for this build.');
+  console.log('No PostgreSQL URL is available; skipping Prisma migration checks for this build.');
   process.exit(0);
 }
 
 if (isDisconnectedCiPlaceholder(process.env[selectedKey])) {
-  console.log('Skipping Prisma migrate deploy for the disconnected GitHub Actions database placeholder.');
+  console.log('Skipping Prisma migration checks for the disconnected GitHub Actions database placeholder.');
   process.exit(0);
 }
 
 process.env.DATABASE_URL = clean(process.env[selectedKey]);
 console.log(`Prisma migrate deploy using ${selectedKey}.`);
 
-const result = spawnSync('npx', ['prisma', 'migrate', 'deploy'], {
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-  env: process.env,
-});
+let result = runPrisma(['migrate', 'deploy'], true);
+if ((result.status ?? 1) === 0) process.exit(0);
 
-process.exit(result.status ?? 1);
+const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+if (!output.includes('P3005')) process.exit(result.status ?? 1);
+
+console.log('Legacy non-empty schema detected without Prisma migration history.');
+console.log('Applying only the idempotent authentication baseline; historical migrations are not replayed.');
+result = runPrisma(['db', 'execute', '--file', AUTH_BASELINE_SQL, '--schema', 'prisma/schema.prisma']);
+if ((result.status ?? 1) !== 0) process.exit(result.status ?? 1);
+
+console.log('Authentication baseline applied. Full Prisma history remains intentionally unbaselined pending a separate migration audit.');
+process.exit(0);

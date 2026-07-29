@@ -53,11 +53,17 @@ for (const file of runtimeAuthFiles) {
   forbidText(file, 'CREATE TYPE', 'Runtime auth schema ownership');
 }
 const authMigration = 'prisma/migrations/20260729171000_auth_platform_baseline/migration.sql';
+const migrationRunner = 'scripts/prisma-migrate-with-db-env.cjs';
 requireText('prisma/migrations/migration_lock.toml', 'provider = "postgresql"', 'Prisma migration provider lock');
 requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "User"', 'Tracked User schema');
 requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "AdminSession"', 'Tracked admin session schema');
 requireText(authMigration, 'CREATE TABLE IF NOT EXISTS "AuditLog"', 'Tracked security audit schema');
-requireText('scripts/prisma-migrate-with-db-env.cjs', 'POSTGRES_URL_NON_POOLING', 'Direct migration database preference');
+requireText(migrationRunner, 'POSTGRES_URL_NON_POOLING', 'Direct migration database preference');
+requireText(migrationRunner, "output.includes('P3005')", 'Existing production schema detection');
+requireText(migrationRunner, "['db', 'execute'", 'Idempotent authentication baseline execution');
+requireText(migrationRunner, 'historical migrations are not replayed', 'Legacy migration replay guard');
+forbidText(migrationRunner, "['migrate', 'resolve', '--applied'", 'Unaudited migration history baseline');
+forbidText(migrationRunner, 'Re-running Prisma migrate deploy after baselining.', 'Unaudited migration replay');
 requireText('scripts/bootstrap-admin-with-db-env.cjs', 'BOOTSTRAP_ADMIN_EMAIL', 'Deployment admin bootstrap');
 requireText('src/core/db/platform-prisma.ts', 'PRISMA_CONNECTION_LIMIT, 1)', 'Serverless Prisma connection cap');
 requireText('app/api/internal/auth/admin-login/route.ts', "status: 503", 'Retryable login capacity response');

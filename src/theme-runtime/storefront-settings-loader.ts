@@ -1,3 +1,4 @@
+import { isDatabaseConnectionCapacityError, retryDatabaseConnection } from '@/core/db/database-errors';
 import { platformPrisma } from '@/core/db/platform-prisma';
 import { normaliseStorefrontContentPages } from '@/theme-runtime/content-pages';
 import { normaliseRuntimeMenuItem } from '@/theme-runtime/menu-normaliser';
@@ -74,13 +75,14 @@ export async function resolveStorefrontTenantIds(tenantSlugInput: string) {
   const tenantSlug = slug(tenantSlugInput);
   const fallback = uniq([tenantSlug, tenantSlug ? `tenant-${tenantSlug}` : '']);
   try {
-    const rows = await platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
+    const rows = await retryDatabaseConnection(() => platformPrisma.$queryRawUnsafe<Array<{ id: string; slug?: string; defaultSubdomain?: string }>>(
       'SELECT id,slug,"defaultSubdomain" FROM "Tenant" WHERE id=$1 OR slug=$1 OR "defaultSubdomain"=$1 LIMIT 1',
       tenantSlug,
-    );
+    ));
     const row = rows[0];
     return uniq([...fallback, row?.id || '', row?.slug || '', row?.defaultSubdomain || '']);
-  } catch {
+  } catch (cause) {
+    if (isDatabaseConnectionCapacityError(cause)) throw cause;
     return fallback;
   }
 }
@@ -89,7 +91,7 @@ async function findStoreRow(tenantIds: string[], storeSlug: string) {
   if (!storeSlug) return null;
   for (const tenantId of tenantIds) {
     try {
-      const rows = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
+      const rows = await retryDatabaseConnection(() => platformPrisma.$queryRawUnsafe<CatalogRow[]>(
         `SELECT id,"tenantId",slug,name,"metadataJson"
          FROM "CoreCatalogRecord"
          WHERE "tenantId"=$1
@@ -104,9 +106,11 @@ async function findStoreRow(tenantIds: string[], storeSlug: string) {
          LIMIT 1`,
         tenantId,
         storeSlug,
-      );
+      ));
       if (rows[0]) return rows[0];
-    } catch {}
+    } catch (cause) {
+      if (isDatabaseConnectionCapacityError(cause)) throw cause;
+    }
   }
   return null;
 }
@@ -116,7 +120,7 @@ async function findThemeRows(tenantIds: string[], storeSlug: string) {
   const rows: CatalogRow[] = [];
   for (const tenantId of tenantIds) {
     try {
-      const found = await platformPrisma.$queryRawUnsafe<CatalogRow[]>(
+      const found = await retryDatabaseConnection(() => platformPrisma.$queryRawUnsafe<CatalogRow[]>(
         `SELECT id,"tenantId",slug,name,"metadataJson"
          FROM "CoreCatalogRecord"
          WHERE "tenantId"=$1 AND resource='hosted-theme-settings' AND slug=$2
@@ -124,9 +128,11 @@ async function findThemeRows(tenantIds: string[], storeSlug: string) {
          LIMIT 1`,
         tenantId,
         storeSlug,
-      );
+      ));
       if (found[0]) rows.push(found[0]);
-    } catch {}
+    } catch (cause) {
+      if (isDatabaseConnectionCapacityError(cause)) throw cause;
+    }
   }
   return rows;
 }

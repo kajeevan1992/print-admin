@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import type { NavItem } from './types';
 import { BRAND, storeHref } from './theme-helpers';
-import FulfillmentSelector from './FulfillmentSelector';
+import HeaderFulfillmentControl from './HeaderFulfillmentControl';
+import AtlantisHeaderSurface from './AtlantisHeaderSurface';
 import HeaderMobileButton from './HeaderMobileButton';
 import SearchTrigger from './SearchTrigger';
 import SearchHost from './SearchHost';
@@ -53,35 +54,37 @@ function UtilityBar({ settings, studio }: { settings: StorefrontRuntimeSettings;
   const utilityText = String(content.utilityText || settings.content?.utilityText || 'Professional print, signage and packaging solutions');
   const configuredItems = utilityItems(settings.content?.utilityItems);
   const highlights = configuredItems.length ? configuredItems : ['Business orders', 'Bulk pricing', 'Fast turnaround', 'Bespoke quote support'];
-  return <div style={{ backgroundColor: studio ? BRAND.primary : BRAND.black, color: 'white' }}><Shell><div className="flex min-h-8 items-center justify-between gap-4 py-1.5 text-[11px] font-medium"><span>{utilityText}</span><div className="hidden gap-5 sm:flex">{highlights.map((item) => <span key={item}>{item}</span>)}</div></div></Shell></div>;
+  return <div style={{ backgroundColor: studio ? BRAND.primary : BRAND.black, color: 'white' }}><Shell><div className="flex h-8 items-center justify-between gap-4 text-[11px] font-medium"><span>{utilityText}</span><div className="hidden gap-5 sm:flex">{highlights.map((item) => <span key={item}>{item}</span>)}</div></div></Shell></div>;
 }
 
 function DesktopNavigation({ currentPath, navItems, storeBase, studio }: { currentPath: string; navItems: NavItem[]; storeBase: string; studio: boolean }) {
-  return <nav className="relative hidden items-center justify-center gap-4 xl:flex">
+  return <nav className="hidden items-center justify-center gap-4 xl:flex">
     {navItems.map((item) => {
       const active = currentPath === item.path || currentPath.startsWith(`${item.path}/`);
       const columns = item.columns.filter((column) => column.links.length > 0).slice(0, 4);
       const hasDropdown = columns.length > 0;
       const colour = active ? BRAND.primary : studio ? 'rgba(255,255,255,0.78)' : BRAND.ink;
-      if (!hasDropdown) return <Link key={`${item.label}-${item.path}`} href={storeHref(storeBase, item.path)} className="text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: colour }}>{item.label}</Link>;
+      if (!hasDropdown) return <Link key={`${item.label}-${item.path}`} href={storeHref(storeBase, item.path)} className="whitespace-nowrap text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: colour }}>{item.label}</Link>;
 
       return <div key={`${item.label}-${item.path}`} className="group static">
-        <Link href={storeHref(storeBase, item.path)} aria-haspopup="true" className="inline-flex items-center gap-1 text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: colour }}>
+        <Link href={storeHref(storeBase, item.path)} aria-haspopup="true" className="inline-flex items-center gap-1 whitespace-nowrap text-[13px] font-semibold tracking-[-0.01em] no-underline" style={{ color: colour }}>
           {item.label}<ChevronDown className="h-3.5 w-3.5 transition-transform duration-200 group-hover:rotate-180 group-focus-within:rotate-180" />
         </Link>
-        <div className="pointer-events-none invisible absolute left-1/2 top-full z-50 w-[min(1180px,calc(100vw-3rem))] -translate-x-1/2 pt-4 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
-          <div className="overflow-hidden rounded-[24px] border bg-white shadow-2xl" style={{ borderColor: BRAND.line }}>
-            <div className="grid grid-cols-[230px_minmax(0,1fr)] gap-8 p-5">
-              <div className="overflow-hidden rounded-[18px] border bg-[#F6F7F8]" style={{ borderColor: BRAND.line }}>
-                <div className="h-32 w-full bg-[#EAF6FA] bg-cover bg-center" style={item.feature.image ? { backgroundImage: `url(${item.feature.image})` } : undefined} />
-                <div className="p-4"><div className="text-[16px] font-black" style={{ color: BRAND.ink }}>{item.feature.title || item.label}</div><p className="mt-2 text-[11px] leading-5" style={{ color: BRAND.muted }}>{item.feature.body}</p><Link href={storeHref(storeBase, item.path)} className="mt-3 inline-flex text-[11px] font-black no-underline" style={{ color: BRAND.primary }}>{item.feature.cta || `View ${item.label}`}</Link></div>
+        <div className="pointer-events-none invisible absolute inset-x-0 top-full z-50 pt-2 opacity-0 transition duration-150 group-hover:pointer-events-auto group-hover:visible group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100">
+          <div className="rounded-[22px] border bg-white p-5 shadow-[0_34px_100px_rgba(0,0,0,0.13)]" style={{ borderColor: BRAND.line }}>
+            <div className="grid gap-5">
+              <div className="grid gap-6" style={{ gridTemplateColumns: `270px repeat(${columns.length}, minmax(0, 1fr))` }}>
+                <div className="rounded-[20px] border p-4" style={{ borderColor: BRAND.line, background: 'linear-gradient(180deg, #FBFDFE 0%, #F4F9FB 100%)' }}>
+                  {item.feature.image ? <img src={item.feature.image} alt={item.feature.title || item.label} className="h-36 w-full rounded-[12px] object-cover" /> : <div className="h-36 w-full rounded-[12px] bg-[#EAF6FA]" />}
+                  <div className="mt-4 text-[18px] font-black tracking-[-0.03em]" style={{ color: BRAND.ink }}>{item.feature.title || item.label}</div>
+                  <p className="mt-2 text-[12px] leading-6" style={{ color: BRAND.muted }}>{item.feature.body}</p>
+                  <Link href={storeHref(storeBase, item.path)} className="mt-4 inline-flex text-[12px] font-bold no-underline" style={{ color: BRAND.primary }}>{item.feature.cta || `View ${item.label}`}</Link>
+                </div>
+                {columns.map((column) => <div key={column.title} className="min-w-0"><div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: BRAND.primary }}>{column.title}</div><div className="grid gap-1">{column.links.slice(0, 8).map(([label, path]) => <Link key={`${label}-${path}`} href={storeHref(storeBase, path)} className="rounded-xl px-3 py-2 text-left text-[12px] font-medium no-underline hover:bg-[#F6F7F8]" style={{ color: BRAND.ink }}>{label}</Link>)}</div></div>)}
               </div>
-              <div className="grid min-w-0 gap-8 py-1" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
-                {columns.map((column) => <div key={column.title} className="min-w-0"><div className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: BRAND.primary }}>{column.title}</div><div className="mt-4 grid gap-3">{column.links.slice(0, 8).map(([label, path]) => <Link key={`${label}-${path}`} href={storeHref(storeBase, path)} className="truncate text-[12px] font-semibold no-underline hover:underline" style={{ color: BRAND.ink }}>{label}</Link>)}</div></div>)}
+              <div className="grid grid-cols-4 gap-3 border-t pt-4" style={{ borderColor: BRAND.line }}>
+                {MEGA_MENU_BENEFITS.map((benefit) => <div key={benefit} className="rounded-[16px] border px-4 py-3 text-[11px] font-semibold" style={{ borderColor: BRAND.line, color: BRAND.muted, background: 'linear-gradient(180deg, #FFFFFF 0%, #F8FBFC 100%)' }}>{benefit}</div>)}
               </div>
-            </div>
-            <div className="grid grid-cols-4 gap-3 border-t p-4" style={{ borderColor: BRAND.line }}>
-              {MEGA_MENU_BENEFITS.map((benefit) => <div key={benefit} className="rounded-full border px-4 py-2 text-center text-[10px] font-semibold" style={{ borderColor: BRAND.line, color: BRAND.muted }}>{benefit}</div>)}
             </div>
           </div>
         </div>
@@ -95,7 +98,12 @@ function Header({ currentPath = '/', navItems, storeBase, settings, collectionPo
   const showFulfilment = settings.layout?.showCollectionPoints !== false;
   const showAccount = settings.layout?.showCustomerAccount !== false;
   const { tenantSlug, storeSlug } = storeParts(storeBase);
-  return <header className="sticky top-0 z-40 border-b backdrop-blur transition-all duration-300" style={{ borderColor: studio ? 'rgba(255,255,255,0.12)' : BRAND.line, backgroundColor: studio ? 'rgba(17,19,21,0.96)' : 'rgba(255,255,255,0.95)' }}><Shell><div className="grid h-[74px] grid-cols-[auto_1fr_auto] items-center gap-6"><div className="flex items-center gap-3"><HeaderMobileButton navItems={navItems} storeBase={storeBase} /><Link href={storeBase} className="flex items-center gap-0.5 no-underline"><StorefrontLogo settings={settings} studio={studio} /></Link></div><DesktopNavigation currentPath={currentPath} navItems={navItems} storeBase={storeBase} studio={studio} /><div className="ml-auto flex items-center gap-2">{showFulfilment ? <FulfillmentSelector compact tenantSlug={tenantSlug} storeSlug={storeSlug} collectionPoints={collectionPoints} /> : null}{showSearch ? <SearchTrigger /> : null}{showAccount ? <CustomerAccountHeader tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} studio={studio} /> : null}<BasketHeaderSummary tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} studio={studio} /></div></div></Shell>{showSearch ? <SearchHost navItems={navItems} storeBase={storeBase} /> : null}</header>;
+  const search = showSearch ? <SearchHost navItems={navItems} storeBase={storeBase} /> : null;
+  return <AtlantisHeaderSurface studio={studio} search={search}>
+    <div className="flex items-center gap-3"><HeaderMobileButton navItems={navItems} storeBase={storeBase} /><Link href={storeBase} className="flex items-center gap-0.5 no-underline"><StorefrontLogo settings={settings} studio={studio} /></Link></div>
+    <DesktopNavigation currentPath={currentPath} navItems={navItems} storeBase={storeBase} studio={studio} />
+    <div className="ml-auto flex items-center gap-2">{showFulfilment ? <HeaderFulfillmentControl tenantSlug={tenantSlug} storeSlug={storeSlug} collectionPoints={collectionPoints} /> : null}{showSearch ? <SearchTrigger /> : null}{showAccount ? <CustomerAccountHeader tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} studio={studio} /> : null}<BasketHeaderSummary tenantSlug={tenantSlug} storeSlug={storeSlug} storeBase={storeBase} studio={studio} /></div>
+  </AtlantisHeaderSurface>;
 }
 
 export default async function StorefrontChrome({ currentPath = '/', children, navItems, storeBase, settings: suppliedSettings }: { currentPath?: string; children: ReactNode; navItems: NavItem[]; storeBase: string; settings?: StorefrontRuntimeSettings }) {
